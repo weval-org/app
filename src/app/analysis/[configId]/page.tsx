@@ -23,7 +23,17 @@ interface UniqueVersionInfo {
   latestTimestamp: string | null;
   displayLatestDate: string;
   latestInstanceSafeTimestamp: string | null;
+  averageHybridScore?: number | null;
 }
+
+// Helper function for score color (can be moved to utils if used elsewhere frequently)
+const getHybridScoreColor = (score: number | null | undefined): string => {
+  if (score === null || score === undefined || isNaN(score)) return 'text-muted-foreground dark:text-slate-400';
+  if (score >= 0.8) return 'text-emerald-600 dark:text-emerald-400';
+  if (score >= 0.6) return 'text-lime-600 dark:text-lime-400';
+  if (score >= 0.4) return 'text-amber-600 dark:text-amber-400';
+  return 'text-red-600 dark:text-red-400';
+};
 
 export default function ConfigRunsPage() {
   const router = useRouter();
@@ -72,13 +82,19 @@ export default function ConfigRunsPage() {
             }
           }
           
-          const runsByLabel = new Map<string, { timestamps: string[], safeTimestamps: string[] }>();
+          const runsByLabel = new Map<string, { 
+            timestamps: string[], 
+            safeTimestamps: string[],
+            scores: (number | null)[] // To store hybrid scores for averaging
+          }>();
 
           allRunsForThisConfig.forEach(run => {
+            console.log("run", run);
             if (!run.runLabel || !run.timestamp) return;
-            const existing = runsByLabel.get(run.runLabel) || { timestamps: [], safeTimestamps: [] };
+            const existing = runsByLabel.get(run.runLabel) || { timestamps: [], safeTimestamps: [], scores: [] };
             existing.timestamps.push(fromSafeTimestamp(run.timestamp));
             existing.safeTimestamps.push(run.timestamp);
+            existing.scores.push(run.hybridScoreStats?.average ?? null); // Collect score
             runsByLabel.set(run.runLabel, existing);
           });
 
@@ -109,6 +125,13 @@ export default function ConfigRunsPage() {
                 displayLatestDate = latestValidDate.toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
             }
 
+            // Calculate average hybrid score for this version
+            const validScores = data.scores.filter(s => typeof s === 'number') as number[];
+            let avgScore: number | null = null;
+            if (validScores.length > 0) {
+              avgScore = validScores.reduce((sum, score) => sum + score, 0) / validScores.length;
+            }
+
             return {
               configId,
               versionId,
@@ -116,6 +139,7 @@ export default function ConfigRunsPage() {
               latestTimestamp: latestTimestampForStorage, 
               displayLatestDate,
               latestInstanceSafeTimestamp: latestSafeTs,
+              averageHybridScore: avgScore, // Store the average score
             };
           });
           
@@ -179,7 +203,7 @@ export default function ConfigRunsPage() {
   return (
     <div className="min-h-screen bg-background text-foreground p-4 md:p-8">
       <div className="fixed inset-0 -z-10 dark:bg-gradient-to-br dark:from-slate-900 dark:to-slate-800 bg-gradient-to-br from-slate-50 to-slate-100" />
-      <div className="max-w-[1800px] mx-auto">
+      <div className="max-w-7xl mx-auto">
         <AnalysisPageHeader
           breadcrumbs={breadcrumbItems}
           pageTitle={pageTitle}
@@ -190,7 +214,7 @@ export default function ConfigRunsPage() {
           isSticky={false}
         />
 
-        <main className="max-w-4xl mx-auto mt-6 md:mt-8">
+        <main className="mt-6 md:mt-8">
           {uniqueRuns.length === 0 && !loading && (
             <div className="text-center py-12">
               {HistoryIcon && <HistoryIcon className="w-12 h-12 mx-auto mb-4 text-muted-foreground dark:text-slate-500" />}
@@ -231,6 +255,17 @@ export default function ConfigRunsPage() {
                         <p className="text-xs text-muted-foreground dark:text-slate-400 mt-1">
                           Latest Instance: <span className="font-semibold text-foreground dark:text-slate-300">{run.displayLatestDate}</span>
                         </p>
+                        {typeof run.averageHybridScore === 'number' ? (
+                          <p className="text-xs text-muted-foreground dark:text-slate-400 mt-1">
+                            Avg. Hybrid Score: <span className={`font-semibold ${getHybridScoreColor(run.averageHybridScore)}`}>
+                              {(run.averageHybridScore * 100).toFixed(1)}%
+                            </span>
+                          </p>
+                        ) : (
+                          <p className="text-xs text-muted-foreground dark:text-slate-400 mt-1">
+                            Avg. Hybrid Score: <span className="font-semibold text-muted-foreground dark:text-slate-400">N/A</span>
+                          </p>
+                        )}
                       </CardContent>
                     </Link>
                     {latestAnalysisLink && (

@@ -64,8 +64,8 @@ const StatCard: React.FC<{
       break;
   }
 
-  return (
-    <div className="bg-card p-4 rounded-lg border border-border/70 dark:border-slate-700/50 flex flex-col justify-between min-h-[110px]">
+  const cardContent = (
+    <>
       <div className="flex items-start justify-between mb-1">
         <h3 className="text-sm font-medium text-muted-foreground leading-tight pr-2">{title}</h3>
         {Icon && <Icon className={`w-5 h-5 flex-shrink-0 ${iconColorClass}`} />}
@@ -79,6 +79,20 @@ const StatCard: React.FC<{
         </>
       ) : (
         <p className="text-sm text-muted-foreground mt-auto">Not available</p>
+      )}
+    </>
+  );
+
+  return (
+    <div className="bg-card p-4 rounded-lg border border-border/70 dark:border-slate-700/50 flex flex-col justify-between min-h-[110px] hover:shadow-md transition-shadow">
+      {data && data.configId ? (
+        <Link href={`/analysis/${data.configId}`} className="flex flex-col justify-between flex-grow">
+          {cardContent}
+        </Link>
+      ) : (
+        <div className="flex flex-col justify-between flex-grow">
+         {cardContent}
+        </div>
       )}
     </div>
   );

@@ -338,9 +338,17 @@ async function actionV2(options: { config: string, runLabel?: string, evalMethod
                     actualResultFileName
                 );
 
+                // Filter out configs with 'test' tag before calculating aggregate stats
+                // These stats are for public consumption, so 'test' items should always be excluded from the *calculation*
+                // of the globally cached/stored homepage summary.
+                const configsForStatsCalculation = updatedConfigsArray.filter(
+                    config => !(config.tags && config.tags.includes('test'))
+                );
+                loggerInstance.info(`Total configs for summary: ${updatedConfigsArray.length}. Configs after filtering 'test' tags for stats calculation: ${configsForStatsCalculation.length}`);
+
                 // 2. Recalculate headlineStats and driftDetectionResult using the newly updated configs array
-                const newHeadlineStats = calculateHeadlineStats(updatedConfigsArray);
-                const newDriftDetectionResult = calculatePotentialModelDrift(updatedConfigsArray);
+                const newHeadlineStats = calculateHeadlineStats(configsForStatsCalculation);
+                const newDriftDetectionResult = calculatePotentialModelDrift(configsForStatsCalculation);
 
                 // 3. Construct the complete new HomepageSummaryFileContent object
                 const newHomepageSummaryContent: HomepageSummaryFileContent = {

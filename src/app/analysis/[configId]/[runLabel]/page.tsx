@@ -163,7 +163,7 @@ export default function RunLabelInstancesPage() {
   return (
     <div className="min-h-screen bg-background text-foreground p-4 md:p-8">
         <div className="fixed inset-0 -z-10 dark:bg-gradient-to-br dark:from-slate-900 dark:to-slate-800 bg-gradient-to-br from-slate-50 to-slate-100" />
-        <div className="max-w-[1800px] mx-auto">
+        <div className="max-w-7xl mx-auto">
           <AnalysisPageHeader
             breadcrumbs={breadcrumbItems}
             pageTitle={pageTitle}
@@ -176,7 +176,7 @@ export default function RunLabelInstancesPage() {
             isSticky={false}
           />
 
-          <main className="max-w-4xl mx-auto mt-6 md:mt-8">
+          <main className="mt-6 md:mt-8">
               {runInstances.length === 0 && !loading && (
                   <div className="text-center py-12">
                       {HistoryIcon && <HistoryIcon className="w-12 h-12 mx-auto mb-4 text-muted-foreground dark:text-slate-500" />}

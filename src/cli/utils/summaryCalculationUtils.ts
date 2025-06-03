@@ -24,12 +24,22 @@ export function calculateHeadlineStats(
     return null;
   }
 
+  // Filter out configs with 'test' tag before any calculations
+  const filteredConfigs = configs.filter(
+    config => !(config.tags && config.tags.includes('test'))
+  );
+
+  if (filteredConfigs.length === 0) {
+    console.log('[calculateHeadlineStats] No configs remaining after filtering out "test" tags. Returning null.');
+    return null;
+  }
+
   let bestPerformingConfig: HeadlineStatInfo | null = null;
   let worstPerformingConfig: HeadlineStatInfo | null = null;
   let mostConsistentConfig: HeadlineStatInfo | null = null;
   let leastConsistentConfig: HeadlineStatInfo | null = null;
 
-  configs.forEach(config => {
+  filteredConfigs.forEach(config => {
     const configTitle = config.title || config.configTitle || config.id || config.configId;
     if (config.overallAverageHybridScore !== null && config.overallAverageHybridScore !== undefined) {
       if (!bestPerformingConfig || config.overallAverageHybridScore > bestPerformingConfig.value) {
@@ -68,7 +78,7 @@ export function calculateHeadlineStats(
 
   const allModelScores = new Map<string, { totalScore: number; count: number; runs: Set<string> }>();
 
-  configs.forEach(config => {
+  filteredConfigs.forEach(config => {
     config.runs.forEach(run => {
       if (run.perModelHybridScores) {
         const scoresMap = run.perModelHybridScores instanceof Map
@@ -116,9 +126,19 @@ export function calculatePotentialModelDrift(
     return null;
   }
 
+  // Also filter here if these stats should exclude 'test' configs
+  const filteredConfigsForDrift = configs.filter(
+    config => !(config.tags && config.tags.includes('test'))
+  );
+
+  if (filteredConfigsForDrift.length === 0) {
+    console.log('[calculatePotentialModelDrift] No configs remaining after filtering out "test" tags. Returning null.');
+    return null;
+  }
+
   let mostSignificantDrift: PotentialDriftInfo | null = null;
 
-  configs.forEach(config => {
+  filteredConfigsForDrift.forEach(config => {
     const runsByLabel = new Map<string, EnhancedRunInfo[]>();
     config.runs.forEach(run => {
       if (run.runLabel && run.timestamp && run.hybridScoreStats?.average !== null && run.hybridScoreStats?.average !== undefined) {
