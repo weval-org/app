@@ -22,9 +22,9 @@ const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.NODE_ENV === 'dev
 
 export const metadata: Metadata = {
   title: 'CivicEval - AI evaluations for civic good',
-  description: 'Open-source, independent evaluations of large language models on human rights, law, and civic topics. Track AI model accuracy and consistency in real-time.',
+  description: 'Open-source, independent evaluations of large language models on human rights, law, and civic topics. Track AI model accuracy and consistency.',
   openGraph: {
-    title: 'CivicEval - Real-time AI Model Evaluations for Civic Topics',
+    title: 'CivicEval - AI Model Evaluations for Civic Topics',
     description: 'Explore how accurately and consistently AI models understand human rights, law, and global civic issues. Public, open-source, and continuously updated.',
     url: appUrl,
     siteName: 'CivicEval',
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'CivicEval - AI Model Evaluations for Civic Good',
-    description: 'Track AI model accuracy on human rights, law, and civic topics. Open, independent, and real-time evaluations.',
+    description: 'Track AI model accuracy on human rights, law, and civic topics. Open, independent, and continuously updated evaluations.',
     images: [`${appUrl}/opengraph-image`],
   },
 };
@@ -529,7 +529,7 @@ export default async function HomePage() {
             </p>
             
             <p className="text-sm sm:text-base text-foreground/80 dark:text-slate-300/80 leading-relaxed max-w-3xl mx-auto mt-4">
-              The results are published here in real time so policymakers, journalists, engineers and everyday citizens can see at a glance which AI systems are ready for work in the domains they are about.
+              The results are published here frequently so policymakers, journalists, engineers and everyday citizens can see at a glance which AI systems are ready for work in the domains they care about.
             </p>
           </section>
 
