@@ -1,0 +1,8 @@
+# netlify.toml
+
+[build]
+  functions = "netlify/functions"
+
+# This will run the 'fetch-and-schedule-evals' function weekly on Sunday at midnight UTC.
+[functions."fetch-and-schedule-evals"]
+  schedule = "0 0 * * 0" 

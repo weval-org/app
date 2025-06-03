@@ -1,0 +1,197 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%; /* Light background - White */
+    --foreground: 222.2 84% 4.9%; /* Dark text for light background */
+    --muted: 210 40% 96.1%; /* Light muted - Light gray */
+    --muted-foreground: 215.4 16.3% 46.9%; /* Darker muted text */
+    --popover: 0 0% 100%; /* Light popover - White */
+    --popover-foreground: 222.2 84% 4.9%; /* Dark text for popover */
+    --card: 0 0% 100%; /* Light card - White */
+    --card-foreground: 222.2 84% 4.9%; /* Dark text for card */
+    --border: 214.3 31.8% 91.4%; /* Light border - Light gray */
+    --input: 214.3 31.8% 91.4%; /* Light input - Light gray */
+    --primary: 210 100% 45.1%; /* ORIGINAL BLUE: #0073e6 */
+    --primary-foreground: 0 0% 100%; /* ORIGINAL WHITE: #ffffff */
+    --secondary: 210 40% 96.1%; /* Light secondary - Light gray */
+    --secondary-foreground: 222.2 47.4% 11.2%; /* Dark text for secondary */
+    --accent: 210 40% 96.1%; /* Light accent - Light gray */
+    --accent-foreground: 222.2 47.4% 11.2%; /* Dark text for accent */
+    --destructive: 329 76.1% 40.8%; /* Dark Pink #b51963 */
+    --destructive-foreground: 0 0% 100%; /* White #ffffff */
+    --ring: 215 20.2% 65.1%; /* ORIGINAL Ring color for focus states on light bg */
+    --radius: 0.5rem;
+
+    /* NEW Complementary Accent for CTAs */
+    --accent-cta: 36 93% 65%; /* Rich Amber - Made lighter */
+    --accent-cta-foreground: 24 95% 15%; /* Dark Brown for text on Amber */
+
+    /* Custom semantic colors for charts/highlights - Light Theme */
+    --chart-1: 220 70% 50%; /* ORIGINAL Blue */
+    --chart-2: 160 60% 45%; /* ORIGINAL Green */
+    --chart-3: 30 80% 55%;  /* Orange */
+    --chart-4: 280 65% 60%; /* ORIGINAL Purple */
+    --chart-5: 340 75% 55%; /* Pink */
+
+    --highlight-info: 200 90% 45%; /* ORIGINAL Sky blue for info messages */
+    --highlight-success: 87 100% 31.6%; /* Green #5ba300 */
+    --highlight-success-foreground: 0 0% 0%; /* Black #000000 for success text */
+    --highlight-warning: 40 90% 50%;  /* Amber/Orange for warnings */
+    --highlight-error: 329 76.1% 40.8%;    /* Dark Pink #b51963 */
+
+    /* Coverage Grade Colors - Light Theme */
+    --coverage-unmet: 0 75% 60%;         /* Bright Red */
+    --coverage-fully-met: 120 65% 50%;    /* Bright Green */
+    --coverage-no-extent: 40 80% 55%;   /* Bright Amber */
+    --coverage-grade-0: 0 75% 60%;      /* Grade 0 (0.0-0.09) */
+    --coverage-grade-1: 12 75% 60%;     /* Grade 1 (0.1-0.19) */
+    --coverage-grade-2: 24 75% 60%;     /* Grade 2 (0.2-0.29) */
+    --coverage-grade-3: 36 75% 60%;     /* Grade 3 (0.3-0.39) */
+    --coverage-grade-4: 48 75% 58%;     /* Grade 4 (0.4-0.49) */
+    --coverage-grade-5: 60 70% 55%;     /* Grade 5 (0.5-0.59) - Yellow */
+    --coverage-grade-6: 75 65% 55%;     /* Grade 6 (0.6-0.69) */
+    --coverage-grade-7: 90 65% 55%;     /* Grade 7 (0.7-0.79) - Lime Green */
+    --coverage-grade-8: 100 65% 50%;    /* Grade 8 (0.8-0.89) */
+    --coverage-grade-9: 110 65% 50%;    /* Grade 9 (0.9-0.99) */
+
+    --border-contrast: rgba(0, 0, 0, 0.1); /* Subtle dark border for light theme segments */
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%; /* Dark background - Almost black */
+    --foreground: 210 40% 98%; /* Light text for dark background */
+    --muted: 217.2 32.6% 17.5%; /* Dark muted - Dark gray */
+    --muted-foreground: 215 20.2% 65.1%; /* Lighter muted text */
+    --popover: 222.2 84% 4.9%; /* Dark popover */
+    --popover-foreground: 210 40% 98%; /* Light text for popover */
+    --card: 222.2 84% 4.9%; /* Dark card */
+    --card-foreground: 210 40% 98%; /* Light text for card */
+    --border: 217.2 32.6% 17.5%; /* Dark border - Dark gray */
+    --input: 217.2 32.6% 17.5%; /* Dark input - Dark gray */
+    --primary: 210 100% 45.1%; /* ORIGINAL BLUE: #0073e6 */
+    --primary-foreground: 0 0% 100%; /* ORIGINAL WHITE: #ffffff */
+    --secondary: 217.2 32.6% 17.5%; /* Dark secondary - Dark gray */
+    --secondary-foreground: 210 40% 98%; /* Light text for secondary */
+    --accent: 217.2 32.6% 17.5%; /* Dark accent */
+    --accent-foreground: 210 40% 98%; /* Light text for accent */
+    --destructive: 329 76.1% 40.8%; /* Dark Pink #b51963 */
+    --destructive-foreground: 0 0% 100%; /* White #ffffff */
+    --ring: 217.2 32.6% 17.5%; /* ORIGINAL Ring color for focus states on dark bg */
+
+    /* NEW Complementary Accent for CTAs - Dark Theme */
+    --accent-cta: 36 93% 60%; /* Lighter Amber for dark mode */
+    --accent-cta-foreground: 24 95% 15%; /* Dark Brown for text on Amber */
+
+    /* Custom semantic colors for charts/highlights - Dark Theme */
+    --chart-1: 217 91% 60%;  /* ORIGINAL Sky blue (from shadcn example) */
+    --chart-2: 142 71% 45%;  /* ORIGINAL Green */
+    --chart-3: 38 92% 50%;   /* Orange */
+    --chart-4: 270 80% 65%;  /* ORIGINAL Violet */
+    --chart-5: 348 83% 60%;  /* Rose */
+
+    --highlight-info: 205 90% 55%; /* ORIGINAL Brighter Sky blue for info */
+    --highlight-success: 87 100% 31.6%; /* Green #5ba300 */
+    --highlight-success-foreground: 0 0% 0%; /* Black #000000 for success text */
+    --highlight-warning: 45 90% 55%;  /* Brighter Amber/Orange for warnings */
+    --highlight-error: 329 76.1% 40.8%;    /* Dark Pink #b51963 */
+
+    /* Coverage Grade Colors - Dark Theme (based on original colorUtils) */
+    --coverage-unmet: 0 70% 50%;
+    --coverage-fully-met: 120 60% 40%;
+    --coverage-no-extent: 40 70% 50%;
+    --coverage-grade-0: 0 70% 50%;
+    --coverage-grade-1: 12 70% 50%;
+    --coverage-grade-2: 24 70% 50%;
+    --coverage-grade-3: 36 70% 50%;
+    --coverage-grade-4: 48 70% 50%;
+    --coverage-grade-5: 60 70% 45%;
+    --coverage-grade-6: 75 60% 45%;
+    --coverage-grade-7: 90 60% 45%;
+    --coverage-grade-8: 100 60% 40%;
+    --coverage-grade-9: 110 60% 40%;
+
+    --border-contrast: rgba(255, 255, 255, 0.15); /* Subtle light border for dark theme segments */
+  }
+}
+
+body {
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  min-height: 100vh;
+}
+
+/* Removed .site-header and .content-wrapper as they are not currently used */
+/* and .site-header was using an undefined --header-bg variable. */
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+.scroll-fade-bottom {
+  mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black 85%, transparent 100%); /* Safari compatibility */
+}
+
+/* Custom styles for uniform markdown text */
+.uniform-markdown-text * {
+  font-size: inherit !important; /* Inherit from parent (prose-xs) */
+  font-family: inherit !important; /* Inherit from parent or body */
+  line-height: inherit !important; /* Inherit for consistency */
+  font-weight: normal !important; /* Normalize font weight */
+  margin-top: 0.5em !important; /* Adjust spacing as needed */
+  margin-bottom: 0.5em !important; /* Adjust spacing as needed */
+  color: inherit !important; /* Ensure text color is consistent */
+  display: inline !important;
+  padding-left: 0 !important;
+  padding-top: 0 !important;
+  padding-right: 0 !important;
+  padding-bottom: 0 !important;
+  margin-left: 0 !important;
+  margin-top: 0 !important;
+  margin-right: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+.uniform-markdown-text h1,
+.uniform-markdown-text h2,
+.uniform-markdown-text h3,
+.uniform-markdown-text h4,
+.uniform-markdown-text h5,
+.uniform-markdown-text h6 {
+  font-weight: 600 !important; /* Keep headings slightly bolder but same size */
+}
+
+.uniform-markdown-text code {
+  font-family: var(--font-mono), monospace !important; /* Keep monospace for code */
+  background-color: rgba(128, 128, 128, 0.1) !important; /* Subtle background for code */
+  padding: 0.1em 0.3em !important;
+  border-radius: 0.2em !important;
+  font-size: 0.9em !important; /* Slightly smaller code text relative to surrounding text */
+}
+
+.uniform-markdown-text pre {
+  background-color: rgba(128, 128, 128, 0.05) !important; /* Subtle background for code blocks */
+  border-radius: 0.3em !important;
+  overflow-x: auto !important;
+}
+
+.uniform-markdown-text pre code {
+  background-color: transparent !important; /* Code within pre shouldn't have its own background */
+  padding: 0 !important;
+  font-size: inherit !important; /* Code in pre should match pre's font size */
+}
+
+.uniform-markdown-text blockquote {
+  border-left-width: 2px !important; /* Subtle blockquote border */
+  padding-left: 0.75em !important;
+  font-style: italic !important;
+  color: inherit !important;
+  opacity: 0.8 !important;
+}
