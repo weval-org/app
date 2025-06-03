@@ -7,10 +7,15 @@ import {
     getHomepageSummary, 
     saveHomepageSummary, 
     updateSummaryDataWithNewRun,
-    getResultByFileName
+    getResultByFileName,
+    HomepageSummaryFileContent
 } from "../../src/lib/storageService"; // Adjusted path for storage service
 import { ComparisonDataV2 as FetchedComparisonData } from '../../src/app/utils/types'; // For typing the fetched result
 import path from 'path'; // For path.basename
+import {
+    calculateHeadlineStats,
+    calculatePotentialModelDrift
+} from '../../src/cli/utils/summaryCalculationUtils';
 
 // Helper to create a simple console-based logger with a prefix
 const createLogger = (context: HandlerContext) => {
@@ -108,11 +113,30 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
     // Only proceed if we have the new result data and a filename.
     if (newResultData && actualResultFileName && process.env.STORAGE_PROVIDER === 's3') { 
         try {
-            logger.info('Attempting to update homepage summary manifest...');
-            const currentSummary = await getHomepageSummary();
-            const updatedSummary = updateSummaryDataWithNewRun(currentSummary, newResultData, actualResultFileName);
-            await saveHomepageSummary(updatedSummary);
-            logger.info('Homepage summary manifest updated successfully.');
+            logger.info('Attempting to update homepage summary manifest with new calculations...');
+            const currentFullSummary = await getHomepageSummary(); // Fetches HomepageSummaryFileContent | null
+
+            // 1. Update the configs array part of the summary
+            const updatedConfigsArray = updateSummaryDataWithNewRun(
+                currentFullSummary?.configs || null, // Pass only the configs array
+                newResultData,
+                actualResultFileName
+            );
+
+            // 2. Recalculate headlineStats and driftDetectionResult using the newly updated configs array
+            const newHeadlineStats = calculateHeadlineStats(updatedConfigsArray);
+            const newDriftDetectionResult = calculatePotentialModelDrift(updatedConfigsArray);
+
+            // 3. Construct the complete new HomepageSummaryFileContent object
+            const newHomepageSummaryContent: HomepageSummaryFileContent = {
+                configs: updatedConfigsArray,
+                headlineStats: newHeadlineStats,
+                driftDetectionResult: newDriftDetectionResult,
+                lastUpdated: new Date().toISOString(),
+            };
+
+            await saveHomepageSummary(newHomepageSummaryContent);
+            logger.info('Homepage summary manifest updated successfully with re-calculated stats.');
         } catch (summaryError: any) {
             logger.error(`Failed to update homepage summary manifest: ${summaryError.message}`);
             if (process.env.DEBUG && summaryError.stack) {
