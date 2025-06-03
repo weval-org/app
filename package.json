@@ -25,7 +25,7 @@
     "run_config": "tsx src/cli/index.ts run_config",
     "test_similarity": "tsx src/cli/index.ts test_similarity",
     "test_cross_encoder": "tsx src/cli/index.ts test_cross_encoder",
-    "prepare": "husky",
+    "prepare": "pnpm exec husky || true",
     "pre-commit": "lint-staged",
     "update-snapshots": "jest --updateSnapshot"
   },
