@@ -2,9 +2,13 @@
 
 This suite offers a dual-lens approach to understanding language model performance. It facilitates deep **qualitative assessment** by using LLM judges to evaluate responses against user-defined rubrics (defined by key points or ideal answers). Simultaneously, it provides robust **semantic similarity analysis**, allowing for comparison of how different models interpret prompts and the nuanced relationships between their response styles.
 
-## Submitting an evaluation blueprint for [civileval.org](https://civileval.org)
+## Live on [civiceval.org](https://civiceval.org):
 
-CivilEval.org is the public-facing main instance of CivicEval open-source evaluation platform and web application. It is focused purely on evaluating models on a set of *civic-minded* prompts, including law, health, human rights, and matters of locale-specific or global civic matters.
+![Screenshot of CivicEval.org](./public/screenshot.png)
+
+## Submitting an evaluation blueprint for [civiceval.org](https://civiceval.org)
+
+CivicEval.org is the public-facing main instance of CivicEval open-source evaluation platform and web application. It is focused purely on evaluating models on a set of *civic-minded* prompts, including law, health, human rights, and matters of locale-specific or global civic matters.
 
 To contribute a blueprint, please follow the guidance in the [configs repository](https://github.com/civiceval/configs). You'll be able to submit a 'pull request' to add your blueprint JSON file, which simply specifies a list of prompts, idealized responses, and key 'success' criteria.
 
@@ -366,8 +370,3 @@ Refer to the [OpenRouter documentation](https://openrouter.ai/docs#models) for a
 - `/evaluation_blueprints` - (Suggested location for user-created JSON blueprint files for local testing)
 - `/.results` - Test results and visualizations (used when `STORAGE_PROVIDER=local`). This path structure might use `id` or `configId` based on what's present in the blueprint.
   - `/multi` - Output files from `run_config` (if local)
-
-## Tips
-
-1.  Use descriptive `--run-label` values (for local `run_config`) to easily identify runs.
-2.  For contributing to the automated CivicEval platform, prepare your JSON blueprint files and submit them as PRs to the `blueprints` directory in the `civiceval/configs` repository.
