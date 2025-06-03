@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start -p 3172",
     "lint": "next lint",
-    "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:personality": "tsx src/cli/personality-test.ts",
     "compare:personality": "tsx src/cli/compare-personality.ts",
     "test:preference": "tsx src/cli/preference-test.ts",
@@ -24,7 +24,10 @@
     "embed_multi": "tsx src/cli/index.ts embed_multi",
     "run_config": "tsx src/cli/index.ts run_config",
     "test_similarity": "tsx src/cli/index.ts test_similarity",
-    "test_cross_encoder": "tsx src/cli/index.ts test_cross_encoder"
+    "test_cross_encoder": "tsx src/cli/index.ts test_cross_encoder",
+    "prepare": "husky",
+    "pre-commit": "lint-staged",
+    "update-snapshots": "jest --updateSnapshot"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.820.0",

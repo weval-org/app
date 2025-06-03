@@ -1,5 +1,7 @@
 # CivicEval Development Guide
 
+*Last updated: 1 June 2025*
+
 This guide provides instructions for setting up and running the CivicEval project locally for development purposes, as well as notes on deployment.
 
 ## 1. Overview of Development Environment

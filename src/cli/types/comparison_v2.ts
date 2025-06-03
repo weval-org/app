@@ -8,11 +8,15 @@ export type EvaluationMethod = 'embedding' | 'llm-coverage';
 export interface PromptConfig {
     id: string;
     promptText: string;
-    idealResponse?: string;
+    idealResponse?: string | null;
     system?: string | null;
-    points?: string[];
-    temperature?: number; // Added back, was present in original and seems used
+    temperature?: number;
+    points?: PointDefinition[];
 }
+
+export type PointFunctionArgs = any;
+export type PointFunctionDefinition = [string, PointFunctionArgs];
+export type PointDefinition = string | PointFunctionDefinition;
 
 export interface ComparisonConfig {
     configId?: string; // Now optional

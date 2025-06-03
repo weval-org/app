@@ -7,11 +7,14 @@ import {
     IDEAL_MODEL_ID,
     PromptConfig,
     PointAssessment,
-    CoverageResult
+    CoverageResult,
+    PointDefinition
 } from '../types/comparison_v2';
 import { extractKeyPoints } from '../services/llm-evaluation-service';
 import { openRouterModuleClient } from '../../lib/llm-clients/openrouter-client';
 import { LLMApiCallOptions } from '../../lib/llm-clients/types';
+import { pointFunctions } from '@/point-functions';
+import { PointFunctionContext, PointFunctionReturn } from '@/point-functions/types';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
@@ -100,8 +103,9 @@ Focus solely on the provided key point, the model response, and the scoring guid
                         modelName: targetOpenRouterModelId,
                         prompt: pointwisePrompt, 
                         systemPrompt: systemPrompt,
-                        temperature: 0.1,
-                        maxTokens: 500, 
+                        temperature: 0.0,
+                        maxTokens: 500,
+                        cache: true
                     };
 
                     const llmCallPromise = openRouterModuleClient.makeApiCall(clientOptions);
@@ -161,10 +165,10 @@ Focus solely on the provided key point, the model response, and the scoring guid
 
     async evaluate(inputs: EvaluationInput[]): Promise<Partial<FinalComparisonOutputV2['evaluationResults'] & Pick<FinalComparisonOutputV2, 'extractedKeyPoints'>>> {
         this.logger.info(`[LLMCoverageEvaluator] Starting evaluation (Pointwise method).`);
-        const pLimitModule = (await import('p-limit')).default;
+        const pLimitFunction = (await import('p-limit')).default;
 
         const promptProcessingConcurrency = 10;
-        const promptProcessingLimit = pLimitModule(promptProcessingConcurrency);
+        const promptProcessingLimit = pLimitFunction(promptProcessingConcurrency);
         this.logger.info(`[LLMCoverageEvaluator] Concurrency for processing prompts: ${promptProcessingConcurrency}`);
 
         const keyPointProcessingConcurrency = 5; 
@@ -177,7 +181,7 @@ Focus solely on the provided key point, the model response, and the scoring guid
 
         for (const input of inputs) {
             evaluationTasks.push(promptProcessingLimit(async () => {
-                const { promptData, config } = input;
+                const { promptData, config, effectiveModelIds } = input;
                 const promptConfig = config.prompts.find(p => p.id === promptData.promptId) as PromptConfig | undefined;
 
                 if (!promptConfig || (!promptConfig.idealResponse && !promptConfig.points)) { 
@@ -188,11 +192,11 @@ Focus solely on the provided key point, the model response, and the scoring guid
                 this.logger.info(`[LLMCoverageEvaluator] START Processing prompt: ${promptData.promptId}`);
                 llmCoverageScores[promptData.promptId] = {};
 
-                let keyPointsToUse: string[] = [];
+                let pointsToEvaluate: PointDefinition[] = [];
 
                 if (promptConfig.points && promptConfig.points.length > 0) {
-                    keyPointsToUse = promptConfig.points;
-                    this.logger.info(`[LLMCoverageEvaluator] Using ${keyPointsToUse.length} explicit key points (from 'points' field) for prompt ${promptData.promptId}.`);
+                    pointsToEvaluate = promptConfig.points;
+                    this.logger.info(`[LLMCoverageEvaluator] Using ${pointsToEvaluate.length} explicit points (from 'points' field) for prompt ${promptData.promptId}.`);
                 } else if (promptData.idealResponseText) {
                     const keyPointExtractionResult = await extractKeyPoints(
                         promptData.idealResponseText!,
@@ -210,8 +214,9 @@ Focus solely on the provided key point, the model response, and the scoring guid
                         });
                         return;
                     }
-                    keyPointsToUse = keyPointExtractionResult.key_points;
-                    this.logger.info(`[LLMCoverageEvaluator] Extracted ${keyPointsToUse.length} key points for prompt ${promptData.promptId}.`);
+                    pointsToEvaluate = keyPointExtractionResult.key_points;
+                    extractedKeyPointsGlobal[promptData.promptId] = keyPointExtractionResult.key_points;
+                    this.logger.info(`[LLMCoverageEvaluator] Extracted ${pointsToEvaluate.length} key points for prompt ${promptData.promptId}.`);
                 } else {
                      this.logger.warn(`[LLMCoverageEvaluator] No ideal response text found for prompt ${promptData.promptId}, and no explicit key points. Cannot proceed with key point extraction.`);
                      promptData.modelResponses.forEach((_, modelId) => {
@@ -222,18 +227,17 @@ Focus solely on the provided key point, the model response, and the scoring guid
                     return;
                 }
                 
-                if (!keyPointsToUse || keyPointsToUse.length === 0) {
-                    this.logger.warn(`[LLMCoverageEvaluator] No key points available (neither explicit nor extracted) for prompt ${promptData.promptId}. Skipping coverage check.`);
+                if (!pointsToEvaluate || pointsToEvaluate.length === 0) {
+                    this.logger.warn(`[LLMCoverageEvaluator] No points available (neither explicit nor extracted) for prompt ${promptData.promptId}. Skipping coverage check.`);
                      promptData.modelResponses.forEach((_, modelId) => {
                         if (modelId !== IDEAL_MODEL_ID) {
-                            llmCoverageScores[promptData.promptId][modelId] = { error: `No key points available for evaluation` };
+                            llmCoverageScores[promptData.promptId][modelId] = { error: `No points available for evaluation` };
                         }
                     });
                     return;
                 }
 
-                extractedKeyPointsGlobal[promptData.promptId] = keyPointsToUse;
-                const keyPointProcessingLimitInstance = pLimitModule(keyPointProcessingConcurrency);
+                const keyPointProcessingLimitInstance = pLimitFunction(keyPointProcessingConcurrency);
 
                 for (const [modelId, responseData] of promptData.modelResponses.entries()) {
                     if (modelId === IDEAL_MODEL_ID) continue;
@@ -245,29 +249,103 @@ Focus solely on the provided key point, the model response, and the scoring guid
                         continue;
                     }
 
-                    this.logger.info(`[LLMCoverageEvaluator-Pointwise] -- Evaluating ${keyPointsToUse.length} key points for ${modelId} on ${promptData.promptId}...`);
+                    this.logger.info(`[LLMCoverageEvaluator-Pointwise] -- Evaluating ${pointsToEvaluate.length} points for ${modelId} on ${promptData.promptId}...`);
                     const pointAssessmentTasks: Promise<PointAssessment>[] = []; 
                     
-                    keyPointsToUse.forEach((kpText, index) => {
+                    pointsToEvaluate.forEach((pointDefinition, index) => {
                         pointAssessmentTasks.push(keyPointProcessingLimitInstance(async () => {
-                            this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- Calling evaluateSinglePoint for KP ${index + 1}/${keyPointsToUse.length} for ${modelId} on ${promptData.promptId}`);
-                            const singleEvalResult = await this.evaluateSinglePoint(responseData.responseText!, kpText, promptData.promptText);
-                            
-                            if (!('error' in singleEvalResult)) {
-                                this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- DONE evaluateSinglePoint for KP ${index + 1}/${keyPointsToUse.length} for ${modelId} on ${promptData.promptId}. Score: ${singleEvalResult.coverage_extent}`);
-                                return { 
-                                    keyPointText: kpText,
-                                    coverageExtent: singleEvalResult.coverage_extent,
-                                    reflection: singleEvalResult.reflection
-                                } as PointAssessment;
+                            if (typeof pointDefinition === 'string') {
+                                // Handle string key point (current LLM-based evaluation)
+                                this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- Calling evaluateSinglePoint for string KP ${index + 1}/${pointsToEvaluate.length} for ${modelId} on ${promptData.promptId}`);
+                                const singleEvalResult = await this.evaluateSinglePoint(responseData.responseText!, pointDefinition, promptData.promptText);
+                                
+                                if (!('error' in singleEvalResult)) {
+                                    this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- DONE evaluateSinglePoint for string KP ${index + 1}/${pointsToEvaluate.length} for ${modelId} on ${promptData.promptId}. Score: ${singleEvalResult.coverage_extent}`);
+                                    return { 
+                                        keyPointText: pointDefinition,
+                                        coverageExtent: singleEvalResult.coverage_extent,
+                                        reflection: singleEvalResult.reflection
+                                    } as PointAssessment;
+                                } else {
+                                    this.logger.warn(`[LLMCoverageEvaluator-Pointwise] --- ERROR evaluateSinglePoint for string KP ${index + 1}/${pointsToEvaluate.length} for ${modelId} on ${promptData.promptId}: ${singleEvalResult.error}`);
+                                    return { 
+                                        keyPointText: pointDefinition,
+                                        error: singleEvalResult.error,
+                                        coverageExtent: 0, 
+                                        reflection: `Evaluation error for string point: ${singleEvalResult.error}`
+                                    } as PointAssessment;
+                                }
                             } else {
-                                this.logger.warn(`[LLMCoverageEvaluator-Pointwise] --- ERROR evaluateSinglePoint for KP ${index + 1}/${keyPointsToUse.length} for ${modelId} on ${promptData.promptId}: ${singleEvalResult.error}`);
-                                return { 
-                                    keyPointText: kpText,
-                                    error: singleEvalResult.error,
-                                    coverageExtent: 0, 
-                                    reflection: `Evaluation error: ${singleEvalResult.error}`
-                                } as PointAssessment;
+                                // Handle PointFunctionDefinition
+                                const [functionName, functionArgs] = pointDefinition;
+                                const pointFnRepresentation = `Function: ${functionName}(${JSON.stringify(functionArgs).substring(0, 50)}${JSON.stringify(functionArgs).length > 50 ? '...' : ''})`;
+                                this.logger.info(`[LLMCoverageEvaluator-Function] --- Evaluating ${pointFnRepresentation} for ${modelId} on ${promptData.promptId}`);
+
+                                const pointFunction = pointFunctions[functionName];
+                                if (!pointFunction) {
+                                    this.logger.warn(`[LLMCoverageEvaluator-Function] --- Function '${functionName}' not found.`);
+                                    return {
+                                        keyPointText: pointFnRepresentation,
+                                        error: `Point function '${functionName}' not found.`,
+                                        coverageExtent: 0,
+                                        reflection: `Error: Point function '${functionName}' not found.`
+                                    } as PointAssessment;
+                                }
+
+                                try {
+                                    const context: PointFunctionContext = {
+                                        config,
+                                        prompt: promptConfig, // The specific prompt config
+                                        modelId, // The model ID being evaluated
+                                    };
+                                    const result: PointFunctionReturn = await pointFunction(responseData.responseText!, functionArgs, context);
+                                    let score: number | undefined;
+                                    let reflectionText: string;
+                                    let errorText: string | undefined;
+
+                                    if (typeof result === 'object' && result !== null && 'error' in result) {
+                                        errorText = result.error;
+                                        score = 0;
+                                        reflectionText = `Function '${functionName}' returned error: ${errorText}`;
+                                        this.logger.warn(`[LLMCoverageEvaluator-Function] --- ${reflectionText}`);
+                                    } else if (typeof result === 'boolean') {
+                                        score = result ? 1 : 0;
+                                        reflectionText = `Function '${functionName}' evaluated to ${result}. Score: ${score}`;
+                                        this.logger.info(`[LLMCoverageEvaluator-Function] --- ${reflectionText}`);
+                                    } else if (typeof result === 'number') {
+                                        if (result >= 0 && result <= 1) {
+                                            score = result;
+                                            reflectionText = `Function '${functionName}' returned score: ${score}`;
+                                            this.logger.info(`[LLMCoverageEvaluator-Function] --- ${reflectionText}`);
+                                        } else {
+                                            score = 0;
+                                            errorText = `Function '${functionName}' returned out-of-range score: ${result}`;
+                                            reflectionText = `Error: ${errorText}`;
+                                            this.logger.warn(`[LLMCoverageEvaluator-Function] --- ${reflectionText}`);
+                                        }
+                                    } else {
+                                        score = 0;
+                                        errorText = `Function '${functionName}' returned invalid result type: ${typeof result}`;
+                                        reflectionText = `Error: ${errorText}`;
+                                        this.logger.warn(`[LLMCoverageEvaluator-Function] --- ${reflectionText}`);
+                                    }
+
+                                    return {
+                                        keyPointText: pointFnRepresentation,
+                                        coverageExtent: score,
+                                        reflection: reflectionText,
+                                        error: errorText
+                                    } as PointAssessment;
+
+                                } catch (e: any) {
+                                    this.logger.error(`[LLMCoverageEvaluator-Function] --- Error executing function '${functionName}': ${e.message}`);
+                                    return {
+                                        keyPointText: pointFnRepresentation,
+                                        error: `Error executing point function '${functionName}': ${e.message}`,
+                                        coverageExtent: 0,
+                                        reflection: `Critical error executing point function: ${e.message}`
+                                    } as PointAssessment;
+                                }
                             }
                         }));
                     });
@@ -291,7 +369,7 @@ Focus solely on the provided key point, the model response, and the scoring guid
                     const avgCoverageExtent = assessedPointsCount > 0 ? (totalCoverageExtent / assessedPointsCount) : undefined;
     
                     llmCoverageScores[promptData.promptId][modelId] = {
-                        keyPointsCount: keyPointsToUse.length,
+                        keyPointsCount: pointsToEvaluate.length,
                         avgCoverageExtent: avgCoverageExtent !== undefined ? parseFloat(avgCoverageExtent.toFixed(2)) : undefined,
                         pointAssessments: validAssessments
                     };
@@ -300,6 +378,10 @@ Focus solely on the provided key point, the model response, and the scoring guid
                     this.logger.info(`[LLMCoverageEvaluator] -- END Model: ${modelId} for prompt ${promptData.promptId}`);
                 }
                 this.logger.info(`[LLMCoverageEvaluator] END Processing prompt: ${promptData.promptId}`);
+
+                if (promptConfig.idealResponse && !promptConfig.points && pointsToEvaluate.every(p => typeof p === 'string')) {
+                     extractedKeyPointsGlobal[promptData.promptId] = pointsToEvaluate as string[];
+                }
             }));
         }
 

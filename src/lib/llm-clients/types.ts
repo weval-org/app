@@ -8,6 +8,7 @@ export interface LLMApiCallOptions {
   systemPrompt?: string | null;
   temperature?: number;
   maxTokens?: number;
+  cache?: boolean;
   // Additional provider-specific options can be added here if necessary
   // e.g., topP, presencePenalty, frequencyPenalty for OpenAI
 }

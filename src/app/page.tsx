@@ -544,7 +544,18 @@ function getLatestDateOfData(configs: EnhancedComparisonConfigInfo[]): string {
 }
 
 export default async function HomePage() {
-  const initialConfigs = await getComparisonRunInfo();
+  const initialConfigsRaw = await getComparisonRunInfo();
+
+  // Filter out configs tagged 'test' unless in development
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  const initialConfigs = initialConfigsRaw.filter(config => {
+    if (isDevelopment) {
+      return true; // Show all configs in development
+    }
+    // In production (or non-dev), hide if 'test' tag is present
+    return !(config.tags && config.tags.includes('test'));
+  });
+
   const headlineStats = calculateHeadlineStats(initialConfigs);
   const driftDetectionResult = calculatePotentialModelDrift(initialConfigs);
 

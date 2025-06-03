@@ -1,5 +1,7 @@
 # CivicEval
 
+*Last updated: 3 June 2025*
+
 This suite offers a dual-lens approach to understanding language model performance. It facilitates deep **qualitative assessment** by using LLM judges to evaluate responses against user-defined rubrics (defined by key points or ideal answers). Simultaneously, it provides robust **semantic similarity analysis**, allowing for comparison of how different models interpret prompts and the nuanced relationships between their response styles.
 
 ## Live on [civiceval.org](https://civiceval.org):
@@ -35,6 +37,7 @@ This project provides tools to systematically evaluate and compare language mode
 
 1.  **Qualitative Rubric-Based Evaluation**: Enables the assessment of model responses against user-defined criteria (such as `idealResponse` or `points`). This involves LLM-judged evaluations to determine how well a model's output covers essential information and aligns with desired outcomes.
 2.  **Semantic Similarity Analysis**: Generates text embeddings for model outputs and calculates similarity scores to measure how closely model responses align with each other semantically, or with a benchmark `idealResponse`.
+3.  **Quantitative String Matching**: Can use normal string functions like `contains` and `matches` to evaluate model responses against user-defined strings (does not engage a secondary "LLM Judge")
 
 This approach is useful for:
 * Understanding how different models interpret and respond to the same prompts.
@@ -154,7 +157,12 @@ Options:
       "promptText": "Text of the first prompt...",
       "idealResponse": "The ideal response text...", // Optional
       "system": null, // Optional: Prompt-specific system prompt
-      "points": [ /* ... */ ] // Optional: Key points
+      "points": [
+        "This is a standard key point as a string.",
+        ["contains", "specific keyword"],
+        ["matches", "^The response should start with this phrase"],
+        // more points...
+      ] // Optional: Key points or function-based checks
     }
   ]
 }
@@ -165,7 +173,17 @@ Options:
 - `title` / `configTitle`
 - `runLabel`
 
-**Note on `idealResponse` and `points`:** (Same as before)
+**Note on `idealResponse` and `points`:**
+- An `idealResponse` serves as a benchmark. If provided, it can be used for semantic similarity comparison (`IDEAL_BENCHMARK` model) and as the basis for automatic key point extraction if `points` are not explicitly defined for the `llm-coverage` method.
+- The `points` array defines specific criteria for evaluation, especially with the `llm-coverage` method. Each item in the `points` array can be:
+    1.  A **string**: This is treated as a traditional key point. If `llm-coverage` is used, each string point is individually evaluated against the model's response by a highly capable LLM judge (e.g., a Gemini model). This provides a nuanced, "fuzzy" assessment of whether the response covers the semantic meaning of the key point, even if the wording isn't exact. The LLM judge also generates a `reflection` (an explanation for its score), which provides explainability and is visible in the UI analysis. This method is powerful for assessing conceptual coverage.
+    2.  A **function definition**: This is an array of length two: `["functionName", arguments]`.
+        -   `functionName` (string): The name of a natively supported point function.
+        -   `arguments` (any valid JSON type): The arguments to pass to the function. The LLM's full response text is always passed as the first implicit argument to the function.
+        -   Natively supported functions are located in `src/point-functions`. Initially, these include:
+            -   `["contains", "substring_to_find"]`: Returns `true` (score 1) if the LLM response text contains the provided `substring_to_find`, `false` (score 0) otherwise. Case-sensitive.
+            -   `["matches", "regex_pattern_string"]`: Returns `true` (score 1) if the LLM response text matches the provided JavaScript-style `regex_pattern_string`, `false` (score 0) otherwise. The regex string should be valid for `new RegExp("your_pattern_here")`.
+        -   These initial functions return boolean values, which are converted to scores of 0 or 1. Point functions can also return a numeric score directly between 0.0 and 1.0. If a function encounters an error or returns an invalid value, it will be handled and typically result in a score of 0 with an error noted in the results.
 
 **Output (from `run_config`):**
 - If `STORAGE_PROVIDER=s3` is configured, stores a JSON object in cloud blob storage (e.g., AWS S3) under a key like `multi/[id_or_configId]/[final_runLabel]_[timestamp]_comparison.json`.

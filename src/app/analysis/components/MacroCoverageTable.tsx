@@ -35,7 +35,7 @@ interface MacroCoverageTableProps {
     configId: string;
     runLabel: string;
     safeTimestampFromParams: string;
-    onCellClick?: (promptId: string, modelId: string) => void;
+    onCellClick?: (promptId: string, modelId: string, assessment: PointAssessment) => void;
 }
 
 const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
@@ -213,8 +213,13 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                         <div
                             key={index}
                             title={pointTooltip}
-                            className={`h-full ${bgColorClass} bg-opacity-60 dark:bg-opacity-70 ${onCellClick ? 'cursor-pointer' : ''}`}
+                            className={`h-full ${bgColorClass} bg-opacity-60 dark:bg-opacity-70 ${onCellClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
                             style={{ width: `${segmentWidthPercent}%`, borderRight: index < nKeyPoints - 1 ? '1px solid var(--border-contrast)' : 'none' }}
+                            onClick={() => {
+                                if (onCellClick) {
+                                    onCellClick(promptId, modelId, assessment);
+                                }
+                            }}
                         />
                     );
                 })}
@@ -364,7 +369,6 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                                             key={`${promptId}-${modelId}`}
                                             className={cellClasses}
                                             style={isOutlier ? { position: 'relative' } : undefined}
-                                            onClick={() => { if (onCellClick && result && !('error' in result)) { onCellClick(promptId, modelId); } }}
                                             title={isOutlier ? outlierReason : undefined}
                                         >
                                             {isOutlier && (

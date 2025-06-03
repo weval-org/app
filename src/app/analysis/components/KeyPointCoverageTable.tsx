@@ -28,26 +28,50 @@ type CoverageResult = {
 interface KeyPointCoverageTableProps {
     coverageScores: Record<string, CoverageResult> | undefined | null; // ModelId -> CoverageResult
     models: string[]; // List of non-ideal model IDs
-    keyPoints: string[] | undefined | null; // List of key point strings
-    onCellClick?: (modelId: string) => void; // <-- Add callback prop
+    onCellClick?: (modelId: string, assessment: PointAssessment | null) => void;
 }
 
 const KeyPointCoverageTable: React.FC<KeyPointCoverageTableProps> = ({
     coverageScores,
     models,
-    keyPoints,
     onCellClick,
 }) => {
-    if (!coverageScores || !keyPoints || keyPoints.length === 0 || !models || models.length === 0) {
-        return <p className="p-4 text-muted-foreground italic">Coverage data or key points not available for this prompt.</p>;
+    const criteriaTexts = React.useMemo(() => {
+        if (!coverageScores || !models || models.length === 0) return null; // Return null if essential props are missing
+
+        let firstModelAssessments: PointAssessment[] | undefined;
+        for (const modelId of models) {
+            const modelResult = coverageScores[modelId]; // coverageScores is defined here
+            if (modelResult && !('error' in modelResult) && modelResult.pointAssessments && modelResult.pointAssessments.length > 0) {
+                firstModelAssessments = modelResult.pointAssessments;
+                break;
+            }
+        }
+
+        if (!firstModelAssessments) {
+            const wasAnyModelProcessed = models.some(modelId => coverageScores[modelId]);
+            return wasAnyModelProcessed ? [] : null; // [] if processed but no criteria, null if not processed (or no models had actual assessments)
+        }
+        
+        const uniqueTexts = new Set(firstModelAssessments.map(pa => pa.keyPointText));
+        return Array.from(uniqueTexts);
+    }, [coverageScores, models]);
+
+
+    if (criteriaTexts === null) { 
+        return <p className="p-4 text-muted-foreground italic">Coverage data not available for this prompt.</p>;
+    }
+    
+    if (criteriaTexts.length === 0) {
+        return <p className="p-4 text-muted-foreground italic">No evaluation criteria or point assessments found to display for this prompt.</p>;
     }
 
-    // Helper to find the assessment for a specific key point text within a model's result
     const findAssessment = (modelId: string, keyPointText: string): PointAssessment | 'error' | 'missing' | null => {
+        if (!coverageScores) return 'missing'; // Guard against null/undefined coverageScores
         const modelResult = coverageScores[modelId];
-        if (!modelResult) return 'missing'; // Data missing for the model
-        if ('error' in modelResult) return 'error'; // Error calculating for the model
-        if (!modelResult.pointAssessments) return null; // Assessments array missing
+        if (!modelResult) return 'missing'; 
+        if ('error' in modelResult) return 'error'; 
+        if (!modelResult.pointAssessments) return null; 
 
         return modelResult.pointAssessments.find(pa => pa.keyPointText === keyPointText) || null;
     };
@@ -57,7 +81,7 @@ const KeyPointCoverageTable: React.FC<KeyPointCoverageTableProps> = ({
             <table className="min-w-full border-collapse text-xs table-fixed">
                 <thead>
                     <tr className="bg-muted dark:bg-slate-800">
-                        <th className="border border-border dark:border-slate-700 px-3 py-2.5 text-left font-semibold text-primary dark:text-sky-300 sticky left-0 bg-muted dark:bg-slate-800 z-10 w-[40%]">Key Point Extracted from Ideal</th>
+                        <th className="border border-border dark:border-slate-700 px-3 py-2.5 text-left font-semibold text-primary dark:text-sky-300 sticky left-0 bg-muted dark:bg-slate-800 z-10 w-[40%]">Evaluation Criterion</th>
                         {models.map(modelId => (
                             <th key={modelId} className="border border-border dark:border-slate-700 px-2 py-2.5 text-center font-semibold text-foreground dark:text-slate-200 whitespace-nowrap w-24" title={getModelDisplayLabel(modelId)}>
                                 {getModelDisplayLabel(modelId)}
@@ -66,15 +90,15 @@ const KeyPointCoverageTable: React.FC<KeyPointCoverageTableProps> = ({
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-border dark:divide-slate-700">
-                    {keyPoints.map((kpText, index) => (
+                    {criteriaTexts.map((criterionText, index) => (
                         <tr key={index} className="hover:bg-muted/50 dark:hover:bg-slate-700/30 transition-colors duration-100">
                             <td className="border-x border-border dark:border-slate-700 px-3 py-2 text-left align-top sticky left-0 bg-card/90 dark:bg-slate-800/90 hover:bg-muted/60 dark:hover:bg-slate-700/50 z-10 w-[40%] backdrop-blur-sm">
                                 <span className="block text-foreground dark:text-slate-100 whitespace-normal">
-                                    {kpText}
+                                    {criterionText}
                                 </span>
                             </td>
                             {models.map(modelId => {
-                                const assessment = findAssessment(modelId, kpText);
+                                const assessment = findAssessment(modelId, criterionText);
                                 let cellContent: React.ReactNode = null;
                                 let titleText = 'No data';
                                 const isClickable = !!onCellClick;
@@ -138,8 +162,8 @@ const KeyPointCoverageTable: React.FC<KeyPointCoverageTableProps> = ({
                                         className={`border-x border-border dark:border-slate-700 p-0 h-10 w-24 text-center align-middle ${cellBgClass} bg-opacity-60 dark:bg-opacity-70 ${isClickable ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
                                         title={titleText}
                                         onClick={() => {
-                                            if (isClickable) {
-                                                onCellClick(modelId);
+                                            if (isClickable && typeof assessment === 'object' && assessment !== null) { 
+                                                onCellClick(modelId, assessment);
                                             }
                                         }}
                                     >

@@ -35,6 +35,7 @@ import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import PerModelHybridScoresCard from '@/app/analysis/components/PerModelHybridScoresCard';
 import AnalysisPageHeader from '@/app/analysis/components/AnalysisPageHeader';
 import { fromSafeTimestamp } from '@/app/utils/timestampUtils';
+import CriterionDetailModal from '@/app/analysis/components/CriterionDetailModal';
 
 const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.AlertCircle))
 const XCircle = dynamic(() => import("lucide-react").then((mod) => mod.XCircle))
@@ -56,6 +57,15 @@ interface PointAssessment {
     coverageExtent?: number;
     reflection?: string;
     error?: string;
+}
+
+// Data structure for the new Criterion Detail Modal
+interface CriterionDetailModalData {
+  modelId: string;
+  assessment: PointAssessment;
+  promptText: string;
+  modelResponse: string;
+  systemPrompt: string | null;
 }
 
 type CoverageResult = (LLMCoverageScoreData & { pointAssessments?: PointAssessment[] }) | { error: string } | null;
@@ -176,6 +186,10 @@ export default function BetaComparisonClientPage() {
   const [calculatedPerModelHybridScores, setCalculatedPerModelHybridScores] = useState<Map<string, { average: number | null; stddev: number | null }>>(new Map());
   const [calculatedPerModelSemanticScores, setCalculatedPerModelSemanticScores] = useState<Map<string, { average: number | null; stddev: number | null }>>(new Map());
   
+  // State for the new Criterion Detail Modal
+  const [criterionDetailModalData, setCriterionDetailModalData] = useState<CriterionDetailModalData | null>(null);
+  const [isCriterionDetailModalOpen, setIsCriterionDetailModalOpen] = useState<boolean>(false);
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -626,98 +640,58 @@ export default function BetaComparisonClientPage() {
       setSelectedPairForModal(null);
   };
 
-  const handleCoverageCellClick = (clickedModelId: string) => {
-    if (!currentPromptId || !data?.allResponses || !data?.promptTexts || !data.evaluationResults?.llmCoverageScores?.[currentPromptId] || !data.effectiveModels.includes(IDEAL_MODEL_ID)) {
+  const handleCoverageCellClick = (clickedModelId: string, assessment: PointAssessment | null) => {
+    if (!currentPromptId || !data?.allResponses || !data?.promptTexts || !assessment) {
       return;
     }
 
-    const idealModelId = IDEAL_MODEL_ID;
-    const responseA = data.allResponses[currentPromptId]?.[clickedModelId];
-    const responseB = data.allResponses[currentPromptId]?.[idealModelId];
+    const modelResponse = data.allResponses[currentPromptId]?.[clickedModelId];
     const promptText = data.promptTexts[currentPromptId] || currentPromptId;
-    const systemPromptA = modelSystemPrompts[clickedModelId];
-    const systemPromptB = modelSystemPrompts[idealModelId];
-    const keyPoints = data.extractedKeyPoints?.[currentPromptId] || null;
-    const coverageScoresForPrompt = data.evaluationResults.llmCoverageScores[currentPromptId];
+    const systemPrompt = modelSystemPrompts[clickedModelId] ?? null;
 
-    if (responseA === undefined || responseB === undefined) {
+    if (modelResponse === undefined) {
+      console.warn("No model response found for criterion detail modal");
       return;
     }
 
-    const coverageScoreA_vsIdeal = coverageScoresForPrompt[clickedModelId] ?? null;
-    let assessmentsA_vsIdeal = null;
-    if (coverageScoreA_vsIdeal && !('error' in coverageScoreA_vsIdeal)) {
-        assessmentsA_vsIdeal = coverageScoreA_vsIdeal.pointAssessments ?? null;
-    }
-
-    const semanticSim = data.evaluationResults?.perPromptSimilarities?.[currentPromptId]?.[clickedModelId]?.[IDEAL_MODEL_ID] ?? data.evaluationResults?.perPromptSimilarities?.[currentPromptId]?.[IDEAL_MODEL_ID]?.[clickedModelId];
-    const semanticSimilarityForModal = (typeof semanticSim === 'number' && !isNaN(semanticSim)) ? semanticSim : null;
-
-    setSelectedPairForModal({
-      modelA: clickedModelId,
-      modelB: idealModelId,
-      promptId: currentPromptId,
+    setCriterionDetailModalData({
+      modelId: clickedModelId,
+      assessment,
       promptText,
-      systemPromptA,
-      systemPromptB,
-      responseA,
-      responseB,
-      semanticSimilarity: semanticSimilarityForModal,
-      performanceSimilarity: null,
-      llmCoverageScoreA: coverageScoreA_vsIdeal,
-      llmCoverageScoreB: null,
-      extractedKeyPoints: keyPoints,
-      pointAssessmentsA: assessmentsA_vsIdeal,
-      pointAssessmentsB: null
+      modelResponse,
+      systemPrompt
     });
-    setIsModalOpen(true);
+    setIsCriterionDetailModalOpen(true);
   };
 
-  const handleMacroCellClick = (promptId: string, modelId: string) => {
-    if (!data?.allResponses || !data?.promptTexts || !data.evaluationResults?.llmCoverageScores?.[promptId] || !data.effectiveModels.includes(IDEAL_MODEL_ID)) {
+  const handleMacroCellClick = (promptId: string, modelId: string, assessment: PointAssessment) => {
+    if (!data?.allResponses || !data?.promptTexts || !assessment) {
+      console.warn("[handleMacroCellClick] Missing necessary data to show criterion detail.");
       return;
     }
 
-    const idealModelId = IDEAL_MODEL_ID;
-    const responseA = data.allResponses[promptId]?.[modelId];
-    const responseB = data.allResponses[promptId]?.[idealModelId];
+    const modelResponse = data.allResponses[promptId]?.[modelId];
     const promptText = data.promptTexts[promptId] || promptId;
-    const systemPromptA = modelSystemPrompts[modelId];
-    const systemPromptB = modelSystemPrompts[idealModelId];
-    const keyPoints = data.extractedKeyPoints?.[promptId] || null;
-    const coverageScoresForPrompt = data.evaluationResults.llmCoverageScores[promptId];
+    const systemPrompt = modelSystemPrompts[modelId] ?? null;
 
-    if (responseA === undefined || responseB === undefined) {
+    if (modelResponse === undefined) {
+      console.warn(`[handleMacroCellClick] No model response found for model ${modelId} on prompt ${promptId}.`);
       return;
     }
 
-    const coverageScoreA_vsIdeal = coverageScoresForPrompt[modelId] ?? null;
-    let assessmentsA_vsIdeal = null;
-    if (coverageScoreA_vsIdeal && !('error' in coverageScoreA_vsIdeal)) {
-        assessmentsA_vsIdeal = coverageScoreA_vsIdeal.pointAssessments ?? null;
-    }
-
-    const semanticSim = data.evaluationResults?.perPromptSimilarities?.[promptId]?.[modelId]?.[IDEAL_MODEL_ID] ?? data.evaluationResults?.perPromptSimilarities?.[promptId]?.[IDEAL_MODEL_ID]?.[modelId];
-    const semanticSimilarityForModal = (typeof semanticSim === 'number' && !isNaN(semanticSim)) ? semanticSim : null;
-
-    setSelectedPairForModal({
-      modelA: modelId,
-      modelB: idealModelId,
-      promptId: promptId,
+    setCriterionDetailModalData({
+      modelId,
+      assessment,
       promptText,
-      systemPromptA,
-      systemPromptB,
-      responseA,
-      responseB,
-      semanticSimilarity: semanticSimilarityForModal,
-      performanceSimilarity: null,
-      llmCoverageScoreA: coverageScoreA_vsIdeal,
-      llmCoverageScoreB: null,
-      extractedKeyPoints: keyPoints,
-      pointAssessmentsA: assessmentsA_vsIdeal,
-      pointAssessmentsB: null
+      modelResponse,
+      systemPrompt
     });
-    setIsModalOpen(true);
+    setIsCriterionDetailModalOpen(true);
+  };
+
+  const handleCloseCriterionDetailModal = () => {
+    setIsCriterionDetailModalOpen(false);
+    setCriterionDetailModalData(null);
   };
 
   return (
@@ -903,27 +877,43 @@ export default function BetaComparisonClientPage() {
                 />
               )}
 
-              {currentPromptId && data?.evaluationResults?.llmCoverageScores?.[currentPromptId] && data.extractedKeyPoints?.[currentPromptId] && (
-                  <Card className="bg-card/80 dark:bg-slate-800/50 backdrop-blur-md text-card-foreground dark:text-slate-100 rounded-xl shadow-lg ring-1 ring-border dark:ring-slate-700 overflow-hidden">
-                      <CardHeader className="border-b border-border dark:border-slate-700 py-4 px-6">
-                            <div className="flex items-center">
-                              {Eye && <Eye className="w-5 h-5 mr-3 text-primary dark:text-sky-400" />}
-                              <CardTitle className="text-primary dark:text-sky-400 text-xl">Detailed Key Point Coverage</CardTitle>
-                          </div>
-                          <CardDescription className="text-muted-foreground dark:text-slate-400 pt-1 text-sm">
-                              For prompt: <strong className="text-card-foreground dark:text-slate-200 font-normal">{getPromptText(currentPromptId)}</strong>
-                          </CardDescription>
-                      </CardHeader>
-                      <CardContent className="pt-6 px-6 pb-6">
-                          <KeyPointCoverageTable 
-                              coverageScores={data.evaluationResults.llmCoverageScores[currentPromptId]}
-                              models={modelsToDisplayInGraphs.filter(m => m !== IDEAL_MODEL_ID)}
-                              keyPoints={data.extractedKeyPoints[currentPromptId] || []} 
-                              onCellClick={handleCoverageCellClick}
-                          />
-                      </CardContent>
-                  </Card>
-              )}
+              {currentPromptId && (() => {
+                const coverageScoresForCurrentPrompt = data?.evaluationResults?.llmCoverageScores?.[currentPromptId];
+                let hasAssessmentsToShow = false;
+                if (coverageScoresForCurrentPrompt && typeof coverageScoresForCurrentPrompt === 'object') {
+                  for (const modelId in coverageScoresForCurrentPrompt) {
+                    const modelCoverage = coverageScoresForCurrentPrompt[modelId];
+                    if (modelCoverage && !('error' in modelCoverage) && modelCoverage.pointAssessments && modelCoverage.pointAssessments.length > 0) {
+                      hasAssessmentsToShow = true;
+                      break;
+                    }
+                  }
+                }
+
+                if (hasAssessmentsToShow) {
+                  return (
+                    <Card className="bg-card/80 dark:bg-slate-800/50 backdrop-blur-md text-card-foreground dark:text-slate-100 rounded-xl shadow-lg ring-1 ring-border dark:ring-slate-700 overflow-hidden">
+                        <CardHeader className="border-b border-border dark:border-slate-700 py-4 px-6">
+                              <div className="flex items-center">
+                                {Eye && <Eye className="w-5 h-5 mr-3 text-primary dark:text-sky-400" />}
+                                <CardTitle className="text-primary dark:text-sky-400 text-xl">Detailed Key Point Coverage</CardTitle>
+                            </div>
+                            <CardDescription className="text-muted-foreground dark:text-slate-400 pt-1 text-sm">
+                                For prompt: <strong className="text-card-foreground dark:text-slate-200 font-normal">{getPromptText(currentPromptId)}</strong>
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="pt-6 px-6 pb-6">
+                            <KeyPointCoverageTable 
+                                coverageScores={coverageScoresForCurrentPrompt}
+                                models={modelsToDisplayInGraphs.filter(m => m !== IDEAL_MODEL_ID)}
+                                onCellClick={handleCoverageCellClick}
+                            />
+                        </CardContent>
+                    </Card>
+                  );
+                }
+                return null;
+              })() }
 
               {data?.effectiveModels && safeMatrixForCurrentView && (
                 <div className="space-y-6">
@@ -1104,6 +1094,14 @@ export default function BetaComparisonClientPage() {
               pointAssessmentsB={selectedPairForModal.pointAssessmentsB}
               semanticSimilarity={selectedPairForModal.semanticSimilarity} 
               performanceSimilarity={selectedPairForModal.performanceSimilarity}
+            />
+          )}
+          
+          {criterionDetailModalData && (
+            <CriterionDetailModal
+              isOpen={isCriterionDetailModalOpen}
+              onClose={handleCloseCriterionDetailModal}
+              data={criterionDetailModalData}
             />
           )}
           
