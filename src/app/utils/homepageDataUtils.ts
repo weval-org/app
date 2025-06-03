@@ -1,9 +1,12 @@
 import {
-  getHomepageSummary
+  getHomepageSummary,
+  HomepageSummaryFileContent // Import the type from storageService
 } from '@/lib/storageService'; 
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { AggregateStatsData } from '@/app/components/AggregateStatsDisplay';
+import { PotentialDriftInfo } from '@/app/components/ModelDriftIndicator';
 
 const CACHE_FILE_PATH = path.join(os.tmpdir(), 'civiceval_homepage_cache.json');
 
@@ -44,30 +47,59 @@ export interface EnhancedComparisonConfigInfo {
   tags?: string[];
 }
 
-export async function getComparisonRunInfo(): Promise<EnhancedComparisonConfigInfo[]> {
-  console.log("[homepageDataUtils] getComparisonRunInfo CALLED (v2 - Summary File Strategy) at:", new Date().toISOString());
+// Helper to deserialize: Converts perModelHybridScores from object to Map if needed
+function deserializeSummaryContent(summary: HomepageSummaryFileContent | null): HomepageSummaryFileContent | null {
+  if (!summary || !summary.configs) return summary;
+  return {
+    ...summary,
+    configs: summary.configs.map((config: EnhancedComparisonConfigInfo) => ({
+      ...config,
+      runs: config.runs.map((run: EnhancedRunInfo) => {
+        if (run.perModelHybridScores && typeof run.perModelHybridScores === 'object' && !(run.perModelHybridScores instanceof Map)) {
+          return {
+            ...run,
+            perModelHybridScores: new Map(Object.entries(run.perModelHybridScores as Record<string, { average: number | null; stddev: number | null }>))
+          };
+        }
+        return run;
+      })
+    }))
+  };
+}
+
+// Helper to serialize: Converts perModelHybridScores from Map to object for JSON compatibility
+function serializeSummaryContentForCache(summary: HomepageSummaryFileContent): any {
+  // Creates a version of the summary where Maps are converted to objects for JSON stringification
+  if (!summary || !summary.configs) return summary;
+  return {
+    ...summary,
+    configs: summary.configs.map((config: EnhancedComparisonConfigInfo) => ({
+      ...config,
+      runs: config.runs.map((run: EnhancedRunInfo) => {
+        if (run.perModelHybridScores instanceof Map) {
+          return {
+            ...run,
+            perModelHybridScores: Object.fromEntries(run.perModelHybridScores)
+          };
+        }
+        return run;
+      })
+    }))
+  };
+}
+
+async function getFullHomepageDataWithCache(): Promise<HomepageSummaryFileContent | null> {
+  console.log("[homepageDataUtils] getFullHomepageDataWithCache CALLED at:", new Date().toISOString());
 
   if (homepageDevCacheDurationMs > 0) {
     try {
       if (fs.existsSync(CACHE_FILE_PATH)) {
         const cachedFileContent = fs.readFileSync(CACHE_FILE_PATH, 'utf-8');
-        const cachedData = JSON.parse(cachedFileContent);
-        if (cachedData.timestamp && (Date.now() - cachedData.timestamp < homepageDevCacheDurationMs)) {
-          console.log("[homepageDataUtils] Returning data from /tmp cache (summary file content).");
-          // Rehydrate perModelHybridScores from object to Map when serving from cache
-          const hydratedData = (cachedData.data as EnhancedComparisonConfigInfo[]).map(config => ({
-            ...config,
-            runs: config.runs.map(run => {
-              if (run.perModelHybridScores && typeof run.perModelHybridScores === 'object' && !(run.perModelHybridScores instanceof Map)) {
-                return {
-                  ...run,
-                  perModelHybridScores: new Map(Object.entries(run.perModelHybridScores as Record<string, { average: number | null; stddev: number | null }>))
-                };
-              }
-              return run;
-            })
-          }));
-          return hydratedData;
+        const cachedJson = JSON.parse(cachedFileContent);
+        if (cachedJson.timestamp && (Date.now() - cachedJson.timestamp < homepageDevCacheDurationMs)) {
+          console.log("[homepageDataUtils] Returning full summary data from /tmp cache.");
+          // cachedJson.data here is the serialized version, so deserialize it
+          return deserializeSummaryContent(cachedJson.data as HomepageSummaryFileContent);
         }
         console.log("[homepageDataUtils] /tmp cache file found but is stale or invalid.");
       }
@@ -81,43 +113,41 @@ export async function getComparisonRunInfo(): Promise<EnhancedComparisonConfigIn
   console.log("[homepageDataUtils] No valid /tmp cache or cache disabled/stale. Fetching homepage summary from S3 via storageService...");
   
   try {
-    const summaryData = await getHomepageSummary(); // Static import is used at the top
+    const summaryData = await getHomepageSummary(); // This already returns HomepageSummaryFileContent with Maps hydrated
 
     if (!summaryData) {
-      console.log("[homepageDataUtils] No summary data returned from getHomepageSummary. Returning empty array.");
-      return [];
+      console.log("[homepageDataUtils] No summary data returned from getHomepageSummary. Returning null.");
+      return null;
     }
 
     if (homepageDevCacheDurationMs > 0) {
       try {
-        // Data from getHomepageSummary is EnhancedComparisonConfigInfo[]
-        // If perModelHybridScores are Maps, they need to be serialized for JSON.stringify
-        // storageService.saveHomepageSummary handles this serialization before S3 write.
-        // storageService.getHomepageSummary handles deserialization and Map rehydration.
-        // So, summaryData here should have Maps correctly rehydrated.
-
         // Before writing to cache, serialize Maps in summaryData if they exist
-        const serializableDataForCache = summaryData.map(config => ({
-          ...config,
-          runs: config.runs.map(run => {
-            if (run.perModelHybridScores instanceof Map) {
-              return {
-                ...run,
-                perModelHybridScores: Object.fromEntries(run.perModelHybridScores)
-              };
-            }
-            return run;
-          })
-        }));
+        const serializableDataForCache = serializeSummaryContentForCache(summaryData);
         fs.writeFileSync(CACHE_FILE_PATH, JSON.stringify({ timestamp: Date.now(), data: serializableDataForCache }, null, 2), 'utf-8');
         console.log("[homepageDataUtils] Fresh homepage summary data saved to /tmp cache.");
       } catch (cacheWriteError) {
         console.warn("[homepageDataUtils] Error writing homepage summary data to /tmp cache:", cacheWriteError);
       }
     }
-    return summaryData; // This data should have Maps rehydrated by getHomepageSummary
+    return summaryData; // This data from getHomepageSummary should have Maps already rehydrated
   } catch (error: any) {
     console.error("[homepageDataUtils] Error fetching or processing homepage summary via getHomepageSummary:", error);
-    return [];
+    return null;
   }
+}
+
+export async function getComparisonRunInfo(): Promise<EnhancedComparisonConfigInfo[]> {
+  const fullData = await getFullHomepageDataWithCache();
+  return fullData?.configs || [];
+}
+
+export async function getCachedHomepageHeadlineStats(): Promise<AggregateStatsData | null> {
+  const fullData = await getFullHomepageDataWithCache();
+  return fullData?.headlineStats || null;
+}
+
+export async function getCachedHomepageDriftDetectionResult(): Promise<PotentialDriftInfo | null> {
+  const fullData = await getFullHomepageDataWithCache();
+  return fullData?.driftDetectionResult || null;
 } 

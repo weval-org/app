@@ -34,8 +34,9 @@ import DownloadResultsButton from '@/app/analysis/components/DownloadResultsButt
 import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import PerModelHybridScoresCard from '@/app/analysis/components/PerModelHybridScoresCard';
 import AnalysisPageHeader from '@/app/analysis/components/AnalysisPageHeader';
-import { fromSafeTimestamp } from '@/app/utils/timestampUtils';
+import { fromSafeTimestamp, formatTimestampForDisplay } from '@/app/utils/timestampUtils';
 import CriterionDetailModal from '@/app/analysis/components/CriterionDetailModal';
+import DebugPanel from '@/app/analysis/components/DebugPanel';
 
 const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.AlertCircle))
 const XCircle = dynamic(() => import("lucide-react").then((mod) => mod.XCircle))
@@ -44,7 +45,6 @@ const HelpCircle = dynamic(() => import("lucide-react").then(mod => mod.HelpCirc
 const SlidersHorizontal = dynamic(() => import("lucide-react").then(mod => mod.SlidersHorizontal))
 const BarChartBig = dynamic(() => import("lucide-react").then(mod => mod.BarChartBig))
 const Eye = dynamic(() => import("lucide-react").then(mod => mod.Eye))
-const TerminalIcon = dynamic(() => import("lucide-react").then((mod) => mod.Terminal));
 
 interface LLMCoverageScoreData {
     keyPointsCount: number;
@@ -69,92 +69,6 @@ interface CriterionDetailModalData {
 }
 
 type CoverageResult = (LLMCoverageScoreData & { pointAssessments?: PointAssessment[] }) | { error: string } | null;
-
-function DebugPanel({ data, configId, runLabel, timestamp }: { data: ImportedComparisonDataV2 | null, configId: string, runLabel: string, timestamp?: string }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [directoryInfo, setDirectoryInfo] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  
-  const checkDirectory = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch('/api/debug?action=check-directory');
-      const result = await response.json();
-      setDirectoryInfo(JSON.stringify(result, null, 2));
-    } catch (err) {
-      console.error('Error checking directory:', err);
-      setDirectoryInfo(err instanceof Error ? err.message : 'Unknown error');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-  const displayableTimestamp = timestamp ? new Date(fromSafeTimestamp(timestamp)).toLocaleString() : 'N/A';
-  const displayLabel = `${data?.configTitle || configId} - ${data?.runLabel || runLabel}${timestamp ? ' (' + displayableTimestamp + ')' : ''}`;
-
-  return (
-    <div className="mt-8 bg-card/60 dark:bg-slate-800/60 backdrop-blur-sm p-4 rounded-xl shadow-lg ring-1 ring-border dark:ring-slate-700/80">
-      <div className="flex justify-between items-center">
-        <div className="flex items-center">
-            {TerminalIcon && <TerminalIcon className="w-5 h-5 mr-2.5 text-highlight-info" />}
-            <h2 className="text-lg font-semibold text-card-foreground">Advanced Tools</h2>
-        </div>
-        <div className="space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-highlight-info border-highlight-info/70 hover:bg-highlight-info/10 hover:text-highlight-info px-3 py-1.5 text-xs"
-            onClick={() => setIsOpen(!isOpen)}
-          >
-            {isOpen ? 'Hide' : 'Show'} Raw JSON Data
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-cyan-500 dark:text-cyan-300 border-cyan-600/70 dark:border-cyan-700/70 hover:bg-cyan-500/10 dark:hover:bg-cyan-700/30 hover:text-cyan-600 dark:hover:text-cyan-200 px-3 py-1.5 text-xs"
-            onClick={checkDirectory}
-            disabled={isLoading}
-          >
-            {isLoading ? 'Checking Dir...' : 'Check Results Dir'}
-          </Button>
-          <DownloadResultsButton data={data} label={displayLabel} />
-        </div>
-      </div>
-      
-      {isOpen && (
-        <div className="mt-4 bg-muted/70 dark:bg-slate-900/70 text-muted-foreground dark:text-slate-200 p-3.5 rounded-lg overflow-auto max-h-[400px] ring-1 ring-border dark:ring-slate-600/70 shadow-inner">
-          <pre className="text-xs leading-relaxed">{JSON.stringify(data, null, 2)}</pre>
-        </div>
-      )}
-      
-      {directoryInfo && (
-        <div className="mt-3 bg-muted/70 dark:bg-slate-900/70 text-muted-foreground dark:text-slate-200 p-3.5 rounded-lg overflow-auto max-h-[300px] ring-1 ring-border dark:ring-slate-600/70 shadow-inner">
-          <h3 className="text-sm font-semibold mb-1.5 text-card-foreground dark:text-slate-300">Results Directory API Response:</h3>
-          <pre className="text-xs leading-relaxed">{directoryInfo}</pre>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// --- Helper for consistent date formatting for titles & headers ---
-const formatTimestampForDisplay = (safeTimestamp: string): string => {
-  try {
-    const date = new Date(fromSafeTimestamp(safeTimestamp));
-    // Format: DD/MM/YYYY, HH:MM:SS (24-hour)
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = (date.getMonth() + 1).toString().padStart(2, '0'); // Month is 0-indexed
-    const year = date.getFullYear();
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    const seconds = date.getSeconds().toString().padStart(2, '0');
-    return `${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`;
-  } catch (e) {
-    // Fallback to the safe timestamp if parsing fails (should be rare)
-    console.error("Error formatting timestamp for display:", e);
-    return safeTimestamp; 
-  }
-};
 
 export default function BetaComparisonClientPage() {
   const router = useRouter();

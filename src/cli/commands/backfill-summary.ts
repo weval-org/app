@@ -6,9 +6,14 @@ import {
     getResultByFileName,
     saveHomepageSummary,
     updateSummaryDataWithNewRun,
+    HomepageSummaryFileContent
 } from '../../lib/storageService';
 import { EnhancedComparisonConfigInfo } from '../../app/utils/homepageDataUtils';
 import { ComparisonDataV2 as FetchedComparisonData } from '../../app/utils/types';
+import {
+    calculateHeadlineStats,
+    calculatePotentialModelDrift
+} from '../utils/summaryCalculationUtils';
 
 async function actionBackfillSummary(options: { verbose?: boolean }) {
     const { logger } = getConfig();
@@ -73,8 +78,20 @@ async function actionBackfillSummary(options: { verbose?: boolean }) {
         }
 
         if (comprehensiveSummary.length > 0) {
-            logger.info('Backfill data compiled. Saving comprehensive homepage summary...');
-            await saveHomepageSummary(comprehensiveSummary);
+            logger.info('Backfill data compiled. Calculating headline statistics and drift detection...');
+            
+            const headlineStats = calculateHeadlineStats(comprehensiveSummary);
+            const driftDetectionResult = calculatePotentialModelDrift(comprehensiveSummary);
+
+            const finalSummaryObject: HomepageSummaryFileContent = {
+                configs: comprehensiveSummary,
+                headlineStats: headlineStats,
+                driftDetectionResult: driftDetectionResult,
+                lastUpdated: new Date().toISOString(),
+            };
+
+            logger.info('Saving comprehensive homepage summary with new stats...');
+            await saveHomepageSummary(finalSummaryObject);
             logger.info('Comprehensive homepage summary saved successfully.');
         } else {
             logger.warn('No data was compiled for the summary. Summary file not saved.');

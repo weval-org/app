@@ -6,6 +6,8 @@ import {
   getComparisonRunInfo,
   EnhancedComparisonConfigInfo,
   EnhancedRunInfo,
+  getCachedHomepageHeadlineStats,
+  getCachedHomepageDriftDetectionResult
 } from '@/app/utils/homepageDataUtils';
 import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import { IDEAL_MODEL_ID } from '@/app/utils/comparisonUtils';
@@ -345,192 +347,13 @@ const BrowseAllBlueprintsSection = ({ blueprints }: { blueprints: BlueprintSumma
   );
 };
 
-function calculateHeadlineStats(configs: EnhancedComparisonConfigInfo[]): AggregateStatsData {
-  console.log("[Debug] calculateHeadlineStats - Input blueprints:", JSON.stringify(configs, null, 2));
-
-  let bestPerformingConfig: EnhancedComparisonConfigInfo | null = null;
-  let worstPerformingConfig: EnhancedComparisonConfigInfo | null = null;
-  let mostConsistentConfig: EnhancedComparisonConfigInfo | null = null;
-  let leastConsistentConfig: EnhancedComparisonConfigInfo | null = null;
-
-  const modelPerformanceScores = new Map<string, { scoreSum: number; count: number; runsParticipatedIn: Set<string>; originalFullIds: Set<string> }>();
-
-  for (const config of configs) {
-    if (config.overallAverageHybridScore !== null && config.overallAverageHybridScore !== undefined) {
-      if (!bestPerformingConfig || config.overallAverageHybridScore > (bestPerformingConfig.overallAverageHybridScore ?? -Infinity)) {
-        bestPerformingConfig = config;
-      }
-      if (!worstPerformingConfig || config.overallAverageHybridScore < (worstPerformingConfig.overallAverageHybridScore ?? Infinity)) {
-        worstPerformingConfig = config;
-      }
-    }
-
-    if (config.hybridScoreStdDev !== null && config.hybridScoreStdDev !== undefined) {
-      if (!mostConsistentConfig || config.hybridScoreStdDev < (mostConsistentConfig.hybridScoreStdDev ?? Infinity)) {
-        mostConsistentConfig = config;
-      }
-      if (!leastConsistentConfig || config.hybridScoreStdDev > (leastConsistentConfig.hybridScoreStdDev ?? -Infinity)) {
-        leastConsistentConfig = config;
-      }
-    }
-
-    for (const run of config.runs) {
-      if (run.perModelHybridScores) {
-        console.log("[Debug] calculateHeadlineStats - perModelHybridScores:", JSON.stringify(run.perModelHybridScores, null, 2));
-        for (const [fullModelId, scoreData] of run.perModelHybridScores.entries()) {
-          if (fullModelId === IDEAL_MODEL_ID) continue;
-
-          const parsedId = parseEffectiveModelId(fullModelId);
-          const groupingKey = parsedId.displayName; 
-
-          if (scoreData.average !== null && scoreData.average !== undefined) {
-            const currentEntry = modelPerformanceScores.get(groupingKey) || { scoreSum: 0, count: 0, runsParticipatedIn: new Set(), originalFullIds: new Set() };
-            currentEntry.scoreSum += scoreData.average;
-            currentEntry.count += 1;
-            const blueprintId = config.id || config.configId;
-            currentEntry.runsParticipatedIn.add(`${blueprintId}_${run.runLabel}_${run.timestamp}`); 
-            currentEntry.originalFullIds.add(fullModelId);
-            modelPerformanceScores.set(groupingKey, currentEntry);
-          }
-        }
-      }
-    }
-  }
-
-  console.log("[Debug] calculateHeadlineStats - modelPerformanceScores Map (grouped by baseId+sysHash):", JSON.stringify(Array.from(modelPerformanceScores.entries()), null, 2));
-
-  let rankedOverallModelsData: Array<{ modelId: string; overallAverageScore: number; runsParticipatedIn: number }> = [];
-
-  if (modelPerformanceScores.size > 0) {
-    const aggregatedModelPerf = Array.from(modelPerformanceScores.entries()).map(([groupingKey, data]) => ({
-      modelId: groupingKey, 
-      overallAverageScore: data.scoreSum / data.count,
-      runsParticipatedIn: data.runsParticipatedIn.size,
-    }));
-    
-    console.log("[Debug] calculateHeadlineStats - aggregatedModelPerf (before filter/sort):", JSON.stringify(aggregatedModelPerf, null, 2));
-
-    const filteredAndRankedModels = aggregatedModelPerf
-      .filter(model => !parseEffectiveModelId(model.modelId).systemPromptHash && model.runsParticipatedIn >= 5)
-      .sort((a, b) => b.overallAverageScore - a.overallAverageScore);
-    
-    console.log("[Debug] calculateHeadlineStats - filteredAndRankedModels:", JSON.stringify(filteredAndRankedModels, null, 2));
-    rankedOverallModelsData = filteredAndRankedModels;
-  }
-
-  return {
-    bestPerformingConfig: bestPerformingConfig ? {
-      configId: bestPerformingConfig.id || bestPerformingConfig.configId,
-      configTitle: bestPerformingConfig.title || bestPerformingConfig.configTitle,
-      value: bestPerformingConfig.overallAverageHybridScore!,
-      description: "Avg. Hybrid Score"
-    } : null,
-    worstPerformingConfig: worstPerformingConfig ? {
-      configId: worstPerformingConfig.id || worstPerformingConfig.configId,
-      configTitle: worstPerformingConfig.title || worstPerformingConfig.configTitle,
-      value: worstPerformingConfig.overallAverageHybridScore!,
-      description: "Avg. Hybrid Score"
-    } : null,
-    mostConsistentConfig: mostConsistentConfig ? {
-      configId: mostConsistentConfig.id || mostConsistentConfig.configId,
-      configTitle: mostConsistentConfig.title || mostConsistentConfig.configTitle,
-      value: mostConsistentConfig.hybridScoreStdDev!,
-      description: "Score StdDev"
-    } : null,
-    leastConsistentConfig: leastConsistentConfig ? {
-      configId: leastConsistentConfig.id || leastConsistentConfig.configId,
-      configTitle: leastConsistentConfig.title || leastConsistentConfig.configTitle,
-      value: leastConsistentConfig.hybridScoreStdDev!,
-      description: "Score StdDev"
-    } : null,
-    rankedOverallModels: rankedOverallModelsData.length > 0 ? rankedOverallModelsData : null,
-  } as AggregateStatsData;
-}
-
-function calculatePotentialModelDrift(configs: EnhancedComparisonConfigInfo[]): PotentialDriftInfo | null {
-  let maxDriftInfo: PotentialDriftInfo | null = null;
-
-  const runsByLabel = new Map<string, { config: EnhancedComparisonConfigInfo, run: EnhancedComparisonConfigInfo['runs'][0] }[]>();
-
-  for (const config of configs) {
-    for (const run of config.runs) {
-      if (!run.perModelHybridScores || run.perModelHybridScores.size === 0) continue;
-      if (!runsByLabel.has(run.runLabel)) {
-        runsByLabel.set(run.runLabel, []);
-      }
-      runsByLabel.get(run.runLabel)!.push({ config, run });
-    }
-  }
-
-  const MIN_SCORE_RANGE_THRESHOLD = 0.05;
-  const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000;
-
-  for (const [runLabel, associatedRuns] of runsByLabel.entries()) {
-    if (associatedRuns.length < 2) continue;
-    const timestamps = new Set(associatedRuns.map(ar => ar.run.timestamp));
-    if (timestamps.size < 2) continue;
-
-    const firstConfig = associatedRuns[0].config;
-    const modelScoresOverTime = new Map<string, Array<{ score: number, timestamp: string }>>();
-
-    for (const { run } of associatedRuns) {
-      if (run.perModelHybridScores) {
-        for (const [modelId, scoreData] of run.perModelHybridScores.entries()) {
-          if (scoreData.average !== null && scoreData.average !== undefined) {
-            if (!modelScoresOverTime.has(modelId)) {
-              modelScoresOverTime.set(modelId, []);
-            }
-            modelScoresOverTime.get(modelId)!.push({ score: scoreData.average, timestamp: run.timestamp });
-          }
-        }
-      }
-    }
-
-    for (const [modelId, scores] of modelScoresOverTime.entries()) {
-      const uniqueTimestampsForModelScores = new Set(scores.map(s => s.timestamp));
-      if (uniqueTimestampsForModelScores.size < 2) continue;
-
-      scores.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-      const oldestRun = scores[0];
-      const newestRun = scores[scores.length - 1];
-
-      const timeDifference = new Date(newestRun.timestamp).getTime() - new Date(oldestRun.timestamp).getTime();
-
-      const sortedByScore = [...scores].sort((a,b) => a.score - b.score);
-      const minScore = sortedByScore[0].score;
-      const maxScore = sortedByScore[sortedByScore.length -1].score;
-      const scoreRange = maxScore - minScore;
-
-      if (scoreRange >= MIN_SCORE_RANGE_THRESHOLD && timeDifference >= ONE_DAY_IN_MS) {
-        const currentDrift: PotentialDriftInfo = {
-          configId: firstConfig.id || firstConfig.configId,
-          configTitle: firstConfig.title || firstConfig.configTitle,
-          runLabel: runLabel,
-          modelId: modelId,
-          minScore: minScore,
-          maxScore: maxScore,
-          scoreRange: scoreRange,
-          runsCount: scores.length,
-          oldestTimestamp: oldestRun.timestamp,
-          newestTimestamp: newestRun.timestamp,
-        };
-
-        if (!maxDriftInfo || scoreRange > maxDriftInfo.scoreRange) {
-          maxDriftInfo = currentDrift;
-        }
-      }
-    }
-  }
-  return maxDriftInfo;
-}
-
 function getLatestDateOfData(configs: EnhancedComparisonConfigInfo[]): string {
   let maxDate: Date | null = null;
 
   for (const config of configs) {
     for (const run of config.runs) {
       if (run.timestamp) {
-        const currentDate = new Date(run.timestamp);
+        const currentDate = new Date(fromSafeTimestamp(run.timestamp));
         if (!isNaN(currentDate.getTime())) {
           if (!maxDate || currentDate > maxDate) {
             maxDate = currentDate;
@@ -544,20 +367,23 @@ function getLatestDateOfData(configs: EnhancedComparisonConfigInfo[]): string {
 }
 
 export default async function HomePage() {
-  const initialConfigsRaw = await getComparisonRunInfo();
+  const [initialConfigsRaw, headlineStats, driftDetectionResult]: [
+    EnhancedComparisonConfigInfo[], 
+    AggregateStatsData | null, 
+    PotentialDriftInfo | null
+  ] = await Promise.all([
+    getComparisonRunInfo(),
+    getCachedHomepageHeadlineStats(),
+    getCachedHomepageDriftDetectionResult()
+  ]);
 
-  // Filter out configs tagged 'test' unless in development
   const isDevelopment = process.env.NODE_ENV === 'development';
   const initialConfigs = initialConfigsRaw.filter(config => {
     if (isDevelopment) {
-      return true; // Show all configs in development
+      return true;
     }
-    // In production (or non-dev), hide if 'test' tag is present
     return !(config.tags && config.tags.includes('test'));
   });
-
-  const headlineStats = calculateHeadlineStats(initialConfigs);
-  const driftDetectionResult = calculatePotentialModelDrift(initialConfigs);
 
   const allRunInstances: DisplayableRunInstanceInfo[] = [];
   initialConfigs.forEach(config => {
@@ -734,7 +560,7 @@ export default async function HomePage() {
       </div>
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 sm:pb-2 md:pb-4 pt-8 md:pt-10 space-y-8 md:space-y-10">
-        {initialConfigs.length > 0 && (
+        {initialConfigs.length > 0 && headlineStats && (
           <section 
             aria-labelledby="platform-summary-heading"
             className="bg-card/50 dark:bg-slate-800/50 backdrop-blur-md p-6 rounded-2xl shadow-lg ring-1 ring-border/60 dark:ring-slate-700/60"
@@ -744,7 +570,7 @@ export default async function HomePage() {
             </h2>
             <div className="space-y-8 md:space-y-10">
                 <AggregateStatsDisplay stats={headlineStats} />
-                <ModelDriftIndicator driftInfo={driftDetectionResult} />
+                {driftDetectionResult && <ModelDriftIndicator driftInfo={driftDetectionResult} />}
             </div>
           </section>
         )}

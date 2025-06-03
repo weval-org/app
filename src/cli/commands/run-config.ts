@@ -13,8 +13,13 @@ import {
     getHomepageSummary,
     saveHomepageSummary,
     updateSummaryDataWithNewRun,
-    getResultByFileName // To fetch the result if executeComparisonPipeline only returns a key/path
+    getResultByFileName, // To fetch the result if executeComparisonPipeline only returns a key/path
+    HomepageSummaryFileContent // Import the main type
 } from '../../lib/storageService'; // Adjusted path
+import {
+    calculateHeadlineStats,
+    calculatePotentialModelDrift
+} from '../utils/summaryCalculationUtils'; // Import new calc utils
 
 import { executeComparisonPipeline } from '../services/comparison-pipeline-service';
 import { generateConfigContentHash } from '../../lib/hash-utils';
@@ -319,27 +324,34 @@ async function actionV2(options: { config: string, runLabel?: string, evalMethod
         // ---- Update Homepage Summary Manifest ----
         if (newResultData && (process.env.STORAGE_PROVIDER === 's3' || process.env.UPDATE_LOCAL_SUMMARY === 'true')) { // Only update if S3 or explicitly told for local
             try {
-                loggerInstance.info('Attempting to update homepage summary manifest...');
-                const currentSummary = await getHomepageSummary();
-                // We need the actual filename that was used for saving the result.
-                // If newResultData.fileName is populated by storageService.saveResult or executeComparisonPipeline, use it.
-                // Otherwise, construct it carefully.
-                // Let's assume newResultData contains a `fileName` property if it was saved.
-                // This part needs careful handling of how the definitive fileName (with timestamp) is obtained.
-                // For now, if outputPathOrKey was an S3 key or local path, its basename is the filename.
-                // const resultFileName = newResultData.fileName || (outputPathOrKey ? path.basename(outputPathOrKey) : `${finalRunLabel}_${newResultData.timestamp}_comparison.json`);
+                loggerInstance.info('Attempting to update homepage summary manifest with new calculations...');
+                const currentFullSummary = await getHomepageSummary(); // Fetches HomepageSummaryFileContent | null
                 
-                // if (!resultFileName) {
-                // throw new Error('Could not determine result filename for summary update.');
-                // }
-                // Use actualResultFileName which was determined when the result was processed.
                 if (!actualResultFileName) {
                     throw new Error('Could not determine result filename for summary update. Result might not have been saved to a persistent location.');
                 }
 
-                const updatedSummary = updateSummaryDataWithNewRun(currentSummary, newResultData, actualResultFileName);
-                await saveHomepageSummary(updatedSummary);
-                loggerInstance.info('Homepage summary manifest updated successfully.');
+                // 1. Update the configs array part of the summary
+                const updatedConfigsArray = updateSummaryDataWithNewRun(
+                    currentFullSummary?.configs || null, // Pass only the configs array, or null if no current summary
+                    newResultData, 
+                    actualResultFileName
+                );
+
+                // 2. Recalculate headlineStats and driftDetectionResult using the newly updated configs array
+                const newHeadlineStats = calculateHeadlineStats(updatedConfigsArray);
+                const newDriftDetectionResult = calculatePotentialModelDrift(updatedConfigsArray);
+
+                // 3. Construct the complete new HomepageSummaryFileContent object
+                const newHomepageSummaryContent: HomepageSummaryFileContent = {
+                    configs: updatedConfigsArray,
+                    headlineStats: newHeadlineStats,
+                    driftDetectionResult: newDriftDetectionResult,
+                    lastUpdated: new Date().toISOString(),
+                };
+
+                await saveHomepageSummary(newHomepageSummaryContent);
+                loggerInstance.info('Homepage summary manifest updated successfully with re-calculated stats.');
             } catch (summaryError: any) {
                 loggerInstance.error(`Failed to update homepage summary manifest: ${summaryError.message}`);
                 if (process.env.DEBUG && summaryError.stack) {

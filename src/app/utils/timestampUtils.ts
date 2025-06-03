@@ -45,4 +45,22 @@ export function fromSafeTimestamp(safeTimestamp: string): string {
     console.error(`[fromSafeTimestamp] Error converting safe timestamp '${safeTimestamp}':`, e);
     return new Date(0).toISOString(); // Fallback
   }
-} 
+}
+
+export const formatTimestampForDisplay = (safeTimestamp: string): string => {
+  try {
+    const date = new Date(fromSafeTimestamp(safeTimestamp));
+    // Format: DD/MM/YYYY, HH:MM:SS (24-hour)
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0'); // Month is 0-indexed
+    const year = date.getFullYear();
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    const seconds = date.getSeconds().toString().padStart(2, '0');
+    return `${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`;
+  } catch (e) {
+    // Fallback to the safe timestamp if parsing fails (should be rare)
+    console.error("Error formatting timestamp for display:", e);
+    return safeTimestamp; 
+  }
+}; 

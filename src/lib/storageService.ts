@@ -14,8 +14,18 @@ import {
   calculateStandardDeviation
 } from '@/app/utils/calculationUtils';
 import { IDEAL_MODEL_ID } from '@/app/utils/comparisonUtils';
+import { AggregateStatsData } from '@/app/components/AggregateStatsDisplay';
+import { PotentialDriftInfo } from '@/app/components/ModelDriftIndicator';
 
-const storageProvider = process.env.STORAGE_PROVIDER || (process.env.NODE_ENV === 'development' ? 'local' : 's3');
+const storageProvider = process.env.STORAGE_PROVIDER || (process.env.NODE_ENV === 'development' ? 'local' : 's3'); // Restored
+
+// Define and export the new summary structure type
+export interface HomepageSummaryFileContent {
+  configs: EnhancedComparisonConfigInfo[];
+  headlineStats: AggregateStatsData | null;
+  driftDetectionResult: PotentialDriftInfo | null;
+  lastUpdated: string;
+}
 
 // Use prefixed environment variables to avoid conflicts with Netlify reserved names
 const s3BucketName = process.env.APP_S3_BUCKET_NAME;
@@ -62,6 +72,165 @@ const streamToString = (stream: Readable): Promise<string> =>
   });
 
 const HOMEPAGE_SUMMARY_KEY = 'multi/homepage_summary.json';
+
+// Helper types for serialization
+type SerializableScoreMap = Record<string, { average: number | null; stddev: number | null }>;
+
+interface SerializableEnhancedRunInfo extends Omit<EnhancedRunInfo, 'perModelHybridScores' /* removed perModelSemanticSimilarityToIdealScores */ > {
+  perModelHybridScores?: SerializableScoreMap;
+  // perModelSemanticSimilarityToIdealScores?: SerializableScoreMap; // Removed as it's not in EnhancedRunInfo
+}
+
+interface SerializableEnhancedComparisonConfigInfo extends Omit<EnhancedComparisonConfigInfo, 'runs'> {
+  runs: SerializableEnhancedRunInfo[];
+}
+
+interface SerializableHomepageSummaryFileContent extends Omit<HomepageSummaryFileContent, 'configs'> {
+  configs: SerializableEnhancedComparisonConfigInfo[];
+}
+
+// --- Storage Interaction Functions ---
+
+export async function getHomepageSummary(): Promise<HomepageSummaryFileContent | null> {
+  const fileName = 'homepage_summary.json';
+  let fileContent: string | null = null;
+
+  if (storageProvider === 's3' && s3Client && s3BucketName) {
+    try {
+      const command = new GetObjectCommand({ Bucket: s3BucketName, Key: fileName });
+      const { Body } = await s3Client.send(command);
+      if (Body) {
+        fileContent = await streamToString(Body as Readable);
+      }
+    } catch (error: any) {
+      if (error.name === 'NoSuchKey') {
+        console.log(`[StorageService] Homepage summary file not found in S3: ${fileName}`);
+        return null;
+      }
+      console.error(`[StorageService] Error fetching homepage summary from S3: ${fileName}`, error);
+      return null;
+    }
+  } else if (storageProvider === 'local') {
+    try {
+      const filePath = path.join(RESULTS_DIR, MULTI_DIR, fileName);
+      if (fsSync.existsSync(filePath)) { // Use fsSync for existsSync
+        fileContent = await fs.readFile(filePath, 'utf-8');
+      } else {
+        console.log(`[StorageService] Homepage summary file not found locally: ${filePath}`);
+        return null;
+      }
+    } catch (error) {
+      console.error(`[StorageService] Error fetching homepage summary from local disk: ${fileName}`, error);
+      return null;
+    }
+  } else {
+    console.warn(`[StorageService] No valid storage provider configured for getHomepageSummary. STORAGE_PROVIDER: ${storageProvider}`);
+    return null;
+  }
+
+  if (!fileContent) {
+    return null;
+  }
+
+  try {
+    const parsedContent: SerializableHomepageSummaryFileContent = JSON.parse(fileContent);
+    
+    // Rehydrate Maps
+    const configsWithMaps: EnhancedComparisonConfigInfo[] = parsedContent.configs.map(config => ({
+      ...config,
+      runs: config.runs.map(run => ({
+        ...run,
+        perModelHybridScores: run.perModelHybridScores 
+          ? new Map(Object.entries(run.perModelHybridScores)) 
+          : new Map(),
+        // Removed rehydration for perModelSemanticSimilarityToIdealScores
+        // perModelSemanticSimilarityToIdealScores: run.perModelSemanticSimilarityToIdealScores
+        //   ? new Map(Object.entries(run.perModelSemanticSimilarityToIdealScores))
+        //   : new Map(),
+      })),
+    }));
+
+    return {
+      ...parsedContent,
+      configs: configsWithMaps,
+    };
+  } catch (error) {
+    console.error(`[StorageService] Error parsing homepage summary content for ${fileName}:`, error);
+    return null;
+  }
+}
+
+export async function saveHomepageSummary(summaryData: HomepageSummaryFileContent): Promise<void> {
+  const fileName = 'homepage_summary.json';
+
+  // Prepare data for serialization: convert Maps to objects
+  const serializableConfigs: SerializableEnhancedComparisonConfigInfo[] = summaryData.configs.map((config: EnhancedComparisonConfigInfo) => ({
+    ...config,
+    runs: config.runs.map((run: EnhancedRunInfo) => {
+      const { perModelHybridScores, ...restOfRun } = run; // Destructure to separate map
+      const serializableRun: SerializableEnhancedRunInfo = { ...restOfRun }; // Spread rest
+
+      if (perModelHybridScores instanceof Map) {
+        serializableRun.perModelHybridScores = Object.fromEntries(perModelHybridScores);
+      } else if (perModelHybridScores) { 
+        serializableRun.perModelHybridScores = perModelHybridScores as SerializableScoreMap;
+      } else {
+        serializableRun.perModelHybridScores = {}; 
+      }
+
+      // Removed serialization for perModelSemanticSimilarityToIdealScores
+      // const pmsstis = run.perModelSemanticSimilarityToIdealScores as unknown; 
+      // if (pmsstis instanceof Map) {
+      //   serializableRun.perModelSemanticSimilarityToIdealScores = Object.fromEntries(pmsstis as Map<string, { average: number | null; stddev: number | null } | number | null>);
+      // } else if (pmsstis && typeof pmsstis === 'object') {
+      //    serializableRun.perModelSemanticSimilarityToIdealScores = pmsstis as SerializableScoreMap;
+      // } else {
+      //   serializableRun.perModelSemanticSimilarityToIdealScores = {};
+      // }
+      return serializableRun;
+    }),
+  }));
+
+  const serializableSummary: SerializableHomepageSummaryFileContent = {
+    ...summaryData,
+    configs: serializableConfigs,
+  };
+
+  const fileContent = JSON.stringify(serializableSummary, null, 2);
+
+  if (storageProvider === 's3' && s3Client && s3BucketName) {
+    try {
+      const command = new PutObjectCommand({
+        Bucket: s3BucketName,
+        Key: fileName,
+        Body: fileContent,
+        ContentType: 'application/json',
+      });
+      await s3Client.send(command);
+      console.log(`[StorageService] Homepage summary saved to S3: ${fileName}`);
+    } catch (error) {
+      console.error(`[StorageService] Error saving homepage summary to S3: ${fileName}`, error);
+      throw error; // Re-throw to indicate failure
+    }
+  } else if (storageProvider === 'local') {
+    const filePath = path.join(RESULTS_DIR, MULTI_DIR, fileName);
+    try {
+      await fs.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.writeFile(filePath, fileContent, 'utf-8');
+      console.log(`[StorageService] Homepage summary saved to local disk: ${filePath}`);
+    } catch (error) {
+      console.error(`[StorageService] Error saving homepage summary to local disk: ${filePath}`, error);
+      throw error; // Re-throw to indicate failure
+    }
+  } else {
+    console.warn(`[StorageService] No valid storage provider configured for saveHomepageSummary. Data not saved. STORAGE_PROVIDER: ${storageProvider}`);
+    // Potentially throw an error here if saving is critical and no provider is found
+  }
+}
+
+// Helper to ensure fs-sync is only imported where used if it's a conditional dependency.
+// For simplicity, assuming it's available. If not, adjust local file checks.
+import fsSync from 'fs';
 
 // --- Public API ---
 
@@ -327,124 +496,6 @@ export async function getResultByFileName(configId: string, fileName: string): P
   }
 }
 
-export async function getHomepageSummary(): Promise<EnhancedComparisonConfigInfo[] | null> {
-  if (!s3Client && storageProvider === 's3') {
-    console.warn('[StorageService] S3 client not initialized. Cannot get homepage summary from S3.');
-    return null;
-  }
-  if (storageProvider === 's3' && s3Client && s3BucketName) {
-    try {
-      const command = new GetObjectCommand({ Bucket: s3BucketName, Key: HOMEPAGE_SUMMARY_KEY });
-      const s3Object = await s3Client.send(command);
-      const content = await s3Object.Body?.transformToString();
-      if (content) {
-        const summaryData = JSON.parse(content) as EnhancedComparisonConfigInfo[];
-        // Re-hydrate perModelHybridScores from object to Map
-        return summaryData.map(config => ({
-          ...config,
-          runs: config.runs.map(run => {
-            if (run.perModelHybridScores && typeof run.perModelHybridScores === 'object' && !(run.perModelHybridScores instanceof Map)) {
-              return {
-                ...run,
-                // Ensure that the object being converted to a Map has the correct structure
-                perModelHybridScores: new Map(Object.entries(run.perModelHybridScores as Record<string, { average: number | null; stddev: number | null }>)),
-              };
-            }
-            return run;
-          }),
-        }));
-      }
-      console.log(`[StorageService] Homepage summary file ${HOMEPAGE_SUMMARY_KEY} is empty or content is invalid.`);
-      return null;
-    } catch (error: any) {
-      if (error.name === 'NoSuchKey') {
-        console.log(`[StorageService] Homepage summary file not found at ${HOMEPAGE_SUMMARY_KEY}. Returning null (will create new).`);
-        return null;
-      }
-      console.error(`[StorageService] Error fetching homepage summary ${HOMEPAGE_SUMMARY_KEY}:`, error);
-      // Decide whether to throw or return null based on how critical this is for the caller
-      // For getComparisonRunInfo, returning null/empty array is probably better to avoid breaking homepage
-      return null; 
-    }
-  } else if (storageProvider === 'local') {
-    // Optional: Implement local file handling for homepage_summary.json if needed for local-only workflows
-    const localSummaryPath = path.join(process.cwd(), RESULTS_DIR, MULTI_DIR, 'homepage_summary.json');
-    try {
-      const fileContents = await fs.readFile(localSummaryPath, 'utf-8');
-      const summaryData = JSON.parse(fileContents) as EnhancedComparisonConfigInfo[];
-       // Re-hydrate perModelHybridScores from object to Map
-       return summaryData.map(config => ({
-        ...config,
-        runs: config.runs.map(run => {
-          if (run.perModelHybridScores && typeof run.perModelHybridScores === 'object' && !(run.perModelHybridScores instanceof Map)) {
-            return {
-              ...run,
-              perModelHybridScores: new Map(Object.entries(run.perModelHybridScores as Record<string, { average: number | null; stddev: number | null }>)),
-            };
-          }
-          return run;
-        }),
-      }));
-    } catch (error: any) {
-      if (error.code === 'ENOENT') {
-        console.log(`[StorageService] Local homepage summary file not found: ${localSummaryPath}. Returning null.`);
-        return null;
-      }
-      console.error('[StorageService] Error getting local homepage summary:', error);
-      return null;
-    }
-  } else {
-     console.warn('[StorageService] No valid storage provider configured for getHomepageSummary or S3 client not initialized.');
-     return null;
-  }
-}
-
-export async function saveHomepageSummary(summaryData: EnhancedComparisonConfigInfo[]): Promise<void> {
-  if (!s3Client && storageProvider === 's3') {
-    console.warn('[StorageService] S3 client not initialized. Cannot save homepage summary to S3.');
-    return;
-  }
-  const serializableSummary = summaryData.map(config => ({
-    ...config,
-    runs: config.runs.map(run => {
-      if (run.perModelHybridScores instanceof Map) {
-        return {
-          ...run,
-          perModelHybridScores: Object.fromEntries(run.perModelHybridScores)
-        };
-      }
-      return run;
-    })
-  }));
-  const body = JSON.stringify(serializableSummary, null, 2);
-
-  if (storageProvider === 's3' && s3Client && s3BucketName) {
-    try {
-      const command = new PutObjectCommand({ Bucket: s3BucketName, Key: HOMEPAGE_SUMMARY_KEY, Body: body, ContentType: 'application/json' });
-      await s3Client.send(command);
-      console.log(`[StorageService] Homepage summary saved to S3: ${HOMEPAGE_SUMMARY_KEY}`);
-    } catch (error) {
-      console.error(`[StorageService] Error saving homepage summary to S3 ${HOMEPAGE_SUMMARY_KEY}:`, error);
-      throw error; // Rethrow to indicate failure
-    }
-  } else if (storageProvider === 'local') {
-     // Optional: Implement local file handling for homepage_summary.json
-    const localSummaryPath = path.join(process.cwd(), RESULTS_DIR, MULTI_DIR, 'homepage_summary.json');
-    const localDir = path.dirname(localSummaryPath);
-    try {
-      await fs.mkdir(localDir, { recursive: true });
-      await fs.writeFile(localSummaryPath, body, 'utf-8');
-      console.log(`[StorageService] Homepage summary saved locally: ${localSummaryPath}`);
-    } catch (error) {
-      console.error('[StorageService] Error saving local homepage summary:', error);
-      throw error;
-    }
-  } else {
-    console.warn('[StorageService] No valid storage provider configured for saveHomepageSummary or S3 client not initialized. Summary not saved.');
-    // Depending on requirements, you might want to throw an error here if saving is critical
-  }
-}
-
 /**
  * Updates the homepage summary with information from a newly completed run.
  * This function encapsulates the logic for adding/updating a run within the summary.
@@ -695,26 +746,24 @@ function removeConfigFromSummaryArray(
 export async function removeConfigFromHomepageSummary(configIdToRemove: string): Promise<boolean> {
   console.log(`[StorageService] Attempting to remove configId '${configIdToRemove}' from homepage summary manifest.`);
   try {
-    const currentSummary = await getHomepageSummary(); // Fetches current summary
+    const currentSummaryObject = await getHomepageSummary(); // Fetches current summary (HomepageSummaryFileContent | null)
     
-    // If currentSummary is null (e.g., file doesn't exist or is empty), there's nothing to remove.
-    if (currentSummary === null) {
+    if (currentSummaryObject === null) {
       console.log(`[StorageService] Homepage summary is null (e.g., does not exist). No removal needed for configId '${configIdToRemove}'.`);
-      // Consider if local summary file should be created as empty if it was null and local.
-      // For S3, if it was null, saveHomepageSummary might create it if passed an empty array.
-      // If we want to ensure an empty summary exists if it was null, we could do:
-      // await saveHomepageSummary([]); // This would create an empty summary file.
-      // However, for removal, if it's null, effectively the item is already "removed".
       return true;
     }
 
-    const updatedSummaryArray = removeConfigFromSummaryArray(currentSummary, configIdToRemove);
+    const updatedConfigsArray = removeConfigFromSummaryArray(currentSummaryObject.configs, configIdToRemove);
 
-    // Only save if there was a change or if the summary was not null to begin with.
-    // If currentSummary was not null, even if updatedSummaryArray is identical (config not found),
-    // we might still want to "save" it to ensure consistency, though it's a no-op in terms of content.
-    // For now, save if currentSummary was not null.
-    await saveHomepageSummary(updatedSummaryArray); 
+    // Construct the full summary object to save
+    const updatedSummaryToSave: HomepageSummaryFileContent = {
+      configs: updatedConfigsArray,
+      headlineStats: currentSummaryObject.headlineStats, // Retain old stats
+      driftDetectionResult: currentSummaryObject.driftDetectionResult, // Retain old drift info
+      lastUpdated: new Date().toISOString(), // Update timestamp
+    };
+
+    await saveHomepageSummary(updatedSummaryToSave); 
     console.log(`[StorageService] Homepage summary manifest updated (or confirmed unchanged) after attempting to remove configId '${configIdToRemove}'.`);
     return true;
   } catch (error) {

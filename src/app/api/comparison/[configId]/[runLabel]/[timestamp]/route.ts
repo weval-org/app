@@ -7,12 +7,14 @@ import { toSafeTimestamp } from '@/app/utils/timestampUtils';
 export const revalidate = 3600; // Revalidate once per hour (Next.js built-in caching)
 
 // Helper function (can be moved to a util file later if used elsewhere)
+/*
 function calculateStandardDeviation(numbers: number[]): number | null {
   if (numbers.length < 2) return null;
   const mean = numbers.reduce((sum, val) => sum + val, 0) / numbers.length;
   const variance = numbers.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / (numbers.length -1); 
   return Math.sqrt(variance);
 }
+*/
 
 export async function GET(
     request: NextRequest, 
@@ -70,73 +72,77 @@ export async function GET(
             return NextResponse.json({ error: `Comparison data file not found for ${configId}/${routeRunLabel}/${routeTimestamp} (file: ${specificRun.fileName})` }, { status: 404 });
         }
 
-        // Calculate per-model hybrid scores and add them to jsonData
-        if (jsonData.evaluationResults && jsonData.effectiveModels && jsonData.promptIds) {
-            const perModelScores = calculatePerModelHybridScoresForRun(
-                jsonData.evaluationResults.perPromptSimilarities,
-                jsonData.evaluationResults.llmCoverageScores,
-                jsonData.effectiveModels,
-                jsonData.promptIds,
-                IDEAL_MODEL_ID
-            );
-            // Ensure evaluationResults exists before assigning to its property
-            if (!jsonData.evaluationResults) {
-                jsonData.evaluationResults = {}; 
-            }
-            jsonData.evaluationResults.perModelHybridScores = perModelScores;
-        }
+        // IMPORTANT: The following calculations are now assumed to be done during data generation (e.g., by executeComparisonPipeline)
+        // and their results stored directly in the JSON file. This API route should just serve the pre-calculated data.
+        // If these fields are not in jsonData.evaluationResults, they will be missing in the response.
 
-        // --- Calculate and add Per-Model Semantic Scores ---
-        if (jsonData.effectiveModels && jsonData.promptIds && jsonData.evaluationResults?.perPromptSimilarities) {
-            const perModelSemanticSims = new Map<string, { average: number | null; stddev: number | null }>();
-            const { perPromptSimilarities } = jsonData.evaluationResults;
-            for (const modelId of jsonData.effectiveModels) {
-                if (modelId === IDEAL_MODEL_ID) continue;
-                const modelPromptSemanticScores: number[] = [];
-                for (const promptId of jsonData.promptIds) {
-                    const simDataEntry = perPromptSimilarities?.[promptId]?.[modelId]?.[IDEAL_MODEL_ID] ?? 
-                                       perPromptSimilarities?.[promptId]?.[IDEAL_MODEL_ID]?.[modelId];
-                    const simScore = (typeof simDataEntry === 'number' && !isNaN(simDataEntry) && simDataEntry >=0 && simDataEntry <=1) ? simDataEntry : null;
-                    if (simScore !== null) {
-                        modelPromptSemanticScores.push(simScore);
-                    }
-                }
-                if (modelPromptSemanticScores.length > 0) {
-                    const average = modelPromptSemanticScores.reduce((sum, score) => sum + score, 0) / modelPromptSemanticScores.length;
-                    const stddev = calculateStandardDeviation(modelPromptSemanticScores);
-                    perModelSemanticSims.set(modelId, { average, stddev });
-                } else {
-                    perModelSemanticSims.set(modelId, { average: null, stddev: null });
-                }
-            }
-            jsonData.evaluationResults.perModelSemanticScores = perModelSemanticSims;
-        }
+        // // Calculate per-model hybrid scores and add them to jsonData
+        // if (jsonData.evaluationResults && jsonData.effectiveModels && jsonData.promptIds) {
+        //     const perModelScores = calculatePerModelHybridScoresForRun(
+        //         jsonData.evaluationResults.perPromptSimilarities,
+        //         jsonData.evaluationResults.llmCoverageScores,
+        //         jsonData.effectiveModels,
+        //         jsonData.promptIds,
+        //         IDEAL_MODEL_ID
+        //     );
+        //     // Ensure evaluationResults exists before assigning to its property
+        //     if (!jsonData.evaluationResults) {
+        //         jsonData.evaluationResults = {}; 
+        //     }
+        //     jsonData.evaluationResults.perModelHybridScores = perModelScores;
+        // }
 
-        // --- Calculate and add Overall Average Coverage Stats ---
-        if (jsonData.evaluationResults?.llmCoverageScores && jsonData.effectiveModels && jsonData.promptIds) {
-            const avgCoverageStats = calculateOverallAverageCoverage(
-                jsonData.evaluationResults.llmCoverageScores, 
-                jsonData.effectiveModels, 
-                jsonData.promptIds
-            );
-            jsonData.evaluationResults.overallAverageCoverageStats = avgCoverageStats;
-        }
+        // // --- Calculate and add Per-Model Semantic Scores ---
+        // if (jsonData.effectiveModels && jsonData.promptIds && jsonData.evaluationResults?.perPromptSimilarities) {
+        //     const perModelSemanticSims = new Map<string, { average: number | null; stddev: number | null }>();
+        //     const { perPromptSimilarities } = jsonData.evaluationResults;
+        //     for (const modelId of jsonData.effectiveModels) {
+        //         if (modelId === IDEAL_MODEL_ID) continue;
+        //         const modelPromptSemanticScores: number[] = [];
+        //         for (const promptId of jsonData.promptIds) {
+        //             const simDataEntry = perPromptSimilarities?.[promptId]?.[modelId]?.[IDEAL_MODEL_ID] ?? 
+        //                                perPromptSimilarities?.[promptId]?.[IDEAL_MODEL_ID]?.[modelId];
+        //             const simScore = (typeof simDataEntry === 'number' && !isNaN(simDataEntry) && simDataEntry >=0 && simDataEntry <=1) ? simDataEntry : null;
+        //             if (simScore !== null) {
+        //                 modelPromptSemanticScores.push(simScore);
+        //             }
+        //         }
+        //         if (modelPromptSemanticScores.length > 0) {
+        //             const average = modelPromptSemanticScores.reduce((sum, score) => sum + score, 0) / modelPromptSemanticScores.length;
+        //             const stddev = calculateStandardDeviation(modelPromptSemanticScores);
+        //             perModelSemanticSims.set(modelId, { average, stddev });
+        //         } else {
+        //             perModelSemanticSims.set(modelId, { average: null, stddev: null });
+        //         }
+        //     }
+        //     jsonData.evaluationResults.perModelSemanticScores = perModelSemanticSims;
+        // }
 
-        // --- Calculate and add Overall Average Hybrid Score for Run ---
-        if (jsonData.evaluationResults?.perPromptSimilarities && 
-            jsonData.evaluationResults?.llmCoverageScores && 
-            jsonData.effectiveModels && 
-            jsonData.promptIds) {
-            const hybridStats = calculateAverageHybridScoreForRun(
-                jsonData.evaluationResults.perPromptSimilarities,
-                jsonData.evaluationResults.llmCoverageScores,
-                jsonData.effectiveModels,
-                jsonData.promptIds,
-                IDEAL_MODEL_ID
-            );
-            jsonData.evaluationResults.overallAverageHybridScore = hybridStats?.average ?? null;
-            jsonData.evaluationResults.overallHybridScoreStdDev = hybridStats?.stddev ?? null;
-        }
+        // // --- Calculate and add Overall Average Coverage Stats ---
+        // if (jsonData.evaluationResults?.llmCoverageScores && jsonData.effectiveModels && jsonData.promptIds) {
+        //     const avgCoverageStats = calculateOverallAverageCoverage(
+        //         jsonData.evaluationResults.llmCoverageScores, 
+        //         jsonData.effectiveModels, 
+        //         jsonData.promptIds
+        //     );
+        //     jsonData.evaluationResults.overallAverageCoverageStats = avgCoverageStats;
+        // }
+
+        // // --- Calculate and add Overall Average Hybrid Score for Run ---
+        // if (jsonData.evaluationResults?.perPromptSimilarities && 
+        //     jsonData.evaluationResults?.llmCoverageScores && 
+        //     jsonData.effectiveModels && 
+        //     jsonData.promptIds) {
+        //     const hybridStats = calculateAverageHybridScoreForRun(
+        //         jsonData.evaluationResults.perPromptSimilarities,
+        //         jsonData.evaluationResults.llmCoverageScores,
+        //         jsonData.effectiveModels,
+        //         jsonData.promptIds,
+        //         IDEAL_MODEL_ID
+        //     );
+        //     jsonData.evaluationResults.overallAverageHybridScore = hybridStats?.average ?? null;
+        //     jsonData.evaluationResults.overallHybridScoreStdDev = hybridStats?.stddev ?? null;
+        // }
         
         return NextResponse.json(jsonData, { status: 200 });
     } catch (error: any) {
