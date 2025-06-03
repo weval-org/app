@@ -676,7 +676,7 @@ export default async function HomePage() {
       <div className="fixed inset-0 -z-10 dark:bg-gradient-to-br dark:from-slate-900 dark:to-slate-800 bg-gradient-to-br from-slate-50 to-slate-100" />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 sm:py-3 md:pt-4 space-y-8 md:space-y-10">
-        <DonationBanner /> 
+        {/* <DonationBanner />  */}
         
         <header className="text-center pt-4">
           <CivicEvalLogo 
