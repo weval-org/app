@@ -35,7 +35,7 @@ import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import PerModelHybridScoresCard from '@/app/analysis/components/PerModelHybridScoresCard';
 import AnalysisPageHeader from '@/app/analysis/components/AnalysisPageHeader';
 import { fromSafeTimestamp, formatTimestampForDisplay } from '@/app/utils/timestampUtils';
-import CriterionDetailModal from '@/app/analysis/components/CriterionDetailModal';
+import ModelEvaluationDetailModal from '@/app/analysis/components/ModelEvaluationDetailModal';
 import DebugPanel from '@/app/analysis/components/DebugPanel';
 
 const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.AlertCircle))
@@ -59,10 +59,10 @@ interface PointAssessment {
     error?: string;
 }
 
-// Data structure for the new Criterion Detail Modal
-interface CriterionDetailModalData {
+// Updated data structure for the Model Evaluation Detail Modal
+interface ModelEvaluationDetailModalData {
   modelId: string;
-  assessment: PointAssessment;
+  assessments: PointAssessment[]; // Changed from single assessment
   promptText: string;
   modelResponse: string;
   systemPrompt: string | null;
@@ -100,9 +100,9 @@ export default function BetaComparisonClientPage() {
   const [calculatedPerModelHybridScores, setCalculatedPerModelHybridScores] = useState<Map<string, { average: number | null; stddev: number | null }>>(new Map());
   const [calculatedPerModelSemanticScores, setCalculatedPerModelSemanticScores] = useState<Map<string, { average: number | null; stddev: number | null }>>(new Map());
   
-  // State for the new Criterion Detail Modal
-  const [criterionDetailModalData, setCriterionDetailModalData] = useState<CriterionDetailModalData | null>(null);
-  const [isCriterionDetailModalOpen, setIsCriterionDetailModalOpen] = useState<boolean>(false);
+  // Updated state for the Model Evaluation Detail Modal
+  const [modelEvaluationDetailModalData, setModelEvaluationDetailModalData] = useState<ModelEvaluationDetailModalData | null>(null);
+  const [isModelEvaluationDetailModalOpen, setIsModelEvaluationDetailModalOpen] = useState<boolean>(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -554,58 +554,87 @@ export default function BetaComparisonClientPage() {
       setSelectedPairForModal(null);
   };
 
-  const handleCoverageCellClick = (clickedModelId: string, assessment: PointAssessment | null) => {
-    if (!currentPromptId || !data?.allResponses || !data?.promptTexts || !assessment) {
-      return;
+  const handleCoverageCellClick = (clickedModelId: string, assessment: PointAssessment | null /* Assessment arg is no longer directly used for all points */) => {
+    if (!data || !currentPromptId) return;
+
+    const promptText = data.promptTexts?.[currentPromptId] || 'Prompt text not found.';
+    const modelResponse = data.allResponses?.[currentPromptId]?.[clickedModelId] || 'Response not available.';
+    const systemPrompt = modelSystemPrompts[clickedModelId] || null;
+    
+    const modelCoverageResult = data.evaluationResults?.llmCoverageScores?.[currentPromptId]?.[clickedModelId];
+    
+    let assessmentsForModal: PointAssessment[] = [];
+    if (modelCoverageResult && !('error' in modelCoverageResult) && modelCoverageResult.pointAssessments) {
+      assessmentsForModal = modelCoverageResult.pointAssessments;
+    } else if (assessment) {
+      // Fallback for safety, though ideally all assessments should be found above
+      // This case might occur if llmCoverageScores structure is unexpected or incomplete
+      // but we still got a single assessment from the cell click.
+      // However, the new modal expects all assessments for the model.
+      // If only one assessment is available, we might show just that or indicate others are missing.
+      // For now, let's ensure we pass an array.
+      // assessmentsForModal = [assessment]; 
+      // Decided: If we can't get all pointAssessments from llmCoverageScores, it's better to indicate that.
+      // So, if modelCoverageResult.pointAssessments is not available, assessmentsForModal will remain empty.
+      // The modal itself has a message for when assessments array is empty.
+      console.warn(`Could not retrieve all point assessments for ${clickedModelId} on prompt ${currentPromptId}. Displaying modal with potentially incomplete data if any single assessment was passed.`);
+    }
+    
+    // Ensure assessmentsForModal is always an array, even if empty
+    if (!Array.isArray(assessmentsForModal)) {
+        assessmentsForModal = [];
     }
 
-    const modelResponse = data.allResponses[currentPromptId]?.[clickedModelId];
-    const promptText = data.promptTexts[currentPromptId] || currentPromptId;
-    const systemPrompt = modelSystemPrompts[clickedModelId] ?? null;
-
-    if (modelResponse === undefined) {
-      console.warn("No model response found for criterion detail modal");
-      return;
-    }
-
-    setCriterionDetailModalData({
+    setModelEvaluationDetailModalData({
       modelId: clickedModelId,
-      assessment,
+      assessments: assessmentsForModal,
       promptText,
       modelResponse,
-      systemPrompt
+      systemPrompt,
     });
-    setIsCriterionDetailModalOpen(true);
+    setIsModelEvaluationDetailModalOpen(true);
   };
 
   const handleMacroCellClick = (promptId: string, modelId: string, assessment: PointAssessment) => {
-    if (!data?.allResponses || !data?.promptTexts || !assessment) {
-      console.warn("[handleMacroCellClick] Missing necessary data to show criterion detail.");
-      return;
+    // This modal is for a single criterion, so it might still use a differently structured modal
+    // or be adapted. For now, let's assume it might open the new modal with just one assessment,
+    // or we decide that macro table clicks should also show all criteria for that model-prompt pair.
+    // For consistency, let's make it also open the new modal showing all criteria for that cell's model & prompt.
+    if (!data) return;
+
+    const promptText = data.promptTexts?.[promptId] || 'Prompt text not found.';
+    const modelResponse = data.allResponses?.[promptId]?.[modelId] || 'Response not available.';
+    const systemPrompt = modelSystemPrompts[modelId] || null;
+    const modelCoverageResult = data.evaluationResults?.llmCoverageScores?.[promptId]?.[modelId];
+    let assessmentsForModal: PointAssessment[] = [];
+
+    if (modelCoverageResult && !('error' in modelCoverageResult) && modelCoverageResult.pointAssessments) {
+      assessmentsForModal = modelCoverageResult.pointAssessments;
+    } else {
+      // If for some reason pointAssessments are not found for the whole model, 
+      // but a single assessment was passed (e.g. from a less detailed source),
+      // we could potentially show just that one. However, the spirit of the new modal is "all criteria".
+      // So, if all point assessments cannot be found, we'll pass an empty array and let the modal handle it.
+      console.warn(`Could not retrieve all point assessments for ${modelId} on prompt ${promptId} from macro table click. Displaying modal with potentially incomplete data.`);
+    }
+     if (!Array.isArray(assessmentsForModal)) {
+        assessmentsForModal = [];
     }
 
-    const modelResponse = data.allResponses[promptId]?.[modelId];
-    const promptText = data.promptTexts[promptId] || promptId;
-    const systemPrompt = modelSystemPrompts[modelId] ?? null;
 
-    if (modelResponse === undefined) {
-      console.warn(`[handleMacroCellClick] No model response found for model ${modelId} on prompt ${promptId}.`);
-      return;
-    }
-
-    setCriterionDetailModalData({
-      modelId,
-      assessment,
+    setModelEvaluationDetailModalData({
+      modelId: modelId,
+      assessments: assessmentsForModal,
       promptText,
       modelResponse,
-      systemPrompt
+      systemPrompt,
     });
-    setIsCriterionDetailModalOpen(true);
+    setIsModelEvaluationDetailModalOpen(true);
   };
 
-  const handleCloseCriterionDetailModal = () => {
-    setIsCriterionDetailModalOpen(false);
-    setCriterionDetailModalData(null);
+  const handleCloseModelEvaluationDetailModal = () => { // Renamed
+    setIsModelEvaluationDetailModalOpen(false);
+    setModelEvaluationDetailModalData(null);
   };
 
   return (
@@ -1011,11 +1040,11 @@ export default function BetaComparisonClientPage() {
             />
           )}
           
-          {criterionDetailModalData && (
-            <CriterionDetailModal
-              isOpen={isCriterionDetailModalOpen}
-              onClose={handleCloseCriterionDetailModal}
-              data={criterionDetailModalData}
+          {modelEvaluationDetailModalData && (
+            <ModelEvaluationDetailModal
+              isOpen={isModelEvaluationDetailModalOpen}
+              onClose={handleCloseModelEvaluationDetailModal}
+              data={modelEvaluationDetailModalData}
             />
           )}
           
