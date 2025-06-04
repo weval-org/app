@@ -15,13 +15,13 @@ interface AnalysisPageHeaderProps {
     configTitle?: string | null;
     runLabel?: string | null;
     timestamp?: string | null; // Full ISO string
-    displayTimestamp?: string | null; // Formatted for display
     description?: string | null;
     tags?: string[] | null;
   };
   actions?: React.ReactNode; // For buttons like "Download Results" or "Back to Blueprint"
   isSticky?: boolean;
   children?: React.ReactNode; // For any additional content that needs to be slotted in
+  headerWidget?: React.ReactNode; // For a custom widget like the heatmap
 }
 
 const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
@@ -31,16 +31,23 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
   actions,
   isSticky = false,
   children,
+  headerWidget,
 }) => {
   return (
     <header
-      className={`bg-card/60 dark:bg-slate-800/50 backdrop-blur-md p-4 sm:p-5 rounded-xl shadow-lg ring-1 ring-border dark:ring-slate-700/60 ${
+      className={`bg-card/60 dark:bg-slate-800/50 backdrop-blur-md p-4 sm:p-5 rounded-xl shadow-lg ring-1 ring-border dark:ring-slate-700/60 relative ${
         isSticky ? 'sticky top-4 z-40' : ''
       }`}
     >
       {breadcrumbs && breadcrumbs.length > 0 && (
         <div className="mb-3 px-1 sm:px-0">
           <Breadcrumbs items={breadcrumbs} className="text-xs sm:text-sm" />
+        </div>
+      )}
+
+      {headerWidget && (
+        <div className="absolute top-4 right-4 z-10">
+          {headerWidget}
         </div>
       )}
 
@@ -51,12 +58,7 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
         >
           {pageTitle}
         </h1>
-        {contextualInfo?.displayTimestamp && (
-          <div className="text-xs text-muted-foreground dark:text-slate-400 whitespace-nowrap text-left sm:text-right flex-shrink-0 mt-1 sm:mt-0">
-            <div className="font-medium">Run Executed:</div>
-            <div>{contextualInfo.displayTimestamp}</div>
-          </div>
-        )}
+
       </div>
 
       {contextualInfo?.configTitle && !pageTitle.includes(contextualInfo.configTitle) && (

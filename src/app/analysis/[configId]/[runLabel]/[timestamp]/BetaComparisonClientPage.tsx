@@ -37,6 +37,7 @@ import AnalysisPageHeader from '@/app/analysis/components/AnalysisPageHeader';
 import { fromSafeTimestamp, formatTimestampForDisplay } from '@/app/utils/timestampUtils';
 import ModelEvaluationDetailModal from '@/app/analysis/components/ModelEvaluationDetailModal';
 import DebugPanel from '@/app/analysis/components/DebugPanel';
+import CoverageHeatmapCanvas from '@/app/analysis/components/CoverageHeatmapCanvas';
 
 const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.AlertCircle))
 const XCircle = dynamic(() => import("lucide-react").then((mod) => mod.XCircle))
@@ -103,6 +104,22 @@ export default function BetaComparisonClientPage() {
   // Updated state for the Model Evaluation Detail Modal
   const [modelEvaluationDetailModalData, setModelEvaluationDetailModalData] = useState<ModelEvaluationDetailModalData | null>(null);
   const [isModelEvaluationDetailModalOpen, setIsModelEvaluationDetailModalOpen] = useState<boolean>(false);
+
+  const headerWidgetContent = useMemo(() => {
+    if (currentPromptId || !data?.evaluationResults?.llmCoverageScores || !data.promptIds || displayedModels.filter(m => m !== IDEAL_MODEL_ID).length === 0) {
+      return null;
+    }
+    return (
+      <CoverageHeatmapCanvas
+        allCoverageScores={data.evaluationResults.llmCoverageScores}
+        promptIds={data.promptIds}
+        models={displayedModels.filter(m => m !== IDEAL_MODEL_ID)}
+        width={100}
+        height={50}
+        className="rounded-md border border-border dark:border-slate-700 shadow-sm"
+      />
+    );
+  }, [currentPromptId, data, displayedModels]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -371,6 +388,11 @@ export default function BetaComparisonClientPage() {
     data ? <DownloadResultsButton data={data} label={`${data.configTitle || configIdFromUrl} - ${data.runLabel || runLabel}${timestampFromUrl ? ' (' + new Date(fromSafeTimestamp(timestampFromUrl)).toLocaleString() + ')' : ''}`} /> : null
   ), [data, configIdFromUrl, runLabel, timestampFromUrl]);
 
+  const handleCloseModelEvaluationDetailModal = () => { // Renamed
+    setIsModelEvaluationDetailModalOpen(false);
+    setModelEvaluationDetailModalData(null);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground p-8">
@@ -614,11 +636,6 @@ export default function BetaComparisonClientPage() {
     setIsModelEvaluationDetailModalOpen(true);
   };
 
-  const handleCloseModelEvaluationDetailModal = () => { // Renamed
-    setIsModelEvaluationDetailModalOpen(false);
-    setModelEvaluationDetailModalData(null);
-  };
-
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="fixed inset-0 -z-10 dark:bg-gradient-to-br dark:from-slate-900 dark:to-slate-800 bg-gradient-to-br from-slate-50 to-slate-100" />
@@ -630,12 +647,12 @@ export default function BetaComparisonClientPage() {
             configTitle: data?.configTitle,
             runLabel: data?.runLabel,
             timestamp: data?.timestamp, 
-            displayTimestamp: data?.timestamp ? formatTimestampForDisplay(data.timestamp) : undefined,
             description: data?.config?.description,
             tags: data?.config?.tags
           }}
           actions={headerActions}
           isSticky={false}
+          headerWidget={headerWidgetContent}
         />
         
         <main className="w-full space-y-6 sm:px-2 lg:px-0">
