@@ -249,7 +249,7 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                         {localSortedModels.map(modelId => {
                             const parsed = parsedModelsMap[modelId];
                             const globalIndex = baseModelGlobalIndexMap[parsed.baseId];
-                            const visualGroupStyle = baseIdToVisualGroupStyleMap[parsed.baseId] || 'border-t-border dark:border-t-slate-700'; // Default top border
+                            const visualGroupStyle = baseIdToVisualGroupStyleMap[parsed.baseId] || 'border-t-border dark:border-t-slate-700';
                             return (
                                 <th 
                                     key={`m-index-header-${modelId}`}

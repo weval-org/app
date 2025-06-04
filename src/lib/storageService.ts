@@ -89,8 +89,6 @@ interface SerializableHomepageSummaryFileContent extends Omit<HomepageSummaryFil
   configs: SerializableEnhancedComparisonConfigInfo[];
 }
 
-// --- Storage Interaction Functions ---
-
 export async function getHomepageSummary(): Promise<HomepageSummaryFileContent | null> {
   const fileName = 'homepage_summary.json';
   let fileContent: string | null = null;
@@ -142,11 +140,7 @@ export async function getHomepageSummary(): Promise<HomepageSummaryFileContent |
         ...run,
         perModelHybridScores: run.perModelHybridScores 
           ? new Map(Object.entries(run.perModelHybridScores)) 
-          : new Map(),
-        // Removed rehydration for perModelSemanticSimilarityToIdealScores
-        // perModelSemanticSimilarityToIdealScores: run.perModelSemanticSimilarityToIdealScores
-        //   ? new Map(Object.entries(run.perModelSemanticSimilarityToIdealScores))
-        //   : new Map(),
+          : new Map()
       })),
     }));
 
@@ -231,8 +225,6 @@ export async function saveHomepageSummary(summaryData: HomepageSummaryFileConten
 // Helper to ensure fs-sync is only imported where used if it's a conditional dependency.
 // For simplicity, assuming it's available. If not, adjust local file checks.
 import fsSync from 'fs';
-
-// --- Public API ---
 
 /**
  * Saves the comparison result.
@@ -599,8 +591,6 @@ export function updateSummaryDataWithNewRun(
   updatedSummary.sort((a, b) => new Date(b.latestRunTimestamp).getTime() - new Date(a.latestRunTimestamp).getTime());
   return updatedSummary;
 }
-
-// --- Deletion Functions ---
 
 /**
  * Deletes multiple objects from S3.

@@ -79,7 +79,6 @@ const renderDatasetStatisticsInternal = (
   const modelStatsTableData: StatisticRow[] = [];
   const promptStatsTableData: PromptStatisticRow[] = [];
 
-  // --- Calculations for new prompt-based coverage stats ---
   let minPerPromptAvgCoverage: number | null = null;
   let maxPerPromptAvgCoverage: number | null = null;
   let stdDevOfPromptAvgs_PercentScale: number | null = null;
@@ -118,7 +117,6 @@ const renderDatasetStatisticsInternal = (
       }
     }
   }
-  // --- End new calculations ---
 
   const getStdDevColor = (stdDev: number | null | undefined, isPercentageScale: boolean = true): string => {
     if (stdDev === null || stdDev === undefined) return '';

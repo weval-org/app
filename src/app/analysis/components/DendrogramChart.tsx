@@ -30,7 +30,7 @@ export default function DendrogramChart({ similarityMatrix, models }: Dendrogram
           // Ensure symmetry and handle potential missing values, including NaN
           let simScore = similarityMatrix[model1]?.[model2] ?? similarityMatrix[model2]?.[model1];
           if (typeof simScore !== 'number' || isNaN(simScore)) {
-            simScore = 0; // Default to 0 similarity (max distance) if undefined, null, or NaN
+            simScore = 0;
           }
           distanceMatrix[i][j] = 1 - simScore;
         }
@@ -44,8 +44,6 @@ export default function DendrogramChart({ similarityMatrix, models }: Dendrogram
         clusters = hclust.agnes(distanceMatrix, {
             method: 'ward' // Ward's linkage minimizes variance within clusters
         });
-        // ---> Log the raw clusters data <---
-        // console.log("Raw AGNES clusters:", JSON.stringify(clusters, null, 2)); 
     } catch (error) {
         console.error("Error during hierarchical clustering:", error);
         // Clear SVG and maybe show an error message
@@ -56,10 +54,6 @@ export default function DendrogramChart({ similarityMatrix, models }: Dendrogram
             .text('Error creating dendrogram.');
         return;
     }
-    
-    // ---> Log the clusters array itself <---
-    // console.log("Cluster array length:", clusters?.length);
-    // console.log("Cluster array content:", clusters);
     
     // Check if clustering produced a valid result (check if the root object exists)
     if (!clusters) { 
@@ -121,7 +115,6 @@ export default function DendrogramChart({ similarityMatrix, models }: Dendrogram
     const rootHierarchyData = convertClusterToHierarchy(clusters);
     // console.log("Final rootHierarchyData:", rootHierarchyData);
 
-    // ---> Add Check: Ensure rootHierarchyData is valid before proceeding <---
     if (!rootHierarchyData) {
         console.error("Failed to convert cluster data into a valid hierarchy root.");
         d3.select(svgRef.current).selectAll('*').remove();

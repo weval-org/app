@@ -7,17 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { getGradedCoverageColor } from '../utils/colorUtils';
 import { getModelDisplayLabel, parseEffectiveModelId as globalParseEffectiveModelId } from '../../utils/modelIdUtils';
 
-// Dynamic import for react-markdown and remark-gfm
 const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
 const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
-
-// Icons (optional, but good for consistency)
 const CheckCircle2 = dynamic(() => import("lucide-react").then((mod) => mod.CheckCircle2));
 const XCircle = dynamic(() => import("lucide-react").then((mod) => mod.XCircle));
 const TrendingUp = dynamic(() => import("lucide-react").then((mod) => mod.TrendingUp));
 const TrendingDown = dynamic(() => import("lucide-react").then((mod) => mod.TrendingDown));
-const Target = dynamic(() => import("lucide-react").then((mod) => mod.Target));
-
 
 interface PointAssessment {
     keyPointText: string;

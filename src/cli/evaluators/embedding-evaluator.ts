@@ -106,7 +106,7 @@ export class EmbeddingEvaluator implements Evaluator {
                     const embeddingA = embeddingsMap.get(keyA);
                     const embeddingB = embeddingsMap.get(keyB);
 
-                    let similarity = NaN; // Default to NaN if embeddings are missing
+                    let similarity = NaN;
                     if (embeddingA && embeddingB) {
                         try {
                             similarity = calculateSimilarity(embeddingA, embeddingB);
@@ -145,7 +145,6 @@ export class EmbeddingEvaluator implements Evaluator {
         return {
             similarityMatrix,
             perPromptSimilarities
-            // extractedKeyPoints is not handled by this evaluator
         };
     }
 } 

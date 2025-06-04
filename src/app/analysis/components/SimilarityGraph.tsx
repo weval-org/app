@@ -10,7 +10,6 @@ interface SimilarityGraphProps {
   resolvedTheme?: string
 }
 
-// --- Configuration Constants ---
 // D3 Force Simulation Parameters
 const FORCE_LINK_DISTANCE_MULTIPLIER = 280; // Adjusts overall graph spread. Reduced slightly
 const FORCE_LINK_STRENGTH_MULTIPLIER = 1.8; // Multiplies similarity value for link strength. Increased slightly
@@ -104,13 +103,11 @@ export default function SimilarityGraph({ similarityMatrix, models, resolvedThem
         }
       };
 
-      // --- All D3 rendering logic from here onwards ---
       const width = svgRef.current.clientWidth;
       const height = svgRef.current.clientHeight;
       const centerX = width / 2;
       const centerY = height / 2;
 
-      // --- Select representative models (one per baseId, lowest temperature) ---
       const selectedVariants = new Map<string, { fullId: string; temperature?: number }>();
       models.forEach(modelId => {
         const parsed = parseEffectiveModelId(modelId);
@@ -129,7 +126,6 @@ export default function SimilarityGraph({ similarityMatrix, models, resolvedThem
         const parsed = parseEffectiveModelId(modelId);
         return parsed.baseId !== IDEAL_MODEL_ID_BASE;
       });
-      // --- End model selection ---
 
       const modelAverageSimilarities: { [modelId: string]: number } = {};
       let allAverageScores: number[] = [];
@@ -188,7 +184,7 @@ export default function SimilarityGraph({ similarityMatrix, models, resolvedThem
           if (i < j && similarityMatrix[model1] && similarityMatrix[model1][model2] !== undefined) {
             let simValue = similarityMatrix[model1][model2];
             if (typeof simValue !== 'number' || isNaN(simValue)) {
-              simValue = 0; // Default to 0 if NaN or not a number
+              simValue = 0;
             }
             linksData.push({
               source: model1,

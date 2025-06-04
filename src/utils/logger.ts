@@ -20,7 +20,6 @@ const levelPriority: Record<LogLevel, number> = {
   error: 3,
 };
 
-// Default log level from environment or 'info'
 const defaultLogLevel = (process.env.LOG_LEVEL as LogLevel) || 'info';
 
 export async function getLogger(namespace: string, options: LoggerOptions = {}): Promise<Logger> {

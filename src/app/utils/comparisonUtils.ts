@@ -4,10 +4,7 @@
 
 import type { ComparisonDataV2 } from './types';
 
-// --- Constants ---
 export const IDEAL_MODEL_ID = 'IDEAL_BENCHMARK';
-
-// --- Calculation Functions ---
 
 /**
  * Calculates the average similarity across all pairs in a similarity matrix.

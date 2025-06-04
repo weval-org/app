@@ -3,8 +3,6 @@ import { IDEAL_MODEL_ID } from '../../app/utils/comparisonUtils'; // Corrected p
 
 export type EvaluationMethod = 'embedding' | 'llm-coverage';
 
-// --- Configuration Types ---
-
 export interface PromptConfig {
     id: string;
     promptText: string;
@@ -33,8 +31,6 @@ export interface ComparisonConfig {
     tags?: string[]; // Added for categorization
 }
 
-// --- Data Handling Types ---
-
 export interface ModelResponseDetail {
     responseText: string;
     hasError: boolean;
@@ -54,8 +50,6 @@ export interface EvaluationInput {
     config: ComparisonConfig;
     effectiveModelIds: string[];
 }
-
-// --- Evaluation Result Types ---
 
 export interface SimilarityScore {
     [modelA: string]: {
@@ -91,8 +85,6 @@ export interface LLMCoverageEvaluationResult {
     llmCoverageScores?: LLMCoverageScores;
 }
 
-// --- Final Output Type ---
-
 export interface FinalComparisonOutputV2 {
     configId: string;
     configTitle: string;
@@ -114,14 +106,9 @@ export interface FinalComparisonOutputV2 {
     };
 }
 
-// --- Evaluator Interface ---
-
 export interface Evaluator {
     getMethodName(): EvaluationMethod;
     evaluate(inputs: EvaluationInput[]): Promise<Partial<FinalComparisonOutputV2['evaluationResults'] & Pick<FinalComparisonOutputV2, 'extractedKeyPoints'>>>;
 }
 
-// Re-exporting IDEAL_MODEL_ID for convenience if it's defined elsewhere
-// and used by evaluators or pipeline service directly.
-// If it's only used internally by comparisonUtils, this isn't strictly necessary here.
 export { IDEAL_MODEL_ID }; 

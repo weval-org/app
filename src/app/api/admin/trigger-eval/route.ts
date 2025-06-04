@@ -23,13 +23,11 @@ export async function POST(request: NextRequest) {
 
     logger.info(`Initial config received for id: ${config.id}. Models: [${config.models?.join(', ')}]`);
 
-    // Default to ["CORE"] if models is not provided or is empty
     if (!config.models || !Array.isArray(config.models) || config.models.length === 0) {
       logger.info(`[Admin API - trigger-eval] Models field for ${config.id} is missing, not an array, or empty. Defaulting to ["CORE"].`);
       config.models = ["CORE"];
     }
 
-    // --- Resolve Model Collections ---
     const githubToken = process.env.GITHUB_TOKEN; // Use the same GITHUB_TOKEN if available/needed for private model collections
     if (!githubToken) {
         logger.warn('GITHUB_TOKEN not found in environment. Model collection resolution might fail for private repos.');
@@ -44,7 +42,6 @@ export async function POST(request: NextRequest) {
       logger.error(`No models found for id: ${config.id} after attempting to resolve collections. Halting trigger.`);
       return NextResponse.json({ message: `No models found for id: ${config.id} after resolving collections. Evaluation cannot proceed.` }, { status: 400 });
     }
-    // --- End Resolve Model Collections ---
 
     const netlifyFunctionUrl = `${process.env.URL}/.netlify/functions/execute-evaluation-background`;
     logger.info(`Target background function URL: ${netlifyFunctionUrl}`);

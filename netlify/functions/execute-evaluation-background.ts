@@ -109,7 +109,6 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
       // newResultData remains null, summary update will be skipped or fail if attempted directly.
     }
 
-    // ---- Update Homepage Summary Manifest ----
     // Only proceed if we have the new result data and a filename.
     if (newResultData && actualResultFileName && process.env.STORAGE_PROVIDER === 's3') { 
         try {
@@ -151,7 +150,6 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
         if (process.env.STORAGE_PROVIDER !== 's3') skipReason += "Storage provider is not S3. ";
         logger.info(`Skipping homepage summary manifest update. Reason: ${skipReason.trim()}`);
     }
-    // ---- End Update Homepage Summary Manifest ----
 
     if (pipelineOutputKey) { // Check original pipelineOutputKey for success reporting
       logger.success(`Pipeline tasks completed for ${currentId}. Output related to: ${pipelineOutputKey}`);

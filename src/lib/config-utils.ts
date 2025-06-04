@@ -7,7 +7,6 @@ export interface SimpleLogger {
   warn: (message: string, ...args: any[]) => void;
 }
 
-// Default console logger if no logger is provided
 const defaultLogger: SimpleLogger = {
   info: console.log,
   error: console.error,

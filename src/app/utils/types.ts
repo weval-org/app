@@ -96,8 +96,6 @@ export interface ConfigPromptData {
     temperature?: number;
 }
 
-// --- Types for Modal state ---
-
 // Coverage Score data used within the modal
 interface LLMCoverageScoreData {
     keyPointsCount: number;

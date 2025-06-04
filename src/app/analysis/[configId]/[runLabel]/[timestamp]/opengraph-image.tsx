@@ -36,7 +36,7 @@ export default async function Image({ params }: { params: { configId: string, ru
   // In a real scenario, you might fetch the actual configTitle based on configId here
   // For this example, we'll just use the ID.
   // const runData = await getLightweightRunData(configId, runLabel, timestamp); // Example data fetching
-  const displayConfigTitle = configId; // Replace with fetched title if available
+  const displayConfigTitle = configId;
   const displayRunLabel = runLabel;
   const displayTimestamp = formatDisplayTimestamp(timestamp);
 
@@ -64,8 +64,7 @@ export default async function Image({ params }: { params: { configId: string, ru
         <div style={{
           display: 'flex',
           flexDirection: 'column',
-          alignItems: 'center',
-          // Removed justifyContent: 'center' here, let parent's space-between handle positioning
+          alignItems: 'center'
         }}>
           <div style={{ fontSize: 32, color: '#A0A0A0', marginBottom: '20px', fontFamily: 'GeistRegular' }}>
             CIVICEVAL ANALYSIS

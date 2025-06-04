@@ -67,7 +67,6 @@ async function loadAndValidateConfig(configPath: string, collectionsRepoPath?: s
         throw new Error("Config file has invalid 'configTitle' (must be a non-empty string if 'title' is not provided)");
     }
 
-    // Default to ["CORE"] if models is not provided or is empty
     if (!configJson.models || !Array.isArray(configJson.models) || configJson.models.length === 0) {
         logger.info('Models field is missing, not an array, or empty. Defaulting to ["CORE"].');
         configJson.models = ["CORE"];
@@ -82,7 +81,6 @@ async function loadAndValidateConfig(configPath: string, collectionsRepoPath?: s
 
     logger.info(`Initial validation passed for configId '${configJson.configId || configJson.id}'. Original models: [${configJson.models.join(', ')}]`);
 
-    // --- Resolve Model Collections Locally ---
     const originalModels = [...configJson.models];
     const resolvedModels: string[] = [];
     let collectionResolutionAttempted = false;
@@ -141,8 +139,6 @@ async function loadAndValidateConfig(configPath: string, collectionsRepoPath?: s
     if (originalModels.length > 0 && configJson.models.length === 0) {
         logger.warn(`Blueprint file '${configPath}' resulted in an empty list of models after attempting to resolve collections. Original models: [${originalModels.join(',')}]. Check blueprint and collection definitions.`);
     }
-    // --- End Resolve Model Collections ---
-
 
     // Post-resolution validation (other fields)
     if (configJson.description) {
@@ -200,7 +196,6 @@ function parseEvalMethods(evalMethodString: string | undefined): EvaluationMetho
     return chosenMethods;
 }
 
-// --- Main Command Action V2 (Updated to use ComparisonPipelineService) ---
 async function actionV2(options: { config: string, runLabel?: string, evalMethod?: string, cache?: boolean, collectionsRepoPath?: string }) {
     let loggerInstance: ReturnType<typeof getConfig>['logger'];
     try {
@@ -321,7 +316,6 @@ async function actionV2(options: { config: string, runLabel?: string, evalMethod
             process.exit(1);
         }
 
-        // ---- Update Homepage Summary Manifest ----
         if (newResultData && (process.env.STORAGE_PROVIDER === 's3' || process.env.UPDATE_LOCAL_SUMMARY === 'true')) { // Only update if S3 or explicitly told for local
             try {
                 loggerInstance.info('Attempting to update homepage summary manifest with new calculations...');
@@ -370,7 +364,6 @@ async function actionV2(options: { config: string, runLabel?: string, evalMethod
         } else {
             loggerInstance.info('Skipping homepage summary manifest update (not S3 provider or not explicitly enabled for local).');
         }
-        // ---- End Update Homepage Summary Manifest ----
 
         await loggerInstance.info('CivicEval run_config command finished successfully.');
     } catch (error: any) {
@@ -392,7 +385,6 @@ async function actionV2(options: { config: string, runLabel?: string, evalMethod
     }
 }
 
-// --- Define CLI Command V2 ---
 export const runConfigCommand = new Command('run_config')
     .description('Runs response generation and configurable evaluations based on a JSON blueprint file. Can resolve model collections from a local path.')
     .requiredOption('-c, --config <path>', 'Path to the JSON blueprint file')

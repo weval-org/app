@@ -9,7 +9,6 @@ interface EmbeddingServiceLogger {
     error: (msg: string) => void;
 }
 
-// --- Cache Configuration ---
 const CACHE_FILE_NAME = '.civic_eval_embed_service_cache_embeddings.json';
 
 // Determine cache path based on environment
@@ -94,7 +93,6 @@ async function saveCache(logger: EmbeddingServiceLogger): Promise<void> {
 function createHash(input: string): string {
     return crypto.createHash('sha256').update(input).digest('hex');
 }
-// --- End Cache Configuration ---
 
 // Initialize OpenAI client if in Node.js environment
 let openaiClient: OpenAI | null = null
@@ -117,9 +115,6 @@ export async function getEmbedding(
 
     await loadCache(logger); // Ensure cache is loaded, passing the logger.
 
-    // const { logger } = getConfig(); // Removed direct getConfig call
-
-    // --- Caching Logic ---
     const cacheKeyInput = `${modelId}:${text}`;
     const cacheKeyHash = createHash(cacheKeyInput);
 
@@ -127,7 +122,6 @@ export async function getEmbedding(
         logger.info(`  -> Cache hit for embedding (model: ${modelId}, key hash: ${cacheKeyHash.substring(0, 8)}...)`);
         return embeddingCache[cacheKeyHash];
     }
-    // --- End Caching Logic ---
 
     logger.info(`  -> Cache miss for embedding (model: ${modelId}, key hash: ${cacheKeyHash.substring(0,8)}...). Requesting from API.`);
 
@@ -169,13 +163,11 @@ export async function getEmbedding(
       embedding = data.data[0].embedding;
     }
 
-    // --- Caching Logic: Save new embedding to in-memory cache and then to file ---
     if (typeof window === 'undefined') { // Only perform file caching in Node.js environment
         embeddingCache[cacheKeyHash] = embedding; // Update in-memory cache
         await saveCache(logger); // Persist the updated cache to file, passing the logger.
         logger.info(`  -> Saved new embedding to cache (model: ${modelId}, key hash: ${cacheKeyHash.substring(0, 8)}...)`);
     }
-    // --- End Caching Logic ---
 
     return embedding;
 

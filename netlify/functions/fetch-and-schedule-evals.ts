@@ -1,4 +1,4 @@
-import type { Handler, HandlerEvent, HandlerContext } from "@netlify/functions"; // Removed ScheduledEvent for now if problematic
+import type { Handler, HandlerEvent, HandlerContext } from "@netlify/functions";
 import axios from 'axios';
 import { ComparisonConfig } from "@/cli/types/comparison_v2";
 import { generateConfigContentHash } from "@/lib/hash-utils";
@@ -63,7 +63,6 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
             continue;
           }
 
-          // Default to ["CORE"] if models is not provided or is empty
           if (!config.models || !Array.isArray(config.models) || config.models.length === 0) {
             logger.info(`[fetch-and-schedule-evals] Models field for ${file.name} is missing, not an array, or empty. Defaulting to ["CORE"].`);
             config.models = ["CORE"];
@@ -72,7 +71,6 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
           const currentId = config.id || config.configId!;
           const currentTitle = config.title || config.configTitle;
 
-          // --- Resolve Model Collections using the shared utility ---
           logger.info(`[fetch-and-schedule-evals] Attempting to resolve model collections for ${currentId} from blueprint ${file.name}`);
           config = await resolveModelsInConfig(config, githubToken, logger);
           // Log after resolution attempt
@@ -83,7 +81,6 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
             logger.warn(`[fetch-and-schedule-evals] Blueprint file ${file.name} (id: ${currentId}) has no models after resolution or resolution failed. Skipping evaluation for this blueprint.`);
             continue;
           }
-          // --- End Resolve Model Collections ---
 
           const contentHash = generateConfigContentHash(config); // Hash is now based on FULLY resolved models
           const baseRunLabelForCheck = contentHash; 

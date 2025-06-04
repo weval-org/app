@@ -4,6 +4,6 @@ export function normalizeTag(tag: string): string {
     .toString()
     .trim()
     .toLowerCase()
-    .replace(/\s+/g, '-') // Replace spaces with a single hyphen
+    .replace(/\s+/g, '-')
     .replace(/[^a-z0-9-]/g, ''); // Remove any non-alphanumeric characters except hyphens
 } 

@@ -328,8 +328,7 @@ export default function BetaComparisonClientPage() {
     return data?.promptTexts?.[promptId] || promptId;
   };
   
-  // ---- Page Title & Breadcrumbs ----
-  let pageTitle = "Analysis"; // Default page title
+  let pageTitle = "Analysis";
   // Calculate pageTitle based on data, timestampFromUrl, currentPromptId
   if (data) {
     pageTitle = `${data.configTitle || configIdFromUrl} - ${data.runLabel || runLabel}`;
@@ -567,16 +566,6 @@ export default function BetaComparisonClientPage() {
     if (modelCoverageResult && !('error' in modelCoverageResult) && modelCoverageResult.pointAssessments) {
       assessmentsForModal = modelCoverageResult.pointAssessments;
     } else if (assessment) {
-      // Fallback for safety, though ideally all assessments should be found above
-      // This case might occur if llmCoverageScores structure is unexpected or incomplete
-      // but we still got a single assessment from the cell click.
-      // However, the new modal expects all assessments for the model.
-      // If only one assessment is available, we might show just that or indicate others are missing.
-      // For now, let's ensure we pass an array.
-      // assessmentsForModal = [assessment]; 
-      // Decided: If we can't get all pointAssessments from llmCoverageScores, it's better to indicate that.
-      // So, if modelCoverageResult.pointAssessments is not available, assessmentsForModal will remain empty.
-      // The modal itself has a message for when assessments array is empty.
       console.warn(`Could not retrieve all point assessments for ${clickedModelId} on prompt ${currentPromptId}. Displaying modal with potentially incomplete data if any single assessment was passed.`);
     }
     
@@ -596,10 +585,7 @@ export default function BetaComparisonClientPage() {
   };
 
   const handleMacroCellClick = (promptId: string, modelId: string, assessment: PointAssessment) => {
-    // This modal is for a single criterion, so it might still use a differently structured modal
-    // or be adapted. For now, let's assume it might open the new modal with just one assessment,
-    // or we decide that macro table clicks should also show all criteria for that model-prompt pair.
-    // For consistency, let's make it also open the new modal showing all criteria for that cell's model & prompt.
+
     if (!data) return;
 
     const promptText = data.promptTexts?.[promptId] || 'Prompt text not found.';
@@ -611,10 +597,6 @@ export default function BetaComparisonClientPage() {
     if (modelCoverageResult && !('error' in modelCoverageResult) && modelCoverageResult.pointAssessments) {
       assessmentsForModal = modelCoverageResult.pointAssessments;
     } else {
-      // If for some reason pointAssessments are not found for the whole model, 
-      // but a single assessment was passed (e.g. from a less detailed source),
-      // we could potentially show just that one. However, the spirit of the new modal is "all criteria".
-      // So, if all point assessments cannot be found, we'll pass an empty array and let the modal handle it.
       console.warn(`Could not retrieve all point assessments for ${modelId} on prompt ${promptId} from macro table click. Displaying modal with potentially incomplete data.`);
     }
      if (!Array.isArray(assessmentsForModal)) {

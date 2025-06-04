@@ -121,7 +121,6 @@ export function ResponseComparisonModal({
   const { baseName: baseModelB } = parseModelId(modelB);
   const isComparingVsIdeal = modelB === IDEAL_MODEL_ID;
 
-  // --- State for Dynamic Imports ---
   const [ReactMarkdownComponent, setReactMarkdownComponent] = useState<ComponentType<any> | null>(null);
   const [remarkGfmPlugin, setRemarkGfmPlugin] = useState<any[] | null>(null); // remarkPlugins expects an array
 
@@ -136,7 +135,6 @@ export function ResponseComparisonModal({
       setRemarkGfmPlugin([mod.default]); // Use default export, wrap in array
     }).catch(err => console.error("Failed to load remark-gfm:", err));
   }, []);
-  // --- End State for Dynamic Imports ---
 
   // Function to get similarity badge color
   const getThemedBadgeVariant = (type: 'semantic' | 'performance' | 'coverage' | 'error', score?: number | null): string => {
