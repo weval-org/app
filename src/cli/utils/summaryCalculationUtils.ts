@@ -57,24 +57,39 @@ export function calculateHeadlineStats(
         };
       }
     }
-
-    if (config.hybridScoreStdDev !== null && config.hybridScoreStdDev !== undefined) {
-      if (!mostConsistentConfig || config.hybridScoreStdDev < mostConsistentConfig.value) {
-        mostConsistentConfig = {
-          configId: config.id || config.configId,
-          configTitle: configTitle,
-          value: config.hybridScoreStdDev,
-        };
-      }
-      if (!leastConsistentConfig || config.hybridScoreStdDev > leastConsistentConfig.value) {
-        leastConsistentConfig = {
-          configId: config.id || config.configId,
-          configTitle: configTitle,
-          value: config.hybridScoreStdDev,
-        };
-      }
-    }
   });
+
+  // For consistency, only consider configs that have been run enough times
+  // to make standard deviation a meaningful metric.
+  const MIN_RUNS_FOR_CONSISTENCY_CHECK = 4;
+  const configsForConsistencyCheck = filteredConfigs.filter(
+    config => config.runs && config.runs.length >= MIN_RUNS_FOR_CONSISTENCY_CHECK
+  );
+
+  if (configsForConsistencyCheck.length > 0) {
+    console.log(`[calculateHeadlineStats] Found ${configsForConsistencyCheck.length} configs with ${MIN_RUNS_FOR_CONSISTENCY_CHECK} or more runs to check for consistency.`);
+    configsForConsistencyCheck.forEach(config => {
+      const configTitle = config.title || config.configTitle || config.id || config.configId;
+      if (config.hybridScoreStdDev !== null && config.hybridScoreStdDev !== undefined) {
+        if (!mostConsistentConfig || config.hybridScoreStdDev < mostConsistentConfig.value) {
+          mostConsistentConfig = {
+            configId: config.id || config.configId,
+            configTitle: configTitle,
+            value: config.hybridScoreStdDev,
+          };
+        }
+        if (!leastConsistentConfig || config.hybridScoreStdDev > leastConsistentConfig.value) {
+          leastConsistentConfig = {
+            configId: config.id || config.configId,
+            configTitle: configTitle,
+            value: config.hybridScoreStdDev,
+          };
+        }
+      }
+    });
+  } else {
+    console.log('[calculateHeadlineStats] Not enough configs with multiple runs to determine consistency stats.');
+  }
 
   const allModelScores = new Map<string, { totalScore: number; count: number; runs: Set<string> }>();
 

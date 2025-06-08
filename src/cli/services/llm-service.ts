@@ -1,4 +1,4 @@
-import { openRouterModuleClient } from '../../lib/llm-clients/openrouter-client';
+import { dispatchStreamApiCall } from '../../lib/llm-clients/client-dispatcher';
 import { LLMStreamApiCallOptions, StreamChunk } from '../../lib/llm-clients/types';
 import { ConversationMessage } from '../types/comparison_v2';
 import { getConfig } from '../config';
@@ -14,7 +14,7 @@ export interface GetModelResponseOptions {
 }
 
 const DEFAULT_MAX_TOKENS = 2000;
-const DEFAULT_TEMPERATURE = 0.3;
+export const DEFAULT_TEMPERATURE = 0.0;
 
 /**
  * Gets a streamed response from the specified LLM via OpenRouter.
@@ -34,23 +34,15 @@ export async function getModelResponse(options: GetModelResponseOptions): Promis
     } = options;
 
     try {
-        const parts = modelId.split(':');
-        if (parts.length !== 2 || parts[0].toLowerCase() !== 'openrouter') {
-            const errorMsg = `Invalid modelId format: ${modelId}. Expected format: \"openrouter:provider/model-name\"`;
-            console.error(chalk.red(errorMsg));
-            return `<error> LLM setup issue: ${errorMsg} </error>`;
-        }
-        const targetOpenRouterModelId = parts[1]; // This is the part after "openrouter:", e.g., "openai/gpt-4o-mini"
-
         if (logProgress) {
-            console.log(chalk.gray(`  -> Using OpenRouter model: ${targetOpenRouterModelId} (from input: ${modelId})`));
+            console.log(chalk.gray(`  -> Using model: ${modelId}`));
             if (useCache) {
                 console.log(chalk.yellow('  -> Caching with direct client is not yet implemented and will be ignored.'));
             }
         }
 
-        const clientOptions: Omit<LLMStreamApiCallOptions, 'apiKey'> = {
-            modelName: targetOpenRouterModelId, 
+        const clientOptions: Omit<LLMStreamApiCallOptions, 'modelName'> & { modelId: string } = {
+            modelId: modelId, 
             messages: messages,
             systemPrompt: systemPrompt ?? undefined,
             maxTokens: maxTokens,
@@ -59,7 +51,7 @@ export async function getModelResponse(options: GetModelResponseOptions): Promis
 
         if (logProgress || process.env.DEBUG_LLM_PAYLOAD === 'true') {
             const { logger: internalLogger } = getConfig();
-            internalLogger.info(`[LLMService] Calling OpenRouter client for model: ${targetOpenRouterModelId}. Client options payload (messages):`);
+            internalLogger.info(`[LLMService] Calling LLM client for model: ${modelId}. Client options payload (messages):`);
             try {
                 internalLogger.info(JSON.stringify(clientOptions.messages, null, 2));
             } catch (e) {
@@ -72,15 +64,15 @@ export async function getModelResponse(options: GetModelResponseOptions): Promis
         }
 
         let fullResponse = '';
-        for await (const chunk of openRouterModuleClient.streamApiCall(clientOptions)) {
+        for await (const chunk of dispatchStreamApiCall(clientOptions)) {
             if (chunk.type === 'content') {
                 fullResponse += chunk.content;
                 if (logProgress) {
                     process.stdout.write(chalk.gray('.'));
                 }
             } else if (chunk.type === 'error') {
-                console.error(chalk.red(`\nError chunk from OpenRouter stream for ${modelId}: ${chunk.error}`));
-                return `<error> LLM issue from OpenRouter stream for ${modelId}: ${chunk.error} </error>`;
+                console.error(chalk.red(`\nError chunk from stream for ${modelId}: ${chunk.error}`));
+                return `<error> LLM issue from stream for ${modelId}: ${chunk.error} </error>`;
             }
         }
         

@@ -1,4 +1,5 @@
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 
 const AlertTriangle = dynamic(() => import('lucide-react').then(mod => mod.AlertTriangle));
 const Info = dynamic(() => import('lucide-react').then(mod => mod.Info));
@@ -65,6 +66,14 @@ const ModelDriftIndicator: React.FC<ModelDriftIndicatorProps> = ({ driftInfo }) 
               <span className="font-medium"> {displayDate(driftInfo.oldestTimestamp)}</span> and 
               <span className="font-medium"> {displayDate(driftInfo.newestTimestamp)}</span>.
             </p>
+          </div>
+          <div className="mt-3 flex justify-start">
+            <Link 
+              href={`/analysis/${driftInfo.configId}/${encodeURIComponent(driftInfo.runLabel)}`}
+              className="inline-flex items-center justify-center px-4 py-2 text-xs font-medium rounded-md text-amber-800 dark:text-amber-100 bg-amber-400/50 hover:bg-amber-400/80 dark:bg-amber-500/40 dark:hover:bg-amber-500/60 transition-colors border border-amber-500/50 dark:border-amber-500/70"
+            >
+              View Runs & Investigate
+            </Link>
           </div>
           <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 italic">
             This variance, observed between the oldest and newest runs in your dataset for these specific parameters, could indicate an unannounced change in the model's underlying behavior. While minor fluctuations can be normal, a larger shift warrants further investigation.

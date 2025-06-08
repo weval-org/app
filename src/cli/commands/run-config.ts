@@ -337,8 +337,6 @@ async function actionV2(options: { config: string, runLabel?: string, evalMethod
         try {
             mainSpinner.text = `Executing comparison pipeline for blueprint ID: ${currentConfigId}, runLabel: ${finalRunLabel}. Caching: ${options.cache ?? false}`;
             
-            // Assuming executeComparisonPipeline saves the file and returns its path/key
-            // AND that it can also return the full data object if not saving to S3, or we fetch it after.
             const pipelineResult = await executeComparisonPipeline(
                 config, 
                 finalRunLabel, 
@@ -349,33 +347,27 @@ async function actionV2(options: { config: string, runLabel?: string, evalMethod
                 options.cache
             ); 
 
-            if (typeof pipelineResult === 'string') { // If it's a path/key from successful save
-                outputPathOrKey = pipelineResult;
-                actualResultFileName = path.basename(outputPathOrKey);
-                
-                newResultData = await getResultByFileName(currentConfigId, actualResultFileName) as FetchedComparisonData;
-                if (!newResultData) {
-                    mainSpinner.fail(`Comparison pipeline completed, results saved to: ${outputPathOrKey}, but failed to fetch the saved data for summary update.`);
-                    process.exit(1);
-                }
-            } else if (typeof pipelineResult === 'object' && pipelineResult !== null && !(process.env.STORAGE_PROVIDER === 's3')) { 
-                newResultData = pipelineResult as FetchedComparisonData;
-                // In this case, there isn't a persisted file name in S3, so manifest update might be skipped or handled differently.
-                // For now, we'll assume actualResultFileName remains null if not saved to a discoverable file.
-                outputPathOrKey = `memory://for-config-${currentConfigId}-run-${finalRunLabel}`; // Conceptual path
-            } else if (typeof pipelineResult === 'object' && pipelineResult !== null && process.env.STORAGE_PROVIDER === 's3'){
-                // This case should ideally not happen if S3 is the provider; a key should be returned.
-                // Or, if executeComparisonPipeline saved to S3 AND returned the data, we still need the filename.
-                // This implies executeComparisonPipeline needs to return { data: FetchedComparisonData, fileName: string } if it saves AND returns data.
-                // For now, this is an error or unhandled case for S3 manifest update.
-                mainSpinner.fail('Pipeline returned data object directly but S3 provider is active and filename for manifest update is unknown.');
-                process.exit(1);
+            // The pipeline now returns an object with the data and the filename/key it was saved under
+            if (pipelineResult && typeof pipelineResult === 'object' && 'fileName' in pipelineResult && 'data' in pipelineResult) {
+                newResultData = pipelineResult.data as FetchedComparisonData;
+                actualResultFileName = pipelineResult.fileName;
+                outputPathOrKey = actualResultFileName; // The filename is the key/path
             } else {
-                throw new Error('executeComparisonPipeline returned an unexpected result.');
+                // Fallback for older pipeline versions or local-only runs that might return just data
+                if (typeof pipelineResult === 'object' && pipelineResult !== null) {
+                    newResultData = pipelineResult as FetchedComparisonData;
+                    // For local, non-S3 runs, a filename might not be returned, construct a conceptual one
+                    outputPathOrKey = `local-result-for-config-${currentConfigId}-run-${finalRunLabel}`; 
+                    if (process.env.STORAGE_PROVIDER === 's3') {
+                        mainSpinner.warn('Pipeline returned data without a filename, but S3 provider is active. Summary update might fail if filename is required.');
+                    }
+                } else {
+                     throw new Error('executeComparisonPipeline returned an unexpected or null result.');
+                }
             }
             
             if (outputPathOrKey) {
-              mainSpinner.succeed(`Comparison pipeline finished successfully! Results related to: ${outputPathOrKey}`);
+              mainSpinner.succeed(`Comparison pipeline finished successfully! Results may be found at: ${outputPathOrKey}`);
             } else {
               mainSpinner.fail(`Comparison pipeline completed, but failed to save results or get a valid reference.`);
               process.exit(1);

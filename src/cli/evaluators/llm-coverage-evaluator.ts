@@ -13,7 +13,7 @@ import {
     NormalizedPoint,
 } from '../types/comparison_v2';
 import { extractKeyPoints } from '../services/llm-evaluation-service';
-import { openRouterModuleClient } from '../../lib/llm-clients/openrouter-client';
+import { dispatchMakeApiCall } from '../../lib/llm-clients/client-dispatcher';
 import { LLMApiCallOptions } from '../../lib/llm-clients/types';
 import { pointFunctions } from '@/point-functions';
 import { PointFunctionContext, PointFunctionReturn } from '@/point-functions/types';
@@ -144,26 +144,18 @@ Focus solely on the provided key point, the model response, and the scoring guid
         this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- begin evaluateSinglePoint for KP: "${keyPointText.substring(0, 50)}..."`);
 
         const modelsToTry: string[] = [
+            'openai:gpt-4o-mini',
             'openrouter:google/gemini-2.5-flash-preview-05-20',
             'openrouter:openai/gpt-4.1-mini',
-            'openrouter:openai/gpt-4.1-nano',
-            'openrouter:openai/gpt-4.1',
         ];
 
         for (let attempt = 1; attempt <= MAX_RETRIES_POINTWISE + 1; attempt++) {
-            for (const fullModelString of modelsToTry) {
-                const parts = fullModelString.split(':');
-                if (parts.length !== 2 || parts[0].toLowerCase() !== 'openrouter') {
-                    this.logger.warn(`[LLMCoverageEvaluator-Pointwise] --- Invalid model string format: ${fullModelString}. Skipping.`);
-                    continue; 
-                }
-                const targetOpenRouterModelId = parts[1];
-
-                this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- evaluateSinglePoint (Attempt ${attempt}/${MAX_RETRIES_POINTWISE + 1}) with ${targetOpenRouterModelId} (from ${fullModelString}) for KP: "${keyPointText.substring(0, 50)}..."`);
+            for (const modelId of modelsToTry) {
+                this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- evaluateSinglePoint (Attempt ${attempt}/${MAX_RETRIES_POINTWISE + 1}) with ${modelId} for KP: "${keyPointText.substring(0, 50)}..."`);
                 
                 try {
-                    const clientOptions: LLMApiCallOptions = {
-                        modelName: targetOpenRouterModelId,
+                    const clientOptions: Omit<LLMApiCallOptions, 'modelName'> & { modelId: string } = {
+                        modelId: modelId,
                         prompt: pointwisePrompt, 
                         systemPrompt: systemPrompt,
                         temperature: 0.0,
@@ -171,21 +163,21 @@ Focus solely on the provided key point, the model response, and the scoring guid
                         cache: true
                     };
 
-                    const llmCallPromise = openRouterModuleClient.makeApiCall(clientOptions);
+                    const llmCallPromise = dispatchMakeApiCall(clientOptions);
                     
                     const timeoutPromise = new Promise<never>((_, reject) => 
-                        setTimeout(() => reject(new Error(`LLM call timed out after ${CALL_TIMEOUT_MS_POINTWISE}ms for ${targetOpenRouterModelId}`)), CALL_TIMEOUT_MS_POINTWISE)
+                        setTimeout(() => reject(new Error(`LLM call timed out after ${CALL_TIMEOUT_MS_POINTWISE}ms for ${modelId}`)), CALL_TIMEOUT_MS_POINTWISE)
                     );
                     
                     const response = await Promise.race([llmCallPromise, timeoutPromise]);
 
                     if (response.error) {
-                        this.logger.warn(`[LLMCoverageEvaluator-Pointwise] --- (Attempt ${attempt}) API error with ${targetOpenRouterModelId} for KP "${keyPointText.substring(0,50)}...": ${response.error}`);
+                        this.logger.warn(`[LLMCoverageEvaluator-Pointwise] --- (Attempt ${attempt}) API error with ${modelId} for KP "${keyPointText.substring(0,50)}...": ${response.error}`);
                         continue; 
                     }
 
                     if (!response.responseText || response.responseText.trim() === '') {
-                        this.logger.warn(`[LLMCoverageEvaluator-Pointwise] --- (Attempt ${attempt}) Empty response from ${targetOpenRouterModelId} for KP "${keyPointText.substring(0,50)}..."`);
+                        this.logger.warn(`[LLMCoverageEvaluator-Pointwise] --- (Attempt ${attempt}) Empty response from ${modelId} for KP "${keyPointText.substring(0,50)}..."`);
                         continue; 
                     }
 
@@ -193,7 +185,7 @@ Focus solely on the provided key point, the model response, and the scoring guid
                     const extentMatch = response.responseText.match(/<coverage_extent>([\s\S]*?)<\/coverage_extent>/);
 
                     if (!reflectionMatch || !extentMatch) {
-                        this.logger.warn(`[LLMCoverageEvaluator-Pointwise] --- (Attempt ${attempt}) Failed to parse XML from ${targetOpenRouterModelId} for KP "${keyPointText.substring(0,50)}...". Response: ${response.responseText.substring(0,300)}`);
+                        this.logger.warn(`[LLMCoverageEvaluator-Pointwise] --- (Attempt ${attempt}) Failed to parse XML from ${modelId} for KP "${keyPointText.substring(0,50)}...". Response: ${response.responseText.substring(0,300)}`);
                         continue; 
                     }
 
@@ -202,15 +194,15 @@ Focus solely on the provided key point, the model response, and the scoring guid
                     const coverage_extent = parseFloat(coverageExtentStr);
 
                     if (isNaN(coverage_extent) || coverage_extent < 0 || coverage_extent > 1) {
-                        this.logger.warn(`[LLMCoverageEvaluator-Pointwise] --- (Attempt ${attempt}) Invalid coverage_extent value from ${targetOpenRouterModelId}: '${coverageExtentStr}'. Parsed as NaN or out of range.`);
+                        this.logger.warn(`[LLMCoverageEvaluator-Pointwise] --- (Attempt ${attempt}) Invalid coverage_extent value from ${modelId}: '${coverageExtentStr}'. Parsed as NaN or out of range.`);
                         continue; 
                     }
 
-                    this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- evaluateSinglePoint (Attempt ${attempt}) with ${targetOpenRouterModelId} SUCCEEDED for KP: "${keyPointText.substring(0, 50)}..."`);
+                    this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- evaluateSinglePoint (Attempt ${attempt}) with ${modelId} SUCCEEDED for KP: "${keyPointText.substring(0, 50)}..."`);
                     return { reflection, coverage_extent }; 
 
                 } catch (error: any) {
-                    this.logger.warn(`[LLMCoverageEvaluator-Pointwise] --- (Attempt ${attempt}) Client/Network error with ${fullModelString} for KP "${keyPointText.substring(0,50)}...": ${error.message || String(error)}`);
+                    this.logger.warn(`[LLMCoverageEvaluator-Pointwise] --- (Attempt ${attempt}) Client/Network error with ${modelId} for KP "${keyPointText.substring(0,50)}...": ${error.message || String(error)}`);
                 }
             } 
 

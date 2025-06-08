@@ -16,6 +16,10 @@ import {
 import { IDEAL_MODEL_ID } from '@/app/utils/comparisonUtils';
 import { AggregateStatsData } from '@/app/components/AggregateStatsDisplay';
 import { PotentialDriftInfo } from '@/app/components/ModelDriftIndicator';
+import {
+  calculateHeadlineStats,
+  calculatePotentialModelDrift,
+} from '@/cli/utils/summaryCalculationUtils';
 
 const storageProvider = process.env.STORAGE_PROVIDER || (process.env.NODE_ENV === 'development' ? 'local' : 's3'); // Restored
 
@@ -457,7 +461,9 @@ export async function getResultByFileName(configId: string, fileName: string): P
       if (Body) {
         const content = await streamToString(Body as Readable);
         console.log(`[StorageService] Result retrieved from S3 by fileName: s3://${s3BucketName}/${s3Key}`);
-        return JSON.parse(content);
+        const parsedData = JSON.parse(content);
+        console.log(`[StorageService getResultByFileName DEBUG] Parsed data keys: ${Object.keys(parsedData).join(', ')}`);
+        return parsedData;
       }
       return null;
     } catch (error: any) {
@@ -473,7 +479,9 @@ export async function getResultByFileName(configId: string, fileName: string): P
     try {
       const fileContents = await fs.readFile(localPath, 'utf-8');
       console.log(`[StorageService] Result retrieved locally by fileName: ${localPath}`);
-      return JSON.parse(fileContents);
+      const parsedData = JSON.parse(fileContents);
+      console.log(`[StorageService getResultByFileName DEBUG] Parsed data keys: ${Object.keys(parsedData).join(', ')}`);
+      return parsedData;
     } catch (error: any) {
       if (error.code === 'ENOENT') {
         console.log(`[StorageService] Result not found locally by fileName: ${localPath}`);
@@ -721,15 +729,15 @@ function removeConfigFromSummaryArray(
   }
   const updatedSummary = currentSummary.filter(config => config.configId !== configIdToRemove);
   if (updatedSummary.length === currentSummary.length) {
-    console.log(`[StorageService] Config ID '${configIdToRemove}' not found in homepage summary. No changes made to summary data.`);
+    console.log(`[StorageService] Config ID '${configIdToRemove}' not found in main configs array. Stats will be recalculated to ensure its removal from aggregates.`);
   } else {
-    console.log(`[StorageService] Config ID '${configIdToRemove}' removed from homepage summary data.`);
+    console.log(`[StorageService] Config ID '${configIdToRemove}' removed from main configs array.`);
   }
   return updatedSummary;
 }
 
 /**
- * Fetches the homepage summary, removes a specified configId, and saves the updated summary.
+ * Fetches the homepage summary, removes a specified configId, recalculates stats, and saves the updated summary.
  * @param configIdToRemove The ID of the configuration to remove from the summary.
  * @returns True if the summary was successfully updated (or if the config was not in the summary), false on error.
  */
@@ -743,21 +751,62 @@ export async function removeConfigFromHomepageSummary(configIdToRemove: string):
       return true;
     }
 
+    // Step 1: Remove the config from the primary array
     const updatedConfigsArray = removeConfigFromSummaryArray(currentSummaryObject.configs, configIdToRemove);
 
-    // Construct the full summary object to save
+    // Step 2: Recalculate headline stats and drift from the updated array
+    console.log(`[StorageService] Recalculating headline stats and drift detection after removal...`);
+    const updatedHeadlineStats = calculateHeadlineStats(updatedConfigsArray);
+    const updatedDriftDetection = calculatePotentialModelDrift(updatedConfigsArray);
+
+    // Step 3: Construct the full, updated summary object to save
     const updatedSummaryToSave: HomepageSummaryFileContent = {
       configs: updatedConfigsArray,
-      headlineStats: currentSummaryObject.headlineStats, // Retain old stats
-      driftDetectionResult: currentSummaryObject.driftDetectionResult, // Retain old drift info
-      lastUpdated: new Date().toISOString(), // Update timestamp
+      headlineStats: updatedHeadlineStats,
+      driftDetectionResult: updatedDriftDetection,
+      lastUpdated: new Date().toISOString(),
     };
 
     await saveHomepageSummary(updatedSummaryToSave); 
-    console.log(`[StorageService] Homepage summary manifest updated (or confirmed unchanged) after attempting to remove configId '${configIdToRemove}'.`);
+    console.log(`[StorageService] Homepage summary manifest updated after removing configId '${configIdToRemove}' and recalculating stats.`);
     return true;
-  } catch (error) {
+  } catch (error: any) {
     console.error(`[StorageService] Error updating homepage summary manifest after attempting to remove configId '${configIdToRemove}':`, error);
     return false;
   }
+}
+
+export async function deleteResultByFileName(configId: string, fileName: string): Promise<boolean> {
+    if (storageProvider === 's3' && s3Client && s3BucketName) {
+        const s3Key = path.join(MULTI_DIR, configId, fileName);
+        try {
+            await s3Client.send(new DeleteObjectCommand({
+                Bucket: s3BucketName,
+                Key: s3Key,
+            }));
+            console.log(`[StorageService] Successfully deleted S3 object: ${s3Key}`);
+            return true;
+        } catch (error) {
+            console.error(`[StorageService] Error deleting S3 object ${s3Key}:`, error);
+            return false;
+        }
+    } else if (storageProvider === 'local') {
+        const filePath = path.join(RESULTS_DIR, MULTI_DIR, configId, fileName);
+        try {
+            if (fsSync.existsSync(filePath)) {
+                await fs.unlink(filePath);
+                console.log(`[StorageService] Successfully deleted local file: ${filePath}`);
+                return true;
+            } else {
+                console.warn(`[StorageService] Local file not found for deletion: ${filePath}`);
+                return true; // Return true as the file is already gone
+            }
+        } catch (error) {
+            console.error(`[StorageService] Error deleting local file ${filePath}:`, error);
+            return false;
+        }
+    } else {
+        console.warn(`[StorageService] No valid storage provider configured for deleteResultByFileName. File not deleted.`);
+        return false;
+    }
 } 

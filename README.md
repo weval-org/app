@@ -360,9 +360,11 @@ This example demonstrates the `run_config` command for local use.
   "description": "Tests multiple LLMs on a mix of philosophy, tech explanation, and creative writing prompts. Includes ideal responses and system prompt overrides.",
   "tags": ["general-knowledge", "creative-writing", "philosophy", "stoicism"],
   "models": [
-    "openrouter:openai/gpt-4o-mini",
-    "openrouter:anthropic/claude-3-haiku-20240307",
-    "openrouter:google/gemini-1.5-flash-latest"
+    "openai:gpt-4o-mini",
+    "anthropic:claude-3-haiku-20240307",
+    "google:gemini-1.5-flash-latest",
+    "mistral:mistral-large-latest",
+    "openrouter:meta-llama/llama-3-70b-instruct"
   ],
   "systemPrompt": "You are a helpful assistant. Provide clear and concise answers.",
   "concurrency": 5,
@@ -412,42 +414,133 @@ Open your browser. The dashboard will display results from the configured storag
 
 ## Model Configuration and Environment Variables
 
-All language models are accessed exclusively through OpenRouter. This simplifies configuration and allows access to a wide variety of models from different underlying providers using a single API key.
+The application can access models from multiple providers. This is controlled by a prefix in the model ID string specified in your configuration files.
 
 **Model ID Format:**
-When specifying models in your configuration files, you **must** use the OpenRouter format:
-`"openrouter:<provider_slug>/<model_name>"`
+When specifying models in your JSON configuration, you **must** use the format:
+`"<provider>:<model_identifier>"`
 
-For example:
-- `"openrouter:openai/gpt-4o-mini"`
-- `"openrouter:anthropic/claude-3-haiku-20240307"`
-- `"openrouter:google/gemini-1.5-flash-latest"`
-- `"openrouter:mistralai/mistral-large-latest"`
+Here are the supported providers and examples of their model identifiers:
 
-Refer to the [OpenRouter documentation](https://openrouter.ai/docs#models) for a full list of available models and their provider slugs/model names.
+-   **OpenAI**: Uses the `openai:` prefix. The identifier is the model name.
+    -   `"openai:gpt-4o-mini"`
+    -   `"openai:gpt-4-turbo"`
+-   **Anthropic**: Uses the `anthropic:` prefix. The identifier is the model name.
+    -   `"anthropic:claude-3-haiku-20240307"`
+    -   `"anthropic:claude-3-opus-20240229"`
+-   **Google**: Uses the `google:` prefix. The identifier is the model name.
+    -   `"google:gemini-1.5-flash-latest"`
+    -   `"google:gemini-1.5-pro-latest"`
+-   **Mistral AI**: Uses the `mistral:` prefix. The identifier is the model name.
+    -   `"mistral:mistral-large-latest"`
+    -   `"mistral:open-mixtral-8x22b"`
+-   **xAI (Grok)**: Uses the `xai:` prefix.
+    -   `"xai:grok-1.5"`
+-   **OpenRouter**: Uses the `openrouter:` prefix. The identifier includes the original provider slug. This is a versatile option for accessing models not directly integrated.
+    -   `"openrouter:perplexity/pplx-7b-online"`
+    -   `"openrouter:meta-llama/llama-3-70b-instruct"`
 
-**Required `.env` Variable:**
-- `OPENROUTER_API_KEY`: Your API key for OpenRouter. This is essential for all LLM interactions **except for text embedding generation**, including response generation, key point extraction, and coverage assessment.
-- `OPENAI_API_KEY`: Required **specifically for generating text embeddings** (e.g., `text-embedding-3-small`, `text-embedding-3-large`).
+Refer to each provider's documentation for a full list of available model names.
 
-*(The previous table listing individual providers like Anthropic, Deepseek, etc., and their specific API keys has been removed as direct integration with these providers for response generation is no longer supported. All general LLM access is unified through OpenRouter. OpenAI is still directly used for embeddings.)*
+### Environment Variables
 
-**Important Considerations for API Keys & Internal Models:**
+Update your `.env` file (for local development) and configure these in your deployment environment (e.g., Netlify). See `.env.example` for a template.
+
+-   **LLM API Keys (Direct Providers):**
+    -   `OPENAI_API_KEY`: **Required for text embeddings**. Also required if you use the `openai:` provider for response generation.
+    -   `ANTHROPIC_API_KEY`: Required if using the `anthropic:` provider.
+    -   `GOOGLE_API_KEY`: Required if using the `google:` provider.
+    -   `MISTRAL_API_KEY`: Required if using the `mistral:` provider.
+    -   `TOGETHER_API_KEY`: Required if using the `together:` provider.
+    -   `XAI_API_KEY`: Required if using the `xai:` provider.
+-   **LLM API Keys (Routing Services):**
+    -   `OPENROUTER_API_KEY`: Required if using the `openrouter:` provider.
+-   **Storage Configuration:**
+    -   `STORAGE_PROVIDER`: (Optional) Set to `s3` to use AWS S3 for results storage. Defaults to `local` for development (`NODE_ENV=development`), `s3` otherwise.
+    -   `APP_S3_BUCKET_NAME`: Your AWS S3 bucket name (if using S3).
+    -   `APP_S3_REGION`: The AWS region of your S3 bucket (if using S3).
+    -   `APP_AWS_ACCESS_KEY_ID`: Your AWS IAM access key ID (if using S3 and explicit credentials).
+    -   `APP_AWS_SECRET_ACCESS_KEY`: Your AWS IAM secret access key (if using S3 and explicit credentials).
+-   **Netlify Deployment (for automated functions):**
+    -   Netlify automatically provides `process.env.URL`.
+    -   `NETLIFY_API_TOKEN` and `SITE_ID` were previously considered for function invocation but are not strictly needed with the current direct POST method between functions. However, keep them in mind if more advanced Netlify API interactions are added later.
+
+### Quick Start (Local Development & Config Testing)
+
+This example demonstrates the `run_config` command for local use.
+
+**1. Create a Rich Blueprint File (e.g., `evaluation_blueprints/comprehensive_test.json`)**
+
+```json
+{
+  "id": "comprehensive-llm-test-v1",
+  "title": "Comprehensive LLM Functionality Test (Version 1)",
+  "description": "Tests multiple LLMs on a mix of philosophy, tech explanation, and creative writing prompts. Includes ideal responses and system prompt overrides.",
+  "tags": ["general-knowledge", "creative-writing", "philosophy", "stoicism"],
+  "models": [
+    "openai:gpt-4o-mini",
+    "anthropic:claude-3-haiku-20240307",
+    "google:gemini-1.5-flash-latest",
+    "mistral:mistral-large-latest",
+    "openrouter:meta-llama/llama-3-70b-instruct"
+  ],
+  "systemPrompt": "You are a helpful assistant. Provide clear and concise answers.",
+  "concurrency": 5,
+  "prompts": [
+    {
+      "id": "philosophy-wisdom",
+      "promptText": "What are the core tenets of Stoic philosophy and how can they be applied in modern life?",
+      "idealResponse": "Stoicism, founded in Athens by Zeno of Citium in the early 3rd century BC, emphasizes virtue, reason, and living in accordance with nature. Key tenets include: 1. Virtue is the only good (wisdom, justice, courage, temperance). 2. Focus on what you can control (your thoughts, judgments, actions) and accept what you cannot. 3. Live in accordance with nature/reason. 4. The practice of negative visualization (imagining potential misfortunes) to appreciate what you have and prepare for adversity. In modern life, these can be applied by practicing mindfulness, focusing on internal responses to external events, maintaining emotional resilience, and acting with integrity.",
+      "points": [
+        "Virtue is the only good (wisdom, justice, courage, temperance).",
+        "Focus on what you can control and accept what you cannot.",
+        "Live in accordance with nature/reason.",
+        "Practice negative visualization."
+      ]
+    },
+    {
+      "id": "tech-cloud",
+      "promptText": "Explain the main benefits of cloud computing for a small business.",
+      "system": "Explain in simple terms, avoiding overly technical jargon."
+    },
+    {
+      "id": "creative-story",
+      "promptText": "Write a short story opening (100 words) about a detective discovering a mysterious antique map."
+    }
+  ]
+}
+```
+
+**2. Run the Config-Based Command**
+
+```bash
+# To save results locally (default for NODE_ENV=development)
+pnpm cli run_config --config evaluation_blueprints/comprehensive_test.json --run-label "initial-baseline-run" --eval-method="embedding,llm-coverage"
+
+# To save results to S3 (ensure .env has S3 vars and STORAGE_PROVIDER=s3 if not in production)
+# STORAGE_PROVIDER=s3 pnpm cli run_config --config evaluation_blueprints/comprehensive_test.json --run-label "s3-baseline-run" --eval-method="embedding,llm-coverage"
+```
+
+**3. Start the Web Dashboard**
+
+```bash
+pnpm dev
+```
+
+**4. Visualize Your Results**
+Open your browser. The dashboard will display results from the configured storage provider.
+
+## Important Considerations for API Keys & Internal Models
 
 *   **Text Embeddings (OpenAI Required)**:
     *   The toolkit generates semantic embeddings using OpenAI models (e.g., `text-embedding-3-small`, `text-embedding-3-large`) via a direct OpenAI API client.
-    *   An `OPENAI_API_KEY` is **essential** for this core functionality. The `OPENROUTER_API_KEY` is not used for this specific task.
-
-*   **`llm-coverage` Evaluation (Internal "Judge" Models via OpenRouter)**:
+    *   An `OPENAI_API_KEY` is **essential** for this core functionality.
+*   **`llm-coverage` Evaluation (Internal "Judge" Models)**:
     *   The `llm-coverage` evaluation method involves two steps performed by LLMs:
         1.  **Key Point Extraction**: Extracts key points from your `idealResponse`.
         2.  **Coverage Assessment**: Checks if a model's actual output covers these extracted key points.
-    *   Both of these steps internally use a list of models specified in the OpenRouter format (e.g., `openrouter:openai/gpt-4o-mini`, `openrouter:anthropic/claude-3-haiku-20240307`).
-    *   Therefore, to use the `llm-coverage` feature, your `OPENROUTER_API_KEY` must have access to the judge models defined internally for these tasks. You will also need to provide either an `idealResponse` (for key point extraction) or a list of `points` in your prompt configurations.
-
-*   **Model Identifiers for Response Generation**:
-    *   When you specify models in your JSON configuration for generating the primary responses (e.g., `"openrouter:openai/gpt-4o-mini"`), these are passed directly to OpenRouter.
-    *   Refer to the [OpenRouter documentation](https://openrouter.ai/docs#models) for model availability.
+    *   Both of these steps internally use a list of models specified with provider prefixes (e.g., `openai:gpt-4o-mini`, `openrouter:google/gemini-1.5-flash-latest`).
+    *   Therefore, to use the `llm-coverage` feature, you must have the necessary API key (e.g., `OPENAI_API_KEY`, `OPENROUTER_API_KEY`) configured for whichever judge models are defined internally for these tasks.
 
 ## Project Structure
 

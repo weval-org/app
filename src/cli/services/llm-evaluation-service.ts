@@ -1,6 +1,6 @@
 import { getConfig } from '../config';
 import crypto from 'crypto'; // For cache key hashing
-import { openRouterModuleClient } from '../../lib/llm-clients/openrouter-client';
+import { dispatchMakeApiCall } from '../../lib/llm-clients/client-dispatcher';
 import { LLMApiCallOptions } from '../../lib/llm-clients/types';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
@@ -54,47 +54,40 @@ ${idealResponse}
 
     const systemPrompt = `Your role is to extract the most pertinent pieces of content and advice covered in any given response to a prompt. You are trying to distil the key things from a response in a set of points. Be concise and focus on distinct aspects. Ensure each key point is enclosed in <key_point> and </key_point> tags.`;
 
-    // Define default OpenRouter models to try for key point extraction if not overridden by caller.
+    // Define default models to try for key point extraction. Can be any supported provider.
     const modelsToTry: string[] = [
-        'openrouter:openai/gpt-4.1',
-        'openrouter:openai/gpt-4.1-mini'
+        'openai:gpt-4o-mini',
+        'openrouter:openai/gpt-4.1-mini',
+        'openrouter:google/gemini-1.5-flash-latest',
     ]; 
     // These should be sensible defaults if this function is ever called without specific models from a config.
     // However, ideally, the calling context (like LLMCoverageEvaluator) should pass specific models if needed.
 
     let lastError: EvaluationError | null = null;
 
-    for (const fullModelString of modelsToTry) {
-        const parts = fullModelString.split(':');
-        if (parts.length !== 2 || parts[0].toLowerCase() !== 'openrouter') {
-            logger.warn(`Invalid model string format: ${fullModelString} in extractKeyPoints. Skipping.`);
-            lastError = { error: `Invalid model string format: ${fullModelString}` };
-            continue;
-        }
-        const targetOpenRouterModelId = parts[1]; // e.g., "openai/gpt-4o-mini"
-
+    for (const modelId of modelsToTry) {
         try {
-            logger.info(`Attempting key point extraction with OpenRouter model: ${targetOpenRouterModelId} (from ${fullModelString})`);
+            logger.info(`Attempting key point extraction with model: ${modelId}`);
 
-            const clientOptions: LLMApiCallOptions = {
-                modelName: targetOpenRouterModelId,
+            const clientOptions: Omit<LLMApiCallOptions, 'modelName'> & { modelId: string } = {
+                modelId: modelId,
                 prompt: extractionPrompt,
                 systemPrompt: systemPrompt,
                 temperature: 0.1,
                 maxTokens: 2000, 
             };
 
-            const response = await openRouterModuleClient.makeApiCall(clientOptions);
+            const response = await dispatchMakeApiCall(clientOptions);
 
             if (response.error) {
-                const errorMsg = `OpenRouter Error during key point extraction with ${targetOpenRouterModelId}: ${response.error}`;
+                const errorMsg = `API Error during key point extraction with ${modelId}: ${response.error}`;
                 logger.warn(`${errorMsg} Response: ${response.responseText}`);
                 lastError = { error: errorMsg };
                 continue; 
             }
 
             if (!response.responseText || response.responseText.trim() === '') {
-                const errorMsg = `Empty response from LLM for key point extraction with ${targetOpenRouterModelId}.`;
+                const errorMsg = `Empty response from LLM for key point extraction with ${modelId}.`;
                 logger.warn(errorMsg);
                 lastError = { error: errorMsg };
                 continue; 
@@ -104,19 +97,19 @@ ${idealResponse}
             const key_points = Array.from(matches, m => m[1].trim());
 
             if (key_points.length === 0) {
-                const errorMsg = `No key points found in LLM response from ${targetOpenRouterModelId} using regex. Response: ${response.responseText.substring(0, 500)}`;
+                const errorMsg = `No key points found in LLM response from ${modelId} using regex. Response: ${response.responseText.substring(0, 500)}`;
                 logger.warn(errorMsg);
                 lastError = { error: errorMsg };
                 continue; 
             }
             
-            logger.info(`Key point extraction successful with ${targetOpenRouterModelId} for prompt context: ${promptText.substring(0, 50)}... Found ${key_points.length} points.`);
+            logger.info(`Key point extraction successful with ${modelId} for prompt context: ${promptText.substring(0, 50)}... Found ${key_points.length} points.`);
             const result: ExtractionResult = { key_points };
             llmCache.set(cacheKey, result);
             return result;
 
         } catch (error: any) {
-            const errorMessage = `LLM Client Error during key point extraction with ${fullModelString}: ${error.message || String(error)}`;
+            const errorMessage = `LLM Client Error during key point extraction with ${modelId}: ${error.message || String(error)}`;
             logger.error(errorMessage);
             lastError = { error: errorMessage };
         }

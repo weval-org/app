@@ -2,7 +2,7 @@ import { LLMClient, LLMApiCallOptions, LLMApiCallResponse, LLMStreamApiCallOptio
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
-export const openRouterModuleClient: LLMClient = {
+class OpenRouterModuleClient implements LLMClient {
   async makeApiCall(options: LLMApiCallOptions): Promise<LLMApiCallResponse> {
     const { modelName, prompt, systemPrompt, temperature, maxTokens, messages: optionMessages } = options;
     const apiKey = options.apiKey || process.env.OPENROUTER_API_KEY;
@@ -51,7 +51,7 @@ export const openRouterModuleClient: LLMClient = {
         return { responseText: '', error: `OpenRouter API Error: ${response.status} ${response.statusText}. Details: ${errorBody}` };
       }
 
-      const jsonResponse = await response.json();
+      const jsonResponse = await response.json() as any;
       const responseText = jsonResponse.choices?.[0]?.message?.content || '';
       
       if (!responseText && jsonResponse.error) {
@@ -65,7 +65,7 @@ export const openRouterModuleClient: LLMClient = {
       console.error('Failed to make OpenRouter API call:', error);
       return { responseText: '', error: `Network or other error calling OpenRouter: ${error.message}` };
     }
-  },
+  }
 
   async *streamApiCall(options: LLMStreamApiCallOptions): AsyncGenerator<StreamChunk, void, undefined> {
     const { modelName, prompt, systemPrompt, temperature, maxTokens, messages: optionMessages } = options;
@@ -101,8 +101,6 @@ export const openRouterModuleClient: LLMClient = {
         headers: {
           "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json",
-          // "HTTP-Referer": HTTP_REFERER, // Removed
-          // "X-Title": X_TITLE // Removed
         },
         body: JSON.stringify({
           model: modelName,
@@ -125,7 +123,7 @@ export const openRouterModuleClient: LLMClient = {
         return;
       }
 
-      const reader = response.body.getReader();
+      const reader = (response.body as any).getReader();
       const decoder = new TextDecoder("utf-8");
       let buffer = '';
 
@@ -164,4 +162,6 @@ export const openRouterModuleClient: LLMClient = {
       yield { type: 'error', error: `Network or other error streaming from OpenRouter: ${error.message}` };
     }
   }
-}; 
+}
+
+export { OpenRouterModuleClient }; 

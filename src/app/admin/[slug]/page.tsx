@@ -24,6 +24,8 @@ export default function AdminPage() {
   const [configs, setConfigs] = useState<ConfigFile[]>([]);
   const [loadingConfigs, setLoadingConfigs] = useState<boolean>(true);
   const [runningStatus, setRunningStatus] = useState<Record<string, string>>({});
+  const [revalidating, setRevalidating] = useState(false);
+  const [revalidationStatus, setRevalidationStatus] = useState('');
 
   const adminSecretSlug = process.env.NEXT_PUBLIC_ADMIN_SECRET_SLUG;
 
@@ -102,6 +104,34 @@ export default function AdminPage() {
     }
   };
 
+  const handleRevalidate = async () => {
+    setRevalidating(true);
+    setRevalidationStatus('Triggering...');
+    try {
+      const response = await axios.post('/api/admin/revalidate', {
+        secret: slug,
+        path: '/', // Revalidate the homepage
+      });
+
+      if (response.status === 200 && response.data.revalidated) {
+        setRevalidationStatus('Success! Homepage cache is being refreshed.');
+      } else {
+        setRevalidationStatus(`Error: ${response.data.message || 'Failed to trigger revalidation.'}`);
+      }
+    } catch (error: any) {
+      let errorMessage = 'An unknown error occurred.';
+      if (error.response && error.response.data && error.response.data.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      console.error('Error triggering revalidation:', error);
+      setRevalidationStatus(`Error: ${errorMessage}`);
+    } finally {
+      setRevalidating(false);
+    }
+  };
+
   if (isValidSlug === null) {
     return <div className="min-h-screen flex items-center justify-center p-4">Verifying access...</div>;
   }
@@ -119,8 +149,24 @@ export default function AdminPage() {
   return (
     <div className="container mx-auto p-4 sm:p-6 lg:p-8">
       <header className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Admin Panel</h1>
-        <p className="text-lg text-gray-600 dark:text-gray-400">Manually Trigger Evaluations</p>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+            <div>
+                <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Admin Panel</h1>
+                <p className="text-lg text-gray-600 dark:text-gray-400">Manually Trigger Evaluations</p>
+            </div>
+            <div>
+                <button
+                  onClick={handleRevalidate}
+                  disabled={revalidating}
+                  className="mt-4 sm:mt-0 px-4 py-2 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap transition-colors duration-150 ease-in-out"
+                >
+                  {revalidating ? 'Refreshing...' : 'Force Homepage Refresh'}
+                </button>
+                {revalidationStatus && (
+                    <p className={`mt-2 text-xs text-right ${revalidationStatus.toLowerCase().includes('error') ? 'text-red-500' : 'text-gray-500'}`}>{revalidationStatus}</p>
+                )}
+            </div>
+        </div>
       </header>
       
       {loadingConfigs ? (

@@ -1,6 +1,6 @@
 import { getConfig } from '../config';
 import { ComparisonConfig, EvaluationMethod, PromptResponseData, EvaluationInput, FinalComparisonOutputV2, Evaluator, IDEAL_MODEL_ID, ConversationMessage } from '../types/comparison_v2';
-import { getModelResponse } from './llm-service';
+import { getModelResponse, DEFAULT_TEMPERATURE } from './llm-service';
 import { checkForErrors } from '../utils/response-utils';
 import { getEffectiveModelId, getUniqueModelIds } from '@/cli/utils/config-utils';
 import { EmbeddingEvaluator } from '@/cli/evaluators/embedding-evaluator';
@@ -55,16 +55,16 @@ async function generateAllResponses(
                 tasks.push(limit(async () => {
                     const systemPromptToUse = promptConfig.system !== undefined ? promptConfig.system : config.systemPrompt;
                     
-                    const temperatureForThisCall = tempValue ?? promptConfig.temperature ?? undefined;
+                    // Prioritize temp from the temperatures array, then prompt-specific, then global, then the hardcoded default.
+                    const temperatureForThisCall = tempValue ?? promptConfig.temperature ?? config.temperature ?? DEFAULT_TEMPERATURE;
 
+                    // This block now correctly and consistently creates the effective ID
                     let { effectiveId: baseEffectiveId } = getEffectiveModelId(modelString, systemPromptToUse);
                     let finalEffectiveId = baseEffectiveId;
-
-                    if (temperaturesToRun.length > 1 || temperatureForThisCall !== undefined) {
-                        const tempSuffix = temperatureForThisCall !== undefined ? `[temp:${temperatureForThisCall}]` : ""; 
-                        finalEffectiveId = `${baseEffectiveId}${tempSuffix}`;
+                    if (temperatureForThisCall !== undefined) {
+                        finalEffectiveId = `${baseEffectiveId}[temp:${temperatureForThisCall}]`;
                     }
-
+                    
                     let finalAssistantResponseText = '';
                     let fullConversationHistoryWithResponse: ConversationMessage[] = [];
                     let hasError = false;
@@ -82,7 +82,7 @@ async function generateAllResponses(
                     }
 
                     // ---- BEGIN ADDED DEBUG LOG ----
-                    logger.info(`[PipelineService] About to call getModelResponse for model: ${modelString} (Effective ID: ${finalEffectiveId}) with prompt ID: ${promptConfig.id}. Messages payload:`);
+                    logger.info(`[PipelineService] About to call getModelResponse for model: ${modelString} (Effective ID: ${finalEffectiveId}) with prompt ID: ${promptConfig.id}. Temperature: ${temperatureForThisCall}. Messages payload:`);
                     try {
                         // Attempt to pretty-print JSON
                         logger.info(JSON.stringify(messagesForLlm, null, 2));
@@ -142,7 +142,7 @@ async function aggregateAndSaveResults(
     evaluationResults: Partial<FinalComparisonOutputV2['evaluationResults'] & Pick<FinalComparisonOutputV2, 'extractedKeyPoints'>>,
     evalMethodsUsed: EvaluationMethod[],
     logger: Logger
-): Promise<string | null> { // Returns the storage key/path or null
+): Promise<{ data: FinalComparisonOutputV2, fileName: string | null }> {
     logger.info('[PipelineService] Aggregating results...');
     logger.info(`[PipelineService] Received config.configId for saving: '${config.configId}'`);
 
@@ -251,26 +251,31 @@ async function aggregateAndSaveResults(
         errors: Object.keys(errors).length > 0 ? errors : undefined,
     };
 
-    const timestampStr = currentTimestamp.replace(/[:.]/g, '-');
-    const outputFilename = `${runLabel}_${timestampStr}_comparison.json`;
+    const safeTimestamp = currentTimestamp.replace(/[:.]/g, '-');
+    const fileName = `${runLabel}_${safeTimestamp}_comparison.json`;
 
     try {
-        const storagePath = await saveResultToStorage(resolvedConfigId, outputFilename, finalOutput);
-
-        if (storagePath) {
-            logger.success(`[PipelineService] Comparison results saved successfully!`);
-            logger.info(`[PipelineService] Output location: ${storagePath}`);
-            return storagePath;
-        } else {
-            logger.error(`[PipelineService] Failed to save results to storage.`);
-            return null;
-        }
-    } catch (writeError: any) {
-        logger.error(`[PipelineService] Failed to save results: ${writeError.message || String(writeError)}`);
-        return null;
+        await saveResultToStorage(resolvedConfigId, fileName, finalOutput);
+        logger.info(`[PipelineService] Successfully saved aggregated results to storage with key/filename: ${fileName}`);
+        return { data: finalOutput, fileName: fileName };
+    } catch (error: any) {
+        logger.error(`[PipelineService] Failed to save the final comparison output to storage: ${error.message}`);
+        // Still return the data even if save fails, caller can decide what to do
+        return { data: finalOutput, fileName: null };
     }
 }
 
+/**
+ * Main service function to execute the full comparison pipeline.
+ * @param config - The comparison configuration.
+ * @param runLabel - The label for the current run.
+ * @param evalMethods - The evaluation methods to use.
+ * @param logger - The logger for logging purposes.
+ * @param existingResponsesMap - Optional map of pre-generated responses.
+ * @param forcePointwiseKeyEval - Optional flag to force pointwise key evaluation.
+ * @param useCache - Optional flag to enable caching for model responses.
+ * @returns A promise that resolves to an object containing the full comparison data and the filename it was saved under.
+ */
 export async function executeComparisonPipeline(
     config: ComparisonConfig,
     runLabel: string,
@@ -279,8 +284,8 @@ export async function executeComparisonPipeline(
     // Optional: allow passing pre-generated responses to skip generation
     existingResponsesMap?: Map<string, PromptResponseData>,
     forcePointwiseKeyEval?: boolean,
-    useCache?: boolean
-): Promise<string | null> { // Returns the storage key/path of the saved comparison file or null
+    useCache: boolean = false
+): Promise<{ data: FinalComparisonOutputV2, fileName: string | null }> {
     logger.info(`[PipelineService] executeComparisonPipeline started for configId: ${config.configId}, runLabel: ${runLabel}`);
     logger.info(`[PipelineService] Model response caching: ${useCache ?? false}`);
     logger.info(`[PipelineService] Evaluation methods: ${evalMethods.join(', ')}`);
@@ -339,7 +344,14 @@ export async function executeComparisonPipeline(
     }
 
     logger.info('[PipelineService] Aggregating and saving final results...');
-    const outputPath = await aggregateAndSaveResults(config, runLabel, allResponsesMap, evaluationResultsAccumulator, evalMethods, logger);
-    logger.info(`[PipelineService] executeComparisonPipeline finished successfully. Results at: ${outputPath}`);
-    return outputPath;
+    const aggregatedResults = await aggregateAndSaveResults(
+        config,
+        runLabel,
+        allResponsesMap,
+        evaluationResultsAccumulator,
+        evalMethods,
+        logger
+    );
+    logger.info(`[PipelineService] executeComparisonPipeline finished successfully. Results at: ${aggregatedResults.fileName}`);
+    return aggregatedResults;
 } 

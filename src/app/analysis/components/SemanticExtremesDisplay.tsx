@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { getModelDisplayLabel } from '../../utils/modelIdUtils';
 
 // Dynamic import for react-markdown and remark-gfm
@@ -139,13 +139,11 @@ const SemanticExtremesDisplay: React.FC<SemanticExtremesDisplayProps> = ({
         if (!modelInfo) return null;
         const isMost = type === 'most';
         const IconToRender = isMost ? ArrowUpCircle : ArrowDownCircle;
-        const title = isMost ? "Most Similar to Ideal" : "Least Similar to Ideal";
-        const iconColor = isMost ? "text-highlight-success dark:text-green-400" : "text-highlight-info dark:text-sky-400";
-        const badgeColor = isMost ? "bg-green-100 text-green-800 border-green-300 dark:bg-green-700/30 dark:text-green-200 dark:border-green-600" 
-                                : "bg-sky-100 text-sky-800 border-sky-300 dark:bg-sky-700/30 dark:text-sky-200 dark:border-sky-600";
-
+        const title = isMost ? "Highest Semantic Similarity to Ideal" : "Lowest Semantic Similarity to Ideal";
+        const iconColor = "text-muted-foreground dark:text-slate-400";
+        
         const isClickable = !!onModelClick;
-        const cardClasses = `flex-1 min-w-0 bg-card/60 dark:bg-slate-800/50 shadow-md ring-1 ring-border dark:ring-slate-700/70 mb-4 ${isClickable ? 'cursor-pointer hover:ring-2 hover:ring-primary dark:hover:ring-sky-500 transition-all duration-150' : ''}`;
+        const cardClasses = `flex-1 min-w-0 bg-card/60 dark:bg-slate-800/50 shadow-md ring-1 ring-border dark:ring-slate-700/70 ${isClickable ? 'cursor-pointer hover:ring-2 hover:ring-primary dark:hover:ring-sky-500 transition-all duration-150' : ''}`;
 
         return (
             <Card 
@@ -158,11 +156,11 @@ const SemanticExtremesDisplay: React.FC<SemanticExtremesDisplayProps> = ({
             >
                 <CardHeader className="p-2.5 border-b border-border dark:border-slate-700/80">
                     <div className="flex items-center justify-between">
-                        <CardTitle className={`text-sm font-semibold flex items-center ${isMost ? 'text-highlight-success dark:text-green-300' : 'text-highlight-info dark:text-sky-300'}`}>
+                        <CardTitle className={`text-sm font-semibold flex items-center`}>
                             {IconToRender && <IconToRender className={`w-4 h-4 mr-1.5 ${iconColor}`} />}
                             {title}: {modelInfo.displayLabel}
                         </CardTitle>
-                        <Badge variant="outline" className={`text-xs font-medium ${badgeColor}`}>
+                        <Badge variant="outline" className={`text-xs font-medium`}>
                             Similarity: {typeof modelInfo.score === 'number' && !isNaN(modelInfo.score) ? modelInfo.score.toFixed(3) : 'N/A'}
                         </Badge>
                     </div>
@@ -182,13 +180,20 @@ const SemanticExtremesDisplay: React.FC<SemanticExtremesDisplayProps> = ({
     if (!mostSimilarModelInfo && !leastSimilarModelInfo) return null;
 
     return (
-        <React.Fragment>
-            {/* Flex container for Most and Least Similar Model Cards */}
-            <div className="flex flex-col md:flex-row gap-4 mt-4">
-                {mostSimilarModelInfo && renderModelCard('most', mostSimilarModelInfo)}
-                {leastSimilarModelInfo && renderModelCard('least', leastSimilarModelInfo)}
-            </div>
-        </React.Fragment>
+        <Card className="shadow-lg border-border dark:border-slate-700 mt-6">
+            <CardHeader>
+                <CardTitle className="text-primary dark:text-sky-400">Semantic Similarity Extremes</CardTitle>
+                 <CardDescription className="text-muted-foreground dark:text-slate-400 pt-1 text-sm">
+                    These cards highlight models with the highest and lowest semantic similarity scores compared to the ideal response. This measures stylistic and structural similarity, and is not a measure of response quality or correctness.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="flex flex-col md:flex-row gap-4">
+                    {mostSimilarModelInfo && renderModelCard('most', mostSimilarModelInfo)}
+                    {leastSimilarModelInfo && renderModelCard('least', leastSimilarModelInfo)}
+                </div>
+            </CardContent>
+        </Card>
     );
 };
 

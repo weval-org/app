@@ -472,9 +472,11 @@ export default function BetaComparisonClientPage() {
   };
   
   const handleMacroCellClick = (promptId: string, modelId: string) => {
-    if (!data || !data.promptContexts || !data.allFinalAssistantResponses || !data.evaluationResults?.llmCoverageScores) {
+    if (!data || !data.evaluationResults?.llmCoverageScores) {
+        console.error("Cannot open model evaluation modal: core evaluation data is missing.");
         return;
     }
+
     const llmCoverageScoresTyped = data.evaluationResults.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>>;
     const modelResult = llmCoverageScoresTyped[promptId]?.[modelId];
 
@@ -483,11 +485,21 @@ export default function BetaComparisonClientPage() {
         return;
     }
 
+    const promptContext = data.promptContexts?.[promptId] 
+        || data.config?.prompts?.find(p => p.id === promptId)?.messages;
+    
+    const modelResponse = data.allFinalAssistantResponses?.[promptId]?.[modelId];
+
+    if (!promptContext) {
+        console.error(`Could not find prompt context for promptId: ${promptId}. Cannot open modal.`);
+        return;
+    }
+
     const modalData: ModelEvaluationDetailModalData = {
         modelId: modelId,
         assessments: modelResult.pointAssessments,
-        promptContext: data.promptContexts[promptId],
-        modelResponse: data.allFinalAssistantResponses[promptId]?.[modelId] || '',
+        promptContext: promptContext,
+        modelResponse: modelResponse ?? "Response text not found in result data. The data file may be missing the 'allFinalAssistantResponses' field.",
         systemPrompt: data.modelSystemPrompts?.[modelId] || data.config.systemPrompt || null,
     };
 

@@ -13,6 +13,7 @@ const AlertCircle = dynamic(() => import('lucide-react').then(mod => mod.AlertCi
 const Award = dynamic(() => import('lucide-react').then(mod => mod.Award));
 const BarChartHorizontalBig = dynamic(() => import('lucide-react').then(mod => mod.BarChartHorizontalBig));
 const InfoIcon = dynamic(() => import('lucide-react').then(mod => mod.Info));
+const Zap = dynamic(() => import('lucide-react').then(mod => mod.Zap));
 
 export interface HeadlineStatInfo {
   configId: string;
@@ -35,7 +36,7 @@ export interface AggregateStatsData {
   rankedOverallModels: TopModelStatInfo[] | null;
 }
 
-type StatStatusType = 'best' | 'worst' | 'mostConsistent' | 'leastConsistent' | 'neutral';
+type StatStatusType = 'best' | 'worst' | 'mostConsistent' | 'mostDifferentiating' | 'neutral';
 
 interface AggregateStatsDisplayProps {
   stats: AggregateStatsData | null;
@@ -47,7 +48,8 @@ const StatCard: React.FC<{
   unit?: string;
   icon?: React.ElementType;
   statusType?: StatStatusType;
-}> = ({ title, data, unit, icon: Icon, statusType = 'neutral' }) => {
+  blurb?: string;
+}> = ({ title, data, unit, icon: Icon, statusType = 'neutral', blurb }) => {
   let iconColorClass = 'text-muted-foreground/70';
   switch (statusType) {
     case 'best':
@@ -59,8 +61,8 @@ const StatCard: React.FC<{
     case 'mostConsistent':
       iconColorClass = 'text-sky-500 dark:text-sky-400';
       break;
-    case 'leastConsistent':
-      iconColorClass = 'text-amber-500 dark:text-amber-400';
+    case 'mostDifferentiating':
+      iconColorClass = 'text-purple-500 dark:text-purple-400';
       break;
   }
 
@@ -84,7 +86,10 @@ const StatCard: React.FC<{
   );
 
   return (
-    <div className="bg-card p-4 rounded-lg border border-border/70 dark:border-slate-700/50 flex flex-col justify-between min-h-[110px] hover:shadow-md transition-shadow">
+    <div 
+      className="bg-card p-4 rounded-lg border border-border/70 dark:border-slate-700/50 flex flex-col justify-between min-h-[110px] hover:shadow-md transition-shadow"
+      title={blurb}
+    >
       {data && data.configId ? (
         <Link href={`/analysis/${data.configId}`} className="flex flex-col justify-between flex-grow">
           {cardContent}
@@ -195,24 +200,28 @@ const AggregateStatsDisplay: React.FC<AggregateStatsDisplayProps> = ({ stats }) 
           data={stats.bestPerformingConfig ? { ...stats.bestPerformingConfig, description: "Avg. Hybrid Score" } : null} 
           icon={TrendingUp}
           statusType="best"
+          blurb="The evaluation blueprint with the highest average score across all its runs."
         />
         <StatCard 
           title="Worst Performing Eval"
           data={stats.worstPerformingConfig ? { ...stats.worstPerformingConfig, description: "Avg. Hybrid Score" } : null} 
           icon={TrendingDown}
           statusType="worst"
+          blurb="The evaluation blueprint with the lowest average score across all its runs."
         />
         <StatCard 
           title="Most Consistent Eval" 
           data={stats.mostConsistentConfig ? { ...stats.mostConsistentConfig, description: "Score StdDev (Lower is better)" } : null} 
           icon={CheckCircle2}
           statusType="mostConsistent"
+          blurb="The blueprint with the lowest standard deviation in scores, indicating stable performance."
         />
         <StatCard 
-          title="Least Consistent Eval" 
-          data={stats.leastConsistentConfig ? { ...stats.leastConsistentConfig, description: "Score StdDev (Higher is more variance)" } : null} 
-          icon={AlertCircle}
-          statusType="leastConsistent"
+          title="Most Differentiating Eval" 
+          data={stats.leastConsistentConfig ? { ...stats.leastConsistentConfig, description: "Score StdDev (Higher is better for differentiation)" } : null} 
+          icon={Zap}
+          statusType="mostDifferentiating"
+          blurb="The blueprint that shows the widest range of scores, making it best for telling models apart."
         />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
