@@ -1,80 +1,86 @@
 # CivicEval
 
-*Last updated: 3 June 2025*
+CivicEval is an independent, open-source evaluation suite designed to act as a **public-interest watchdog for artificial intelligence**. Its primary purpose is not to measure a model's raw intelligence or general capabilities, but to perform a deep, qualitative audit of its **fitness for civic life**. It moves beyond asking "Is this model smart?" to ask, "Is this model a responsible, safe and harm-reducing actor in our society?"
 
-This suite offers a dual-lens approach to understanding language model performance. It facilitates deep **qualitative assessment** by using LLM judges to evaluate responses against user-defined rubrics (defined by key points or ideal answers). Simultaneously, it provides robust **semantic similarity analysis**, allowing for comparison of how different models interpret prompts and the nuanced relationships between their response styles.
+It achieves this by creating and running a suite of transparent and continuous evaluations that probe AI model behavior on topics vital to a healthy functioning society.
+
 
 ## Live on [civiceval.org](https://civiceval.org):
 
 ![Screenshot of CivicEval.org](./public/screenshot.png)
 
+---
+
+### Core Focus: A Qualitative, Context-Aware Auditor
+
+CivicEval is best understood as a system for targeted audits in specific, high-stakes domains. Its focus can be broken down into several key areas:
+
+1.  **Testing Nuanced, High-Stakes Scenarios:** It evaluates models in areas where failure could cause direct public harm. This includes understanding fundamental human rights, resisting dangerous misinformation, avoiding biased cultural and geographical assumptions, and responding safely to users in a mental health crisis.
+
+2.  **Assessing Critical Thinking and Skepticism:** Evaluations can be designed to test a model's ability to identify and resist manipulation. Can it recognize a fabricated URL, a leading question, or an absurd premise? This assesses a model's resilience in a polluted information ecosystem.
+
+3.  **Applying a Rich, Rubric-Based Methodology:** A key differentiator for CivicEval is its `points` system, which allows for granular, rubric-based judgments instead of a simple pass/fail score. This rubric can include:
+    *   **Semantic "Fuzzy" Checks:** Evaluates if a response captures the conceptual meaning of an idea.
+    *   **Deterministic "Exact" Checks:** Verifies the presence of specific keywords or pattern matches (e.g., with regex).
+    *   **Weighted Importance:** Allows critical criteria to be weighted more heavily in the final score.
+
+4.  **Providing Continuous and Transparent Monitoring:** As an automated system running on a public repository of blueprints, CivicEval functions as a living benchmark. It can detect when a model's performance on these critical issues *drifts* over time with new updates—a vital function for public accountability that static, one-off benchmarks cannot provide.
+
+---
+
+### How CivicEval Complements Other Evaluation Types
+
+The AI landscape is rich with benchmarks, and it is important to understand how CivicEval's role is distinct from and complementary to other established methods.
+
+*   **It is NOT a general capability benchmark (e.g., MMLU, Hellaswag, ARC).** These benchmarks are the "SATs for LLMs" and are essential for measuring raw cognitive ability, reasoning, and knowledge across academic domains. CivicEval does not focus on this, but rather on applied social and civic behavior.
+
+*   **It is NOT a broad-stroke safety benchmark (e.g., ToxiGen, BBQ).** These benchmarks are fundamental for identifying and mitigating generic harms like toxicity, hate speech, and common stereotypes at scale. CivicEval complements this by performing deeper dives into more specific, value-laden topics that require nuanced understanding beyond a general safety filter.
+
+## Blueprints
+
+Our [initial set of blueprints](https://github.com/civiceval/configs/tree/main/blueprints) test models on a wide spectrum of topics critical for public trust and safety. Key themes include:
+
+*   **Information Integrity & Adversarial Robustness:** We test a model's resilience to misinformation. This includes its ability to identify and debunk fabricated claims ([`udhr-misattribution-absurd-framing`](https://github.com/civiceval/configs/blob/main/blueprints/udhr-misattribution-absurd-framing.json)), refuse to validate fake news URLs ([`url-classification-fallacies`](https://github.com/civiceval/configs/blob/main/blueprints/url-classification-fallacies.json)), avoid generating falsehoods ([`hallucination-probe`](https://github.com/civiceval/configs/blob/main/blueprints/hallucination-probe.json)), and resist being led by loaded questions ([`mrna-leading-question-classification`](https://github.com/civiceval/configs/blob/main/blueprints/mrna-leading-question-classification.json)).
+*   **International Law & Human Rights:** We measure a model's understanding of foundational international legal and ethical frameworks. This includes core treaties like the Universal Declaration of Human Rights (`udhr-evaluation-v1`), the Geneva Conventions (`geneva-conventions-full-evaluation-v1.1`), and regional charters like the Banjul Charter (`banjul-charter-v1`).
+*   **National & Regional Governance:** We evaluate knowledge of specific, jurisdiction-dependent legal and civic frameworks. This includes national laws like the UK Equality Act (`uk-equality-act-v1`) and the Indian Constitution (`indian-constitution-evaluation-v1`), as well as landmark civic events like the US Civil Rights Movement (`us-civil-rights-movement-1954-1968-eval-v1`).
+*   **Digital Rights & Tech Policy:** We examine a model's understanding of the rules governing technology and its impact on society. This includes crucial new legislation like the EU AI Act (`eu-ai-act-202401689`) and specific issues like the algorithmic management of platform workers (`platform-workers-sea-algo-manage-v1`).
+*   **Cultural & Geographic Nuance:** We probe for default biases by testing whether a model recognizes the global context of its users. The `locale-assumption-probe-v1` example blueprint checks for US-centric assumptions.
+*   **Evidence-Based Crisis Response:** We assess a model's ability to respond safely and effectively to users in acute crisis, based on established clinical and expert guidelines. The `mental-health-crisis-prompt-examples` blueprint, for example, evaluates whether the model provides responsible, non-judgmental support and referral information, rather than platitudes or potentially harmful advice.
+*   **Responsible AI Behavior:** We assess whether the model interacts with users in a manner consistent with established principles for safe AI deployment. For instance, the `llm-self-anthropomorphism-evasion-v1` blueprint checks if the model avoids making false claims of sentience or personal feelings.
+
+## Methods of measurement
+
+CivicEval allows candidate model responses to be measured in the following ways:
+
+*   **Against a Rubric**: For a given prompt, does a model's response cover the key points I care about? Does it mention or fail to mention specific things?
+*   **Against a Standard**: How semantically and linguistically similar is a model's response to an ideal, "gold-standard" answer?
+*   **Model vs. Model**: How alike or different are the responses from two or more models to the same prompt?
+*   **Consistency Check**: How does a single model's behavior change when you adjust parameters like temperature or the system prompt?
+*   **Performance Over Time**: Has a model's performance on my specific tasks drifted after a new version was released?
+
+It achieves this through a combination of automated, LLM-judged (rubric-based) qualitative analysis, quantitative semantic similarity scoring, and more programmatic means like regular-expression matching.
+
 ## Submitting an evaluation blueprint for [civiceval.org](https://civiceval.org)
 
-CivicEval.org is the public-facing main instance of CivicEval open-source evaluation platform and web application. It is focused purely on evaluating models on a set of *civic-minded* prompts, including law, health, human rights, and matters of locale-specific or global civic matters.
+To contribute a blueprint to CivicEval.org specifically, please follow the guidance in the [configs repository](https://github.com/civiceval/configs). You'll be able to submit a 'pull request' to add your blueprint JSON file, which simply specifies a list of prompts, idealized responses, and key 'success' criteria.
 
-To contribute a blueprint, please follow the guidance in the [configs repository](https://github.com/civiceval/configs). You'll be able to submit a 'pull request' to add your blueprint JSON file, which simply specifies a list of prompts, idealized responses, and key 'success' criteria.
+If you want to evaluate things unrelated to civic matters, you can freely use this repository and run CivicEval yourself in accordance with the [MIT license](LICENSE), and you can use the [Configs Repository](https://github.com/civiceval/configs) as inspiration for your own suite of blueprints.
 
-If you want to evaluate things unrelated to civic matters, you can freely use CivicEval yourself in accordance with the [MIT license](LICENSE).
-
-## [STATUS] Deployed Architecture Overview
+## Deployed Architecture Overview
 
 Beyond local execution, CivicEval is designed to operate as an automated, deployed service:
-*   **Centralized Blueprints**: Evaluation configurations (JSON files, now called "Blueprints") are managed in a dedicated public GitHub repository (`civiceval/configs`, in the `blueprints` subdirectory).
+
+*   **Centralized Blueprints**: Evaluation configurations ("Blueprints") are managed in a dedicated public GitHub repository (`civiceval/configs`, in the `blueprints` subdirectory).
 *   **Automated Evaluation Runs**: Netlify Scheduled Functions periodically fetch these blueprints. If a blueprint is new or its last evaluation is outdated (e.g., older than a week), a new evaluation is triggered.
 *   **Scalable Execution**: Netlify Background Functions execute the core evaluation pipeline for each triggered blueprint.
-*   **Cloud-Based Results**: Evaluation results (JSON outputs) are stored in cloud blob storage (e.g., AWS S3), making them persistently available to the web dashboard.
+*   **Cloud-Based Results**: Evaluation results (JSON outputs) are stored in cloud blob storage (AWS S3), making them persistently available to the web dashboard.
 *   **Continuous Monitoring**: The web dashboard reads from this cloud storage, providing an always up-to-date view of model performance.
 
 This setup allows for collaborative and transparent management of evaluation suites and continuous, automated benchmarking of language models.
 
-## [GENERAL] Overview (Local Usage & Core Functionality)
+## The Archetypal Workflow
 
-Primarily, this project serves as CivicEval, an independent, public-interest watchdog that runs weekly, open-source tests on leading language models. We measure how accurately—and how consistently—each model understands universal human-rights standards, anti-discrimination laws and core democratic processes. The results are published here in real time so policymakers, journalists, engineers and everyday citizens can see at a glance which AI systems are ready for rights-respecting work—and which still miss the mark.
-
-You can additionally use this open-source application for any qualitative evaluation. It is not limited to a specific domain.
-
-This project provides tools to systematically evaluate and compare language models. Its core functionality revolves around two main types of analysis:
-
-1.  **Qualitative Rubric-Based Evaluation**: Enables the assessment of model responses against user-defined criteria (such as `idealResponse` or `points`). This involves LLM-judged evaluations to determine how well a model's output covers essential information and aligns with desired outcomes.
-2.  **Semantic Similarity Analysis**: Generates text embeddings for model outputs and calculates similarity scores to measure how closely model responses align with each other semantically, or with a benchmark `idealResponse`.
-3.  **Quantitative String Matching**: Can use normal string functions like `contains` and `matches` to evaluate model responses against user-defined strings (does not engage a secondary "LLM Judge")
-
-This approach is useful for:
-* Understanding how different models interpret and respond to the same prompts.
-* Assessing the impact of system prompts.
-* Benchmarking model outputs against desired standards of quality and completeness.
-* Identifying which models are most alike or different in their response styles for specific tasks.
-
-Interactive visualizations aid in exploring these comparisons and uncovering patterns.
-
-## Key Features
-
-- **Qualitative Rubric Evaluation**: Assess model responses against user-defined key points or ideal answers using LLM-judged evaluations (e.g., via the `llm-coverage` method).
-- **Semantic Similarity Analysis**: Calculate cosine similarity scores between model response embeddings to measure semantic closeness.
-- **Blueprint-Driven Runs**: Define complex evaluation setups—including an `id` (or `configId`), `title` (or `configTitle`), models, prompts, ideal responses, explicit key points, and `tags`—in a JSON file (Blueprint) for reproducible evaluations. For the deployed system, these Blueprints are sourced from the `blueprints` directory in the [civiceval/configs](https://github.com/civiceval/configs) repository. Each execution is identified by a `--run-label` (for manual CLI runs) or an automatically generated label based on content hash for automated runs.
-- **Automated Periodic Evaluations (Deployed System)**: New and updated blueprints from the `blueprints` directory in the `civiceval/configs` repository are automatically picked up and evaluated on a schedule (e.g., weekly).
-- **Cloud-Based Results Storage (Deployed System)**: Evaluation results are stored in cloud blob storage (e.g., AWS S3), ensuring persistence and accessibility for the web dashboard.
-- **Categorize and Filter**: Use `tags` within blueprints for better organization and to filter views on the homepage.
-- **Benchmark Against Ideal Responses**: Define an `idealResponse` for any prompt to quantitatively and qualitatively measure how LLM outputs align with this benchmark.
-- **Multi-Model/Multi-Prompt Capability**: Generate responses and embeddings from multiple models across multiple prompts.
-- **Per-Prompt Comparison**: Analyze how model similarity and qualitative performance vary across different prompts.
-- **System Prompt Impact Testing**: Evaluate how different system prompts affect the semantic content of model responses.
-- **Model Performance Shift Detection**: Identify potential changes in model behavior over time by comparing runs with identical parameters that are executed at least a day apart and show significant score variance. This is particularly effective with automated, scheduled runs.
-- **Aggregate Statistics**: View overall best/worst performing and most/least consistent evaluation blueprints, plus identify overall top and worst-performing models based on average hybrid scores across all runs.
-- **Interactive Visualizations**: Explore comparison results through a web dashboard featuring:
-    - Grouping of runs by `title` on the homepage.
-    - Display of `tags` for each blueprint.
-    - Filtering by `tags` on the homepage.
-    - Detailed analysis views:
-        - Per blueprint (`/analysis/[id]`): Lists all unique run labels (hashes) for that blueprint.
-        - Per run label (`/analysis/[id]/[runLabel]`): Lists all timestamped execution instances for that specific run label.
-        - Per specific run instance (`/analysis/[id]/[runLabel]/[timestamp]`): Shows detailed visualizations and data for a single execution.
-    - Similarity Matrix/Heatmap, Force-Directed Graph, Dendrogram.
-    - Side-by-Side Response Comparison (including against Ideal Response if available).
-
-## Workflow
-
-This toolkit supports both local/manual evaluations (ideal for developing and testing blueprints) and a fully automated, deployed evaluation system.
+This toolkit supports both locally run manual evaluations (ideal for developing and testing blueprints) and a fully automated, deployed version where nothing needs to be explicitly run.
 
 **1. Automated Deployed Workflow (Primary for Production System)**
 
@@ -154,15 +160,30 @@ Options:
   "prompts": [
     {
       "id": "prompt-unique-id-1",
-      "promptText": "Text of the first prompt...",
-      "idealResponse": "The ideal response text...", // Optional
-      "system": null, // Optional: Prompt-specific system prompt
+      "promptText": "Text of the first prompt...", // Optional, for single-turn prompts. Will be converted to messages format internally.
+      "messages": [
+        { "role": "system", "content": "You are a helpful historian." }, // Optional, prompt-specific system message
+        { "role": "user", "content": "What were the main causes of the French Revolution?" },
+        { "role": "assistant", "content": "The main causes included social inequality, economic hardship, and Enlightenment ideas." }, // Example of previous turn
+        { "role": "user", "content": "Can you elaborate on the economic hardship?" } // Final user message, LLM will generate next assistant turn
+      ],
+      "idealResponse": "The ideal final assistant response text...", // Optional, refers to the ideal *final* assistant response in a multi-turn conversation.
+      "system": null, // Optional: Prompt-specific system prompt (alternative to system message in messages array)
       "points": [
-        "This is a standard key point as a string.",
-        ["contains", "specific keyword"],
-        ["matches", "^The response should start with this phrase"],
-        // more points...
-      ] // Optional: Key points or function-based checks
+        "This is a simple key point, treated with default multiplier 1.",
+        ["contains", "mandatory keyword"],
+        {
+          "text": "This is a very important conceptual point that must be covered.",
+          "multiplier": 3.0,
+          "citation": "Project requirements, section 2.1a"
+        },
+        {
+          "fn": "matches",
+          "fnArgs": "^The response must start with this phrase",
+          "multiplier": 0.5,
+          "citation": "Style guide rule #5"
+        }
+      ]
     }
   ]
 }
@@ -176,26 +197,83 @@ Options:
 **Note on `idealResponse` and `points`:**
 - An `idealResponse` serves as a benchmark. If provided, it can be used for semantic similarity comparison (`IDEAL_BENCHMARK` model) and as the basis for automatic key point extraction if `points` are not explicitly defined for the `llm-coverage` method.
 - The `points` array defines specific criteria for evaluation, especially with the `llm-coverage` method. Each item in the `points` array can be:
-    1.  A **string**: This is treated as a traditional key point. If `llm-coverage` is used, each string point is individually evaluated against the model's response by a highly capable LLM judge (e.g., a Gemini model). This provides a nuanced, "fuzzy" assessment of whether the response covers the semantic meaning of the key point, even if the wording isn't exact. The LLM judge also generates a `reflection` (an explanation for its score), which provides explainability and is visible in the UI analysis. This method is powerful for assessing conceptual coverage.
-    2.  A **function definition**: This is an array of length two: `["functionName", arguments]`.
-        -   `functionName` (string): The name of a natively supported point function.
-        -   `arguments` (any valid JSON type): The arguments to pass to the function. The LLM's full response text is always passed as the first implicit argument to the function.
-        -   Natively supported functions are located in `src/point-functions`. Initially, these include:
-            -   `["contains", "substring_to_find"]`: Returns `true` (score 1) if the LLM response text contains the provided `substring_to_find`, `false` (score 0) otherwise. Case-sensitive.
-            -   `["matches", "regex_pattern_string"]`: Returns `true` (score 1) if the LLM response text matches the provided JavaScript-style `regex_pattern_string`, `false` (score 0) otherwise. The regex string should be valid for `new RegExp("your_pattern_here")`.
-        -   These initial functions return boolean values, which are converted to scores of 0 or 1. Point functions can also return a numeric score directly between 0.0 and 1.0. If a function encounters an error or returns an invalid value, it will be handled and typically result in a score of 0 with an error noted in the results.
+    1.  A **full `Point` object**: This is the most explicit format, allowing for fine-grained control. A point must have either `text` or `fn`.
+        -   `text` (string): The key point text to be evaluated by an LLM judge.
+        -   `fn` (string): The name of a natively supported point function to execute.
+        -   `fnArgs` (any): The arguments to pass to the function specified by `fn`.
+        -   `multiplier` (number, optional, default: 1): A weight (from 0.1 to 10) applied to this point's score when calculating the average. This allows you to define certain criteria as more or less important than others.
+        -   `citation` (string, optional): A note, URL, or reference explaining why this point is important. This is for documentation and is displayed in the UI.
+    2.  A **string**: This is a shortcut for `{ "text": "your string here", "multiplier": 1 }`. This is the simplest way to define a standard, LLM-judged key point.
+    3.  A **function definition tuple** `["functionName", arguments]`: This is a shortcut for `{ "fn": "functionName", "fnArgs": arguments, "multiplier": 1 }`.
+-   **LLM-based "fuzzy" evaluation**: When using `text`-based points (either as a simple string or in a `Point` object), a highly capable LLM judge (e.g., a Gemini model) provides a nuanced assessment of whether the response covers the semantic meaning of the key point, even if the wording isn't exact. The LLM judge also generates a `reflection` (an explanation for its score), which provides explainability and is visible in the UI analysis. This method is powerful for assessing conceptual coverage.
+-   **Function-based "exact" evaluation**: When using `fn`-based points, the evaluation is deterministic. Natively supported functions are located in `src/point-functions`. Initially, these include:
+    -   `["contains", "substring_to_find"]`: Returns `true` (score 1) if the LLM response text contains the provided `substring_to_find`, `false` (score 0) otherwise. Case-sensitive.
+    -   `["matches", "regex_pattern_string"]`: Returns `true` (score 1) if the LLM response text matches the provided JavaScript-style `regex_pattern_string`, `false` (score 0) otherwise. The regex string should be valid for `new RegExp("your_pattern_here")`.
+-   These initial functions return boolean values, which are converted to scores of 0 or 1. Point functions can also return a numeric score directly between 0.0 and 1.0. If a function encounters an error or returns an invalid value, it will be handled and typically result in a score of 0 with an error noted in the results.
+
+**Updated `points` example:**
+```json
+"points": [
+    "This is a simple key point, treated with default multiplier 1.",
+    ["contains", "mandatory keyword"],
+    {
+      "text": "This is a very important conceptual point that must be covered.",
+      "multiplier": 3.0,
+      "citation": "Project requirements, section 2.1a"
+    },
+    {
+      "fn": "matches",
+      "fnArgs": "^The response must start with this phrase",
+      "multiplier": 0.5,
+      "citation": "Style guide rule #5"
+    }
+]
+```
 
 **Output (from `run_config`):**
 - If `STORAGE_PROVIDER=s3` is configured, stores a JSON object in cloud blob storage (e.g., AWS S3) under a key like `multi/[id_or_configId]/[final_runLabel]_[timestamp]_comparison.json`.
 - Otherwise (default local), generates a `[final_runLabel]_[timestamp]_comparison.json` file in `/.results/multi/[id_or_configId]/`.
-- This result contains full details, including `id` (or `configId`), `title` (or `configTitle`), the final `runLabel`, similarities, and evaluation scores.
+- This result contains full details, including `id` (or `configId`), `title` (or `configTitle`), the final `runLabel`,
+  `promptContexts` (containing either the original `promptText` string or the `ConversationMessage[]` array for each prompt),
+  `allFinalAssistantResponses` (mapping promptId -> modelId -> final assistant text),
+  `fullConversationHistories` (mapping promptId -> modelId -> `ConversationMessage[]` including the full exchange),
+  similarities, and evaluation scores.
 - If multiple `temperatures` are specified, model identifiers in the output will be suffixed (e.g., `openai:gpt-4o-mini[temp:0.7]`).
+
+---
+
+#### Backfill Prompt Contexts (`backfill-prompt-contexts`)
+
+This utility command scans existing evaluation result files and updates them to the new multi-turn conversation format.
+It converts legacy `promptTexts` fields to the new `promptContexts` field (as an array of `ConversationMessage`).
+It also converts legacy `allResponses` fields to `allFinalAssistantResponses` and generates `fullConversationHistories`.
+
+```bash
+pnpm cli backfill-prompt-contexts
+```
+
+Options:
+- `--dry-run`: Log what would be changed without actually saving any files. Highly recommended to run this first.
+- `--verbose` or `-v`: Enable more detailed logging output during the backfill process.
 
 ---
 
 ## System Prompts
 
-You can test how system prompts affect a model's response semantics by setting the `systemPrompt` (global) or prompt-specific `system` fields in a JSON config for `run_config`. Each run using a distinct system prompt will be treated as a separate entity (e.g., `modelId[sys:hash]`) in the comparison results, allowing you to analyze its impact.
+ConversationMessage Type:
+```typescript
+interface ConversationMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+}
+```
+
+When defining prompts:
+- Prefer the `messages` array (`ConversationMessage[]`) for all new prompts. This allows for multi-turn conversations.
+- If only `promptText` (a string) is provided, it will be automatically converted to `messages: [{ role: 'user', content: promptText }]`.
+- A prompt cannot have both `promptText` and `messages` defined.
+- The `messages` array must not be empty, the first message cannot be from the 'assistant', and the last message must be from the 'user' (so the LLM generates the next turn).
+- For `llm-coverage` and similarity to `idealResponse`, the `idealResponse` field in the prompt configuration should represent the ideal *final* assistant response in the conversation flow.
 
 ## Web Dashboard
 

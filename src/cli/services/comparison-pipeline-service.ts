@@ -1,5 +1,5 @@
 import { getConfig } from '../config';
-import { ComparisonConfig, EvaluationMethod, PromptResponseData, EvaluationInput, FinalComparisonOutputV2, Evaluator, IDEAL_MODEL_ID } from '../types/comparison_v2';
+import { ComparisonConfig, EvaluationMethod, PromptResponseData, EvaluationInput, FinalComparisonOutputV2, Evaluator, IDEAL_MODEL_ID, ConversationMessage } from '../types/comparison_v2';
 import { getModelResponse } from './llm-service';
 import { checkForErrors } from '../utils/response-utils';
 import { getEffectiveModelId, getUniqueModelIds } from '@/cli/utils/config-utils';
@@ -34,9 +34,17 @@ async function generateAllResponses(
     logger.info(`[PipelineService] Preparing to generate ${totalResponsesToGenerate} responses across ${temperaturesToRun.length} temperature(s). (config.temperature: ${config.temperature}, config.temperatures: ${config.temperatures})`);
 
     config.prompts.forEach(promptConfig => {
+        // Ensure messages is not undefined, as loadAndValidateConfig should have populated it.
+        if (!promptConfig.messages) {
+            logger.error(`[PipelineService] CRITICAL: promptConfig.messages is undefined for prompt ID '${promptConfig.id}' after validation. This should not happen.`);
+            // Skip this prompt or throw error
+            return;
+        }
+
         const currentPromptData: PromptResponseData = {
             promptId: promptConfig.id,
-            promptText: promptConfig.promptText,
+            promptText: promptConfig.promptText, // Keep for backward compatibility / reference
+            initialMessages: promptConfig.messages, // Store the input messages
             idealResponseText: promptConfig.idealResponse || null,
             modelResponses: new Map()
         };
@@ -47,11 +55,8 @@ async function generateAllResponses(
                 tasks.push(limit(async () => {
                     const systemPromptToUse = promptConfig.system !== undefined ? promptConfig.system : config.systemPrompt;
                     
-                    // Determine the specific temperature for this call
                     const temperatureForThisCall = tempValue ?? promptConfig.temperature ?? undefined;
 
-                    // modelString is the full "openrouter:provider/model"
-                    // baseEffectiveId will be "openrouter:provider/model" or "openrouter:provider/model[sys:hash]"
                     let { effectiveId: baseEffectiveId } = getEffectiveModelId(modelString, systemPromptToUse);
                     let finalEffectiveId = baseEffectiveId;
 
@@ -60,35 +65,62 @@ async function generateAllResponses(
                         finalEffectiveId = `${baseEffectiveId}${tempSuffix}`;
                     }
 
-                    let responseText = '';
+                    let finalAssistantResponseText = '';
+                    let fullConversationHistoryWithResponse: ConversationMessage[] = [];
                     let hasError = false;
                     let errorMessage: string | undefined;
 
+                    // Prepare messages for the LLM call
+                    // loadAndValidateConfig ensures promptConfig.messages is always populated.
+                    const messagesForLlm: ConversationMessage[] = [...promptConfig.messages!];
+
+                    // If a global systemPrompt is defined in the config,
+                    // and not overridden by a prompt-specific system message,
+                    // and there isn't already a system message in messagesForLlm, prepend it.
+                    if (systemPromptToUse && !messagesForLlm.find(m => m.role === 'system')) {
+                        messagesForLlm.unshift({ role: 'system', content: systemPromptToUse });
+                    }
+
+                    // ---- BEGIN ADDED DEBUG LOG ----
+                    logger.info(`[PipelineService] About to call getModelResponse for model: ${modelString} (Effective ID: ${finalEffectiveId}) with prompt ID: ${promptConfig.id}. Messages payload:`);
                     try {
-                        // Pass the full modelString as modelId
-                        // Remove the 'provider' property
-                        responseText = await getModelResponse({
+                        // Attempt to pretty-print JSON
+                        logger.info(JSON.stringify(messagesForLlm, null, 2));
+                    } catch (e) {
+                        logger.info('Could not JSON.stringify messagesForLlm. Logging raw object below:');
+                        logger.info(messagesForLlm as any); // Cast to any if logger has trouble with specific type
+                    }
+                    // ---- END ADDED DEBUG LOG ----
+
+                    try {
+                        finalAssistantResponseText = await getModelResponse({
                             modelId: modelString,
-                            prompt: promptConfig.promptText,
-                            systemPrompt: systemPromptToUse,
+                            messages: messagesForLlm, // Pass the messages array
+                            // systemPrompt is now handled by being part of messagesForLlm if applicable
                             temperature: temperatureForThisCall,
                             useCache: useCache
                         });
-                        hasError = checkForErrors(responseText);
+                        hasError = checkForErrors(finalAssistantResponseText);
                         if (hasError) errorMessage = `Response contains error markers.`;
+
+                        // Construct full history
+                        fullConversationHistoryWithResponse = [...messagesForLlm, { role: 'assistant', content: finalAssistantResponseText }];
 
                     } catch (error: any) {
                         errorMessage = `Failed to get response for ${finalEffectiveId}: ${error.message || String(error)}`;
-                        responseText = `<error>${errorMessage}</error>`;
+                        finalAssistantResponseText = `<error>${errorMessage}</error>`;
                         hasError = true;
                         logger.error(`[PipelineService] ${errorMessage}`);
+                        // Construct history even with error
+                        fullConversationHistoryWithResponse = [...messagesForLlm, { role: 'assistant', content: finalAssistantResponseText }];
                     }
 
                     currentPromptData.modelResponses.set(finalEffectiveId, {
-                        responseText,
+                        finalAssistantResponseText,
+                        fullConversationHistory: fullConversationHistoryWithResponse,
                         hasError,
                         errorMessage,
-                        systemPromptUsed: systemPromptToUse ?? null
+                        systemPromptUsed: systemPromptToUse ?? null // This might need re-evaluation: system prompt is now part of messages
                     });
                     generatedCount++;
                     logger.info(`[PipelineService] Generated ${generatedCount}/${totalResponsesToGenerate} responses.`);
@@ -115,8 +147,10 @@ async function aggregateAndSaveResults(
     logger.info(`[PipelineService] Received config.configId for saving: '${config.configId}'`);
 
     const promptIds: string[] = [];
-    const promptTexts: Record<string, string> = {};
-    const allResponses: Record<string, Record<string, string>> = {};
+    // Store either original promptText or a string representation of initialMessages
+    const promptContexts: Record<string, string | ConversationMessage[]> = {}; 
+    const allFinalAssistantResponses: Record<string, Record<string, string>> = {};
+    const fullConversationHistories: Record<string, Record<string, ConversationMessage[]>> = {};
     const errors: Record<string, Record<string, string>> = {};
     const effectiveModelsSet = new Set<string>();
     const modelSystemPrompts: Record<string, string | null> = {};
@@ -129,19 +163,36 @@ async function aggregateAndSaveResults(
 
     for (const [promptId, promptData] of allResponsesMap.entries()) {
         promptIds.push(promptId);
-        promptTexts[promptId] = promptData.promptText;
-        allResponses[promptId] = {};
+        // Store context appropriately
+        if (promptData.initialMessages && promptData.initialMessages.length > 0) {
+            // If it was originally multi-turn or converted from promptText, initialMessages is the source of truth for input
+            promptContexts[promptId] = promptData.initialMessages;
+        } else if (promptData.promptText) { // Fallback for any case where initialMessages might be missing (should not happen)
+            promptContexts[promptId] = promptData.promptText;
+        } else {
+            promptContexts[promptId] = "Error: No input context found"; // Should not happen
+        }
+        
+        allFinalAssistantResponses[promptId] = {};
+        if (process.env.STORE_FULL_HISTORY === 'true' || true) { // Default to true for now
+             fullConversationHistories[promptId] = {};
+        }
 
-        // Add ideal response text if it was part of the input (e.g. from live analyzer or if it was in a promptConfig)
+
+        // Add ideal response text if it was part of the input
         if (promptData.idealResponseText !== null && promptData.idealResponseText !== undefined) {
-            allResponses[promptId][IDEAL_MODEL_ID] = promptData.idealResponseText;
-            // No need to add IDEAL_MODEL_ID to effectiveModelsSet here if hasAnyIdeal from config is the source of truth
+            allFinalAssistantResponses[promptId][IDEAL_MODEL_ID] = promptData.idealResponseText;
+            // If storing full histories, the ideal response doesn't have a "history" in the same way
         }
 
         for (const [effectiveModelId, responseData] of promptData.modelResponses.entries()) {
             effectiveModelsSet.add(effectiveModelId);
-            modelSystemPrompts[effectiveModelId] = responseData.systemPromptUsed;
-            allResponses[promptId][effectiveModelId] = responseData.responseText;
+            modelSystemPrompts[effectiveModelId] = responseData.systemPromptUsed; // systemPromptUsed might be less relevant if system message is in messages
+            allFinalAssistantResponses[promptId][effectiveModelId] = responseData.finalAssistantResponseText;
+            
+            if (responseData.fullConversationHistory && fullConversationHistories[promptId]) {
+                 fullConversationHistories[promptId][effectiveModelId] = responseData.fullConversationHistory;
+            }
 
             if (responseData.hasError && responseData.errorMessage) {
                 if (!errors[promptId]) errors[promptId] = {};
@@ -183,14 +234,15 @@ async function aggregateAndSaveResults(
         configTitle: resolvedConfigTitle,
         runLabel,
         timestamp: currentTimestamp,
-        config: config,
+        config: config, // This config still has promptText and messages, which is fine
         evalMethodsUsed: evalMethodsUsed,
         effectiveModels: effectiveModels,
         modelSystemPrompts: modelSystemPrompts,
         promptIds: promptIds.sort(),
-        promptTexts: promptTexts,
+        promptContexts: promptContexts, // Changed from promptTexts
         extractedKeyPoints: evaluationResults.extractedKeyPoints ?? undefined,
-        allResponses: allResponses,
+        allFinalAssistantResponses: allFinalAssistantResponses, // Changed from allResponses
+        fullConversationHistories: (process.env.STORE_FULL_HISTORY === 'true' || true) ? fullConversationHistories : undefined, // Conditionally add
         evaluationResults: {
             similarityMatrix: evaluationResults.similarityMatrix ?? undefined,
             perPromptSimilarities: evaluationResults.perPromptSimilarities ?? undefined,

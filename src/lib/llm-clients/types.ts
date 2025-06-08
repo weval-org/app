@@ -1,10 +1,13 @@
+import { ConversationMessage } from '../../cli/types/comparison_v2'; // Corrected import path
+
 /**
  * Common options for making a non-streaming API call to an LLM.
  */
 export interface LLMApiCallOptions {
   apiKey?: string; // Made optional, client can fetch from env
   modelName: string; // The specific model name expected by the provider
-  prompt: string;
+  prompt?: string; // Now optional, prioritize 'messages' if available
+  messages?: ConversationMessage[]; // For chat-based, multi-turn interactions
   systemPrompt?: string | null;
   temperature?: number;
   maxTokens?: number;
@@ -29,7 +32,8 @@ export interface LLMApiCallResponse {
 export interface LLMStreamApiCallOptions {
   apiKey?: string; // Made optional, client can fetch from env
   modelName: string;
-  prompt: string;
+  prompt?: string; // Now optional, prioritize 'messages' if available
+  messages?: ConversationMessage[]; // For chat-based, multi-turn interactions
   systemPrompt?: string | null;
   temperature?: number;
   maxTokens?: number;

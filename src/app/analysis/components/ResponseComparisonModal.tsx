@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import dynamic from 'next/dynamic';
 import { getGradedCoverageColor } from '../utils/colorUtils';
+import { ConversationMessage } from '../../utils/types';
 
 interface SelectedPairInfo {
     modelA: string;
@@ -40,7 +41,7 @@ interface ResponseComparisonModalProps {
   onClose: () => void;
   modelA: string;
   modelB: string;
-  promptText: string;
+  promptContext: string | ConversationMessage[];
   systemPromptA?: string | null;
   systemPromptB?: string | null;
   responseA: string;
@@ -84,7 +85,7 @@ export function ResponseComparisonModal({
   onClose,
   modelA,
   modelB,
-  promptText,
+  promptContext,
   systemPromptA,
   systemPromptB,
   responseA,
@@ -121,6 +122,25 @@ export function ResponseComparisonModal({
   const { baseName: baseModelB } = parseModelId(modelB);
   const isComparingVsIdeal = modelB === IDEAL_MODEL_ID;
 
+  const getDisplayPromptString = (context: string | ConversationMessage[]): string => {
+    if (typeof context === 'string') {
+      return context;
+    }
+    if (Array.isArray(context)) {
+      if (context.length === 1 && context[0].role === 'user') {
+        return context[0].content;
+      }
+      const lastUserMessage = [...context].reverse().find(msg => msg.role === 'user');
+      if (lastUserMessage) {
+        return `User: ${lastUserMessage.content.substring(0, 150)}${lastUserMessage.content.length > 150 ? '...' : ''}`;
+      }
+      return `Multi-turn context (${context.length} messages)`;
+    }
+    return 'Prompt context not available';
+  };
+
+  const displayPrompt = getDisplayPromptString(promptContext);
+
   const [ReactMarkdownComponent, setReactMarkdownComponent] = useState<ComponentType<any> | null>(null);
   const [remarkGfmPlugin, setRemarkGfmPlugin] = useState<any[] | null>(null); // remarkPlugins expects an array
 
@@ -152,8 +172,8 @@ export function ResponseComparisonModal({
           <DialogTitle className="text-primary dark:text-sky-400 text-xl">
             Compare Responses: {baseModelA} vs {isComparingVsIdeal ? 'Ideal Response' : baseModelB}
           </DialogTitle>
-          <DialogDescription className="text-s text-muted-foreground dark:text-slate-400 pt-1" title={promptText}>
-             Prompt: {promptText}
+          <DialogDescription className="text-s text-muted-foreground dark:text-slate-400 pt-1" title={displayPrompt}>
+             Prompt: {displayPrompt}
           </DialogDescription>
           <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs">
             {!isComparingVsIdeal && semanticSimilarity !== undefined && semanticSimilarity !== null && !isNaN(semanticSimilarity) && (

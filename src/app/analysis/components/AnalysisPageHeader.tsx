@@ -8,7 +8,7 @@ import type { BreadcrumbItem } from '@/app/components/Breadcrumbs'; // Using typ
 const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
 const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
 
-interface AnalysisPageHeaderProps {
+export interface AnalysisPageHeaderProps {
   breadcrumbs: BreadcrumbItem[];
   pageTitle: string;
   contextualInfo?: {

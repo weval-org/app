@@ -18,6 +18,8 @@ interface PointAssessment {
     coverageExtent?: number;
     reflection?: string;
     error?: string;
+    multiplier?: number;
+    citation?: string;
 }
 type CoverageResult = {
     keyPointsCount: number;
@@ -35,7 +37,7 @@ interface MacroCoverageTableProps {
     configId: string;
     runLabel: string;
     safeTimestampFromParams: string;
-    onCellClick?: (promptId: string, modelId: string, assessment: PointAssessment) => void;
+    onCellClick?: (promptId: string, modelId: string) => void;
 }
 
 const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
@@ -196,7 +198,10 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
 
         const assessments = result.pointAssessments;
         const nKeyPoints = assessments.length;
-        const segmentWidthPercent = 100 / nKeyPoints;
+
+        // Calculate total multiplier for this prompt's assessments
+        const totalMultiplier = assessments.reduce((sum, assessment) => sum + (assessment.multiplier ?? 1), 0);
+
         const pointsConsideredPresentCount = assessments.filter(pa => pa.coverageExtent !== undefined && pa.coverageExtent > 0.3).length;
         const tooltipText = `Avg. Extent: ${result.avgCoverageExtent !== undefined ? (result.avgCoverageExtent * 100).toFixed(1) + '%' : 'N/A'}\n(${pointsConsideredPresentCount}/${nKeyPoints} points considered present with extent > 0.3)`;
 
@@ -205,21 +210,22 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                 {assessments.map((assessment, index) => {
                     const isConsideredPresent = assessment.coverageExtent !== undefined && assessment.coverageExtent > 0.3;
                     const bgColorClass = getGradedCoverageColor(isConsideredPresent, assessment.coverageExtent);
+                    const pointMultiplier = assessment.multiplier ?? 1;
+                    const segmentWidthPercent = totalMultiplier > 0 ? (pointMultiplier / totalMultiplier) * 100 : (1 / nKeyPoints) * 100;
+                    
                     let pointTooltip = `(model: ${getModelDisplayLabel(parsedModelsMap[modelId])})\nKey Point ${index + 1}/${nKeyPoints}: "${assessment.keyPointText}"\nConsidered Present: ${isConsideredPresent ? 'Yes' : 'No'}`;
                     if (assessment.coverageExtent !== undefined) pointTooltip += `\nExtent: ${(assessment.coverageExtent * 100).toFixed(1)}%`;
+                    if (assessment.multiplier && assessment.multiplier !== 1) pointTooltip += `\nMultiplier: x${assessment.multiplier}`;
                     if (assessment.reflection) pointTooltip += `\nReflection: ${assessment.reflection}`;
                     if (assessment.error) pointTooltip += `\nError: ${assessment.error}`;
+                    if (assessment.citation) pointTooltip += `\nCitation: ${assessment.citation}`;
+                    
                     return (
                         <div
                             key={index}
                             title={pointTooltip}
-                            className={`h-full ${bgColorClass} bg-opacity-60 dark:bg-opacity-70 ${onCellClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+                            className={`h-full ${bgColorClass} bg-opacity-60 dark:bg-opacity-70`}
                             style={{ width: `${segmentWidthPercent}%`, borderRight: index < nKeyPoints - 1 ? '1px solid var(--border-contrast)' : 'none' }}
-                            onClick={() => {
-                                if (onCellClick) {
-                                    onCellClick(promptId, modelId, assessment);
-                                }
-                            }}
                         />
                     );
                 })}
@@ -228,7 +234,7 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
     };
 
     const headerCellStyle = "border border-border dark:border-slate-700 px-2 py-2.5 text-center font-semibold align-bottom";
-    const modelNameHeaderStyle = `${headerCellStyle} text-foreground dark:text-slate-200 break-all w-28`;
+    const modelNameHeaderStyle = `${headerCellStyle} text-foreground dark:text-slate-200 break-all w-36`;
     const mIndexHeaderStyle = `${headerCellStyle} text-foreground dark:text-slate-200 break-words`; // Removed w-28, width comes from model col
     const stickyHeaderBase = "sticky left-0 z-20 bg-muted dark:bg-slate-800";
     const firstColStickyHeader = `${headerCellStyle} text-primary dark:text-sky-300 ${stickyHeaderBase} w-16`;
@@ -287,7 +293,7 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                         {localSortedModels.map(modelId => {
                             const modelAvgCoverage = calculateModelAverageCoverage(modelId);
                             return (
-                                 <th key={`${modelId}-avg-score`} className={`${modelAvgScoreHeaderBase} font-medium text-foreground dark:text-slate-200 w-28`}>
+                                 <th key={`${modelId}-avg-score`} className={`${modelAvgScoreHeaderBase} font-medium text-foreground dark:text-slate-200 w-36`}>
                                       {modelAvgCoverage !== null ? (
                                           <span className={`inline-block px-1 py-0.5 rounded-md text-white dark:text-slate-50 font-semibold 
                                             ${(modelAvgCoverage * 100) >= 75 ? 'bg-highlight-success/80 dark:bg-green-600/70' : 
@@ -361,8 +367,8 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                                     }
                                     const cellClasses = [
                                         "border-x border-border dark:border-slate-700",
-                                        "p-1 w-28 align-middle",
-                                        onCellClick ? "cursor-pointer hover:bg-muted/70 dark:hover:bg-slate-700/60 transition-all duration-150" : "",
+                                        "p-0 align-middle", // Changed padding to 0
+                                        onCellClick ? "cursor-pointer" : "",
                                     ].filter(Boolean).join(" ");
                                     return (
                                         <td
@@ -370,6 +376,11 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                                             className={cellClasses}
                                             style={isOutlier ? { position: 'relative' } : undefined}
                                             title={isOutlier ? outlierReason : undefined}
+                                            onClick={() => {
+                                                if (onCellClick) {
+                                                    onCellClick(promptId, modelId);
+                                                }
+                                            }}
                                         >
                                             {isOutlier && (
                                                 <div
@@ -387,7 +398,17 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                                                     }}
                                                 />
                                             )}
-                                            {renderSegments(promptId, modelId)}
+                                            <div className={`flex items-center gap-2 px-2 py-1 h-full ${onCellClick ? "hover:bg-muted/70 dark:hover:bg-slate-700/60 transition-all duration-150" : ""}`}>
+                                                <div className="flex-grow">
+                                                    {renderSegments(promptId, modelId)}
+                                                </div>
+                                                <div className="w-5 text-right flex-shrink-0">
+                                                    <span className="font-mono text-[11px] text-muted-foreground dark:text-slate-400">
+                                                        {cellScoreNum !== null ? (cellScoreNum * 100).toFixed(0) : '-'}
+                                                        {cellScoreNum !== null && <span className="text-[9px] opacity-70">%</span>}
+                                                    </span>
+                                                </div>
+                                            </div>
                                         </td>
                                     );
                                 })}

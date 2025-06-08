@@ -79,6 +79,78 @@ async function loadAndValidateConfig(configPath: string, collectionsRepoPath?: s
         throw new Error("Config file missing or has invalid 'prompts' (must be an array).");
     }
 
+    // Validate and transform prompts for multi-turn compatibility
+    for (const promptConfig of configJson.prompts) {
+        const hasPromptText = promptConfig.promptText && typeof promptConfig.promptText === 'string' && promptConfig.promptText.trim() !== '';
+        const hasMessages = Array.isArray(promptConfig.messages) && promptConfig.messages.length > 0;
+
+        if (!hasPromptText && !hasMessages) {
+            throw new Error(`Prompt ID '${promptConfig.id}' must have either a valid 'promptText' or a non-empty 'messages' array.`);
+        }
+        if (hasPromptText && hasMessages) {
+            throw new Error(`Prompt ID '${promptConfig.id}' cannot have both 'promptText' and 'messages' defined. Please use 'messages' for multi-turn or 'promptText' for single-turn.`);
+        }
+
+        if (hasPromptText && !hasMessages) {
+            logger.info(`Prompt ID '${promptConfig.id}' uses 'promptText'. Converting to 'messages' format for internal processing.`);
+            promptConfig.messages = [{ role: 'user', content: promptConfig.promptText! }];
+        } else if (hasMessages) {
+            // Validate messages array structure and content
+            const messages = promptConfig.messages!;
+            if (messages.length === 0) { // Should be caught by hasMessages, but for safety
+                throw new Error(`Prompt ID '${promptConfig.id}' has an empty 'messages' array.`);
+            }
+
+            // Role validation for the first message
+            const firstRole = messages[0].role;
+            if (firstRole === 'assistant') {
+                throw new Error(`Prompt ID '${promptConfig.id}': First message role cannot be 'assistant'. Must be 'user' or 'system'.`);
+            }
+
+            // Role validation for the last message
+            const lastRole = messages[messages.length - 1].role;
+            if (lastRole !== 'user') {
+                throw new Error(`Prompt ID '${promptConfig.id}': Last message role in the input sequence must be 'user'. Found '${lastRole}'.`);
+            }
+
+            // Validate individual messages and role alternation
+            let expectedRole: 'user' | 'assistant' | null = null;
+            for (let i = 0; i < messages.length; i++) {
+                const message = messages[i];
+                if (!message.role || !['user', 'assistant', 'system'].includes(message.role)) {
+                    throw new Error(`Prompt ID '${promptConfig.id}', message ${i}: Invalid role '${message.role}'. Must be 'user', 'assistant', or 'system'.`);
+                }
+                if (!message.content || typeof message.content !== 'string' || message.content.trim() === '') {
+                    throw new Error(`Prompt ID '${promptConfig.id}', message ${i} (role '${message.role}'): Content cannot be empty.`);
+                }
+
+                // Role alternation logic (ignoring system messages for alternation check after they appear)
+                if (message.role === 'user') {
+                    if (expectedRole && expectedRole !== 'user') {
+                        throw new Error(`Prompt ID '${promptConfig.id}', message ${i}: Expected role '${expectedRole}' but got 'user'. Roles must alternate.`);
+                    }
+                    if (i < messages.length - 1) { // If not the last message
+                       expectedRole = 'assistant';
+                    }
+                } else if (message.role === 'assistant') {
+                    if (expectedRole && expectedRole !== 'assistant') {
+                        throw new Error(`Prompt ID '${promptConfig.id}', message ${i}: Expected role '${expectedRole}' but got 'assistant'. Roles must alternate.`);
+                    }
+                    expectedRole = 'user'; // Next must be user
+                } else if (message.role === 'system') {
+                    // System message can appear (usually at the beginning). It doesn't reset expectedRole 
+                    // unless it implies a new context start, but for simple alternation,
+                    // we primarily care about user/assistant flow. If it's the first, next could be user.
+                    if (i === 0 && messages.length > 1 && messages[1].role === 'user') {
+                        expectedRole = 'assistant'; // After system, user, next expected is assistant
+                    }
+                    // If a system message is mid-conversation, the previous expectedRole should still hold for the next non-system message.
+                }
+            }
+            logger.info(`Prompt ID '${promptConfig.id}' uses 'messages' format with ${messages.length} messages. Validation passed.`);
+        }
+    }
+
     logger.info(`Initial validation passed for configId '${configJson.configId || configJson.id}'. Original models: [${configJson.models.join(', ')}]`);
 
     const originalModels = [...configJson.models];

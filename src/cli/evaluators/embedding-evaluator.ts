@@ -39,9 +39,9 @@ export class EmbeddingEvaluator implements Evaluator {
 
             for (const [modelId, responseData] of promptData.modelResponses.entries()) {
                 modelIdsInEvaluation.add(modelId);
-                if (!responseData.hasError && responseData.responseText && responseData.responseText.trim() !== '') {
+                if (!responseData.hasError && responseData.finalAssistantResponseText && responseData.finalAssistantResponseText.trim() !== '') {
                     const modelKey = `${promptData.promptId}:${modelId}`;
-                    textsToEmbed.set(modelKey, responseData.responseText);
+                    textsToEmbed.set(modelKey, responseData.finalAssistantResponseText);
                 } else {
                     this.logger.warn(`[EmbeddingEvaluator] Skipping embedding for ${modelId} on prompt ${promptData.promptId} due to generation error or empty response.`);
                 }

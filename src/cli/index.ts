@@ -22,6 +22,7 @@ import { Command } from 'commander';
 import { runConfigCommand } from './commands/run-config';
 import { backfillSummaryCommand } from './commands/backfill-summary';
 import { deleteConfigCommand } from './commands/delete-config';
+import { backfillPromptContextsCommand } from './commands/backfill-prompt-contexts';
 import { getConfig } from './config';
 
 // Add signal handling
@@ -82,6 +83,7 @@ cli
 cli.addCommand(runConfigCommand);
 cli.addCommand(backfillSummaryCommand);
 cli.addCommand(deleteConfigCommand);
+cli.addCommand(backfillPromptContextsCommand);
 
 cli.parseAsync(process.argv).catch(err => {
   console.error('CLI Error:', err); 

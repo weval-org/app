@@ -182,6 +182,11 @@ const AggregateStatsDisplay: React.FC<AggregateStatsDisplayProps> = ({ stats }) 
     );
   }
 
+  const MIN_RUNS_FOR_LEADERBOARD = 10;
+  const filteredRankedModels = stats.rankedOverallModels?.filter(
+    (model) => model.runsParticipatedIn >= MIN_RUNS_FOR_LEADERBOARD
+  );
+
   return (
     <div className="my-8 pt-2">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -214,12 +219,12 @@ const AggregateStatsDisplay: React.FC<AggregateStatsDisplayProps> = ({ stats }) 
         <div className="lg:col-span-4 p-3 mb-3 text-xs text-muted-foreground bg-card border border-border/70 dark:border-slate-700/50 rounded-lg flex items-start">
           {InfoIcon && <InfoIcon className="w-4 h-4 mr-2 mt-0.5 text-sky-500 flex-shrink-0" />}
           <span>
-            <strong>Note on Leaderboard:</strong> This leaderboard reflects models evaluated based on available resources. Due to API costs, we cannot currently include all models or run evaluations at the scale we aspire to. 
+            <strong>Note on Leaderboard:</strong> This leaderboard reflects models evaluated based on available resources. Only models that have participated in at least {MIN_RUNS_FOR_LEADERBOARD} evaluation runs are shown. Due to API costs, we cannot currently include all models or run evaluations at the scale we aspire to. 
             Your support can help expand our coverage. <Link href="https://github.com/sponsors/civiceval" target="_blank" rel="noopener noreferrer" className="underline text-primary dark:text-sky-400 hover:text-primary/80 dark:hover:text-sky-300 font-medium">Contribute here</Link>.
           </span>
         </div>
         <OverallModelLeaderboard
-          models={stats.rankedOverallModels}
+          models={filteredRankedModels || null}
           title="Overall Model Leaderboard (Avg. Hybrid Score)"
         />
       </div>

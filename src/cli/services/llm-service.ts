@@ -1,9 +1,11 @@
 import { openRouterModuleClient } from '../../lib/llm-clients/openrouter-client';
 import { LLMStreamApiCallOptions, StreamChunk } from '../../lib/llm-clients/types';
+import { ConversationMessage } from '../types/comparison_v2';
+import { getConfig } from '../config';
 
 export interface GetModelResponseOptions {
     modelId: string; // Now expected to be the full OpenRouter model string, e.g., "openrouter:openai/gpt-4o-mini"
-    prompt: string;
+    messages: ConversationMessage[];
     systemPrompt?: string | null;
     maxTokens?: number;
     temperature?: number;
@@ -23,7 +25,7 @@ export async function getModelResponse(options: GetModelResponseOptions): Promis
     
     const {
         modelId, // Full OpenRouter model string
-        prompt,
+        messages,
         systemPrompt,
         maxTokens = DEFAULT_MAX_TOKENS,
         temperature = DEFAULT_TEMPERATURE,
@@ -49,11 +51,25 @@ export async function getModelResponse(options: GetModelResponseOptions): Promis
 
         const clientOptions: Omit<LLMStreamApiCallOptions, 'apiKey'> = {
             modelName: targetOpenRouterModelId, 
-            prompt: prompt,
+            messages: messages,
             systemPrompt: systemPrompt ?? undefined,
             maxTokens: maxTokens,
             temperature: temperature,
         };
+
+        if (logProgress || process.env.DEBUG_LLM_PAYLOAD === 'true') {
+            const { logger: internalLogger } = getConfig();
+            internalLogger.info(`[LLMService] Calling OpenRouter client for model: ${targetOpenRouterModelId}. Client options payload (messages):`);
+            try {
+                internalLogger.info(JSON.stringify(clientOptions.messages, null, 2));
+            } catch (e) {
+                internalLogger.info('Could not JSON.stringify clientOptions.messages. Logging raw object below:');
+                internalLogger.info(clientOptions.messages as any);
+            }
+            if (clientOptions.systemPrompt) {
+                 internalLogger.info(`[LLMService] System prompt being passed separately: ${clientOptions.systemPrompt}`);
+            }
+        }
 
         let fullResponse = '';
         for await (const chunk of openRouterModuleClient.streamApiCall(clientOptions)) {

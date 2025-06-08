@@ -1,23 +1,24 @@
+"use client";
+
 // Analysis results per prompt
-interface PromptStats {
+export interface PromptStats {
     promptId: string;
     promptText: string;
     averageSimilarity: number | null;
     similarityScores: number[];
     pairCount: number;
-    promptStatistics?: PromptAnalysisResults;
     allResponses?: Record<string, Record<string, string>>;
 }
 
-// Overall prompt analysis results
-interface PromptAnalysisResults {
+// Overall prompt analysis results (e.g., for consistency/diversity across all prompts)
+export interface PromptAnalysisResults {
   mostConsistentPrompt: PromptStats | null;
   mostDiversePrompt: PromptStats | null;
   allPromptStats: Record<string, PromptStats>;
 }
 
 // Individual prompt similarity data structure
-interface PromptSimilarity {
+export interface PromptSimilarity {
   promptId: string
   promptText: string
   modelA: string
@@ -27,7 +28,7 @@ interface PromptSimilarity {
 }
 
 // Structure for per-prompt similarities on the Frontend
-interface PerPromptSimilaritiesFE {
+export interface PerPromptSimilaritiesFE {
   [promptId: string]: { // For each prompt
     [modelA: string]: { // For each model A
       [modelB: string]: number; // Similarity to model B
@@ -36,18 +37,25 @@ interface PerPromptSimilaritiesFE {
 }
 
 // Embedding evaluation results within the main data structure
-interface EmbeddingEvaluationResult {
-    similarityMatrix?: Record<string, Record<string, number>>; // Overall average similarity
-    perPromptSimilarities?: PerPromptSimilaritiesFE; // Use the FE type here
+export interface EmbeddingEvaluationResult {
+    similarityMatrix?: Record<string, Record<string, number>> | null;
+    perPromptSimilarities?: Record<string, Record<string, Record<string, number>>> | null;
+    // Add other embedding-specific results if any
 }
 
 // LLM coverage evaluation results within the main data structure
-interface LLMCoverageEvaluationResult {
-    llmCoverageScores?: any; // Define more strictly later if needed
+export interface LLMCoverageEvaluationResult {
+    llmCoverageScores?: Record<string, Record<string, CoverageResult>>;
+}
+
+// Added for multi-turn conversation support
+export interface ConversationMessage {
+    role: 'user' | 'assistant' | 'system';
+    content: string;
 }
 
 // Main data structure for the comparison results (V2)
-interface ComparisonDataV2 {
+export interface ComparisonDataV2 {
   configId: string;
   configTitle: string;
   runLabel: string;
@@ -58,18 +66,18 @@ interface ComparisonDataV2 {
   effectiveModels: string[];
   modelSystemPrompts?: Record<string, string | null>;
   promptIds: string[];
-  promptTexts?: Record<string, string>;
+  promptContexts?: Record<string, string | ConversationMessage[]>;
   extractedKeyPoints?: Record<string, string[]>;
-  allResponses?: Record<string, Record<string, string>>;
+  allFinalAssistantResponses?: Record<string, Record<string, string>>;
+  fullConversationHistories?: Record<string, Record<string, ConversationMessage[]>>;
   errors?: Record<string, Record<string, string>>;
-  evaluationResults: EmbeddingEvaluationResult & LLMCoverageEvaluationResult & {
+  evaluationResults?: EmbeddingEvaluationResult & LLMCoverageEvaluationResult & {
     perModelHybridScores?: Map<string, { average: number | null; stddev: number | null }> | Record<string, { average: number | null; stddev: number | null }>;
     perModelSemanticScores?: Map<string, { average: number | null; stddev: number | null }> | Record<string, { average: number | null; stddev: number | null }>;
-    overallAverageCoverageStats?: { average: number | null; stddev: number | null } | null;
-    overallAverageHybridScore?: number | null;
-    overallHybridScoreStdDev?: number | null;
+    promptStatistics?: PromptAnalysisResults; // This refers to the overall analysis (mostConsistentPrompt, etc.)
+    // other specific cross-cutting results
   };
-  promptStatistics?: PromptAnalysisResults;
+  // Removed redundant top-level promptStatistics here, it's now inside evaluationResults
   excludedModels?: string[];
 }
 
@@ -89,38 +97,44 @@ export interface ConfigData {
 
 export interface ConfigPromptData {
     id: string;
-    promptText: string;
+    promptText?: string;
+    messages?: ConversationMessage[];
     idealResponse?: string;
     system?: string | null;
-    points?: string[];
+    points?: PointDefinition[];
     temperature?: number;
 }
 
-// Coverage Score data used within the modal
-interface LLMCoverageScoreData {
+// New: PointFunctionDefinition for config if not already present
+export type PointFunctionArgs = any;
+export type PointFunctionDefinition = [string, PointFunctionArgs];
+export type PointDefinition = string | PointFunctionDefinition;
+
+// Coverage Score data used within the modal (and also as part of CoverageResult)
+export interface LLMCoverageScoreData {
     keyPointsCount: number;
-    coveredCount: number;
-    score: number;
     avgCoverageExtent?: number;
 }
 
-// Detailed assessment for a single key point
-interface PointAssessment {
+// Detailed assessment for a single key point - ALIGNED WITH BACKEND
+export interface PointAssessment {
     keyPointText: string;
-    llmReturnedKeyPointText?: string;
-    isPresent: boolean;
     coverageExtent?: number;
+    reflection?: string;
+    error?: string;
 }
 
 // Type for a coverage result, which could be data, an error, or null
-type CoverageResult = (LLMCoverageScoreData & { pointAssessments?: PointAssessment[] }) | { error: string } | null;
+// This combines the summary (LLMCoverageScoreData) and the details (PointAssessment[])
+// It matches the backend's CoverageResult structure for llmCoverageScores
+export type CoverageResult = (LLMCoverageScoreData & { pointAssessments?: PointAssessment[] }) | { error: string } | null;
 
 // Information needed for the ResponseComparisonModal
-interface SelectedPairInfo {
+export interface SelectedPairInfo {
     modelA: string;
     modelB: string;
     promptId: string;
-    promptText: string;
+    promptContext: string | ConversationMessage[];
     systemPromptA?: string | null;
     systemPromptB?: string | null;
     responseA: string;
@@ -133,21 +147,6 @@ interface SelectedPairInfo {
     semanticSimilarity?: number | null;
     performanceSimilarity?: number | null;
 }
-
-// Make types available for import
-export type {
-  PromptStats,
-  PromptAnalysisResults,
-  PromptSimilarity,
-  PerPromptSimilaritiesFE,
-  EmbeddingEvaluationResult,
-  LLMCoverageEvaluationResult,
-  ComparisonDataV2,
-  LLMCoverageScoreData,
-  PointAssessment,
-  CoverageResult,
-  SelectedPairInfo
-};
 
 // Add ComparisonRunInfo interface definition is already exported
 export interface ComparisonRunInfo {
@@ -170,4 +169,19 @@ export interface EvaluationResults {
     overallAverageCoverageStats?: { average: number | null; stddev: number | null } | null;
     overallAverageHybridScore?: number | null;
     overallHybridScoreStdDev?: number | null;
-} 
+}
+
+// Data for individual prompt analysis (e.g., word counts, char counts per prompt)
+// Renamed from PromptAnalysisResults to avoid conflict
+export interface PromptAggregatedStats {
+    [promptId: string]: {
+        averageWordCount?: number;
+        averageCharacterCount?: number;
+        // ... any other per-prompt aggregated stats
+    };
+}
+
+// Removed the second redundant export type block.
+// Types like ConfigPromptData, PointDefinition, ConversationMessage, etc.,
+// are already exported with their definitions.
+// EvaluationScore was removed as it was not defined. 

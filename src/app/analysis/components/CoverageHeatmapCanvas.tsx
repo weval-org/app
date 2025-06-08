@@ -8,6 +8,8 @@ interface PointAssessment {
     coverageExtent?: number;
     reflection?: string;
     error?: string;
+    multiplier?: number;
+    citation?: string;
 }
 type CoverageResult = {
     keyPointsCount: number;
@@ -128,14 +130,20 @@ const CoverageHeatmapCanvas: React.FC<CoverageHeatmapCanvasProps> = ({
 
                 if (result && !('error' in result) && result.pointAssessments && result.pointAssessments.length > 0) {
                     const assessments = result.pointAssessments;
-                    const numKeyPoints = assessments.length;
-                    const segmentWidth = cellWidth / numKeyPoints;
+                    
+                    const totalMultiplier = assessments.reduce((sum, assessment) => sum + (assessment.multiplier ?? 1), 0);
+                    let currentXOffset = 0;
 
-                    for (let k = 0; k < numKeyPoints; k++) {
+                    for (let k = 0; k < assessments.length; k++) {
                         const assessment = assessments[k];
                         const score = (assessment.coverageExtent !== undefined && !isNaN(assessment.coverageExtent)) ? assessment.coverageExtent : null;
+                        
+                        const pointMultiplier = assessment.multiplier ?? 1;
+                        const segmentWidth = totalMultiplier > 0 ? (pointMultiplier / totalMultiplier) * cellWidth : cellWidth / assessments.length;
+
                         ctx.fillStyle = getCoverageColor(score);
-                        ctx.fillRect(cellXPos + (k * segmentWidth), cellYPos, segmentWidth, cellHeight);
+                        ctx.fillRect(cellXPos + currentXOffset, cellYPos, segmentWidth, cellHeight);
+                        currentXOffset += segmentWidth;
                     }
                 } else {
                     // Fallback to average score or error/missing color

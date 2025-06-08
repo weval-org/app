@@ -4,7 +4,7 @@ import { ImageResponse } from 'next/og';
 export const runtime = 'edge';
 
 // Image metadata
-export const alt = 'CivicEval - AI evaluations for the issues that matter to us.';
+export const alt = 'CivicEval - Measuring AI\'s fitness for civic life';
 export const size = {
   width: 1200,
   height: 630,
@@ -49,7 +49,7 @@ export default async function Image() {
           CivicEval
         </div>
         <div style={{ marginTop: 30, fontSize: 42, color: '#E0E0E0', lineHeight: 1.4, fontFamily: '"GeistRegular"' }}>
-          AI evaluations for the issues that matter to us.
+          Measuring AI's fitness for civic life
         </div>
         <div style={{ position: 'absolute', bottom: 30, fontSize: 24, color: '#A0A0A0', fontFamily: '"GeistRegular"' }}>
           civiceval.org

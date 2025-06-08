@@ -4,20 +4,30 @@ const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 export const openRouterModuleClient: LLMClient = {
   async makeApiCall(options: LLMApiCallOptions): Promise<LLMApiCallResponse> {
-    const { modelName, prompt, systemPrompt, temperature, maxTokens } = options;
-    // Provider is not directly used here as we are only targeting OpenRouter
-    // modelName should be the full OpenRouter model string e.g. "mistralai/mistral-7b-instruct"
+    const { modelName, prompt, systemPrompt, temperature, maxTokens, messages: optionMessages } = options;
     const apiKey = options.apiKey || process.env.OPENROUTER_API_KEY;
 
     if (!apiKey) {
       return { responseText: '', error: 'OpenRouter API key not found. Please set OPENROUTER_API_KEY environment variable.' };
     }
 
-    const messages = [];
-    if (systemPrompt) {
-      messages.push({ role: "system", content: systemPrompt });
+    let finalMessagesPayload: any[];
+
+    if (optionMessages && optionMessages.length > 0) {
+      let tempMessages = [...optionMessages];
+      if (systemPrompt && !tempMessages.find(m => m.role === 'system')) {
+        tempMessages.unshift({ role: "system", content: systemPrompt });
+      }
+      finalMessagesPayload = tempMessages;
+    } else if (prompt) {
+      finalMessagesPayload = [];
+      if (systemPrompt) {
+        finalMessagesPayload.push({ role: "system", content: systemPrompt });
+      }
+      finalMessagesPayload.push({ role: "user", content: prompt });
+    } else {
+      return { responseText: '', error: 'No valid prompt or messages provided to OpenRouter client.' };
     }
-    messages.push({ role: "user", content: prompt });
 
     try {
       const response = await fetch(OPENROUTER_API_URL, {
@@ -28,7 +38,7 @@ export const openRouterModuleClient: LLMClient = {
         },
         body: JSON.stringify({
           model: modelName, 
-          messages: messages,
+          messages: finalMessagesPayload,
           temperature: temperature ?? 0.7, 
           max_tokens: maxTokens,
           stream: false
@@ -58,7 +68,7 @@ export const openRouterModuleClient: LLMClient = {
   },
 
   async *streamApiCall(options: LLMStreamApiCallOptions): AsyncGenerator<StreamChunk, void, undefined> {
-    const { modelName, prompt, systemPrompt, temperature, maxTokens } = options;
+    const { modelName, prompt, systemPrompt, temperature, maxTokens, messages: optionMessages } = options;
     const apiKey = options.apiKey || process.env.OPENROUTER_API_KEY;
 
     if (!apiKey) {
@@ -66,11 +76,24 @@ export const openRouterModuleClient: LLMClient = {
       return;
     }
 
-    const messages = [];
-    if (systemPrompt) {
-      messages.push({ role: "system", content: systemPrompt });
+    let finalMessagesPayload: any[];
+
+    if (optionMessages && optionMessages.length > 0) {
+      let tempMessages = [...optionMessages];
+      if (systemPrompt && !tempMessages.find(m => m.role === 'system')) {
+        tempMessages.unshift({ role: "system", content: systemPrompt });
+      }
+      finalMessagesPayload = tempMessages;
+    } else if (prompt) {
+      finalMessagesPayload = [];
+      if (systemPrompt) {
+        finalMessagesPayload.push({ role: "system", content: systemPrompt });
+      }
+      finalMessagesPayload.push({ role: "user", content: prompt });
+    } else {
+      yield { type: 'error', error: 'No valid prompt or messages provided to OpenRouter client for streaming.' };
+      return;
     }
-    messages.push({ role: "user", content: prompt });
 
     try {
       const response = await fetch(OPENROUTER_API_URL, {
@@ -83,7 +106,7 @@ export const openRouterModuleClient: LLMClient = {
         },
         body: JSON.stringify({
           model: modelName,
-          messages: messages,
+          messages: finalMessagesPayload,
           temperature: temperature ?? 0.7,
           max_tokens: maxTokens,
           stream: true

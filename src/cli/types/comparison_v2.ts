@@ -3,18 +3,61 @@ import { IDEAL_MODEL_ID } from '../../app/utils/comparisonUtils'; // Corrected p
 
 export type EvaluationMethod = 'embedding' | 'llm-coverage';
 
+export interface ConversationMessage {
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+}
+
 export interface PromptConfig {
     id: string;
-    promptText: string;
-    idealResponse?: string | null;
-    system?: string | null;
+    promptText?: string; // Now optional for backward compatibility
+    messages?: ConversationMessage[]; // New field for multi-turn
+    idealResponse?: string | null; // This will be the ideal *final* assistant response
+    system?: string | null; // Can be handled as the first message in 'messages' or separately
     temperature?: number;
-    points?: PointDefinition[];
+    points?: PointDefinition[]; // These points apply to the *final* assistant response
 }
 
 export type PointFunctionArgs = any;
 export type PointFunctionDefinition = [string, PointFunctionArgs];
-export type PointDefinition = string | PointFunctionDefinition;
+
+/**
+ * The rich object format for defining a point in a blueprint.
+ * A point must have *either* 'text' (for LLM-based evaluation)
+ * or 'fn' (for programmatic evaluation).
+ */
+export interface PointObject {
+    text?: string;
+    fn?: string;
+    fnArgs?: PointFunctionArgs;
+    multiplier?: number;
+    citation?: string;
+}
+
+/**
+ * Defines a single evaluation criterion (a "point").
+ * Can be a simple string (shortcut for { text: "..." }),
+ * a tuple for a function (shortcut for { fn: "...", fnArgs: "..." }),
+ * or a full PointObject for more control.
+ */
+export type PointDefinition = string | PointFunctionDefinition | PointObject;
+
+/**
+ * The unified internal representation of a point after normalization.
+ * This is what evaluators will work with.
+ */
+export interface NormalizedPoint {
+    id: string; // A unique identifier for the point within the prompt.
+    displayText: string; // The text to display in UI tables (e.g., the key point text or function signature).
+    multiplier: number; // The weight for scoring, defaults to 1.
+    citation?: string;
+    isFunction: boolean;
+    // Fields for LLM-based evaluation
+    textToEvaluate?: string;
+    // Fields for function-based evaluation
+    functionName?: string;
+    functionArgs?: PointFunctionArgs;
+}
 
 export interface ComparisonConfig {
     configId?: string; // Now optional
@@ -32,16 +75,18 @@ export interface ComparisonConfig {
 }
 
 export interface ModelResponseDetail {
-    responseText: string;
+    finalAssistantResponseText: string; // Renamed from responseText for clarity
+    fullConversationHistory?: ConversationMessage[]; // To store the whole exchange
     hasError: boolean;
     errorMessage?: string;
-    systemPromptUsed: string | null;
+    systemPromptUsed: string | null; // System prompt applied to the entire generation if applicable
 }
 
 export interface PromptResponseData {
     promptId: string;
-    promptText: string;
-    idealResponseText: string | null; // Added for clarity
+    promptText?: string; // For backward compatibility or single-turn context
+    initialMessages?: ConversationMessage[]; // The input messages for multi-turn
+    idealResponseText: string | null; // Ideal *final* assistant response
     modelResponses: Map<string, ModelResponseDetail>;
 }
 
@@ -58,10 +103,12 @@ export interface SimilarityScore {
 }
 
 export interface PointAssessment {
-    keyPointText: string;
+    keyPointText: string; // This will hold the `displayText` of the NormalizedPoint
     coverageExtent?: number;
     reflection?: string;
     error?: string;
+    multiplier?: number;
+    citation?: string;
 }
 
 export type CoverageResult = ({
@@ -95,9 +142,10 @@ export interface FinalComparisonOutputV2 {
     effectiveModels: string[];
     modelSystemPrompts?: Record<string, string | null>;
     promptIds: string[];
-    promptTexts?: Record<string, string>;
+    promptContexts?: Record<string, string | ConversationMessage[]>; // Replaces promptTexts, stores initial input
     extractedKeyPoints?: Record<string, string[]>;
-    allResponses?: Record<string, Record<string, string>>;
+    allFinalAssistantResponses?: Record<string, Record<string, string>>; // Stores the final model message
+    fullConversationHistories?: Record<string, Record<string, ConversationMessage[]>>; // Optional: Stores complete dialogues
     errors?: Record<string, Record<string, string>>;
     evaluationResults: {
         similarityMatrix?: SimilarityScore;

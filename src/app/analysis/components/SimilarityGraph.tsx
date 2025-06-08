@@ -35,6 +35,9 @@ const NODE_LABEL_FONT_SIZE_NUM = 10; // Reduced node label font size
 // Threshold calculation removed
 // const MEDIAN_THRESHOLD_MULTIPLIER = 0.97;
 
+// Add margins for the graph
+const MARGIN = { top: 30, right: 30, bottom: 30, left: 30 };
+
 // Normalization Helper
 const normalizeValue = (value: number, min: number, max: number): number => {
   if (max === min) return 0.5; // Avoid division by zero, return midpoint
@@ -103,8 +106,12 @@ export default function SimilarityGraph({ similarityMatrix, models, resolvedThem
         }
       };
 
-      const width = svgRef.current.clientWidth;
-      const height = svgRef.current.clientHeight;
+      const svgEl = svgRef.current;
+      const fullWidth = svgEl.clientWidth;
+      const fullHeight = svgEl.clientHeight;
+
+      const width = fullWidth - MARGIN.left - MARGIN.right;
+      const height = fullHeight - MARGIN.top - MARGIN.bottom;
       const centerX = width / 2;
       const centerY = height / 2;
 
@@ -220,7 +227,7 @@ export default function SimilarityGraph({ similarityMatrix, models, resolvedThem
         .force('collision', d3.forceCollide().radius(FORCE_COLLISION_RADIUS));
 
       const svg = d3.select(svgRef.current);
-      const zoomControls = svg.append('g').attr('class', 'zoom-controls').attr('transform', `translate(${width - 80}, 20)`);
+      const zoomControls = svg.append('g').attr('class', 'zoom-controls').attr('transform', `translate(${fullWidth - 80}, 20)`);
       
       // Zoom In button
       const zoomInButton = zoomControls.append('g').attr('class', 'zoom-button').style('cursor', 'pointer');
@@ -237,7 +244,8 @@ export default function SimilarityGraph({ similarityMatrix, models, resolvedThem
       resetButton.append('rect').attr('x', 0).attr('y', 0).attr('width', 30).attr('height', 30).attr('rx', 5).style('fill', themeColors.muted).style('stroke', themeColors.border);
       resetButton.append('text').attr('x', 15).attr('y', 18).attr('text-anchor', 'middle').style('fill', themeColors.foreground).text('⟲').style('font-size', '16px').style('user-select', 'none');
 
-      const g = svg.append('g');
+      const g = svg.append('g')
+          .attr('transform', `translate(${MARGIN.left},${MARGIN.top})`); // Apply margin translation
       gRef.current = g.node();
 
       const link = g.append('g').attr('class', 'links').selectAll('line')
@@ -271,13 +279,29 @@ export default function SimilarityGraph({ similarityMatrix, models, resolvedThem
         link.attr('x1', (d: any) => d.source.x).attr('y1', (d: any) => d.source.y)
             .attr('x2', (d: any) => d.target.x).attr('y2', (d: any) => d.target.y);
         linkLabel.attr('x', (d: any) => (d.source.x + d.target.x) / 2).attr('y', (d: any) => (d.source.y + d.target.y) / 2);
-        node.attr('transform', (d: any) => `translate(${d.x},${d.y})`);
+        
+        // Constrain nodes within the bounds (width and height here are the dimensions within margins)
+        node.attr('transform', (d: any) => {
+          d.x = Math.max(NODE_RADIUS, Math.min(width - NODE_RADIUS, d.x));
+          d.y = Math.max(NODE_RADIUS, Math.min(height - NODE_RADIUS, d.y));
+          return `translate(${d.x},${d.y})`;
+        });
       });
 
       const zoomed = (event: d3.D3ZoomEvent<SVGSVGElement, unknown>) => g.attr('transform', event.transform.toString());
       const zoomBehavior = d3.zoom<SVGSVGElement, unknown>()
         .scaleExtent([MIN_ZOOM, MAX_ZOOM])
-        .translateExtent([[-width * 2, -height * 2], [width * 3, height * 3]])
+        // Adjust translateExtent to keep the graph within the viewable area, considering margins
+        // The extent should allow panning such that the margined area (width, height) is viewable.
+        // It means the top-left of the 'g' element can go from (0,0) to (fullWidth - width, fullHeight - height)
+        // relative to the SVG, but since 'g' is already translated by MARGIN.left, MARGIN.top,
+        // the zoom transform is applied on 'g'.
+        // The translateExtent for 'g' should be relative to its own coordinate system after the initial margin translation.
+        // Let's set it to ensure the content (width, height) doesn't pan too far out.
+        // The content's origin is (0,0) within 'g'. It can pan until its bottom-right (width, height)
+        // is at the SVG's MARGIN.left, MARGIN.top, and its top-left (0,0) is at SVG's fullWidth - MARGIN.right, fullHeight - MARGIN.bottom
+        // This calculation seems tricky with the current setup. Let's try a simpler extent first.
+        .translateExtent([[0, 0], [fullWidth, fullHeight]]) // This applies to the <g> element post-margin translation
         .on('zoom', zoomed);
       zoomRef.current = zoomBehavior;
       svg.call(zoomBehavior as any).on("wheel.zoom", null);
@@ -329,8 +353,8 @@ export default function SimilarityGraph({ similarityMatrix, models, resolvedThem
   }, [similarityMatrix, models, resolvedTheme]) 
 
   return (
-    <div className="w-full h-full relative" style={{ minHeight: '500px' }}>
-      <svg ref={svgRef} className="w-full h-full" style={{minHeight: '500px'}}></svg>
+    <div className="w-full h-full relative">
+      <svg ref={svgRef} className="w-full h-full"></svg>
     </div>
   )
 }

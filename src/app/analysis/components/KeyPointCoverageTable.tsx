@@ -4,6 +4,7 @@ import React from 'react';
 import dynamic from 'next/dynamic';
 import { getGradedCoverageColor } from '../utils/colorUtils';
 import { getModelDisplayLabel } from '../../utils/modelIdUtils';
+import { Badge } from '@/components/ui/badge';
 
 // Dynamically import icons
 const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.AlertCircle));
@@ -16,6 +17,8 @@ interface PointAssessment {
     coverageExtent?: number;
     reflection?: string;
     error?: string;
+    multiplier?: number;
+    citation?: string;
 }
 
 // Match CoverageResult from page.tsx
@@ -29,19 +32,21 @@ interface KeyPointCoverageTableProps {
     coverageScores: Record<string, CoverageResult> | undefined | null; // ModelId -> CoverageResult
     models: string[]; // List of non-ideal model IDs
     onCellClick?: (modelId: string, assessment: PointAssessment | null) => void;
+    onModelHeaderClick?: (modelId: string) => void;
 }
 
 const KeyPointCoverageTable: React.FC<KeyPointCoverageTableProps> = ({
     coverageScores,
     models,
     onCellClick,
+    onModelHeaderClick,
 }) => {
-    const criteriaTexts = React.useMemo(() => {
-        if (!coverageScores || !models || models.length === 0) return null; // Return null if essential props are missing
+    const criteriaData = React.useMemo(() => {
+        if (!coverageScores || !models || models.length === 0) return null;
 
         let firstModelAssessments: PointAssessment[] | undefined;
         for (const modelId of models) {
-            const modelResult = coverageScores[modelId]; // coverageScores is defined here
+            const modelResult = coverageScores[modelId];
             if (modelResult && !('error' in modelResult) && modelResult.pointAssessments && modelResult.pointAssessments.length > 0) {
                 firstModelAssessments = modelResult.pointAssessments;
                 break;
@@ -50,19 +55,26 @@ const KeyPointCoverageTable: React.FC<KeyPointCoverageTableProps> = ({
 
         if (!firstModelAssessments) {
             const wasAnyModelProcessed = models.some(modelId => coverageScores[modelId]);
-            return wasAnyModelProcessed ? [] : null; // [] if processed but no criteria, null if not processed (or no models had actual assessments)
+            return wasAnyModelProcessed ? [] : null;
         }
         
-        const uniqueTexts = new Set(firstModelAssessments.map(pa => pa.keyPointText));
-        return Array.from(uniqueTexts);
+        // Return the full assessment object for each unique key point
+        const seenTexts = new Set<string>();
+        return firstModelAssessments.filter(pa => {
+            if (seenTexts.has(pa.keyPointText)) {
+                return false;
+            }
+            seenTexts.add(pa.keyPointText);
+            return true;
+        });
     }, [coverageScores, models]);
 
 
-    if (criteriaTexts === null) { 
+    if (criteriaData === null) { 
         return <p className="p-4 text-muted-foreground italic">Coverage data not available for this prompt.</p>;
     }
     
-    if (criteriaTexts.length === 0) {
+    if (criteriaData.length === 0) {
         return <p className="p-4 text-muted-foreground italic">No evaluation criteria or point assessments found to display for this prompt.</p>;
     }
 
@@ -82,23 +94,59 @@ const KeyPointCoverageTable: React.FC<KeyPointCoverageTableProps> = ({
                 <thead>
                     <tr className="bg-muted dark:bg-slate-800">
                         <th className="border border-border dark:border-slate-700 px-3 py-2.5 text-left font-semibold text-primary dark:text-sky-300 sticky left-0 bg-muted dark:bg-slate-800 z-10 w-[40%]">Evaluation Criterion</th>
-                        {models.map(modelId => (
-                            <th key={modelId} className="border border-border dark:border-slate-700 px-2 py-2.5 text-center font-semibold text-foreground dark:text-slate-200 whitespace-nowrap w-24" title={getModelDisplayLabel(modelId)}>
-                                {getModelDisplayLabel(modelId)}
-                            </th>
-                        ))}
+                        {models.map(modelId => {
+                            const modelDisplayLabel = getModelDisplayLabel(modelId, {hideProvider: true});
+                            const headerClasses = "border border-border dark:border-slate-700 px-2 py-2.5 text-center font-semibold text-foreground dark:text-slate-200 whitespace-nowrap w-24";
+                            const isClickable = !!onModelHeaderClick;
+                            return (
+                                <th 
+                                    key={modelId} 
+                                    className={`${headerClasses} ${isClickable ? 'cursor-pointer hover:bg-muted/70 dark:hover:bg-slate-700/50 transition-colors' : ''}`}
+                                    title={`${modelDisplayLabel}${isClickable ? ' (Click to view full response & all assessments)' : ''}`}
+                                    onClick={() => {
+                                        if (isClickable && onModelHeaderClick) {
+                                            onModelHeaderClick(modelId);
+                                        }
+                                    }}
+                                >
+                                    {modelDisplayLabel}
+                                </th>
+                            );
+                        })}
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-border dark:divide-slate-700">
-                    {criteriaTexts.map((criterionText, index) => (
+                    {criteriaData.map((criterion, index) => (
                         <tr key={index} className="hover:bg-muted/50 dark:hover:bg-slate-700/30 transition-colors duration-100">
-                            <td className="border-x border-border dark:border-slate-700 px-3 py-2 text-left align-top sticky left-0 bg-card/90 dark:bg-slate-800/90 hover:bg-muted/60 dark:hover:bg-slate-700/50 z-10 w-[40%] backdrop-blur-sm">
-                                <span className="block text-foreground dark:text-slate-100 whitespace-normal">
-                                    {criterionText}
-                                </span>
+                            <td 
+                                className="border-x border-border dark:border-slate-700 px-3 py-2 text-left align-top sticky left-0 bg-card/90 dark:bg-slate-800/90 hover:bg-muted/60 dark:hover:bg-slate-700/50 z-10 w-[40%] backdrop-blur-sm"
+                                title={criterion.citation || criterion.keyPointText}
+                            >
+                                <div className="flex items-start justify-between gap-2">
+                                    <span 
+                                        className="block text-foreground dark:text-slate-100 whitespace-normal overflow-hidden text-ellipsis"
+                                        style={{
+                                            display: '-webkit-box',
+                                            WebkitBoxOrient: 'vertical',
+                                            WebkitLineClamp: 3,
+                                        }}
+                                    >
+                                        {criterion.keyPointText}
+                                    </span>
+                                    {criterion.multiplier && criterion.multiplier !== 1 && (
+                                        <Badge variant="secondary" className="text-xs font-normal whitespace-nowrap ml-2" title={`Score for this criterion is weighted by a multiplier of ${criterion.multiplier}`}>
+                                            &times;{criterion.multiplier}
+                                        </Badge>
+                                    )}
+                                </div>
+                                {criterion.citation && (
+                                    <p className="text-xs text-muted-foreground/80 dark:text-slate-400/80 mt-1.5 italic border-l-2 border-border/70 pl-2">
+                                        {criterion.citation}
+                                    </p>
+                                )}
                             </td>
                             {models.map(modelId => {
-                                const assessment = findAssessment(modelId, criterionText);
+                                const assessment = findAssessment(modelId, criterion.keyPointText);
                                 let cellContent: React.ReactNode = null;
                                 let titleText = 'No data';
                                 const isClickable = !!onCellClick;
@@ -151,8 +199,14 @@ const KeyPointCoverageTable: React.FC<KeyPointCoverageTableProps> = ({
                                     if (extentValue !== undefined && !error) { // Add extent to title if no specific point error
                                         titleText += ` (Extent: ${extentValue.toFixed(2)})`;
                                     }
+                                    if (assessment.multiplier && assessment.multiplier !== 1) {
+                                        titleText += `\nMultiplier: x${assessment.multiplier}`;
+                                    }
                                     if (reflection && !error) { // Add reflection to title if no specific point error
                                         titleText += `\nReflection: ${reflection}`;
+                                    }
+                                    if (assessment.citation) {
+                                        titleText += `\nCitation: ${assessment.citation}`;
                                     }
                                 }
 

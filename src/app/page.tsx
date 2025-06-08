@@ -33,7 +33,7 @@ export const metadata: Metadata = {
         url: `${appUrl}/opengraph-image`,
         width: 1200,
         height: 630,
-        alt: 'CivicEval - AI evaluations for the issues that matter to us.',
+        alt: "CivicEval - Measuring AI's fitness for civic life",
       },
     ],
     locale: 'en_US',
@@ -512,7 +512,7 @@ export default async function HomePage() {
             CivicEval
           </h1>
           <p className="text-lg sm:text-xl text-muted-foreground dark:text-slate-300 mb-4 max-w-3xl mx-auto">
-            AI evaluations for the issues that matter to us.
+            Measuring AI's fitness for civic life
           </p>
         </header>
       </div>

@@ -6,15 +6,10 @@ export default function HomePageBanner() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 md:flex md:space-x-6">
         <section aria-labelledby="prose-article" className="md:w-2/3">
           <p className="text-sm sm:text-base text-foreground/80 dark:text-slate-300/80 leading-relaxed max-w-3xl mx-auto">
-            The world needs public, open-source and independent watchdogs that let everyone measure and hold AI labs accountable for the deficits of their large language models. These models already influence healthcare,<a href="#footnote-3" aria-label="Footnote 3"><sup>3</sup></a> legal practice,<a href="#footnote-4" aria-label="Footnote 4"><sup>4</sup></a> finance and hiring decisions,<a href="#footnote-2" aria-label="Footnote 2"><sup>2</sup></a> yet studies keep uncovering latent cognitive biases.<a href="#footnote-5" aria-label="Footnote 5"><sup>5</sup></a> Public, continuously-updated scoreboards such as Stanford's HELM<a href="#footnote-1" aria-label="Footnote 1"><sup>1</sup></a>—and now CivicEval—are essential for independent oversight.
+            Can an AI correctly interpret the Geneva Conventions? Can it recognize a leading question designed to spread misinformation? Does it avoid making US-centric assumptions? These are the kinds of critical questions a public, open-source watchdog must ask. Large language models already influence healthcare,<a href="#footnote-3" aria-label="Footnote 3"><sup>3</sup></a> legal practice,<a href="#footnote-4" aria-label="Footnote 4"><sup>4</sup></a> and finance,<a href="#footnote-2" aria-label="Footnote 2"><sup>2</sup></a> yet studies keep uncovering latent cognitive biases.<a href="#footnote-5" aria-label="Footnote 5"><sup>5</sup></a> Inspired by projects like Stanford's HELM,<a href="#footnote-1" aria-label="Footnote 1"><sup>1</sup></a>
           </p>
-
           <p className="text-sm sm:text-base text-foreground/80 dark:text-slate-300/80 leading-relaxed max-w-3xl mx-auto mt-4">
-            CivicEval aims to measure how accurately—and how consistently—each model understands topics of global importance, like universal human-rights standards and the rule of law, alongside more locale-specific topics where misrepresentations have been proven.
-          </p>
-          
-          <p className="text-sm sm:text-base text-foreground/80 dark:text-slate-300/80 leading-relaxed max-w-3xl mx-auto mt-4">
-            The results are published here frequently so policymakers, journalists, engineers and everyday citizens can see at a glance which AI systems are ready for work in the domains they care about.
+            CivicEval provides continuous, transparent scorecards on how accurately—and consistently—each model understands topics of global civic importance. The results are published here so policymakers, journalists, and citizens can see which AI systems are ready for the domains they care about.
           </p>
         </section>
 
