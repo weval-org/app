@@ -59,7 +59,7 @@ const ModelDriftIndicator: React.FC<ModelDriftIndicatorProps> = ({ driftInfo }) 
               <strong>Hybrid Score Range:</strong> 
               <span className="font-medium"> {(driftInfo.minScore * 100).toFixed(1)}%</span> to 
               <span className="font-medium"> {(driftInfo.maxScore * 100).toFixed(1)}%</span> 
-              (Difference of <span className="font-bold">{(driftInfo.scoreRange * 100).toFixed(1)} pts</span>)
+              {' '}(Difference of <span className="font-bold">{(driftInfo.scoreRange * 100).toFixed(1)} pts</span>)
             </p>
             <p>
               Observed across <span className="font-medium">{driftInfo.runsCount}</span> runs between 

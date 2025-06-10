@@ -11,7 +11,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { PromptAnalysisResults, ComparisonDataV2 } from '@/app/utils/types';
+import { PromptAnalysisResults, ComparisonDataV2, EvaluationResults } from '@/app/utils/types';
 import { IDEAL_MODEL_ID, findSimilarityExtremes as importedFindSimilarityExtremes } from '@/app/utils/comparisonUtils';
 import { getModelDisplayLabel, parseEffectiveModelId, IDEAL_MODEL_ID_BASE } from '../../utils/modelIdUtils';
 
@@ -54,7 +54,7 @@ interface DatasetStatisticsProps {
     allPromptIds: string[] | undefined;
     overallAverageHybridScore?: number | null;
     overallHybridScoreStdDev?: number | null;
-    allLlmCoverageScores?: ComparisonDataV2['evaluationResults']['llmCoverageScores'];
+    allLlmCoverageScores?: EvaluationResults['llmCoverageScores'];
 }
 
 const renderDatasetStatisticsInternal = (
@@ -69,7 +69,7 @@ const renderDatasetStatisticsInternal = (
     allPromptIds: string[] | undefined,
     overallAverageHybridScore?: number | null,
     overallHybridScoreStdDev?: number | null,
-    allLlmCoverageScores?: ComparisonDataV2['evaluationResults']['llmCoverageScores']
+    allLlmCoverageScores?: EvaluationResults['llmCoverageScores']
 ): ReactNode => {
   if (!promptStats && !overallSimilarityMatrix && !overallCoverageExtremes && !overallHybridExtremes && !overallAvgCoverageStats && overallAverageHybridScore === undefined && !allLlmCoverageScores) return null;
 

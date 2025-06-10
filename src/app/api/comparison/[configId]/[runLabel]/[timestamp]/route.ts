@@ -2,19 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { listRunsForConfig, getResultByFileName } from '@/lib/storageService';
 import { IDEAL_MODEL_ID, calculateOverallAverageCoverage, calculateAverageHybridScoreForRun } from '@/app/utils/comparisonUtils';
 import { calculatePerModelHybridScoresForRun } from '@/app/utils/calculationUtils';
-import { toSafeTimestamp } from '@/app/utils/timestampUtils';
 
 export const revalidate = 3600; // Revalidate once per hour (Next.js built-in caching)
-
-// Helper function (can be moved to a util file later if used elsewhere)
-/*
-function calculateStandardDeviation(numbers: number[]): number | null {
-  if (numbers.length < 2) return null;
-  const mean = numbers.reduce((sum, val) => sum + val, 0) / numbers.length;
-  const variance = numbers.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / (numbers.length -1); 
-  return Math.sqrt(variance);
-}
-*/
 
 export async function GET(
     request: NextRequest, 

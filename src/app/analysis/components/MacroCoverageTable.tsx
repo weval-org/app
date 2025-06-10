@@ -235,18 +235,18 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
 
     const headerCellStyle = "border border-border dark:border-slate-700 px-2 py-2.5 text-center font-semibold align-bottom";
     const modelNameHeaderStyle = `${headerCellStyle} text-foreground dark:text-slate-200 break-all w-36`;
-    const mIndexHeaderStyle = `${headerCellStyle} text-foreground dark:text-slate-200 break-words`; // Removed w-28, width comes from model col
+    const mIndexHeaderStyle = `${headerCellStyle} text-foreground dark:text-slate-200 break-words`;
     const stickyHeaderBase = "sticky left-0 z-20 bg-muted dark:bg-slate-800";
     const firstColStickyHeader = `${headerCellStyle} text-primary dark:text-sky-300 ${stickyHeaderBase} w-16`;
-    const secondColStickyHeader = `${headerCellStyle} text-primary dark:text-sky-300 ${stickyHeaderBase} left-16 w-[25%] text-left`; // Adjusted left for 4rem width of first col (w-16)
+    const secondColStickyHeader = `${headerCellStyle} text-primary dark:text-sky-300 ${stickyHeaderBase} left-0 w-96 text-left`; // Adjusted left for 4rem width of first col (w-16)
 
     const modelAvgScoreHeaderBase = "border-x border-b border-border dark:border-slate-700 px-2 py-1.5 text-center text-[10px]";
     const firstColModelAvgSticky = `${modelAvgScoreHeaderBase} font-semibold text-primary/80 dark:text-sky-300/80 sticky left-0 z-20 bg-muted/70 dark:bg-slate-800/70 w-16`;
-    const secondColModelAvgSticky = `${modelAvgScoreHeaderBase} font-semibold text-primary/80 dark:text-sky-300/80 sticky left-0 z-20 bg-muted/70 dark:bg-slate-800/70 left-16 w-[25%]`;
+    const secondColModelAvgSticky = `${modelAvgScoreHeaderBase} font-semibold text-primary/80 dark:text-sky-300/80 sticky left-0 z-20 bg-muted/70 dark:bg-slate-800/70 w-96`;
 
     return (
         <div className="overflow-x-auto rounded-md ring-1 ring-border dark:ring-slate-700 shadow-md">
-            <table className="min-w-full border-collapse text-xs table-fixed">
+            <table className="border-collapse text-xs table-fixed">
                 <thead>
                     {/* Row 1: M-Indices */}
                     <tr className="bg-muted dark:bg-slate-800">
@@ -287,7 +287,7 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                         })}
                     </tr>
                     {/* Row 3: Model Avg Scores */}
-                    <tr className="bg-muted/70 dark:bg-slate-800/70 backdrop-blur-sm">
+                    <tr className="bg-muted/70 dark:bg-slate-800/70">
                         <th className={firstColModelAvgSticky}>Model Avg</th>
                         <th className={secondColModelAvgSticky}></th>
                         {localSortedModels.map(modelId => {
@@ -330,13 +330,13 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                                         <span className="text-muted-foreground dark:text-slate-500">-</span>
                                     )}
                                 </td>
-                                <td className="border-x border-border dark:border-slate-700 px-3 py-2 text-left align-middle sticky left-16 z-10 bg-card/90 dark:bg-slate-800/90 hover:bg-muted/60 dark:hover:bg-slate-700/50 w-[25%]">
+                                <td className="border-x border-border dark:border-slate-700 px-3 py-2 text-left align-middle sticky left-0 z-10 bg-card/90 dark:bg-slate-800/90 hover:bg-muted/60 dark:hover:bg-slate-700/50 w-96">
                                     <Link
                                         href={`/analysis/${encodeURIComponent(configId)}/${encodeURIComponent(runLabel)}/${encodeURIComponent(safeTimestampFromParams)}?prompt=${encodeURIComponent(promptId)}`}
                                         className="block text-primary dark:text-sky-400 hover:text-primary/80 dark:hover:text-sky-300 hover:underline cursor-pointer text-xs"
                                         title={`View details for: ${getPromptText(promptId)}`}
                                     >
-                                        <span className="text-xs text-muted-foreground dark:text-slate-500">
+                                        <span className="block truncate text-xs text-muted-foreground dark:text-slate-500">
                                             {promptId}
                                         </span>
                                         <span className="whitespace-normal line-clamp-1">
@@ -398,16 +398,17 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                                                     }}
                                                 />
                                             )}
-                                            <div className={`flex items-center gap-2 px-2 py-1 h-full ${onCellClick ? "hover:bg-muted/70 dark:hover:bg-slate-700/60 transition-all duration-150" : ""}`}>
+                                            <div className={`relative flex items-center px-2 py-1 h-full ${onCellClick ? "hover:bg-muted/70 dark:hover:bg-slate-700/60 transition-all duration-150" : ""}`}>
                                                 <div className="flex-grow">
                                                     {renderSegments(promptId, modelId)}
                                                 </div>
-                                                <div className="w-5 text-right flex-shrink-0">
-                                                    <span className="font-mono text-[11px] text-muted-foreground dark:text-slate-400">
-                                                        {cellScoreNum !== null ? (cellScoreNum * 100).toFixed(0) : '-'}
-                                                        {cellScoreNum !== null && <span className="text-[9px] opacity-70">%</span>}
-                                                    </span>
-                                                </div>
+                                                {cellScoreNum !== null && (
+                                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                        <span className="opacity-80 font-mono text-xs font-semibold text-white/90  rounded-sm px-1 py-0.5">
+                                                            {(cellScoreNum * 100).toFixed(0)}<span className="text-[9px] ">%</span>
+                                                        </span>
+                                                    </div>
+                                                )}
                                             </div>
                                         </td>
                                     );

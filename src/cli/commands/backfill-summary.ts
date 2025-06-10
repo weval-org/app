@@ -34,21 +34,13 @@ async function actionBackfillSummary(options: { verbose?: boolean }) {
         logger.info(`Found ${configIds.length} configuration IDs to process.`);
 
         for (const configId of configIds) {
-            if (options.verbose) {
-                logger.info(`Processing config ID: ${configId}`);
-            }
             const runs = await listRunsForConfig(configId);
-            if (!runs || runs.length === 0) {
-                if (options.verbose) {
-                    logger.info(`No runs found for config ID: ${configId}`);
-                }
+            if (runs.length === 0 && options.verbose) {
+                logger.info(`- No runs found for config ${configId}, skipping.`);
                 continue;
             }
-
             totalConfigsProcessed++;
-            if (options.verbose) {
-                logger.info(`Found ${runs.length} runs for config ID: ${configId}`);
-            }
+            logger.info(`Processing ${runs.length} runs for config: ${configId}...`);
 
             for (const runInfo of runs) {
                 const runFileName = runInfo.fileName;
@@ -58,6 +50,12 @@ async function actionBackfillSummary(options: { verbose?: boolean }) {
                 try {
                     const resultData = await getResultByFileName(configId, runFileName) as FetchedComparisonData;
                     if (resultData) {
+                        // FIX: Always trust the timestamp parsed from the filename, as the data inside older files may be incorrect.
+                        // The runInfo object from listRunsForConfig already contains the correctly parsed safe timestamp.
+                        if (runInfo.timestamp) {
+                            resultData.timestamp = runInfo.timestamp;
+                        }
+
                         // Validate essential fields for updateSummaryDataWithNewRun
                         if (!resultData.configId || !resultData.runLabel || !resultData.timestamp) {
                             logger.warn(`  Skipping run file ${runFileName} for config ${configId} due to missing essential fields (configId, runLabel, or timestamp) in its content.`);

@@ -6,6 +6,7 @@ import { getEffectiveModelId, getUniqueModelIds } from '@/cli/utils/config-utils
 import { EmbeddingEvaluator } from '@/cli/evaluators/embedding-evaluator';
 import { LLMCoverageEvaluator } from '@/cli/evaluators/llm-coverage-evaluator';
 import { saveResult as saveResultToStorage } from '@/lib/storageService';
+import { toSafeTimestamp } from '@/app/utils/timestampUtils';
 
 // Logger type, can be refined or passed as a generic
 type Logger = ReturnType<typeof getConfig>['logger'];
@@ -211,6 +212,7 @@ async function aggregateAndSaveResults(
     const effectiveModels = Array.from(effectiveModelsSet).sort();
 
     const currentTimestamp = new Date().toISOString();
+    const safeTimestamp = toSafeTimestamp(currentTimestamp);
 
     // Upstream validation in loadAndValidateConfig (run-config.ts) ensures that
     // (config.id OR config.configId) is a valid string,
@@ -233,7 +235,7 @@ async function aggregateAndSaveResults(
         configId: resolvedConfigId,
         configTitle: resolvedConfigTitle,
         runLabel,
-        timestamp: currentTimestamp,
+        timestamp: safeTimestamp,
         config: config, // This config still has promptText and messages, which is fine
         evalMethodsUsed: evalMethodsUsed,
         effectiveModels: effectiveModels,
@@ -251,7 +253,6 @@ async function aggregateAndSaveResults(
         errors: Object.keys(errors).length > 0 ? errors : undefined,
     };
 
-    const safeTimestamp = currentTimestamp.replace(/[:.]/g, '-');
     const fileName = `${runLabel}_${safeTimestamp}_comparison.json`;
 
     try {

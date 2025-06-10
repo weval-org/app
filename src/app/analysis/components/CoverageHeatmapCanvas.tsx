@@ -17,7 +17,7 @@ type CoverageResult = {
     pointAssessments?: PointAssessment[];
 } | { error: string } | null;
 
-type AllCoverageScores = Record<string, Record<string, CoverageResult>>; // promptId -> modelId -> CoverageResult
+export type AllCoverageScores = Record<string, Record<string, CoverageResult>>; // promptId -> modelId -> CoverageResult
 
 interface CoverageHeatmapCanvasProps {
     allCoverageScores: AllCoverageScores | undefined | null;

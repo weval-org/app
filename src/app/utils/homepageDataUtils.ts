@@ -5,6 +5,10 @@ import {
 import { AggregateStatsData } from '@/app/components/AggregateStatsDisplay';
 import { PotentialDriftInfo } from '@/app/components/ModelDriftIndicator';
 
+// Re-exporting this from the original source for use in the API route.
+export type { AllCoverageScores } from '@/app/analysis/components/CoverageHeatmapCanvas'; 
+import { AllCoverageScores } from '@/app/analysis/components/CoverageHeatmapCanvas';
+
 export interface EnhancedRunInfo {
   runLabel: string; 
   timestamp: string; 
@@ -14,6 +18,8 @@ export interface EnhancedRunInfo {
   hybridScoreStats?: { average: number | null; stddev: number | null };
   perModelHybridScores?: Map<string, { average: number | null; stddev: number | null }>;
   tags?: string[];
+  allCoverageScores?: AllCoverageScores | null;
+  models?: string[];
 }
 
 export interface EnhancedComparisonConfigInfo {

@@ -10,6 +10,8 @@ export async function GET(
 ) {
     const params = await context.params;
     const { configId } = params;
+    const { searchParams } = new URL(request.url);
+    const runLabelFilter = searchParams.get('runLabel');
 
     if (!configId || typeof configId !== 'string') {
         return NextResponse.json({ error: 'Config ID must be a string' }, { status: 400 });
@@ -87,8 +89,14 @@ export async function GET(
             return NextResponse.json({ error: `Could not retrieve any run data or metadata for configId ${configId}.` }, { status: 404 });
         }
 
+        let finalRuns = runsForResponse;
+        if (runLabelFilter && finalRuns) {
+            finalRuns = finalRuns.filter(run => run.runLabel === runLabelFilter);
+            console.log(`[API /api/runs/[configId]] Filtered for runLabel '${runLabelFilter}', sending ${finalRuns.length} runs.`);
+        }
+
         return NextResponse.json({ 
-            runs: runsForResponse, 
+            runs: finalRuns, 
             configTitle, 
             configDescription, 
             configTags 

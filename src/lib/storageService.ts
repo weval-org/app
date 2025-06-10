@@ -20,6 +20,7 @@ import {
   calculateHeadlineStats,
   calculatePotentialModelDrift,
 } from '@/cli/utils/summaryCalculationUtils';
+import { fromSafeTimestamp } from '@/app/utils/timestampUtils';
 
 const storageProvider = process.env.STORAGE_PROVIDER || (process.env.NODE_ENV === 'development' ? 'local' : 's3'); // Restored
 
@@ -82,7 +83,7 @@ type SerializableScoreMap = Record<string, { average: number | null; stddev: num
 
 interface SerializableEnhancedRunInfo extends Omit<EnhancedRunInfo, 'perModelHybridScores' /* removed perModelSemanticSimilarityToIdealScores */ > {
   perModelHybridScores?: SerializableScoreMap;
-  // perModelSemanticSimilarityToIdealScores?: SerializableScoreMap; // Removed as it's not in EnhancedRunInfo
+  // perModelSemanticSimilarityToIdealScores?: SerializableScoreMap;
 }
 
 interface SerializableEnhancedComparisonConfigInfo extends Omit<EnhancedComparisonConfigInfo, 'runs'> {
@@ -176,15 +177,6 @@ export async function saveHomepageSummary(summaryData: HomepageSummaryFileConten
         serializableRun.perModelHybridScores = {}; 
       }
 
-      // Removed serialization for perModelSemanticSimilarityToIdealScores
-      // const pmsstis = run.perModelSemanticSimilarityToIdealScores as unknown; 
-      // if (pmsstis instanceof Map) {
-      //   serializableRun.perModelSemanticSimilarityToIdealScores = Object.fromEntries(pmsstis as Map<string, { average: number | null; stddev: number | null } | number | null>);
-      // } else if (pmsstis && typeof pmsstis === 'object') {
-      //    serializableRun.perModelSemanticSimilarityToIdealScores = pmsstis as SerializableScoreMap;
-      // } else {
-      //   serializableRun.perModelSemanticSimilarityToIdealScores = {};
-      // }
       return serializableRun;
     }),
   }));
@@ -529,6 +521,35 @@ export function updateSummaryDataWithNewRun(
     IDEAL_MODEL_ID
   );
 
+  // Create a "lite" version of coverage scores for the summary to avoid bloat.
+  // This version includes average scores per prompt/model but excludes detailed pointAssessments.
+  const fullCoverageScores = newResultData.evaluationResults?.llmCoverageScores;
+  let liteCoverageScores: typeof fullCoverageScores | null = null;
+
+  if (fullCoverageScores) {
+    liteCoverageScores = {};
+    for (const promptId in fullCoverageScores) {
+      if (Object.prototype.hasOwnProperty.call(fullCoverageScores, promptId)) {
+        liteCoverageScores[promptId] = {};
+        const models = fullCoverageScores[promptId];
+        for (const modelId in models) {
+          if (Object.prototype.hasOwnProperty.call(models, modelId)) {
+            const result = models[modelId];
+            if (result && !('error' in result)) {
+              // Strip out the heavy pointAssessments array for the summary
+              liteCoverageScores[promptId][modelId] = {
+                keyPointsCount: result.keyPointsCount,
+                avgCoverageExtent: result.avgCoverageExtent,
+              };
+            } else if (result) {
+              liteCoverageScores[promptId][modelId] = result; // Keep error objects as is
+            }
+          }
+        }
+      }
+    }
+  }
+
   const newRunInfo: EnhancedRunInfo = {
     runLabel: runLabelFromNewResult, // Base runLabel from the result file content
     timestamp: timestampFromNewResult, // Timestamp from the result file content
@@ -537,6 +558,9 @@ export function updateSummaryDataWithNewRun(
     numModels: newResultData.effectiveModels?.filter(m => m !== IDEAL_MODEL_ID).length,
     hybridScoreStats: newRunHybridStats,
     perModelHybridScores: perModelScoresForNewRun,
+    // Pass through the "lite" coverage and model data for the heatmap
+    allCoverageScores: liteCoverageScores,
+    models: newResultData.effectiveModels?.filter(m => m !== IDEAL_MODEL_ID),
   };
 
   if (configIndex === -1) { // Config not found, add new entry
@@ -567,10 +591,10 @@ export function updateSummaryDataWithNewRun(
     
     existingConfig.runs.unshift(newRunInfo); // Add new run to the beginning
     // Ensure runs are sorted by timestamp, newest first.
-    existingConfig.runs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    existingConfig.runs.sort((a, b) => new Date(fromSafeTimestamp(b.timestamp)).getTime() - new Date(fromSafeTimestamp(a.timestamp)).getTime());
 
     // Update config metadata from the latest run's config object if available and this run is the latest
-    if (new Date(timestampFromNewResult).getTime() >= new Date(existingConfig.latestRunTimestamp).getTime()) {
+    if (new Date(fromSafeTimestamp(timestampFromNewResult)).getTime() >= new Date(fromSafeTimestamp(existingConfig.latestRunTimestamp)).getTime()) {
       existingConfig.latestRunTimestamp = timestampFromNewResult;
       existingConfig.id = newResultData.config?.id || existingConfig.id || newResultData.configId; // Prefer id from config object
       existingConfig.title = newResultData.config?.title || existingConfig.title || newResultData.configTitle; // Prefer title from config object
@@ -596,7 +620,7 @@ export function updateSummaryDataWithNewRun(
   }
 
   // Sort all configs by their latest run's timestamp (most recent first)
-  updatedSummary.sort((a, b) => new Date(b.latestRunTimestamp).getTime() - new Date(a.latestRunTimestamp).getTime());
+  updatedSummary.sort((a, b) => new Date(fromSafeTimestamp(b.latestRunTimestamp)).getTime() - new Date(fromSafeTimestamp(a.latestRunTimestamp)).getTime());
   return updatedSummary;
 }
 

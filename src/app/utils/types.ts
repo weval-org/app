@@ -71,13 +71,7 @@ export interface ComparisonDataV2 {
   allFinalAssistantResponses?: Record<string, Record<string, string>>;
   fullConversationHistories?: Record<string, Record<string, ConversationMessage[]>>;
   errors?: Record<string, Record<string, string>>;
-  evaluationResults?: EmbeddingEvaluationResult & LLMCoverageEvaluationResult & {
-    perModelHybridScores?: Map<string, { average: number | null; stddev: number | null }> | Record<string, { average: number | null; stddev: number | null }>;
-    perModelSemanticScores?: Map<string, { average: number | null; stddev: number | null }> | Record<string, { average: number | null; stddev: number | null }>;
-    promptStatistics?: PromptAnalysisResults; // This refers to the overall analysis (mostConsistentPrompt, etc.)
-    // other specific cross-cutting results
-  };
-  // Removed redundant top-level promptStatistics here, it's now inside evaluationResults
+  evaluationResults?: EvaluationResults;
   excludedModels?: string[];
 }
 
@@ -180,8 +174,3 @@ export interface PromptAggregatedStats {
         // ... any other per-prompt aggregated stats
     };
 }
-
-// Removed the second redundant export type block.
-// Types like ConfigPromptData, PointDefinition, ConversationMessage, etc.,
-// are already exported with their definitions.
-// EvaluationScore was removed as it was not defined. 

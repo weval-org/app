@@ -7,9 +7,10 @@ import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
-import { toSafeTimestamp, fromSafeTimestamp } from '@/app/utils/timestampUtils';
-import { EnhancedRunInfo } from '@/app/utils/homepageDataUtils';
+import { fromSafeTimestamp } from '@/app/utils/timestampUtils';
+import { AllCoverageScores, EnhancedRunInfo } from '@/app/utils/homepageDataUtils';
 import AnalysisPageHeader from '../../components/AnalysisPageHeader';
+import CoverageHeatmapCanvas from '../../components/CoverageHeatmapCanvas';
 
 interface RunInstanceInfo {
   configId: string;
@@ -18,12 +19,33 @@ interface RunInstanceInfo {
   safeTimestamp: string;
   displayDate: string;
   fileName: string;
+  hybridScoreStats?: {
+    average: number;
+    min: number;
+    max: number;
+    stdDev: number;
+    count: number;
+  } | null;
+  numPrompts?: number;
+  numModels?: number;
+  allCoverageScores?: AllCoverageScores | null;
+  models?: string[];
+  promptIds?: string[];
 }
 
 const ChevronRightIcon = dynamic(() => import('lucide-react').then(mod => mod.ChevronRight));
 const HistoryIcon = dynamic(() => import('lucide-react').then(mod => mod.History));
 const ListFilterIcon = dynamic(() => import('lucide-react').then(mod => mod.ListFilter));
 const Loader2Icon = dynamic(() => import('lucide-react').then(mod => mod.Loader2));
+
+// Helper function for score color (can be moved to utils if used elsewhere frequently)
+const getHybridScoreColor = (score: number | null | undefined): string => {
+  if (score === null || score === undefined || isNaN(score)) return 'text-muted-foreground dark:text-slate-400';
+  if (score >= 0.8) return 'text-emerald-600 dark:text-emerald-400';
+  if (score >= 0.6) return 'text-lime-600 dark:text-lime-400';
+  if (score >= 0.4) return 'text-amber-600 dark:text-amber-400';
+  return 'text-red-600 dark:text-red-400';
+};
 
 export default function RunLabelInstancesPage() {
   const router = useRouter();
@@ -44,7 +66,7 @@ export default function RunLabelInstancesPage() {
         setLoading(true);
         setError(null);
         try {
-          const response = await fetch(`/api/runs/${configId}`);
+          const response = await fetch(`/api/runs/${configId}?runLabel=${runLabel}`);
           if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.error || `API request failed with status ${response.status}`);
@@ -69,35 +91,41 @@ export default function RunLabelInstancesPage() {
             throw new Error(`No run data could be retrieved for Blueprint ID: ${configId}`);
           }
           if (allRunsForThisConfig.length === 0) {
-             throw new Error(`No runs found at all for Blueprint ID: ${configId}`);
+             throw new Error(`No runs found for this specific run label: ${runLabel}`);
           }
 
-          const filteredInstances = allRunsForThisConfig
-            .filter(run => run.runLabel === runLabel)
-            .map(run => {
+          const instances = allRunsForThisConfig
+            .map((run: EnhancedRunInfo) => {
               let displayDate = "Invalid Date";
               const isoTimestampToParse = fromSafeTimestamp(run.timestamp);
               const dateObj = new Date(isoTimestampToParse);
               if (!isNaN(dateObj.getTime())) {
                   displayDate = dateObj.toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
               }
+              const promptIds = run.allCoverageScores ? Object.keys(run.allCoverageScores) : [];
               return {
                 configId: configId,
                 runLabel: run.runLabel,
                 timestamp: run.timestamp,
                 safeTimestamp: run.timestamp,
                 displayDate,
-                fileName: run.fileName
+                fileName: run.fileName,
+                hybridScoreStats: run.hybridScoreStats,
+                numPrompts: run.numPrompts,
+                numModels: run.numModels,
+                allCoverageScores: run.allCoverageScores,
+                models: run.models,
+                promptIds: promptIds,
               } as RunInstanceInfo;
             });
           
-          if (filteredInstances.length === 0) {
-            setError(`No specific instances found for Run Label: ${runLabel} under Blueprint ID: ${configId}. This could mean the run label doesn\'t exist, or associated runs have missing timestamps.`);
+          if (instances.length === 0) {
+            setError(`No specific instances found for Run Label: ${runLabel} under Blueprint ID: ${configId}. This could mean the run label doesn't exist, or associated runs have missing timestamps.`);
           } else {
-             filteredInstances.sort((a, b) => new Date(b.timestamp!).getTime() - new Date(a.timestamp!).getTime());
+             instances.sort((a, b) => new Date(fromSafeTimestamp(b.timestamp!)).getTime() - new Date(fromSafeTimestamp(a.timestamp!)).getTime());
           }
 
-          setRunInstances(filteredInstances);
+          setRunInstances(instances);
         } catch (err) {
           console.error("Error fetching run instances:", err);
           setError(err instanceof Error ? err.message : 'An unknown error occurred');
@@ -110,8 +138,8 @@ export default function RunLabelInstancesPage() {
   }, [configId, runLabel]);
 
   const pageTitle = overallConfigTitle ? 
-    `Instances for Run: ${runLabel} (Blueprint: ${overallConfigTitle})` : 
-    `Instances for Run: ${runLabel} (Blueprint ID: ${configId})`;
+    `Instances for Run Label: ${runLabel} (Blueprint: ${overallConfigTitle})` : 
+    `Instances for Run Label: ${runLabel} (Blueprint ID: ${configId})`;
 
   const breadcrumbItems = useMemo(() => [
     { label: 'Home', href: '/' },
@@ -195,24 +223,53 @@ export default function RunLabelInstancesPage() {
                           Showing all recorded executions for Run Label <strong className="text-foreground dark:text-slate-300">{runLabel}</strong>. Each execution represents the same blueprint configuration run at a different time.
                       </p>
                       {runInstances.map((instance) => (
-                          <Card key={instance.timestamp} className="bg-card/80 dark:bg-slate-800/60 backdrop-blur-sm hover:shadow-lg transition-shadow duration-200 ring-1 ring-border dark:ring-slate-700/70">
-                              <Link href={`/analysis/${instance.configId}/${instance.runLabel}/${instance.safeTimestamp}`} className="block hover:bg-muted/30 dark:hover:bg-slate-700/40 transition-colors">
-                                  <CardHeader className="pb-3">
-                                      <div className="flex justify-between items-center">
-                                          <CardTitle className="text-base font-medium text-primary dark:text-sky-400">
+                          <Card key={instance.timestamp} className="bg-card/80 dark:bg-slate-800/60 backdrop-blur-sm hover:shadow-lg transition-shadow duration-200 ring-1 ring-border dark:ring-slate-700/70 overflow-hidden">
+                              <Link href={`/analysis/${instance.configId}/${instance.runLabel}/${instance.safeTimestamp}`} className="block hover:bg-muted/30 dark:hover:bg-slate-700/40 transition-colors p-4">
+                                  <div className="flex justify-between items-start">
+                                      <div>
+                                          <p className="text-base font-medium text-primary dark:text-sky-400">
                                               Executed: {instance.displayDate}
-                                          </CardTitle>
-                                          {ChevronRightIcon && <ChevronRightIcon className="w-5 h-5 text-muted-foreground dark:text-slate-400" />}
+                                          </p>
+                                          <p className="text-xs text-muted-foreground dark:text-slate-500 mt-1">
+                                            Filename: {instance.fileName}
+                                          </p>
                                       </div>
-                                  </CardHeader>
-                                  <CardContent>
-                                      <p className="text-xs text-muted-foreground dark:text-slate-500">
-                                          Timestamp (ISO): {instance.timestamp || 'N/A'} (Safe for URL: {instance.safeTimestamp})
-                                      </p>
-                                       <p className="text-xs text-muted-foreground dark:text-slate-500 mt-1">
-                                          Filename: {instance.fileName}
-                                      </p>
-                                  </CardContent>
+                                       <div className="flex items-center space-x-6 text-right">
+                                           {instance.allCoverageScores && instance.models && instance.promptIds && instance.models.length > 0 && instance.promptIds.length > 0 && (
+                                              <div className="flex-shrink-0 w-24 h-16 mr-4">
+                                                  <CoverageHeatmapCanvas 
+                                                      allCoverageScores={instance.allCoverageScores}
+                                                      models={instance.models}
+                                                      promptIds={instance.promptIds}
+                                                      width={96}
+                                                      height={64}
+                                                      className="rounded-sm border border-border/50 dark:border-slate-700"
+                                                  />
+                                              </div>
+                                            )}
+                                          {instance.hybridScoreStats?.average !== undefined && instance.hybridScoreStats?.average !== null && (
+                                            <div className="flex flex-col items-end w-28">
+                                              <p className="text-xs text-muted-foreground dark:text-slate-400">Avg. Hybrid Score</p>
+                                              <p className={`text-xl font-semibold ${getHybridScoreColor(instance.hybridScoreStats.average)}`}>
+                                                {(instance.hybridScoreStats.average * 100).toFixed(1)}%
+                                              </p>
+                                            </div>
+                                          )}
+                                           {instance.numModels !== undefined && (
+                                            <div className="flex flex-col items-end">
+                                              <p className="text-xs text-muted-foreground dark:text-slate-400">Models</p>
+                                              <p className="text-xl font-semibold text-foreground dark:text-slate-200">{instance.numModels}</p>
+                                            </div>
+                                          )}
+                                          {instance.numPrompts !== undefined && (
+                                            <div className="flex flex-col items-end">
+                                              <p className="text-xs text-muted-foreground dark:text-slate-400">Test Cases</p>
+                                              <p className="text-xl font-semibold text-foreground dark:text-slate-200">{instance.numPrompts}</p>
+                                            </div>
+                                          )}
+                                          {ChevronRightIcon && <ChevronRightIcon className="w-5 h-5 text-muted-foreground dark:text-slate-400 self-center ml-2" />}
+                                      </div>
+                                  </div>
                               </Link>
                           </Card>
                       ))}
