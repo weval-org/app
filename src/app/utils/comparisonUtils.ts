@@ -2,7 +2,7 @@
 
 // Utility functions and constants for the Beta Comparison feature
 
-import type { ComparisonDataV2 } from './types';
+import type { EvaluationResults } from './types';
 
 export const IDEAL_MODEL_ID = 'IDEAL_BENCHMARK';
 
@@ -79,7 +79,7 @@ export const findSimilarityExtremes = (matrix: Record<string, Record<string, num
  * Excludes the IDEAL_MODEL_ID.
  */
 export const calculateOverallCoverageExtremes = (
-  coverageScores: ComparisonDataV2['evaluationResults']['llmCoverageScores'],
+  coverageScores: EvaluationResults['llmCoverageScores'],
   models: string[]
 ): { bestCoverage: { modelId: string; avgScore: number } | null; worstCoverage: { modelId: string; avgScore: number } | null } => {
   if (!coverageScores || models.length === 0) {
@@ -143,8 +143,8 @@ export const calculateOverallCoverageExtremes = (
  */
 export const calculateHybridScoreExtremes = (
   // Assumes perPromptSimilarities format for the matrix input
-  similarityMatrix: ComparisonDataV2['evaluationResults']['perPromptSimilarities'],
-  coverageScores: ComparisonDataV2['evaluationResults']['llmCoverageScores'],
+  similarityMatrix: EvaluationResults['perPromptSimilarities'],
+  coverageScores: EvaluationResults['llmCoverageScores'],
   models: string[],
   idealModelId: string = IDEAL_MODEL_ID
 ): { bestHybrid: { modelId: string; avgScore: number } | null; worstHybrid: { modelId: string; avgScore: number } | null } => {
@@ -175,12 +175,13 @@ export const calculateHybridScoreExtremes = (
       // Get similarity between modelId and idealModelId for this specific prompt
       const simData = promptSimData?.[modelId]?.[idealModelId] ?? promptSimData?.[idealModelId]?.[modelId];
 
-      const isValidCov = covData && !('error' in covData) && typeof covData.avgCoverageExtent === 'number' && !isNaN(covData.avgCoverageExtent) && covData.avgCoverageExtent >= 0;
+      const covScore = (covData && !('error' in covData) && typeof covData.avgCoverageExtent === 'number' && !isNaN(covData.avgCoverageExtent)) ? covData.avgCoverageExtent : null;
+
+      const isValidCov = covScore !== null && covScore >= 0;
       const isValidSim = typeof simData === 'number' && !isNaN(simData) && simData >= 0;
 
       if (isValidCov && isValidSim) {
-        const covScore = covData.avgCoverageExtent;
-        const simScore = simData;
+        const simScore = simData; // simData is known to be a number here
         const hybridScore = Math.sqrt(simScore * covScore);
         
         const current = modelHybridScores.get(modelId)!;
@@ -226,7 +227,7 @@ export const calculateHybridScoreExtremes = (
  * Returns the average score as a percentage (0-100) or null if no valid scores found.
  */
 export const calculateOverallAverageCoverage = (
-  allCoverageScores: ComparisonDataV2['evaluationResults']['llmCoverageScores'],
+  allCoverageScores: EvaluationResults['llmCoverageScores'],
   models: string[],
   promptIds: string[]
 ): { average: number | null; stddev: number | null } => {
@@ -272,8 +273,8 @@ export const calculateOverallAverageCoverage = (
  * Averages these hybrid scores across all models (excluding IDEAL_BENCHMARK) and all prompts.
  */
 export const calculateAverageHybridScoreForRun = (
-  perPromptSimilarities: ComparisonDataV2['evaluationResults']['perPromptSimilarities'],
-  llmCoverageScores: ComparisonDataV2['evaluationResults']['llmCoverageScores'],
+  perPromptSimilarities: EvaluationResults['perPromptSimilarities'],
+  llmCoverageScores: EvaluationResults['llmCoverageScores'],
   effectiveModels: string[],
   promptIds: string[],
   idealModelId: string = IDEAL_MODEL_ID

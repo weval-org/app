@@ -1,4 +1,4 @@
-import { ComparisonDataV2, ComparisonDataV2 as FetchedComparisonData } from '@/app/utils/types';
+import { ComparisonDataV2 as FetchedComparisonData, EvaluationResults } from '@/app/utils/types';
 
 // Helper function to calculate standard deviation
 export function calculateStandardDeviation(numbers: number[]): number | null {
@@ -9,8 +9,8 @@ export function calculateStandardDeviation(numbers: number[]): number | null {
 }
 
 export function calculateAverageHybridScoreForRun(
-  perPromptSimilarities: FetchedComparisonData['evaluationResults']['perPromptSimilarities'],
-  llmCoverageScores: FetchedComparisonData['evaluationResults']['llmCoverageScores'],
+  perPromptSimilarities: EvaluationResults['perPromptSimilarities'],
+  llmCoverageScores: EvaluationResults['llmCoverageScores'],
   effectiveModels: FetchedComparisonData['effectiveModels'],
   promptIds: FetchedComparisonData['promptIds'],
   idealModelId: string
@@ -55,8 +55,8 @@ export function calculateAverageHybridScoreForRun(
 
 // Function to calculate per-model hybrid scores for a single run
 export function calculatePerModelHybridScoresForRun(
-  perPromptSimilarities: FetchedComparisonData['evaluationResults']['perPromptSimilarities'],
-  llmCoverageScores: FetchedComparisonData['evaluationResults']['llmCoverageScores'],
+  perPromptSimilarities: EvaluationResults['perPromptSimilarities'],
+  llmCoverageScores: EvaluationResults['llmCoverageScores'],
   effectiveModels: FetchedComparisonData['effectiveModels'],
   promptIds: FetchedComparisonData['promptIds'],
   idealModelId: string

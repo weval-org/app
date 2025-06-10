@@ -163,6 +163,7 @@ export interface EvaluationResults {
     overallAverageCoverageStats?: { average: number | null; stddev: number | null } | null;
     overallAverageHybridScore?: number | null;
     overallHybridScoreStdDev?: number | null;
+    promptStatistics?: PromptAnalysisResults;
 }
 
 // Data for individual prompt analysis (e.g., word counts, char counts per prompt)
