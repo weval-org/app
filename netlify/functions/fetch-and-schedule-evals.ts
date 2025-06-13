@@ -7,6 +7,7 @@ import { resolveModelsInConfig, SimpleLogger } from "@/lib/config-utils";
 
 const EVAL_CONFIGS_REPO_API_URL = "https://api.github.com/repos/civiceval/configs/contents/blueprints";
 const MODEL_COLLECTIONS_REPO_API_URL_BASE = "https://api.github.com/repos/civiceval/configs/contents/models";
+const REPO_COMMITS_API_URL = "https://api.github.com/repos/civiceval/configs/commits/main";
 const ONE_WEEK_IN_MS = 7 * 24 * 60 * 60 * 1000;
 
 // Helper function to create a simple console-based logger with a prefix
@@ -41,6 +42,20 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
   }
 
   try {
+    // Fetch the latest commit SHA for the main branch first
+    let latestCommitSha: string | null = null;
+    try {
+      const commitResponse = await axios.get(REPO_COMMITS_API_URL, { headers: githubHeaders });
+      latestCommitSha = commitResponse.data.sha;
+      if (latestCommitSha) {
+        logger.info(`[fetch-and-schedule-evals] Fetched latest commit SHA for civiceval/configs@main: ${latestCommitSha}`);
+      } else {
+        logger.warn(`[fetch-and-schedule-evals] Could not determine latest commit SHA from API response.`);
+      }
+    } catch (commitError: any) {
+      logger.error(`[fetch-and-schedule-evals] Failed to fetch latest commit SHA: ${commitError.message}. Proceeding without it.`);
+    }
+
     const response = await axios.get(EVAL_CONFIGS_REPO_API_URL, { headers: githubHeaders });
     const files = response.data;
 
@@ -129,7 +144,10 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
 
             try {
                 await axios.post(executionUrl, 
-                    { config }, // Pass the MODIFIED config object with resolved models
+                    { 
+                      config, // Pass the MODIFIED config object with resolved models
+                      commitSha: latestCommitSha
+                    },
                     {
                         headers: { 'Content-Type': 'application/json' }
                     }

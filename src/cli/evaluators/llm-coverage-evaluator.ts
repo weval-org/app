@@ -11,6 +11,7 @@ import {
     PointDefinition,
     ConversationMessage,
     NormalizedPoint,
+    IndividualJudgement,
 } from '../types/comparison_v2';
 import { extractKeyPoints } from '../services/llm-evaluation-service';
 import { dispatchMakeApiCall } from '../../lib/llm-clients/client-dispatcher';
@@ -103,7 +104,124 @@ export class LLMCoverageEvaluator implements Evaluator {
     private async evaluateSinglePoint(
         modelResponseText: string,
         keyPointText: string,
-        promptContextText: string 
+        promptContextText: string,
+        judgeModels?: string[],
+        judgeMode?: 'failover' | 'consensus'
+    ): Promise<(PointwiseCoverageLLMResult & { judgeModelId: string, judgeLog: string[], individualJudgements?: IndividualJudgement[] }) | { error: string, judgeLog: string[] }> {
+        const effectiveJudgeMode = judgeMode || 'consensus';
+        this.logger.info(`[LLMCoverageEvaluator] Evaluating single point with mode: ${effectiveJudgeMode}`);
+        const modelsToTry: string[] = judgeModels && judgeModels.length > 0 ? judgeModels : [
+            'openrouter:google/gemini-2.5-flash-preview-05-20',
+            'openai:gpt-4.1-mini'
+        ];
+        
+        if (effectiveJudgeMode === 'consensus') {
+            return this.evaluateSinglePointConsensus(modelResponseText, keyPointText, promptContextText, modelsToTry);
+        } else {
+            return this.evaluateSinglePointFailover(modelResponseText, keyPointText, promptContextText, modelsToTry);
+        }
+    }
+
+    private async evaluateSinglePointConsensus(
+        modelResponseText: string,
+        keyPointText: string,
+        promptContextText: string,
+        modelsToTry: string[]
+    ): Promise<(PointwiseCoverageLLMResult & { judgeModelId: string, judgeLog: string[], individualJudgements?: IndividualJudgement[] }) | { error: string, judgeLog: string[] }> {
+        const judgeLog: string[] = [];
+        const pLimitFunction = (await import('p-limit')).default;
+        const judgeRequestLimit = pLimitFunction(5); // Concurrently request up to 5 judges
+        const successfulJudgements: (PointwiseCoverageLLMResult & { judgeModelId: string })[] = [];
+
+        const evaluationPromises = modelsToTry.map(modelId =>
+            judgeRequestLimit(async () => {
+                this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- [Consensus] Requesting judge: ${modelId} for KP: "${keyPointText.substring(0, 50)}..."`);
+                judgeLog.push(`[${modelId}] Starting evaluation.`);
+                const singleEvalResult = await this.requestIndividualJudge(modelResponseText, keyPointText, promptContextText, modelId);
+
+                if ('error' in singleEvalResult) {
+                    judgeLog.push(`[${modelId}] FAILED: ${singleEvalResult.error}`);
+                } else {
+                    judgeLog.push(`[${modelId}] SUCCEEDED. Score: ${singleEvalResult.coverage_extent}`);
+                    successfulJudgements.push({ ...singleEvalResult, judgeModelId: modelId });
+                }
+            })
+        );
+
+        await Promise.all(evaluationPromises);
+
+        if (successfulJudgements.length > 0) {
+            const totalScore = successfulJudgements.reduce((sum, judgement) => sum + judgement.coverage_extent, 0);
+            const avgScore = totalScore / successfulJudgements.length;
+            const consensusReflection = `Consensus from ${successfulJudgements.length} judge(s). Average score: ${avgScore.toFixed(2)}. See breakdown for individual reflections.`;
+            const consensusJudgeId = `consensus(${successfulJudgements.map(e => e.judgeModelId).join(', ')})`;
+            
+            judgeLog.push(`CONSENSUS: Averaged ${successfulJudgements.length} scores to get ${avgScore.toFixed(2)}.`);
+            this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- Consensus mode SUCCEEDED with ${successfulJudgements.length} judges.`);
+
+            return {
+                coverage_extent: parseFloat(avgScore.toFixed(2)),
+                reflection: consensusReflection,
+                judgeModelId: consensusJudgeId,
+                judgeLog,
+                individualJudgements: successfulJudgements.map(j => ({
+                    judgeModelId: j.judgeModelId,
+                    coverageExtent: j.coverage_extent,
+                    reflection: j.reflection
+                })),
+            };
+        } else {
+            const errorMsg = "All judges failed in consensus mode.";
+            this.logger.warn(`[LLMCoverageEvaluator-Pointwise] --- ${errorMsg}`);
+            judgeLog.push(`FINAL_ERROR: ${errorMsg}`);
+            return { error: errorMsg, judgeLog };
+        }
+    }
+
+    private async evaluateSinglePointFailover(
+        modelResponseText: string,
+        keyPointText: string,
+        promptContextText: string,
+        modelsToTry: string[]
+    ): Promise<(PointwiseCoverageLLMResult & { judgeModelId: string, judgeLog: string[] }) | { error: string, judgeLog: string[] }> {
+        const judgeLog: string[] = [];
+        for (let attempt = 1; attempt <= MAX_RETRIES_POINTWISE + 1; attempt++) {
+            for (const modelId of modelsToTry) {
+                this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- [Failover Attempt ${attempt}] Requesting judge: ${modelId} for KP: "${keyPointText.substring(0, 50)}..."`);
+                judgeLog.push(`[Attempt ${attempt}][${modelId}] Starting evaluation.`);
+                const singleEvalResult = await this.requestIndividualJudge(modelResponseText, keyPointText, promptContextText, modelId);
+                
+                if ('error' in singleEvalResult) {
+                    judgeLog.push(`[Attempt ${attempt}][${modelId}] FAILED: ${singleEvalResult.error}`);
+                    // Continue to next model
+                } else {
+                    judgeLog.push(`[Attempt ${attempt}][${modelId}] SUCCEEDED. Score: ${singleEvalResult.coverage_extent}`);
+                    this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- Failover mode SUCCEEDED with judge: ${modelId}`);
+                    return {
+                        ...singleEvalResult,
+                        judgeModelId: modelId,
+                        judgeLog
+                    };
+                }
+            }
+            if (attempt <= MAX_RETRIES_POINTWISE) {
+                this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- All models failed on attempt ${attempt}. Retrying in ${RETRY_DELAY_MS_POINTWISE}ms...`);
+                await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS_POINTWISE));
+            }
+        }
+
+        // If all attempts fail
+        const errorMsg = `All judges failed in failover mode after ${MAX_RETRIES_POINTWISE + 1} attempts.`;
+        this.logger.warn(`[LLMCoverageEvaluator-Pointwise] --- ${errorMsg}`);
+        judgeLog.push(`FINAL_ERROR: ${errorMsg}`);
+        return { error: errorMsg, judgeLog };
+    }
+
+    private async requestIndividualJudge(
+        modelResponseText: string,
+        keyPointText: string,
+        promptContextText: string,
+        modelId: string
     ): Promise<PointwiseCoverageLLMResult | { error: string }> {
         const pointwisePrompt = `
 Given the following <MODEL_RESPONSE> which was generated in response to the <ORIGINAL_PROMPT>:
@@ -140,82 +258,52 @@ Your output MUST strictly follow this XML format:
 
         const systemPrompt = `You are an expert evaluator. Your task is to assess how well a specific key point is covered by a given model response by providing a reflection and a coverage_extent score. 
 Focus solely on the provided key point, the model response, and the scoring guidelines. Adhere strictly to the XML output format specified in the user prompt.`;
-
-        this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- begin evaluateSinglePoint for KP: "${keyPointText.substring(0, 50)}..."`);
-
-        const modelsToTry: string[] = [
-            'openai:gpt-4o-mini',
-            'openrouter:google/gemini-2.5-flash-preview-05-20',
-            'openrouter:openai/gpt-4.1-mini',
-        ];
-
-        for (let attempt = 1; attempt <= MAX_RETRIES_POINTWISE + 1; attempt++) {
-            for (const modelId of modelsToTry) {
-                this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- evaluateSinglePoint (Attempt ${attempt}/${MAX_RETRIES_POINTWISE + 1}) with ${modelId} for KP: "${keyPointText.substring(0, 50)}..."`);
-                
-                try {
-                    const clientOptions: Omit<LLMApiCallOptions, 'modelName'> & { modelId: string } = {
-                        modelId: modelId,
-                        prompt: pointwisePrompt, 
-                        systemPrompt: systemPrompt,
-                        temperature: 0.0,
-                        maxTokens: 500,
-                        cache: true
-                    };
-
-                    const llmCallPromise = dispatchMakeApiCall(clientOptions);
-                    
-                    const timeoutPromise = new Promise<never>((_, reject) => 
-                        setTimeout(() => reject(new Error(`LLM call timed out after ${CALL_TIMEOUT_MS_POINTWISE}ms for ${modelId}`)), CALL_TIMEOUT_MS_POINTWISE)
-                    );
-                    
-                    const response = await Promise.race([llmCallPromise, timeoutPromise]);
-
-                    if (response.error) {
-                        this.logger.warn(`[LLMCoverageEvaluator-Pointwise] --- (Attempt ${attempt}) API error with ${modelId} for KP "${keyPointText.substring(0,50)}...": ${response.error}`);
-                        continue; 
-                    }
-
-                    if (!response.responseText || response.responseText.trim() === '') {
-                        this.logger.warn(`[LLMCoverageEvaluator-Pointwise] --- (Attempt ${attempt}) Empty response from ${modelId} for KP "${keyPointText.substring(0,50)}..."`);
-                        continue; 
-                    }
-
-                    const reflectionMatch = response.responseText.match(/<reflection>([\s\S]*?)<\/reflection>/);
-                    const extentMatch = response.responseText.match(/<coverage_extent>([\s\S]*?)<\/coverage_extent>/);
-
-                    if (!reflectionMatch || !extentMatch) {
-                        this.logger.warn(`[LLMCoverageEvaluator-Pointwise] --- (Attempt ${attempt}) Failed to parse XML from ${modelId} for KP "${keyPointText.substring(0,50)}...". Response: ${response.responseText.substring(0,300)}`);
-                        continue; 
-                    }
-
-                    const reflection = reflectionMatch[1].trim();
-                    const coverageExtentStr = extentMatch[1].trim();
-                    const coverage_extent = parseFloat(coverageExtentStr);
-
-                    if (isNaN(coverage_extent) || coverage_extent < 0 || coverage_extent > 1) {
-                        this.logger.warn(`[LLMCoverageEvaluator-Pointwise] --- (Attempt ${attempt}) Invalid coverage_extent value from ${modelId}: '${coverageExtentStr}'. Parsed as NaN or out of range.`);
-                        continue; 
-                    }
-
-                    this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- evaluateSinglePoint (Attempt ${attempt}) with ${modelId} SUCCEEDED for KP: "${keyPointText.substring(0, 50)}..."`);
-                    return { reflection, coverage_extent }; 
-
-                } catch (error: any) {
-                    this.logger.warn(`[LLMCoverageEvaluator-Pointwise] --- (Attempt ${attempt}) Client/Network error with ${modelId} for KP "${keyPointText.substring(0,50)}...": ${error.message || String(error)}`);
-                }
-            } 
-
-            if (attempt <= MAX_RETRIES_POINTWISE) {
-                this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- All models failed for KP "${keyPointText.substring(0,50)}..." on attempt ${attempt}. Retrying in ${RETRY_DELAY_MS_POINTWISE}ms...`);
-                await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS_POINTWISE));
-            } else {
-                 this.logger.error(`[LLMCoverageEvaluator-Pointwise] --- All models failed for KP "${keyPointText.substring(0,50)}..." after ${MAX_RETRIES_POINTWISE + 1} attempts.`);
-                 return { error: `LLM call failed for KP after ${MAX_RETRIES_POINTWISE + 1} attempts with all specified models.` };
-            }
-        } 
         
-        return { error: `evaluateSinglePoint failed unexpectedly after all retries for KP "${keyPointText.substring(0,50)}..."` };
+        try {
+             const clientOptions: Omit<LLMApiCallOptions, 'modelName'> & { modelId: string } = {
+                modelId: modelId,
+                prompt: pointwisePrompt, 
+                systemPrompt: systemPrompt,
+                temperature: 0.0,
+                maxTokens: 500,
+                cache: true
+            };
+
+            const llmCallPromise = dispatchMakeApiCall(clientOptions);
+            
+            const timeoutPromise = new Promise<never>((_, reject) => 
+                setTimeout(() => reject(new Error(`LLM call timed out after ${CALL_TIMEOUT_MS_POINTWISE}ms for ${modelId}`)), CALL_TIMEOUT_MS_POINTWISE)
+            );
+            
+            const response = await Promise.race([llmCallPromise, timeoutPromise]);
+
+            if (response.error) {
+                return { error: `API error: ${response.error}` };
+            }
+            if (!response.responseText || response.responseText.trim() === '') {
+                return { error: "Empty response" };
+            }
+
+            const reflectionMatch = response.responseText.match(/<reflection>([\s\S]*?)<\/reflection>/);
+            const extentMatch = response.responseText.match(/<coverage_extent>([\s\S]*?)<\/coverage_extent>/);
+
+            if (!reflectionMatch || !extentMatch) {
+                return { error: `Failed to parse XML. Response: ${response.responseText.substring(0,100)}...` };
+            }
+
+            const reflection = reflectionMatch[1].trim();
+            const coverageExtentStr = extentMatch[1].trim();
+            const coverage_extent = parseFloat(coverageExtentStr);
+
+            if (isNaN(coverage_extent) || coverage_extent < 0 || coverage_extent > 1) {
+                return { error: `Invalid coverage_extent value: '${coverageExtentStr}'` };
+            }
+            
+            return { reflection, coverage_extent };
+
+        } catch (error: any) {
+            return { error: `Client/Network error: ${error.message || String(error)}` };
+        }
     }
 
     // Helper to get string context from PromptData
@@ -249,6 +337,8 @@ Focus solely on the provided key point, the model response, and the scoring guid
             evaluationTasks.push(promptProcessingLimit(async () => {
                 const { promptData, config, effectiveModelIds } = input;
                 const promptConfig = config.prompts.find(p => p.id === promptData.promptId) as PromptConfig | undefined;
+                const judgeModels = config.evaluationConfig?.['llm-coverage']?.judgeModels;
+                const judgeMode = config.evaluationConfig?.['llm-coverage']?.judgeMode;
 
                 if (!promptConfig || (!promptConfig.idealResponse && !promptConfig.points)) { 
                     this.logger.info(`[LLMCoverageEvaluator] Skipping prompt ${promptData.promptId}: No ideal response or points provided.`);
@@ -268,7 +358,8 @@ Focus solely on the provided key point, the model response, and the scoring guid
                     const keyPointExtractionResult = await extractKeyPoints(
                         promptData.idealResponseText!,
                         promptContextStr,
-                        this.logger
+                        this.logger,
+                        judgeModels
                     );
 
                     if ('error' in keyPointExtractionResult || !keyPointExtractionResult.key_points || keyPointExtractionResult.key_points.length === 0) {
@@ -339,7 +430,7 @@ Focus solely on the provided key point, the model response, and the scoring guid
                             if (!point.isFunction) {
                                 // Handle string key point (current LLM-based evaluation)
                                 this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- Calling evaluateSinglePoint for string KP ${index + 1}/${normalizedPoints.length} for ${modelId} on ${promptData.promptId}`);
-                                const singleEvalResult = await this.evaluateSinglePoint(responseData.finalAssistantResponseText!, point.textToEvaluate!, promptContextStrEval);
+                                const singleEvalResult = await this.evaluateSinglePoint(responseData.finalAssistantResponseText!, point.textToEvaluate!, promptContextStrEval, judgeModels, judgeMode);
                                 
                                 if (!('error' in singleEvalResult)) {
                                     this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- DONE evaluateSinglePoint for string KP ${index + 1}/${normalizedPoints.length} for ${modelId} on ${promptData.promptId}. Score: ${singleEvalResult.coverage_extent}`);
@@ -349,6 +440,9 @@ Focus solely on the provided key point, the model response, and the scoring guid
                                         reflection: singleEvalResult.reflection,
                                         multiplier: point.multiplier,
                                         citation: point.citation,
+                                        judgeModelId: singleEvalResult.judgeModelId,
+                                        judgeLog: singleEvalResult.judgeLog,
+                                        individualJudgements: singleEvalResult.individualJudgements,
                                     } as PointAssessment;
                                 } else {
                                     this.logger.warn(`[LLMCoverageEvaluator-Pointwise] --- ERROR evaluateSinglePoint for string KP ${index + 1}/${normalizedPoints.length} for ${modelId} on ${promptData.promptId}: ${singleEvalResult.error}`);
@@ -359,6 +453,7 @@ Focus solely on the provided key point, the model response, and the scoring guid
                                         reflection: `Evaluation error for string point: ${singleEvalResult.error}`,
                                         multiplier: point.multiplier,
                                         citation: point.citation,
+                                        judgeLog: singleEvalResult.judgeLog,
                                     } as PointAssessment;
                                 }
                             } else {

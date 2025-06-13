@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import { execSync } from 'child_process';
 
 import { getConfig } from '../config';
 import fs from 'fs/promises';
@@ -287,6 +288,20 @@ async function actionV2(options: { config: string, runLabel?: string, evalMethod
         
         await loggerInstance.info(`Loaded blueprint ID: '${currentConfigId}', Title: '${currentTitle}' with resolved models.`);
 
+        let commitSha: string | undefined;
+        if (options.collectionsRepoPath) {
+            try {
+                const repoPath = path.resolve(options.collectionsRepoPath);
+                // Check if it's a git repository before running git command
+                await fs.access(path.join(repoPath, '.git'));
+                commitSha = execSync('git rev-parse HEAD', { cwd: repoPath, encoding: 'utf-8' }).trim();
+                loggerInstance.info(`Retrieved git commit SHA from collections repo: ${commitSha}`);
+            } catch (gitError: any) {
+                loggerInstance.warn(`Could not retrieve git commit SHA from ${options.collectionsRepoPath}: ${gitError.message}. This is expected if it's not a git repository.`);
+                commitSha = undefined;
+            }
+        }
+
         let runLabel = options.runLabel?.trim();
         const contentHash = generateConfigContentHash(config); // Hash is now based on resolved models
         let finalRunLabel: string;
@@ -344,7 +359,8 @@ async function actionV2(options: { config: string, runLabel?: string, evalMethod
                 loggerInstance, 
                 undefined, 
                 undefined, 
-                options.cache
+                options.cache,
+                commitSha,
             ); 
 
             // The pipeline now returns an object with the data and the filename/key it was saved under
@@ -395,6 +411,33 @@ async function actionV2(options: { config: string, runLabel?: string, evalMethod
                     newResultData, 
                     actualResultFileName
                 );
+
+                // --- BEGIN: Log Hybrid Score for the New Run ---
+                loggerInstance.info('--- Newly Calculated Hybrid Scores ---');
+                const newRunConfig = updatedConfigsArray.find(c => c.configId === newResultData.configId);
+                if (newRunConfig) {
+                    const newRun = newRunConfig.runs.find(r => r.runLabel === newResultData.runLabel && r.timestamp === newResultData.timestamp);
+                    if (newRun && newRun.perModelHybridScores) {
+                        loggerInstance.info(`Overall Run Hybrid Score Average: ${newRun.hybridScoreStats?.average?.toFixed(4)}`);
+                        loggerInstance.info('Per-Model Hybrid Score Averages:');
+                        const scoresToLog: Record<string, string> = {};
+                        newRun.perModelHybridScores.forEach((stats, modelId) => {
+                           scoresToLog[modelId] = stats.average !== null && stats.average !== undefined ? stats.average.toFixed(4) : 'N/A';
+                        });
+                        // Use console.table for nice formatting if possible, otherwise just log the object
+                        if (typeof console.table === 'function') {
+                            console.table(scoresToLog);
+                        } else {
+                            loggerInstance.info(JSON.stringify(scoresToLog, null, 2));
+                        }
+                    } else {
+                        loggerInstance.warn('Could not find the specific new run in the updated summary to log its hybrid scores.');
+                    }
+                } else {
+                    loggerInstance.warn('Could not find the new run\'s config in the updated summary to log its hybrid scores.');
+                }
+                loggerInstance.info('------------------------------------');
+                // --- END: Log Hybrid Score for the New Run ---
 
                 // Filter out configs with 'test' tag before calculating aggregate stats
                 // These stats are for public consumption, so 'test' items should always be excluded from the *calculation*

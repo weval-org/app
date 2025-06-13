@@ -61,6 +61,7 @@ export interface ComparisonDataV2 {
   runLabel: string;
   timestamp: string;
   description?: string;
+  sourceCommitSha?: string; // Link to the commit of the config file
   config: ConfigData;
   evalMethodsUsed: string[];
   effectiveModels: string[];
@@ -110,12 +111,24 @@ export interface LLMCoverageScoreData {
     avgCoverageExtent?: number;
 }
 
+// IndividualJudgement interface
+export interface IndividualJudgement {
+    judgeModelId: string;
+    coverageExtent: number;
+    reflection: string;
+}
+
 // Detailed assessment for a single key point - ALIGNED WITH BACKEND
 export interface PointAssessment {
     keyPointText: string;
     coverageExtent?: number;
     reflection?: string;
     error?: string;
+    multiplier?: number;
+    citation?: string;
+    judgeModelId?: string;
+    judgeLog?: string[];
+    individualJudgements?: IndividualJudgement[];
 }
 
 // Type for a coverage result, which could be data, an error, or null

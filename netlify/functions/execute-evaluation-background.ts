@@ -53,6 +53,7 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
   }
 
   const config = requestPayload.config as ComparisonConfig;
+  const commitSha = requestPayload.commitSha as string | undefined;
 
   if (!config || typeof config !== 'object' || (!config.id && !config.configId)) {
     logger.error("Invalid or missing 'config' object in payload, or missing 'id'/'configId'.", { payloadReceived: requestPayload });
@@ -71,6 +72,11 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
     const contentHash = generateConfigContentHash(config);
     const runLabel = contentHash; // For background functions, using hash directly is fine
     logger.info(`Generated runLabel (contentHash): ${runLabel} for Blueprint ID: ${currentId}`);
+    if (commitSha) {
+      logger.info(`Received commit SHA: ${commitSha} to associate with the run.`);
+    } else {
+      logger.warn(`No commit SHA received in payload. The resulting data will not be linked to a specific commit.`);
+    }
 
     const evalMethods: EvaluationMethod[] = ['embedding', 'llm-coverage']; // As simplified previously
     const useCache = true; // As simplified previously
@@ -87,7 +93,8 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
       logger, // Use the function-specific logger
       undefined, // outputDir override (not needed for S3)
       undefined, // fileNameOverride (not needed for S3)
-      useCache
+      useCache,
+      commitSha
     );
 
     let newResultData: FetchedComparisonData | null = null;

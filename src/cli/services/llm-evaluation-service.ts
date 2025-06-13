@@ -22,12 +22,14 @@ function getCacheKey(input: string): string {
  * @param idealResponse The ideal response text.
  * @param promptText The original prompt text for context.
  * @param logger The logger instance.
+ * @param judgeModels Optional array of models to use for key point extraction.
  * @returns A promise resolving to the extracted key points or an error object.
  */
 export async function extractKeyPoints(
     idealResponse: string,
     promptText: string,
-    logger: Logger
+    logger: Logger,
+    judgeModels?: string[]
 ): Promise<ExtractionResult | EvaluationError> {
     const cacheInput = `Prompt: ${promptText}\nIdeal Response: ${idealResponse}`;
     const cacheKey = getCacheKey(cacheInput);
@@ -55,9 +57,8 @@ ${idealResponse}
     const systemPrompt = `Your role is to extract the most pertinent pieces of content and advice covered in any given response to a prompt. You are trying to distil the key things from a response in a set of points. Be concise and focus on distinct aspects. Ensure each key point is enclosed in <key_point> and </key_point> tags.`;
 
     // Define default models to try for key point extraction. Can be any supported provider.
-    const modelsToTry: string[] = [
+    const modelsToTry: string[] = judgeModels && judgeModels.length > 0 ? judgeModels : [
         'openai:gpt-4o-mini',
-        'openrouter:openai/gpt-4.1-mini',
         'openrouter:google/gemini-1.5-flash-latest',
     ]; 
     // These should be sensible defaults if this function is ever called without specific models from a config.

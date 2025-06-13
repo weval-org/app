@@ -72,6 +72,12 @@ export interface ComparisonConfig {
     temperatures?: number[]; // Optional array of temperatures to run for each model/prompt
     prompts: PromptConfig[];
     tags?: string[]; // Added for categorization
+    evaluationConfig?: {
+        'llm-coverage'?: {
+            judgeModels?: string[];
+            judgeMode?: 'failover' | 'consensus';
+        }
+    }
 }
 
 export interface ModelResponseDetail {
@@ -102,13 +108,22 @@ export interface SimilarityScore {
     };
 }
 
+export interface IndividualJudgement {
+    judgeModelId: string;
+    coverageExtent: number;
+    reflection: string;
+}
+
 export interface PointAssessment {
-    keyPointText: string; // This will hold the `displayText` of the NormalizedPoint
+    keyPointText: string;
     coverageExtent?: number;
     reflection?: string;
     error?: string;
-    multiplier?: number;
+    multiplier: number;
     citation?: string;
+    judgeModelId?: string; // The model that made the final decision
+    judgeLog?: string[]; // A papertrail of evaluation attempts
+    individualJudgements?: IndividualJudgement[];
 }
 
 export type CoverageResult = ({
@@ -137,6 +152,8 @@ export interface FinalComparisonOutputV2 {
     configTitle: string;
     runLabel: string;
     timestamp: string;
+    description?: string;
+    sourceCommitSha?: string;
     config: ComparisonConfig;
     evalMethodsUsed: EvaluationMethod[];
     effectiveModels: string[];

@@ -60,6 +60,16 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
         </h1>
 
       </div>
+      
+      {contextualInfo?.description ? (
+        <div className="mt-2 text-sm text-muted-foreground dark:text-slate-400 max-w-4xl prose prose-sm dark:prose-invert">
+           <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
+              {contextualInfo.description}
+            </ReactMarkdown>
+        </div>
+      ) : <div className="mt-2 text-sm text-muted-foreground dark:text-slate-400 max-w-4xl prose prose-sm dark:prose-invert">
+        <p>No description available.</p>
+      </div>}
 
       {contextualInfo?.configTitle && !pageTitle.includes(contextualInfo.configTitle) && (
          <p className="text-sm text-muted-foreground dark:text-slate-400 mt-1">
@@ -70,14 +80,6 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
          <p className="text-sm text-muted-foreground dark:text-slate-400 mt-0.5">
            Run Label: <span className="font-medium text-foreground dark:text-slate-300">{contextualInfo.runLabel}</span>
          </p>
-      )}
-
-      {contextualInfo?.description && ReactMarkdown && RemarkGfmPlugin && (
-        <div className="mt-3.5 prose prose-xs sm:prose-sm dark:prose-invert max-w-none bg-card/30 dark:bg-slate-800/30 p-3 rounded-md ring-1 ring-border/50 dark:ring-slate-600/50 shadow-sm">
-          <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
-            {contextualInfo.description}
-          </ReactMarkdown>
-        </div>
       )}
 
       {contextualInfo?.tags && contextualInfo.tags.length > 0 && (

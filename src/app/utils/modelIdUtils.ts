@@ -26,7 +26,7 @@ export function parseEffectiveModelId(effectiveModelId: string): ParsedModelId {
   const tempMatch = remainingId.match(tempRegex);
   if (tempMatch) {
     temperature = parseFloat(tempMatch[1]);
-    remainingId = remainingId.replace(tempRegex, ''); // Remove temp part for further parsing
+    remainingId = remainingId.replace(tempRegex, '');
   }
 
   // Regex to capture [sys:value] at the end of the (potentially shortened) string
@@ -34,7 +34,7 @@ export function parseEffectiveModelId(effectiveModelId: string): ParsedModelId {
   const sysMatch = remainingId.match(sysRegex);
   if (sysMatch) {
     systemPromptHash = sysMatch[0]; // Store the full [sys:hash]
-    remainingId = remainingId.replace(sysRegex, ''); // Remove sys part
+    remainingId = remainingId.replace(sysRegex, '');
   }
   
   // What remains is the true base model ID (e.g., openai:gpt-4o-mini)

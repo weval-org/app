@@ -581,8 +581,6 @@ export function updateSummaryDataWithNewRun(
     const existingConfig = { ...updatedSummary[configIndex] }; // Shallow copy
     existingConfig.runs = [...existingConfig.runs]; // Shallow copy runs array
 
-    // Remove old entry for this runLabel if it exists (e.g., if re-running a blueprint with the same runLabel but new content hash/timestamp)
-    // A more robust way might be to use the full filename if it's guaranteed unique and contains the content hash.
     // For now, using runLabel and timestamp combination for uniqueness within a config's runs.
     const runExistsIndex = existingConfig.runs.findIndex(r => r.runLabel === newRunInfo.runLabel && r.timestamp === newRunInfo.timestamp);
     if (runExistsIndex !== -1) {

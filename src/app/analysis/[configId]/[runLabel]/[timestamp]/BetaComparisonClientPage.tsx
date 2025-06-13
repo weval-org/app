@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import SimilarityHeatmap from '@/app/analysis/components/SimilarityHeatmap'
 import SimilarityGraph from '@/app/analysis/components/SimilarityGraph'
 import DendrogramChart from '@/app/analysis/components/DendrogramChart'
@@ -50,6 +51,8 @@ const XCircle = dynamic(() => import("lucide-react").then((mod) => mod.XCircle))
 const Loader2 = dynamic(() => import("lucide-react").then((mod) => mod.Loader2))
 const HelpCircle = dynamic(() => import("lucide-react").then(mod => mod.HelpCircle))
 const CheckCircle2 = dynamic(() => import("lucide-react").then((mod) => mod.CheckCircle2))
+const GitCommit = dynamic(() => import("lucide-react").then((mod) => mod.GitCommit))
+const AlertTriangle = dynamic(() => import("lucide-react").then((mod) => mod.AlertTriangle))
 
 interface ModelEvaluationDetailModalData {
   modelId: string;
@@ -584,7 +587,43 @@ export default function BetaComparisonClientPage() {
   const promptContexts = data.promptContexts; 
   const allFinalAssistantResponses = data.allFinalAssistantResponses; 
 
-  const headerActions = data ? <DownloadResultsButton data={data} label={`${data.configTitle || configIdFromUrl} - ${data.runLabel || runLabel}${timestampFromUrl ? ' (' + formatTimestampForDisplay(fromSafeTimestamp(timestampFromUrl)) + ')' : ''}`} /> : null;
+  const headerActions = data ? (
+    <div className="flex items-center gap-2">
+        {data.sourceCommitSha ? (
+            <Button asChild variant="outline">
+                <Link href={`https://github.com/civiceval/configs/blob/${data.sourceCommitSha}/blueprints/${data.configId}.json`} target="_blank" rel="noopener noreferrer" title={`View blueprint at commit ${data.sourceCommitSha.substring(0, 7)}`}>
+                    <GitCommit className="w-4 h-4 mr-2" />
+                    View Blueprint on GitHub
+                </Link>
+            </Button>
+        ) : (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button asChild variant="outline">
+                      <Link href={`https://github.com/civiceval/configs/blob/main/blueprints/${data.configId}.json`} target="_blank" rel="noopener noreferrer">
+                          <GitCommit className="w-4 h-4 mr-2" />
+                          View Latest Blueprint
+                      </Link>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <div className="flex items-center">
+                    <AlertTriangle className="w-4 h-4 mr-2 text-amber-500" />
+                    <p>Links to latest version, not the exact one from this run.</p>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+        )}
+        <DownloadResultsButton data={data} label={`${data.configTitle || configIdFromUrl} - ${data.runLabel || runLabel}${timestampFromUrl ? ' (' + formatTimestampForDisplay(fromSafeTimestamp(timestampFromUrl)) + ')' : ''}`} />
+        <Button asChild variant="outline">
+            <Link href={`/api/comparison/${configIdFromUrl}/${runLabel}/${timestampFromUrl}/markdown`} download={`${data.configTitle || configIdFromUrl}_${data.runLabel || runLabel}.md`}>
+                Download Markdown
+            </Link>
+        </Button>
+    </div>
+  ) : null;
 
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-8">

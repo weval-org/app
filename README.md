@@ -157,6 +157,12 @@ Options:
   "concurrency": 5,
   "temperature": 0.3,
   "temperatures": [0.0, 0.5, 0.8],
+  "evaluationConfig": {
+    "llm-coverage": {
+      "judgeModels": ["openrouter:google/gemini-pro-1.5", "openai:gpt-4-turbo"],
+      "judgeMode": "consensus"
+    }
+  },
   "prompts": [
     {
       "id": "prompt-unique-id-1",
@@ -196,7 +202,7 @@ Options:
 
 **Note on `idealResponse` and `points`:**
 - An `idealResponse` serves as a benchmark. If provided, it can be used for semantic similarity comparison (`IDEAL_BENCHMARK` model) and as the basis for automatic key point extraction if `points` are not explicitly defined for the `llm-coverage` method.
-- The `points` array defines specific criteria for evaluation, especially with the `llm-coverage` method. Each item in the `points` array can be:
+- The `points` array defines specific criteria for rubric-based evaluation using the `llm-coverage` method. Each item in the `points` array can be:
     1.  A **full `Point` object**: This is the most explicit format, allowing for fine-grained control. A point must have either `text` or `fn`.
         -   `text` (string): The key point text to be evaluated by an LLM judge.
         -   `fn` (string): The name of a natively supported point function to execute.
@@ -205,11 +211,8 @@ Options:
         -   `citation` (string, optional): A note, URL, or reference explaining why this point is important. This is for documentation and is displayed in the UI.
     2.  A **string**: This is a shortcut for `{ "text": "your string here", "multiplier": 1 }`. This is the simplest way to define a standard, LLM-judged key point.
     3.  A **function definition tuple** `["functionName", arguments]`: This is a shortcut for `{ "fn": "functionName", "fnArgs": arguments, "multiplier": 1 }`.
--   **LLM-based "fuzzy" evaluation**: When using `text`-based points (either as a simple string or in a `Point` object), a highly capable LLM judge (e.g., a Gemini model) provides a nuanced assessment of whether the response covers the semantic meaning of the key point, even if the wording isn't exact. The LLM judge also generates a `reflection` (an explanation for its score), which provides explainability and is visible in the UI analysis. This method is powerful for assessing conceptual coverage.
--   **Function-based "exact" evaluation**: When using `fn`-based points, the evaluation is deterministic. Natively supported functions are located in `src/point-functions`. Initially, these include:
-    -   `["contains", "substring_to_find"]`: Returns `true` (score 1) if the LLM response text contains the provided `substring_to_find`, `false` (score 0) otherwise. Case-sensitive.
-    -   `["matches", "regex_pattern_string"]`: Returns `true` (score 1) if the LLM response text matches the provided JavaScript-style `regex_pattern_string`, `false` (score 0) otherwise. The regex string should be valid for `new RegExp("your_pattern_here")`.
--   These initial functions return boolean values, which are converted to scores of 0 or 1. Point functions can also return a numeric score directly between 0.0 and 1.0. If a function encounters an error or returns an invalid value, it will be handled and typically result in a score of 0 with an error noted in the results.
+-   **LLM-based "fuzzy" evaluation**: When using `text`-based points, a highly capable LLM judge provides a nuanced assessment of whether the response covers the semantic meaning of the key point, even if the wording isn't exact. The judge also generates a `reflection` (an explanation for its score), which is visible in the UI analysis. This is powerful for assessing conceptual coverage.
+-   **Function-based "exact" evaluation**: When using `fn`-based points, the evaluation is deterministic. Natively supported functions (in `src/point-functions`) include `contains` and `matches` (regex), which return a score of 1 for a match and 0 for no match. Point functions can also be written to return a numeric score directly between 0.0 and 1.0. If a function encounters an error, it results in a score of 0.
 
 **Updated `points` example:**
 ```json
@@ -368,6 +371,13 @@ This example demonstrates the `run_config` command for local use.
   ],
   "systemPrompt": "You are a helpful assistant. Provide clear and concise answers.",
   "concurrency": 5,
+  "temperatures": [0.0, 0.5, 0.8],
+  "evaluationConfig": {
+    "llm-coverage": {
+      "judgeModels": ["openrouter:google/gemini-pro-1.5", "openai:gpt-4-turbo"],
+      "judgeMode": "consensus"
+    }
+  },
   "prompts": [
     {
       "id": "philosophy-wisdom",
@@ -486,6 +496,13 @@ This example demonstrates the `run_config` command for local use.
   ],
   "systemPrompt": "You are a helpful assistant. Provide clear and concise answers.",
   "concurrency": 5,
+  "temperatures": [0.0, 0.5, 0.8],
+  "evaluationConfig": {
+    "llm-coverage": {
+      "judgeModels": ["openrouter:google/gemini-pro-1.5", "openai:gpt-4-turbo"],
+      "judgeMode": "consensus"
+    }
+  },
   "prompts": [
     {
       "id": "philosophy-wisdom",

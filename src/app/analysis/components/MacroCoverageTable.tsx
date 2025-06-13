@@ -11,6 +11,8 @@ const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.Alert
 
 // Outlier definition threshold
 const OUTLIER_THRESHOLD_STD_DEV = 1.5;
+// High disagreement threshold
+const HIGH_DISAGREEMENT_THRESHOLD_STD_DEV = 0.3; // StDev threshold for judge scores
 
 // Type definitions (can be shared or imported if defined centrally)
 interface PointAssessment {
@@ -20,6 +22,11 @@ interface PointAssessment {
     error?: string;
     multiplier?: number;
     citation?: string;
+    individualJudgements?: {
+        judgeModelId: string;
+        coverageExtent: number;
+        reflection: string;
+    }[];
 }
 type CoverageResult = {
     keyPointsCount: number;
@@ -339,7 +346,7 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                                         <span className="block truncate text-xs text-muted-foreground dark:text-slate-500">
                                             {promptId}
                                         </span>
-                                        <span className="whitespace-normal line-clamp-1">
+                                        <span className="whitespace-normal line-clamp-2">
                                             {getPromptText(promptId)}
                                         </span>
                                     </Link>
@@ -350,32 +357,54 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                                     if (result && !('error' in result) && typeof result.avgCoverageExtent === 'number' && !isNaN(result.avgCoverageExtent)) {
                                         cellScoreNum = result.avgCoverageExtent;
                                     }
-                                    let isOutlier = false;
-                                    let outlierReason = "";
+
+                                    let titleText = "";
+
+                                    // Check for outliers
                                     if (cellScoreNum !== null) {
                                         const pStats = promptStats.get(promptId);
-                                        let isRowOutlier = false;
                                         if (pStats && pStats.avg !== null && pStats.stdDev !== null && pStats.stdDev > 1e-9) { 
                                             if (Math.abs(cellScoreNum - pStats.avg) > OUTLIER_THRESHOLD_STD_DEV * pStats.stdDev) {
-                                                isRowOutlier = true;
+                                                titleText += `Outlier: Score (${(cellScoreNum * 100).toFixed(1)}%) deviates significantly from prompt average (${(pStats.avg * 100).toFixed(1)}%).`;
                                             }
                                         }
-                                        if (isRowOutlier) {
-                                            isOutlier = true;
-                                            outlierReason = pStats && pStats.avg !== null ? `Outlier: Score (${(cellScoreNum * 100).toFixed(1)}%) deviates significantly from prompt average (${(pStats.avg * 100).toFixed(1)}%).` : `Outlier: Score (${(cellScoreNum * 100).toFixed(1)}%) deviates significantly from prompt average.`;
+                                    }
+
+                                    // Check for high judge disagreement
+                                    let hasHighDisagreement = false;
+                                    if (result && !('error' in result) && result.pointAssessments) {
+                                        for (const assessment of result.pointAssessments) {
+                                            if (assessment.individualJudgements && assessment.individualJudgements.length > 1) {
+                                                const scores = assessment.individualJudgements.map(j => j.coverageExtent);
+                                                const n = scores.length;
+                                                const mean = scores.reduce((a, b) => a + b) / n;
+                                                const stdDev = Math.sqrt(scores.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b) / n);
+                                                
+                                                if (stdDev > HIGH_DISAGREEMENT_THRESHOLD_STD_DEV) {
+                                                    hasHighDisagreement = true;
+                                                    const disagreementDetails = `High Judge Disagreement: Found on key point "${assessment.keyPointText}". Scores: [${scores.join(', ')}], StdDev: ${stdDev.toFixed(2)}.`;
+                                                    if (titleText) titleText += '\\n---\\n';
+                                                    titleText += disagreementDetails;
+                                                    break; 
+                                                }
+                                            }
                                         }
                                     }
+
+                                    const isOutlier = titleText.includes('Outlier:');
+
                                     const cellClasses = [
                                         "border-x border-border dark:border-slate-700",
-                                        "p-0 align-middle", // Changed padding to 0
+                                        "p-0 align-middle",
                                         onCellClick ? "cursor-pointer" : "",
                                     ].filter(Boolean).join(" ");
+
                                     return (
                                         <td
                                             key={`${promptId}-${modelId}`}
                                             className={cellClasses}
-                                            style={isOutlier ? { position: 'relative' } : undefined}
-                                            title={isOutlier ? outlierReason : undefined}
+                                            style={{ position: 'relative' }}
+                                            title={titleText || undefined}
                                             onClick={() => {
                                                 if (onCellClick) {
                                                     onCellClick(promptId, modelId);
@@ -394,6 +423,23 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                                                         borderStyle: 'solid',
                                                         borderWidth: '5px 5px 0 0',
                                                         borderColor: 'rgba(239, 68, 68, 0.85) transparent transparent transparent',
+                                                        zIndex: 10,
+                                                    }}
+                                                />
+                                            )}
+                                            {hasHighDisagreement && (
+                                                <div
+                                                    title={titleText}
+                                                    style={{
+                                                        position: 'absolute',
+                                                        bottom: 0,
+                                                        right: 0,
+                                                        width: 0,
+                                                        height: 0,
+                                                        borderStyle: 'solid',
+                                                        transform: 'rotate(270deg)',
+                                                        borderWidth: '10px 0 0 10px',
+                                                        borderColor: 'transparent transparent transparent rgba(251, 191, 36, 0.9)', // Amber 400
                                                         zIndex: 10,
                                                     }}
                                                 />

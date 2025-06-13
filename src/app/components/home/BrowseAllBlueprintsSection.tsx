@@ -78,7 +78,7 @@ const BrowseAllBlueprintsSection = ({ blueprints }: { blueprints: BlueprintSumma
                             )}
                         </div>
                         {bp.description && (
-                            <p className="text-xs text-muted-foreground dark:text-slate-400 mb-3 leading-relaxed line-clamp-2 pr-4 group-hover:text-slate-600 dark:group-hover:text-slate-300" title={bp.description}>
+                            <p className="text-xs text-muted-foreground dark:text-slate-400 mb-3 leading-relaxed line-clamp-4 pr-4 group-hover:text-slate-600 dark:group-hover:text-slate-300" title={bp.description}>
                                 {Info && <Info className="w-3 h-3 mr-1 inline-block relative -top-px opacity-70"/>} 
                                 {bp.description}
                             </p>

@@ -142,7 +142,8 @@ async function aggregateAndSaveResults(
     allResponsesMap: Map<string, PromptResponseData>,
     evaluationResults: Partial<FinalComparisonOutputV2['evaluationResults'] & Pick<FinalComparisonOutputV2, 'extractedKeyPoints'>>,
     evalMethodsUsed: EvaluationMethod[],
-    logger: Logger
+    logger: Logger,
+    commitSha?: string,
 ): Promise<{ data: FinalComparisonOutputV2, fileName: string | null }> {
     logger.info('[PipelineService] Aggregating results...');
     logger.info(`[PipelineService] Received config.configId for saving: '${config.configId}'`);
@@ -236,6 +237,8 @@ async function aggregateAndSaveResults(
         configTitle: resolvedConfigTitle,
         runLabel,
         timestamp: safeTimestamp,
+        description: config.description,
+        sourceCommitSha: commitSha,
         config: config, // This config still has promptText and messages, which is fine
         evalMethodsUsed: evalMethodsUsed,
         effectiveModels: effectiveModels,
@@ -285,7 +288,8 @@ export async function executeComparisonPipeline(
     // Optional: allow passing pre-generated responses to skip generation
     existingResponsesMap?: Map<string, PromptResponseData>,
     forcePointwiseKeyEval?: boolean,
-    useCache: boolean = false
+    useCache: boolean = false,
+    commitSha?: string,
 ): Promise<{ data: FinalComparisonOutputV2, fileName: string | null }> {
     logger.info(`[PipelineService] executeComparisonPipeline started for configId: ${config.configId}, runLabel: ${runLabel}`);
     logger.info(`[PipelineService] Model response caching: ${useCache ?? false}`);
@@ -351,7 +355,8 @@ export async function executeComparisonPipeline(
         allResponsesMap,
         evaluationResultsAccumulator,
         evalMethods,
-        logger
+        logger,
+        commitSha,
     );
     logger.info(`[PipelineService] executeComparisonPipeline finished successfully. Results at: ${aggregatedResults.fileName}`);
     return aggregatedResults;
