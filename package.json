@@ -56,6 +56,8 @@
     "d3": "^7.9.0",
     "framer-motion": "^11.0.0",
     "inquirer": "^12.4.3",
+    "keyv": "^5.3.4",
+    "keyv-file": "^5.1.2",
     "lodash": "^4.17.21",
     "lucide-react": "^0.475.0",
     "ml-hclust": "^3.1.0",

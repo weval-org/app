@@ -56,8 +56,9 @@ const AlertTriangle = dynamic(() => import("lucide-react").then((mod) => mod.Ale
 
 interface ModelEvaluationDetailModalData {
   modelId: string;
-  assessments: ImportedPointAssessment[]; 
+  assessments: ImportedPointAssessment[];
   promptContext: string | ConversationMessage[];
+  promptDescription?: string;
   modelResponse: string;
   systemPrompt: string | null;
 }
@@ -326,7 +327,8 @@ export default function BetaComparisonClientPage() {
 
     const currentModelResponse = data.allFinalAssistantResponses[currentPromptId]?.[clickedModelId];
     const promptContextForModal = data.promptContexts[currentPromptId];
-    
+    const promptConfig = data.config.prompts.find(p => p.id === currentPromptId);
+
     const modelCoverageResult = data.evaluationResults?.llmCoverageScores?.[currentPromptId]?.[clickedModelId] as ImportedCoverageResult | undefined;
     const relevantAssessments = (modelCoverageResult && !('error' in modelCoverageResult)) ? (modelCoverageResult.pointAssessments || []) : [];
 
@@ -340,6 +342,7 @@ export default function BetaComparisonClientPage() {
       modelId: clickedModelId,
       assessments: relevantAssessments, // Pass all assessments for this model-prompt pair
       promptContext: promptContextForModal,
+      promptDescription: promptConfig?.description,
       modelResponse: currentModelResponse,
       systemPrompt: data.modelSystemPrompts?.[clickedModelId] || null
     });
@@ -351,29 +354,43 @@ export default function BetaComparisonClientPage() {
       return null;
     }
     const context = data.promptContexts[currentPromptId];
+    const promptConfig = data.config.prompts.find(p => p.id === currentPromptId);
 
-    if (typeof context === 'string') {
-      return <div className="text-card-foreground dark:text-slate-300 whitespace-pre-wrap">{context}</div>;
-    }
+    const renderContent = () => {
+        if (typeof context === 'string') {
+          return <div className="text-card-foreground dark:text-slate-300 whitespace-pre-wrap">{context}</div>;
+        }
 
-    if (Array.isArray(context)) {
-      if (context.length === 1 && context[0].role === 'user') {
-        return <div className="text-card-foreground dark:text-slate-300 whitespace-pre-wrap">{context[0].content}</div>;
-      }
-      if (context.length > 0) {
-        return (
-          <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar p-1 rounded bg-muted/30 dark:bg-slate-700/20">
-            {context.map((msg, index) => (
-              <div key={index} className={`p-2 rounded-md ${msg.role === 'user' ? 'bg-sky-100 dark:bg-sky-900/50' : 'bg-slate-100 dark:bg-slate-800/50'}`}>
-                <p className="text-xs font-semibold text-muted-foreground dark:text-slate-400 capitalize">{msg.role}</p>
-                <p className="text-sm text-card-foreground dark:text-slate-200 whitespace-pre-wrap">{msg.content}</p>
+        if (Array.isArray(context)) {
+          if (context.length === 1 && context[0].role === 'user') {
+            return <div className="text-card-foreground dark:text-slate-300 whitespace-pre-wrap">{context[0].content}</div>;
+          }
+          if (context.length > 0) {
+            return (
+              <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar p-1 rounded bg-muted/30 dark:bg-slate-700/20">
+                {context.map((msg, index) => (
+                  <div key={index} className={`p-2 rounded-md ${msg.role === 'user' ? 'bg-sky-100 dark:bg-sky-900/50' : 'bg-slate-100 dark:bg-slate-800/50'}`}>
+                    <p className="text-xs font-semibold text-muted-foreground dark:text-slate-400 capitalize">{msg.role}</p>
+                    <p className="text-sm text-card-foreground dark:text-slate-200 whitespace-pre-wrap">{msg.content}</p>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        );
-      }
+            );
+          }
+        }
+        return <div className="text-card-foreground dark:text-slate-300 whitespace-pre-wrap">{currentPromptDisplayText}</div>;
     }
-    return <div className="text-card-foreground dark:text-slate-300 whitespace-pre-wrap">{currentPromptDisplayText}</div>;
+
+    return (
+        <div className="space-y-4">
+            {promptConfig?.description && ReactMarkdown && RemarkGfm && (
+                <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground border-l-4 border-primary/20 pl-4 py-1">
+                    <ReactMarkdown remarkPlugins={[RemarkGfm]}>{promptConfig.description}</ReactMarkdown>
+                </div>
+            )}
+            {renderContent()}
+        </div>
+    )
   };
 
   const renderPromptSelector = () => {
@@ -456,6 +473,7 @@ export default function BetaComparisonClientPage() {
 
     const llmCoverageScoresTyped = data.evaluationResults?.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>> | undefined;
     const modelResult = llmCoverageScoresTyped?.[currentPromptId]?.[clickedModelId];
+    const promptConfig = data.config.prompts.find(p => p.id === currentPromptId);
 
     if (!modelResult || 'error' in modelResult || !modelResult.pointAssessments) {
         console.warn(`No valid assessments found for ${clickedModelId} on prompt ${currentPromptId}`);
@@ -466,6 +484,7 @@ export default function BetaComparisonClientPage() {
         modelId: clickedModelId,
         assessments: modelResult.pointAssessments,
         promptContext: data.promptContexts[currentPromptId],
+        promptDescription: promptConfig?.description,
         modelResponse: data.allFinalAssistantResponses[currentPromptId]?.[clickedModelId] || '',
         systemPrompt: data.modelSystemPrompts?.[clickedModelId] || data.config.systemPrompt || null,
     };
@@ -482,6 +501,7 @@ export default function BetaComparisonClientPage() {
 
     const llmCoverageScoresTyped = data.evaluationResults.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>>;
     const modelResult = llmCoverageScoresTyped[promptId]?.[modelId];
+    const promptConfig = data.config.prompts.find(p => p.id === promptId);
 
     if (!modelResult || 'error' in modelResult || !modelResult.pointAssessments) {
         console.warn(`No valid assessments found for ${modelId} on prompt ${promptId}`);
@@ -502,6 +522,7 @@ export default function BetaComparisonClientPage() {
         modelId: modelId,
         assessments: modelResult.pointAssessments,
         promptContext: promptContext,
+        promptDescription: promptConfig?.description,
         modelResponse: modelResponse ?? "Response text not found in result data. The data file may be missing the 'allFinalAssistantResponses' field.",
         systemPrompt: data.modelSystemPrompts?.[modelId] || data.config.systemPrompt || null,
     };
@@ -518,11 +539,13 @@ export default function BetaComparisonClientPage() {
       const firstPromptId = data.promptIds[0];
       const llmCoverageScoresTyped = data.evaluationResults?.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>> | undefined;
       const modelResult = llmCoverageScoresTyped?.[firstPromptId]?.[modelId];
+      const promptConfig = data.config.prompts.find(p => p.id === firstPromptId);
       
       const modalData: ModelEvaluationDetailModalData = {
           modelId: modelId,
           assessments: (modelResult && !('error' in modelResult)) ? modelResult.pointAssessments || [] : [],
           promptContext: data.promptContexts?.[firstPromptId] || `Context for ${firstPromptId} not found.`,
+          promptDescription: promptConfig?.description,
           modelResponse: data.allFinalAssistantResponses?.[firstPromptId]?.[modelId] || 'Response not available.',
           systemPrompt: data.modelSystemPrompts?.[modelId] || data.config.systemPrompt || null,
       };

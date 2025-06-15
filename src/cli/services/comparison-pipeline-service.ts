@@ -291,73 +291,62 @@ export async function executeComparisonPipeline(
     useCache: boolean = false,
     commitSha?: string,
 ): Promise<{ data: FinalComparisonOutputV2, fileName: string | null }> {
-    logger.info(`[PipelineService] executeComparisonPipeline started for configId: ${config.configId}, runLabel: ${runLabel}`);
-    logger.info(`[PipelineService] Model response caching: ${useCache ?? false}`);
-    logger.info(`[PipelineService] Evaluation methods: ${evalMethods.join(', ')}`);
-
-    let allResponsesMap: Map<string, PromptResponseData>;
-    if (existingResponsesMap) {
-        logger.info('[PipelineService] Using existing responses map.');
-        allResponsesMap = existingResponsesMap;
-    } else {
-        allResponsesMap = await generateAllResponses(config, logger, useCache ?? false);
-    }
+    logger.info(`[PipelineService] Starting comparison pipeline for configId: '${config.id || config.configId}' runLabel: '${runLabel}'`);
     
-    logger.info('[PipelineService] Preparing evaluators...');
-    const evaluationResultsAccumulator: Partial<FinalComparisonOutputV2['evaluationResults'] & Pick<FinalComparisonOutputV2, 'extractedKeyPoints'>> = {};
-    const evaluators: Evaluator[] = [];
+    // Step 1: Generate all model responses if not provided
+    const allResponsesMap = existingResponsesMap ?? await generateAllResponses(config, logger, useCache);
+    
+    // Step 2: Prepare for evaluation
+    const evaluationInputs: EvaluationInput[] = [];
+    const uniqueModelIdsAcrossAllPrompts = new Set<string>();
 
-    if (evalMethods.includes('embedding')) {
-        logger.info('[PipelineService] Adding EmbeddingEvaluator.');
-        evaluators.push(new EmbeddingEvaluator(logger));
-    }
-    if (evalMethods.includes('llm-coverage')) {
-        logger.info('[PipelineService] Adding LLMCoverageEvaluator.');
-        try {
-            evaluators.push(new LLMCoverageEvaluator(logger));
-        } catch (e: any) {
-            logger.error(`[PipelineService] Failed to instantiate LLMCoverageEvaluator: ${e.message}. LLM Coverage will be skipped.`);
-            evalMethods = evalMethods.filter(m => m !== 'llm-coverage');
-        }
-    }
-
-    if (evaluators.length === 0 && evalMethods.length > 0) {
-        logger.warn('[PipelineService] No valid evaluators configured or loaded for the specified methods. Only response generation (if applicable) will occur.');
-    } else if (evaluators.length > 0) {
-        logger.info('[PipelineService] Preparing evaluation input...');
-        const effectiveModelIds = getUniqueModelIds(allResponsesMap, config); // Pass config to include ideal if any prompt has it
-        const evaluationInputArray: EvaluationInput[] = Array.from(allResponsesMap.values()).map(promptData => ({
-            promptData,
-            config,
-            effectiveModelIds
-        }));
-        logger.info(`[PipelineService] Created ${evaluationInputArray.length} inputs for ${evaluators.length} evaluators.`);
-
-        for (const evaluator of evaluators) {
-            const evaluatorName = evaluator.getMethodName();
-            logger.info(`[PipelineService] Running evaluator: ${evaluatorName}...`);
-            try {
-                const resultPart = await evaluator.evaluate(evaluationInputArray);
-                logger.info(`[PipelineService] Evaluator ${evaluatorName} finished. Merging results...`);
-                Object.assign(evaluationResultsAccumulator, resultPart);
-                logger.info(`[PipelineService] Results merged for evaluator: ${evaluatorName}.`);
-            } catch (evalError: any) {
-                logger.error(`[PipelineService] Error during ${evaluatorName} evaluation: ${evalError.message}`);
-                // Decide if you want to stop the whole pipeline or just skip this evaluator
-            }
-        }
+    for (const promptData of allResponsesMap.values()) {
+        const modelIdsForThisPrompt = Array.from(promptData.modelResponses.keys());
+        modelIdsForThisPrompt.forEach(id => uniqueModelIdsAcrossAllPrompts.add(id));
+        
+        evaluationInputs.push({
+            promptData: promptData,
+            config: config,
+            effectiveModelIds: modelIdsForThisPrompt
+        });
     }
 
-    logger.info('[PipelineService] Aggregating and saving final results...');
-    const aggregatedResults = await aggregateAndSaveResults(
+    const allEffectiveModelIds = getUniqueModelIds(allResponsesMap, config);
+    
+    // Step 3: Run selected evaluation methods
+    // We can define evaluators here.
+    const evaluators: Evaluator[] = [
+        new EmbeddingEvaluator(logger),
+        new LLMCoverageEvaluator(logger, useCache), // Pass useCache to constructor
+    ];
+
+    const chosenEvaluators = evaluators.filter(e => evalMethods.includes(e.getMethodName()));
+    logger.info(`[PipelineService] Will run the following evaluators: ${chosenEvaluators.map(e => e.getMethodName()).join(', ')}`);
+    
+    let combinedEvaluationResults: Partial<FinalComparisonOutputV2['evaluationResults'] & Pick<FinalComparisonOutputV2, 'extractedKeyPoints'>> = {
+        llmCoverageScores: {},
+        similarityMatrix: {},
+        perPromptSimilarities: {},
+        extractedKeyPoints: {}
+    };
+
+    for (const evaluator of chosenEvaluators) {
+        logger.info(`[PipelineService] --- Running ${evaluator.getMethodName()} evaluator ---`);
+        const results = await evaluator.evaluate(evaluationInputs);
+        combinedEvaluationResults = { ...combinedEvaluationResults, ...results };
+        logger.info(`[PipelineService] --- Finished ${evaluator.getMethodName()} evaluator ---`);
+    }
+
+    // Step 4: Aggregate and save results
+    const finalResult = await aggregateAndSaveResults(
         config,
         runLabel,
         allResponsesMap,
-        evaluationResultsAccumulator,
+        combinedEvaluationResults,
         evalMethods,
         logger,
         commitSha,
     );
-    logger.info(`[PipelineService] executeComparisonPipeline finished successfully. Results at: ${aggregatedResults.fileName}`);
-    return aggregatedResults;
+    logger.info(`[PipelineService] executeComparisonPipeline finished successfully. Results at: ${finalResult.fileName}`);
+    return finalResult;
 } 

@@ -1,6 +1,8 @@
-import { LLMCoverageEvaluator } from '../llm-coverage-evaluator';
-import { EvaluationInput, PointDefinition, PromptConfig, ComparisonConfig, PromptResponseData, ModelResponseDetail, IDEAL_MODEL_ID, CoverageResult, ConversationMessage } from '@/cli/types/comparison_v2';
+import { LLMCoverageEvaluator } from '@/cli/evaluators/llm-coverage-evaluator';
+import { dispatchMakeApiCall } from '@/lib/llm-clients/client-dispatcher';
 import { getConfig } from '@/cli/config';
+import { getCache } from '@/lib/cache-service';
+import { EvaluationInput, PointDefinition, PromptConfig, ComparisonConfig, PromptResponseData, ModelResponseDetail, IDEAL_MODEL_ID, CoverageResult, ConversationMessage } from '@/cli/types/comparison_v2';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
@@ -40,12 +42,29 @@ jest.mock('@/point-functions', () => ({
     },
 }));
 
+jest.mock('../../config');
+jest.mock('../../services/llm-evaluation-service');
+jest.mock('../../../lib/llm-clients/client-dispatcher');
+jest.mock('../../../point-functions/contains');
+jest.mock('../../../lib/cache-service');
 
 describe('LLMCoverageEvaluator', () => {
     let evaluator: LLMCoverageEvaluator;
 
     beforeEach(() => {
-        evaluator = new LLMCoverageEvaluator(mockLogger);
+        mockLogger.warn = jest.fn();
+        mockLogger.error = jest.fn();
+
+        (getConfig as jest.Mock).mockReturnValue({ logger: mockLogger });
+
+        // Reset the mock before each test
+        (dispatchMakeApiCall as jest.Mock).mockReset();
+
+        // Instantiate the evaluator for each test
+        evaluator = new LLMCoverageEvaluator(mockLogger, false); // Caching disabled for tests by default
+
+        // Clear mock history
+        (getCache as jest.Mock).mockClear();
         mockExtractKeyPoints.mockReset();
         mockContains.mockReset();
         mockMatches.mockReset();
@@ -201,7 +220,7 @@ describe('LLMCoverageEvaluator', () => {
 
         const result = await evaluator.evaluate([input]);
         
-        expect(mockExtractKeyPoints).toHaveBeenCalledWith('Ideal response with point one and point two.', "user: Prompt for prompt7", mockLogger, ['judge1', 'judge2']);
+        expect(mockExtractKeyPoints).toHaveBeenCalledWith('Ideal response with point one and point two.', "user: Prompt for prompt7", mockLogger, ['judge1', 'judge2'], false);
         // Each of the 2 points will be evaluated. In failover mode, the first judge ('judge1') succeeds for each, so the spy is called twice.
         expect(requestIndividualJudgeSpy).toHaveBeenCalledTimes(2);
         expect(result.extractedKeyPoints?.['prompt7']).toEqual(['point one', 'point two']);

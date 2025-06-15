@@ -92,6 +92,7 @@ export interface ConfigData {
 
 export interface ConfigPromptData {
     id: string;
+    description?: string;
     promptText?: string;
     messages?: ConversationMessage[];
     idealResponse?: string;

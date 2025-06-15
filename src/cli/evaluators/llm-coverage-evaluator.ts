@@ -18,6 +18,7 @@ import { dispatchMakeApiCall } from '../../lib/llm-clients/client-dispatcher';
 import { LLMApiCallOptions } from '../../lib/llm-clients/types';
 import { pointFunctions } from '@/point-functions';
 import { PointFunctionContext, PointFunctionReturn } from '@/point-functions/types';
+import { getCache, generateCacheKey } from '../../lib/cache-service';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
@@ -32,10 +33,12 @@ const CALL_TIMEOUT_MS_POINTWISE = 45000;
 
 export class LLMCoverageEvaluator implements Evaluator {
     private logger: Logger;
+    private useCache: boolean;
 
-    constructor(logger: Logger) {
+    constructor(logger: Logger, useCache: boolean = false) {
         this.logger = logger;
-        this.logger.info(`[LLMCoverageEvaluator] Initialized (Pointwise evaluation is now default).`);
+        this.useCache = useCache;
+        this.logger.info(`[LLMCoverageEvaluator] Initialized (Pointwise evaluation is now default). Caching: ${this.useCache}`);
     }
 
     getMethodName(): EvaluationMethod { return 'llm-coverage'; }
@@ -223,6 +226,24 @@ export class LLMCoverageEvaluator implements Evaluator {
         promptContextText: string,
         modelId: string
     ): Promise<PointwiseCoverageLLMResult | { error: string }> {
+        const cacheKeyPayload = {
+            modelResponseText,
+            keyPointText,
+            promptContextText,
+            modelId,
+        };
+        const cacheKey = generateCacheKey(cacheKeyPayload);
+        const cache = getCache('judge-evaluations');
+
+        if (this.useCache) {
+            const cachedResult = await cache.get(cacheKey);
+            if (cachedResult) {
+                this.logger.info(`Cache HIT for pointwise judge evaluation with ${modelId}`);
+                return cachedResult as PointwiseCoverageLLMResult;
+            }
+            this.logger.info(`Cache MISS for pointwise judge evaluation with ${modelId}`);
+        }
+
         const pointwisePrompt = `
 Given the following <MODEL_RESPONSE> which was generated in response to the <ORIGINAL_PROMPT>:
 
@@ -266,7 +287,8 @@ Focus solely on the provided key point, the model response, and the scoring guid
                 systemPrompt: systemPrompt,
                 temperature: 0.0,
                 maxTokens: 500,
-                cache: true
+                // The new cache service handles this, so we don't use the client's built-in cache.
+                // cache: true 
             };
 
             const llmCallPromise = dispatchMakeApiCall(clientOptions);
@@ -299,10 +321,19 @@ Focus solely on the provided key point, the model response, and the scoring guid
                 return { error: `Invalid coverage_extent value: '${coverageExtentStr}'` };
             }
             
-            return { reflection, coverage_extent };
+            const result: PointwiseCoverageLLMResult = { reflection, coverage_extent };
+            if (this.useCache) {
+                await cache.set(cacheKey, result);
+            }
+            return result;
 
         } catch (error: any) {
-            return { error: `Client/Network error: ${error.message || String(error)}` };
+            const errorResult = { error: `Client/Network error: ${error.message || String(error)}` };
+            if (this.useCache) {
+                // We could cache errors, but let's not for now to allow retries on transient issues.
+                // await cache.set(cacheKey, errorResult);
+            }
+            return errorResult;
         }
     }
 
@@ -359,7 +390,8 @@ Focus solely on the provided key point, the model response, and the scoring guid
                         promptData.idealResponseText!,
                         promptContextStr,
                         this.logger,
-                        judgeModels
+                        judgeModels,
+                        this.useCache,
                     );
 
                     if ('error' in keyPointExtractionResult || !keyPointExtractionResult.key_points || keyPointExtractionResult.key_points.length === 0) {

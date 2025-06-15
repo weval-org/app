@@ -2,6 +2,7 @@ import { dispatchStreamApiCall } from '../../lib/llm-clients/client-dispatcher';
 import { LLMStreamApiCallOptions, StreamChunk } from '../../lib/llm-clients/types';
 import { ConversationMessage } from '../types/comparison_v2';
 import { getConfig } from '../config';
+import { getCache, generateCacheKey } from '../../lib/cache-service';
 
 export interface GetModelResponseOptions {
     modelId: string; // Now expected to be the full OpenRouter model string, e.g., "openrouter:openai/gpt-4o-mini"
@@ -33,12 +34,36 @@ export async function getModelResponse(options: GetModelResponseOptions): Promis
         useCache = false 
     } = options;
 
-    try {
-        if (logProgress) {
-            console.log(chalk.gray(`  -> Using model: ${modelId}`));
-            if (useCache) {
-                console.log(chalk.yellow('  -> Caching with direct client is not yet implemented and will be ignored.'));
+    if (logProgress) {
+        console.log(chalk.gray(`  -> Using model: ${modelId}`));
+    }
+
+    if (useCache) {
+        const cacheKeyPayload = {
+            modelId,
+            messages,
+            systemPrompt,
+            maxTokens,
+            temperature,
+        };
+        const cacheKey = generateCacheKey(cacheKeyPayload);
+        const cache = getCache('model-responses');
+        const cachedResponse = await cache.get(cacheKey);
+
+        if (cachedResponse) {
+            if (logProgress) {
+                console.log(chalk.green(`  -> Cache HIT for model: ${modelId}`));
             }
+            return cachedResponse as string;
+        }
+        if (logProgress) {
+            console.log(chalk.yellow(`  -> Cache MISS for model: ${modelId}`));
+        }
+    }
+
+    try {
+        if (logProgress && useCache) {
+            console.log(chalk.yellow('  -> Caching is enabled. Will store response after generation.'));
         }
 
         const clientOptions: Omit<LLMStreamApiCallOptions, 'modelName'> & { modelId: string } = {
@@ -78,6 +103,22 @@ export async function getModelResponse(options: GetModelResponseOptions): Promis
         
         if (logProgress) {
            process.stdout.write('\n'); 
+        }
+
+        if (useCache) {
+            const cacheKeyPayload = {
+                modelId,
+                messages,
+                systemPrompt,
+                maxTokens,
+                temperature,
+            };
+            const cacheKey = generateCacheKey(cacheKeyPayload);
+            const cache = getCache('model-responses');
+            await cache.set(cacheKey, fullResponse);
+            if (logProgress) {
+                console.log(chalk.blue(`  -> Cached response for model: ${modelId}`));
+            }
         }
 
         return fullResponse;

@@ -10,6 +10,7 @@ export interface ConversationMessage {
 
 export interface PromptConfig {
     id: string;
+    description?: string; // Optional field for commentary on the prompt's purpose or design
     promptText?: string; // Now optional for backward compatibility
     messages?: ConversationMessage[]; // New field for multi-turn
     idealResponse?: string | null; // This will be the ideal *final* assistant response

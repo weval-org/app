@@ -2,6 +2,7 @@ import { getConfig } from '../config';
 import crypto from 'crypto'; // For cache key hashing
 import { dispatchMakeApiCall } from '../../lib/llm-clients/client-dispatcher';
 import { LLMApiCallOptions } from '../../lib/llm-clients/types';
+import { getCache, generateCacheKey } from '../../lib/cache-service';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
@@ -9,34 +10,37 @@ type Logger = ReturnType<typeof getConfig>['logger'];
 type ExtractionResult = { key_points: string[] };
 type EvaluationError = { error: string };
 
-// Simple in-memory cache for this run
-const llmCache = new Map<string, ExtractionResult | EvaluationError>();
-
-function getCacheKey(input: string): string {
-    const hash = crypto.createHash('sha256').update(input).digest('hex');
-    return `extract:${hash}`;
-}
-
 /**
  * Uses an LLM (via OpenRouter) to extract key points from an ideal response given a prompt.
  * @param idealResponse The ideal response text.
  * @param promptText The original prompt text for context.
  * @param logger The logger instance.
  * @param judgeModels Optional array of models to use for key point extraction.
+ * @param useCache Optional flag to enable file-based caching.
  * @returns A promise resolving to the extracted key points or an error object.
  */
 export async function extractKeyPoints(
     idealResponse: string,
     promptText: string,
     logger: Logger,
-    judgeModels?: string[]
+    judgeModels?: string[],
+    useCache: boolean = false,
 ): Promise<ExtractionResult | EvaluationError> {
-    const cacheInput = `Prompt: ${promptText}\nIdeal Response: ${idealResponse}`;
-    const cacheKey = getCacheKey(cacheInput);
+    const cacheKeyPayload = {
+        promptText,
+        idealResponse,
+        judgeModels, // Include judgeModels in case they influence extraction
+    };
+    const cacheKey = generateCacheKey(cacheKeyPayload);
+    const cache = getCache('key-point-extraction');
 
-    if (llmCache.has(cacheKey)) {
-        logger.info(`Cache hit for key point extraction: ${promptText.substring(0, 30)}...`);
-        return llmCache.get(cacheKey) as ExtractionResult | EvaluationError;
+    if (useCache) {
+        const cachedResult = await cache.get(cacheKey);
+        if (cachedResult) {
+            logger.info(`Cache HIT for key point extraction: ${promptText.substring(0, 30)}...`);
+            return cachedResult as ExtractionResult | EvaluationError;
+        }
+        logger.info(`Cache MISS for key point extraction: ${promptText.substring(0, 30)}...`);
     }
 
     const extractionPrompt = `
@@ -106,7 +110,9 @@ ${idealResponse}
             
             logger.info(`Key point extraction successful with ${modelId} for prompt context: ${promptText.substring(0, 50)}... Found ${key_points.length} points.`);
             const result: ExtractionResult = { key_points };
-            llmCache.set(cacheKey, result);
+            if (useCache) {
+                await cache.set(cacheKey, result);
+            }
             return result;
 
         } catch (error: any) {
@@ -118,6 +124,8 @@ ${idealResponse}
     
     const finalError = lastError || { error: "All models failed for key point extraction." };
     logger.error(finalError.error);
-    llmCache.set(cacheKey, finalError);
+    if (useCache) {
+        await cache.set(cacheKey, finalError);
+    }
     return finalError;
 } 

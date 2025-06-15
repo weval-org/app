@@ -34,6 +34,7 @@ interface ModelEvaluationDetailModalData {
   modelId: string;
   assessments: PointAssessment[];
   promptContext: string | ConversationMessage[];
+  promptDescription?: string;
   modelResponse: string;
   systemPrompt: string | null;
 }
@@ -194,9 +195,16 @@ const ModelEvaluationDetailModalV2: React.FC<ModelEvaluationDetailModalProps> = 
           <DialogTitle className="text-xl font-semibold text-foreground">
             Evaluation Details for: <span className="text-primary">{displayModelName}</span>
           </DialogTitle>
-          <div className="text-sm text-muted-foreground max-h-24 overflow-y-auto custom-scrollbar pr-2">
-            <p className="font-semibold">PROMPT:</p>
-            <PromptContextDisplay promptContext={promptContext} />
+          <div className="text-sm text-muted-foreground max-h-32 overflow-y-auto custom-scrollbar pr-2 space-y-2">
+            {data.promptDescription && (
+                <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground border-l-4 border-primary/20 pl-4 py-1 text-xs">
+                    <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{data.promptDescription}</ReactMarkdown>
+                </div>
+            )}
+            <div>
+              <p className="font-semibold text-xs uppercase tracking-wider text-muted-foreground/80">Prompt:</p>
+              <PromptContextDisplay promptContext={promptContext} />
+            </div>
           </div>
         </DialogHeader>
 
