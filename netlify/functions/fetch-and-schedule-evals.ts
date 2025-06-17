@@ -4,6 +4,7 @@ import { ComparisonConfig } from "@/cli/types/comparison_v2";
 import { generateConfigContentHash } from "@/lib/hash-utils";
 import { listRunsForConfig } from "@/lib/storageService";
 import { resolveModelsInConfig, SimpleLogger } from "@/lib/config-utils";
+import { parseAndNormalizeBlueprint } from "@/lib/blueprint-parser";
 
 const EVAL_CONFIGS_REPO_API_URL = "https://api.github.com/repos/civiceval/configs/contents/blueprints";
 const MODEL_COLLECTIONS_REPO_API_URL_BASE = "https://api.github.com/repos/civiceval/configs/contents/models";
@@ -67,14 +68,40 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
     logger.info(`[fetch-and-schedule-evals] Found ${files.length} items in the configs repo at ${EVAL_CONFIGS_REPO_API_URL}.`);
 
     for (const file of files) {
-      if (file.type === "file" && file.name.endsWith(".json") && file.download_url) {
+      if (file.type === "file" && (file.name.endsWith(".json") || file.name.endsWith(".yaml") || file.name.endsWith(".yml")) && file.download_url) {
         logger.info(`[fetch-and-schedule-evals] Processing config file: ${file.name}`);
         try {
           const configFileResponse = await axios.get(file.download_url, { headers: rawContentHeaders });
-          let config: ComparisonConfig = typeof configFileResponse.data === 'string' ? JSON.parse(configFileResponse.data) : configFileResponse.data;
+          
+          const fileType = (file.name.endsWith(".yaml") || file.name.endsWith(".yml")) ? 'yaml' : 'json';
+          const configContent = typeof configFileResponse.data === 'string' ? configFileResponse.data : JSON.stringify(configFileResponse.data);
+          
+          let config: ComparisonConfig = parseAndNormalizeBlueprint(configContent, fileType);
 
-          if (!config || (!config.id && !config.configId) || !config.prompts) {
-            logger.warn(`[fetch-and-schedule-evals] Blueprint file ${file.name} is invalid or missing essential fields (id/configId, prompts). Skipping.`);
+          // If ID is missing, derive it from the filename.
+          if (!config.id) {
+            const rawFileName = file.name;
+            const id = rawFileName
+              .replace(/\.civic\.ya?ml$/, '')
+              .replace(/\.ya?ml$/, '')
+              .replace(/\.json$/, '');
+            logger.info(`[fetch-and-schedule-evals] 'id' not found in blueprint '${file.name}'. Deriving from filename: '${id}'`);
+            config.id = id;
+          }
+
+          // If title is missing, derive it from the ID.
+          if (!config.title) {
+            logger.info(`[fetch-and-schedule-evals] 'title' not found in blueprint '${file.name}'. Using derived or existing ID as title: '${config.id}'`);
+            config.title = config.id;
+          }
+
+          if (!config.tags || !config.tags.includes('_periodic')) {
+            logger.info(`[fetch-and-schedule-evals] Blueprint ${config.id || file.name} does not have the '_periodic' tag. Skipping scheduled run check.`);
+            continue; // Move to the next file
+          }
+
+          if (!config.id || !config.prompts) {
+            logger.warn(`[fetch-and-schedule-evals] Blueprint file ${file.name} is invalid or missing essential fields (id, prompts) after attempting to derive them. Skipping.`);
             continue;
           }
 
@@ -83,8 +110,8 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
             config.models = ["CORE"];
           }
 
-          const currentId = config.id || config.configId!;
-          const currentTitle = config.title || config.configTitle;
+          const currentId = config.id!;
+          const currentTitle = config.title;
 
           logger.info(`[fetch-and-schedule-evals] Attempting to resolve model collections for ${currentId} from blueprint ${file.name}`);
           config = await resolveModelsInConfig(config, githubToken, logger);

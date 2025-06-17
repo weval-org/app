@@ -1,4 +1,5 @@
 import React from 'react';
+import { BLUEPRINT_CONFIG_REPO_URL, APP_REPO_URL } from '@/lib/configConstants';
 
 export default function HomePageBanner() {
   return (
@@ -24,7 +25,7 @@ export default function HomePageBanner() {
               </p>
               <div className="mt-4 pt-3 border-t border-border/30 dark:border-slate-700/30 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <a
-                  href="https://github.com/civiceval/app"
+                  href={APP_REPO_URL}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full inline-flex items-center justify-center px-4 py-2.5 border border-primary dark:border-sky-500 text-sm font-medium rounded-md text-primary dark:text-sky-400 hover:bg-primary/10 dark:hover:bg-sky-500/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary dark:focus:ring-sky-500 dark:ring-offset-slate-800 transition-colors"
@@ -32,7 +33,7 @@ export default function HomePageBanner() {
                   View App on GitHub
                 </a>
                 <a
-                  href="https://github.com/civiceval/configs"
+                  href={BLUEPRINT_CONFIG_REPO_URL}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full inline-flex items-center justify-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary/90 dark:bg-sky-500 dark:hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary dark:focus:ring-sky-500 dark:ring-offset-slate-800 transition-colors shadow-sm hover:shadow-md"

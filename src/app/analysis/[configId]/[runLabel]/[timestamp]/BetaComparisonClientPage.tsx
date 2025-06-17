@@ -30,9 +30,11 @@ import {
     IDEAL_MODEL_ID,
     calculateOverallCoverageExtremes as importedCalculateOverallCoverageExtremes,
     calculateHybridScoreExtremes as importedCalculateHybridScoreExtremes,
-    calculateOverallAverageCoverage as importedCalculateOverallAverageCoverage,
-    calculateAverageHybridScoreForRun as importedCalculateAverageHybridScoreForRun
+    calculateOverallAverageCoverage as importedCalculateOverallAverageCoverage
 } from '@/app/utils/comparisonUtils';
+import {
+    calculateAverageHybridScoreForRun
+} from '@/app/utils/calculationUtils';
 
 import { useTheme } from 'next-themes';
 import DownloadResultsButton from '@/app/analysis/components/DownloadResultsButton';
@@ -45,6 +47,7 @@ import DebugPanel from '@/app/analysis/components/DebugPanel';
 import CoverageHeatmapCanvas from '@/app/analysis/components/CoverageHeatmapCanvas';
 import { Badge } from '@/components/ui/badge';
 import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelIdUtils';
+import { BLUEPRINT_CONFIG_REPO_URL } from '@/lib/configConstants';
 
 const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.AlertCircle))
 const XCircle = dynamic(() => import("lucide-react").then((mod) => mod.XCircle))
@@ -80,8 +83,17 @@ export default function BetaComparisonClientPage() {
   const [promptNotFound, setPromptNotFound] = useState<boolean>(false);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [selectedPairForModal, setSelectedPairForModal] = useState<ImportedSelectedPairInfo | null>(null);
-  const [displayedModels, setDisplayedModels] = useState<string[]>([]);
   const [excludedModelsList, setExcludedModelsList] = useState<string[]>([]);
+  const [forceIncludeExcludedModels, setForceIncludeExcludedModels] = useState<boolean>(false);
+
+  const displayedModels = useMemo(() => {
+    if (!data?.effectiveModels) return [];
+    if (forceIncludeExcludedModels) {
+        return data.effectiveModels;
+    }
+    return (data.effectiveModels || []).filter((m: string) => !excludedModelsList.includes(m));
+  }, [data?.effectiveModels, excludedModelsList, forceIncludeExcludedModels]);
+
   const [overallIdealExtremes, setOverallIdealExtremes] = useState<ReturnType<typeof findIdealExtremes> | null>(null);
   const [overallAvgCoverageStats, setOverallAvgCoverageStats] = useState<{average: number | null, stddev: number | null} | null>(null);
   const [overallCoverageExtremes, setOverallCoverageExtremes] = useState<ReturnType<typeof importedCalculateOverallCoverageExtremes> | null>(null);
@@ -134,7 +146,9 @@ export default function BetaComparisonClientPage() {
         const modelsWithEmptyResponses = new Set<string>(excludedFromData);
 
         if (result.allFinalAssistantResponses && result.effectiveModels) {
-          result.effectiveModels.forEach((modelId: string) => {
+          result.effectiveModels
+            .filter((modelId) => modelId !== IDEAL_MODEL_ID)
+            .forEach((modelId: string) => {
             if (modelsWithEmptyResponses.has(modelId)) return;
             if (result.allFinalAssistantResponses) {
               for (const promptId in result.allFinalAssistantResponses) {
@@ -152,7 +166,6 @@ export default function BetaComparisonClientPage() {
         const finalDisplayed = (result.effectiveModels || []).filter((m: string) => !modelsWithEmptyResponses.has(m));
 
         setExcludedModelsList(finalExcluded);
-        setDisplayedModels(finalDisplayed);
         
         if (currentPromptId && result.promptIds && !result.promptIds.includes(currentPromptId)) {
           setPromptNotFound(true);
@@ -197,7 +210,7 @@ export default function BetaComparisonClientPage() {
               result.evaluationResults?.llmCoverageScores && 
               result.effectiveModels && 
               result.promptIds) {
-            const hybridStats = importedCalculateAverageHybridScoreForRun(
+            const hybridStats = calculateAverageHybridScoreForRun(
               result.evaluationResults.perPromptSimilarities,
               result.evaluationResults.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>>,
               result.effectiveModels,
@@ -564,7 +577,6 @@ export default function BetaComparisonClientPage() {
     );
   }, [data?.promptContexts, getPromptContextDisplayString]);
 
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
@@ -614,7 +626,7 @@ export default function BetaComparisonClientPage() {
     <div className="flex items-center gap-2">
         {data.sourceCommitSha ? (
             <Button asChild variant="outline">
-                <Link href={`https://github.com/civiceval/configs/blob/${data.sourceCommitSha}/blueprints/${data.configId}.json`} target="_blank" rel="noopener noreferrer" title={`View blueprint at commit ${data.sourceCommitSha.substring(0, 7)}`}>
+                <Link href={`${BLUEPRINT_CONFIG_REPO_URL}/blob/${data.sourceCommitSha}/blueprints/${data.configId}.json`} target="_blank" rel="noopener noreferrer" title={`View blueprint at commit ${data.sourceCommitSha.substring(0, 7)}`}>
                     <GitCommit className="w-4 h-4 mr-2" />
                     View Blueprint on GitHub
                 </Link>
@@ -624,7 +636,7 @@ export default function BetaComparisonClientPage() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button asChild variant="outline">
-                      <Link href={`https://github.com/civiceval/configs/blob/main/blueprints/${data.configId}.json`} target="_blank" rel="noopener noreferrer">
+                      <Link href={`${BLUEPRINT_CONFIG_REPO_URL}/blob/main/blueprints/${data.configId}.json`} target="_blank" rel="noopener noreferrer">
                           <GitCommit className="w-4 h-4 mr-2" />
                           View Latest Blueprint
                       </Link>
@@ -666,6 +678,52 @@ export default function BetaComparisonClientPage() {
 
         {renderPromptSelector()}
 
+        {excludedModelsList.length > 0 && !currentPromptId && !forceIncludeExcludedModels && (
+             <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Models Automatically Excluded</AlertTitle>
+                <AlertDescription>
+                    <div className="flex justify-between items-start gap-4">
+                        <div>
+                            The following models were excluded from this overall analysis because they returned at least one empty response. This is done to prevent skewed aggregate scores. You can still see their results by selecting an individual prompt.
+                            <ul className="list-disc pl-6 mt-2 space-y-1">
+                                {excludedModelsList.map(modelId => (
+                                    <li key={modelId}>
+                                        <code className="font-mono text-sm bg-muted text-foreground px-1.5 py-1 rounded">
+                                            {getModelDisplayLabel(parseEffectiveModelId(modelId))}
+                                        </code>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="ml-4 flex-shrink-0"
+                            onClick={() => setForceIncludeExcludedModels(true)}
+                        >
+                            Show Anyway
+                        </Button>
+                    </div>
+                </AlertDescription>
+            </Alert>
+        )}
+
+        {forceIncludeExcludedModels && !currentPromptId && excludedModelsList.length > 0 && (
+            <Alert variant="default" className="border-amber-500/50 dark:border-amber-400/30 bg-amber-50/50 dark:bg-amber-900/10">
+                <AlertTriangle className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+                <AlertTitle className="text-amber-700 dark:text-amber-300">Displaying Models with Incomplete Data</AlertTitle>
+                <AlertDescription className="text-amber-900 dark:text-amber-400/90">
+                    You are viewing models that had empty responses for some prompts. 
+                    Aggregate scores for these models ({excludedModelsList.map(modelId => `"${getModelDisplayLabel(parseEffectiveModelId(modelId))}"`).join(', ')}) 
+                    are calculated only from the prompts they responded to and may not be directly comparable to other models.
+                    <Button variant="link" className="p-0 h-auto ml-2 text-primary dark:text-sky-400 font-semibold" onClick={() => setForceIncludeExcludedModels(false)}>
+                        (Re-hide incomplete models)
+                    </Button>
+                </AlertDescription>
+            </Alert>
+        )}
+
         {currentPromptId && (
              <Card className="shadow-lg border-border dark:border-slate-700">
                 <CardHeader>
@@ -692,6 +750,18 @@ export default function BetaComparisonClientPage() {
                 overallHybridScoreStdDev={overallHybridScoreStdDev === null ? undefined : overallHybridScoreStdDev}
                 allLlmCoverageScores={data.evaluationResults?.llmCoverageScores}
             />
+        )}
+
+        {!evalMethodsUsed.includes('llm-coverage') && (
+            <div className="my-6">
+                <Alert variant="default" className="border-sky-500/50 dark:border-sky-400/30 bg-sky-50/50 dark:bg-sky-900/10">
+                    <HelpCircle className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+                    <AlertTitle className="text-sky-800 dark:text-sky-300">Coverage Analysis Not Available</AlertTitle>
+                    <AlertDescription className="text-sky-900 dark:text-sky-400/90">
+                        The 'llm-coverage' evaluation method was not included in this run. Therefore, the Macro Coverage Overview and other rubric-based analyses are not available. To enable this analysis, include 'llm-coverage' in the `--eval-method` flag when executing the run.
+                    </AlertDescription>
+                </Alert>
+            </div>
         )}
 
         {currentPromptId && allFinalAssistantResponses && data.evaluationResults?.llmCoverageScores?.[currentPromptId] && allFinalAssistantResponses?.[currentPromptId]?.[IDEAL_MODEL_ID] && (
@@ -897,6 +967,7 @@ export default function BetaComparisonClientPage() {
                             promptIds={promptIds}
                             promptTexts={promptTextsForMacroTable} 
                             models={displayedModels.filter(m => m !== IDEAL_MODEL_ID)}
+                            allFinalAssistantResponses={allFinalAssistantResponses}
                             configId={configIdFromUrl}
                             runLabel={runLabel}
                             safeTimestampFromParams={timestampFromUrl}

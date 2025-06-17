@@ -6,7 +6,6 @@ import { getGradedCoverageColor } from '../utils/colorUtils';
 import { getModelDisplayLabel } from '../../utils/modelIdUtils';
 import { Badge } from '@/components/ui/badge';
 
-// Dynamically import icons
 const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.AlertCircle));
 const CheckCircle2 = dynamic(() => import("lucide-react").then((mod) => mod.CheckCircle2));
 const XCircle = dynamic(() => import("lucide-react").then((mod) => mod.XCircle));
@@ -19,6 +18,7 @@ interface PointAssessment {
     error?: string;
     multiplier?: number;
     citation?: string;
+    isInverted?: boolean;
 }
 
 // Match CoverageResult from page.tsx
@@ -133,11 +133,18 @@ const KeyPointCoverageTable: React.FC<KeyPointCoverageTableProps> = ({
                                     >
                                         {criterion.keyPointText}
                                     </span>
-                                    {criterion.multiplier && criterion.multiplier !== 1 && (
-                                        <Badge variant="secondary" className="text-xs font-normal whitespace-nowrap ml-2" title={`Score for this criterion is weighted by a multiplier of ${criterion.multiplier}`}>
-                                            &times;{criterion.multiplier}
-                                        </Badge>
-                                    )}
+                                    <div className="flex flex-col items-end gap-1">
+                                        {criterion.isInverted && (
+                                            <Badge variant="destructive" className="text-xs font-normal whitespace-nowrap" title="This is a 'should not' criterion. Presence of this content is penalized.">
+                                                NOT
+                                            </Badge>
+                                        )}
+                                        {criterion.multiplier && criterion.multiplier !== 1 && (
+                                            <Badge variant="secondary" className="text-xs font-normal whitespace-nowrap" title={`Score for this criterion is weighted by a multiplier of ${criterion.multiplier}`}>
+                                                &times;{criterion.multiplier}
+                                            </Badge>
+                                        )}
+                                    </div>
                                 </div>
                                 {criterion.citation && (
                                     <p className="text-xs text-muted-foreground/80 dark:text-slate-400/80 mt-1.5 italic border-l-2 border-border/70 pl-2">
@@ -169,18 +176,31 @@ const KeyPointCoverageTable: React.FC<KeyPointCoverageTableProps> = ({
                                     const reflection = assessment.reflection;
                                     const error = assessment.error;
                                     const isConsideredPresent = extentValue !== undefined && extentValue > 0.3; // Client-side determination
+                                    const isInverted = assessment.isInverted;
                                     
-                                    cellBgClass = getGradedCoverageColor(isConsideredPresent, extentValue);
-
                                     if (error) { // Prioritize displaying an error for the specific point
                                         cellContent = AlertCircle && <AlertCircle className="w-4 h-4 mx-auto text-destructive-foreground" />;
                                         cellBgClass = 'bg-destructive/30 dark:bg-red-900/30';
                                         titleText = `Error: ${error}`;
                                         if (reflection) titleText += `\nReflection: ${reflection}`;                                       
-                                    } else if (!isConsideredPresent) {
+                                    } else if (isInverted) {
+                                        const isViolation = extentValue !== undefined && extentValue < 0.7;
+                                        cellBgClass = getGradedCoverageColor(!isViolation, extentValue); // A passing (high) score is green, a violation (low) is red
+
+                                        if (isViolation) {
+                                            cellContent = AlertCircle && <AlertCircle className="w-4 h-4 mx-auto text-destructive-foreground" />;
+                                            titleText = 'Violation: Undesirable content was detected.';
+                                        } else {
+                                            cellContent = CheckCircle2 && <CheckCircle2 className="w-4 h-4 mx-auto text-white dark:text-green-200" />;
+                                            titleText = 'Passed: Undesirable content was not detected.';
+                                        }
+                                    }
+                                    else if (!isConsideredPresent) {
                                         if (XCircle) cellContent = <XCircle className="w-4 h-4 mx-auto text-destructive-foreground" />;
                                         titleText = `Not Met`;
+                                        cellBgClass = getGradedCoverageColor(false, extentValue);
                                     } else { // isConsideredPresent is true
+                                        cellBgClass = getGradedCoverageColor(true, extentValue);
                                         if (extentValue === 1.0) {
                                             if (CheckCircle2) cellContent = <CheckCircle2 className="w-4 h-4 mx-auto text-white dark:text-green-200" />;
                                             titleText = `Fully Met`;

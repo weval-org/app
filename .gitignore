@@ -69,3 +69,7 @@ next-env.d.ts
 google-cloud-*
 # Local Netlify folder
 .netlify
+
+# Temporary and generated files
+___*
+*___

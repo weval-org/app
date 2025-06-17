@@ -4,6 +4,7 @@ import { execSync } from 'child_process';
 import { getConfig } from '../config';
 import fs from 'fs/promises';
 import path from 'path';
+import * as yaml from 'js-yaml';
 
 import {
     EvaluationMethod,
@@ -24,64 +25,122 @@ import {
 
 import { executeComparisonPipeline } from '../services/comparison-pipeline-service';
 import { generateConfigContentHash } from '../../lib/hash-utils';
+import { parseAndNormalizeBlueprint } from '../../lib/blueprint-parser';
 
-async function loadAndValidateConfig(configPath: string, collectionsRepoPath?: string): Promise<ComparisonConfig> {
-    const { logger } = getConfig();
-    logger.info(`Loading and validating config file: ${path.resolve(configPath)}`);
-    if (collectionsRepoPath) {
-        logger.info(`Attempting to resolve model collections from local path: ${path.resolve(collectionsRepoPath)}`);
-    }
+type Logger = ReturnType<typeof getConfig>['logger'];
+
+export async function resolveModelCollections(configModels: any[], collectionsRepoPath: string | undefined, logger: Logger): Promise<string[]> {
+    const resolvedModels: string[] = [];
     
-    let configContent;
-    try {
-        configContent = await fs.readFile(path.resolve(configPath), 'utf-8');
-    } catch (fileReadError: any) {
-        logger.error(`Failed to read configuration file at '${path.resolve(configPath)}'. Please ensure the file exists and has correct permissions.`);
-        logger.error(`System error: ${fileReadError.message}`);
-        throw fileReadError;
+    const normalizedConfigModels: string[] = [];
+    for (const modelEntry of configModels) {
+        if (typeof modelEntry === 'string') {
+            const correctedEntry = modelEntry.trim().replace(/\s*:\s*/, ':');
+            if (modelEntry !== correctedEntry) {
+                logger.warn(`Malformed model entry string '${modelEntry}' contains unexpected whitespace. Correcting to '${correctedEntry}'. Please fix this in your blueprint file.`);
+            }
+            normalizedConfigModels.push(correctedEntry);
+        } else if (typeof modelEntry === 'object' && modelEntry !== null && !Array.isArray(modelEntry)) {
+            const keys = Object.keys(modelEntry);
+            if (keys.length === 1) {
+                const provider = keys[0].trim();
+                const modelNameValue = modelEntry[keys[0]];
+
+                if (typeof modelNameValue === 'string') {
+                    const modelName = modelNameValue.trim();
+                    const corrected = `${provider}:${modelName}`;
+                    logger.warn(`Found model entry as a key-value pair: ${JSON.stringify(modelEntry)}. Interpreting as '${corrected}'. For clarity, please use the string format "provider:model" in your blueprint.`);
+                    normalizedConfigModels.push(corrected);
+                } else {
+                    logger.warn(`Invalid object entry in models array: Key '${provider}' has a non-string value. Skipping: ${JSON.stringify(modelEntry)}.`);
+                }
+            } else {
+                logger.warn(`Invalid object entry in models array: Must have exactly one key (the provider). Found ${keys.length} keys. Skipping: ${JSON.stringify(modelEntry)}.`);
+            }
+        } else {
+             logger.warn(`Invalid entry in models array found: ${JSON.stringify(modelEntry)}. It is not a string or a single key-value object. Skipping this entry.`);
+        }
     }
 
-    let configJson: ComparisonConfig;
-    try {
-        configJson = JSON.parse(configContent);
-    } catch (parseError: any) {
-        logger.error(`Failed to parse JSON from configuration file at '${path.resolve(configPath)}'. Please ensure it is valid JSON.`);
-        logger.error(`System error: ${parseError.message}`);
-        throw parseError;
-    }
-    
-    // Basic validation (pre-collection resolution)
-    if (!configJson.id && !configJson.configId) {
-        throw new Error("Config file missing or has invalid 'id' or 'configId'");
-    }
-    if (configJson.id && (typeof configJson.id !== 'string' || configJson.id.trim() === '')) {
-        throw new Error("Config file has invalid 'id' (must be a non-empty string if provided)");
-    }
-    if (!configJson.id && configJson.configId && (typeof configJson.configId !== 'string' || configJson.configId.trim() === '')) {
-        throw new Error("Config file has invalid 'configId' (must be a non-empty string if 'id' is not provided)");
-    }
-    
-    if (configJson.title && (typeof configJson.title !== 'string' || configJson.title.trim() === '')) {
-        throw new Error("Config file has invalid 'title' (must be a non-empty string if provided)");
-    }
-    if (!configJson.title && configJson.configTitle && (typeof configJson.configTitle !== 'string' || configJson.configTitle.trim() === '')) {
-        throw new Error("Config file has invalid 'configTitle' (must be a non-empty string if 'title' is not provided)");
+    if (!collectionsRepoPath) {
+        logger.info('No --collections-repo-path provided. Treating all model entries as literal IDs.');
+        // Return only string models, filtering out any that might be collection placeholders which are unresolvable.
+        return normalizedConfigModels.filter(m => {
+            const isPlaceholder = typeof m === 'string' && !m.includes(':') && m.toUpperCase() === m;
+            if (isPlaceholder) {
+                logger.warn(`Model entry '${m}' looks like a collection placeholder, but it cannot be resolved without --collections-repo-path. It will be treated as a literal model ID.`);
+            }
+            return typeof m === 'string';
+        });
     }
 
-    if (!configJson.models || !Array.isArray(configJson.models) || configJson.models.length === 0) {
-        logger.info('Models field is missing, not an array, or empty. Defaulting to ["CORE"].');
-        configJson.models = ["CORE"];
-    }
+    logger.info(`Attempting to resolve model collections from local path: ${path.resolve(collectionsRepoPath)}`);
 
-    if (!Array.isArray(configJson.models)) { // Prompts validation can remain, models array structure is key here
-        throw new Error("Config file 'models' field must be an array.");
+    for (const modelEntry of normalizedConfigModels) {
+        if (typeof modelEntry === 'string' && !modelEntry.includes(':') && modelEntry.toUpperCase() === modelEntry) { // Placeholder: no colon, all caps
+            logger.info(`Found model collection placeholder: '${modelEntry}'. Attempting to load from local collections path.`);
+            const collectionFileName = `${modelEntry}.json`;
+            const collectionFilePath = path.join(path.resolve(collectionsRepoPath), 'models', collectionFileName);
+            
+            try {
+                logger.info(`Reading model collection file: ${collectionFilePath}`);
+                const collectionContent = await fs.readFile(collectionFilePath, 'utf-8');
+                const collectionArray = JSON.parse(collectionContent);
+
+                if (Array.isArray(collectionArray) && collectionArray.every(m => typeof m === 'string')) {
+                    logger.info(`Successfully loaded and parsed model collection '${modelEntry}' from ${collectionFilePath}. Found ${collectionArray.length} models.`);
+                    resolvedModels.push(...collectionArray);
+                } else {
+                    const errorMsg = `Invalid format for local model collection '${modelEntry}' at ${collectionFilePath}. Expected a JSON array of strings.`;
+                    logger.error(errorMsg);
+                    throw new Error(errorMsg);
+                }
+            } catch (collectionError: any) {
+                if (collectionError.code === 'ENOENT') {
+                    const errorMsg = `Model collection file not found for placeholder '${modelEntry}' at expected path: ${collectionFilePath}. This is required when --collections-repo-path is specified.`;
+                    logger.error(errorMsg);
+                    throw new Error(errorMsg);
+                } else {
+                    const errorMsg = `Error reading or parsing local model collection '${modelEntry}' from ${collectionFilePath}: ${collectionError.message}`;
+                    logger.error(errorMsg);
+                    throw new Error(errorMsg);
+                }
+            }
+        } else if (typeof modelEntry === 'string') {
+            resolvedModels.push(modelEntry);
+        }
     }
-    if (!Array.isArray(configJson.prompts)) {
+    return [...new Set(resolvedModels)]; // Deduplicate
+}
+
+export function validateRoleAlternation(messages: { role: string }[], promptId: string): void {
+    let lastRole: 'user' | 'assistant' | null = null;
+    for (let i = 0; i < messages.length; i++) {
+        const message = messages[i];
+        if (message.role === 'system') {
+            continue; // Skip system messages for alternation check
+        }
+        if (message.role === 'user') {
+            if (lastRole === 'user') {
+                throw new Error(`Prompt ID '${promptId}', message ${i}: Invalid sequence. Two 'user' messages in a row.`);
+            }
+            lastRole = 'user';
+        } else if (message.role === 'assistant') {
+            if (lastRole === 'assistant') {
+                throw new Error(`Prompt ID '${promptId}', message ${i}: Invalid sequence. Two 'assistant' messages in a row.`);
+            }
+            lastRole = 'assistant';
+        }
+    }
+}
+
+export function validatePrompts(prompts: ComparisonConfig['prompts'], logger: Logger): void {
+    if (!Array.isArray(prompts)) {
         throw new Error("Config file missing or has invalid 'prompts' (must be an array).");
     }
 
     // Validate and transform prompts for multi-turn compatibility
-    for (const promptConfig of configJson.prompts) {
+    for (const promptConfig of prompts) {
         const hasPromptText = promptConfig.promptText && typeof promptConfig.promptText === 'string' && promptConfig.promptText.trim() !== '';
         const hasMessages = Array.isArray(promptConfig.messages) && promptConfig.messages.length > 0;
 
@@ -115,7 +174,6 @@ async function loadAndValidateConfig(configPath: string, collectionsRepoPath?: s
             }
 
             // Validate individual messages and role alternation
-            let expectedRole: 'user' | 'assistant' | null = null;
             for (let i = 0; i < messages.length; i++) {
                 const message = messages[i];
                 if (!message.role || !['user', 'assistant', 'system'].includes(message.role)) {
@@ -124,93 +182,81 @@ async function loadAndValidateConfig(configPath: string, collectionsRepoPath?: s
                 if (!message.content || typeof message.content !== 'string' || message.content.trim() === '') {
                     throw new Error(`Prompt ID '${promptConfig.id}', message ${i} (role '${message.role}'): Content cannot be empty.`);
                 }
-
-                // Role alternation logic (ignoring system messages for alternation check after they appear)
-                if (message.role === 'user') {
-                    if (expectedRole && expectedRole !== 'user') {
-                        throw new Error(`Prompt ID '${promptConfig.id}', message ${i}: Expected role '${expectedRole}' but got 'user'. Roles must alternate.`);
-                    }
-                    if (i < messages.length - 1) { // If not the last message
-                       expectedRole = 'assistant';
-                    }
-                } else if (message.role === 'assistant') {
-                    if (expectedRole && expectedRole !== 'assistant') {
-                        throw new Error(`Prompt ID '${promptConfig.id}', message ${i}: Expected role '${expectedRole}' but got 'assistant'. Roles must alternate.`);
-                    }
-                    expectedRole = 'user'; // Next must be user
-                } else if (message.role === 'system') {
-                    // System message can appear (usually at the beginning). It doesn't reset expectedRole 
-                    // unless it implies a new context start, but for simple alternation,
-                    // we primarily care about user/assistant flow. If it's the first, next could be user.
-                    if (i === 0 && messages.length > 1 && messages[1].role === 'user') {
-                        expectedRole = 'assistant'; // After system, user, next expected is assistant
-                    }
-                    // If a system message is mid-conversation, the previous expectedRole should still hold for the next non-system message.
-                }
             }
+
+            validateRoleAlternation(messages, promptConfig.id);
+            
             logger.info(`Prompt ID '${promptConfig.id}' uses 'messages' format with ${messages.length} messages. Validation passed.`);
         }
     }
+}
 
-    logger.info(`Initial validation passed for configId '${configJson.configId || configJson.id}'. Original models: [${configJson.models.join(', ')}]`);
-
-    const originalModels = [...configJson.models];
-    const resolvedModels: string[] = [];
-    let collectionResolutionAttempted = false;
-
-    for (const modelEntry of originalModels) {
-        if (typeof modelEntry === 'string' && !modelEntry.includes(':') && modelEntry.toUpperCase() === modelEntry) { // Placeholder: no colon, all caps
-            collectionResolutionAttempted = true;
-            if (!collectionsRepoPath) {
-                logger.warn(`Model entry '${modelEntry}' in '${configPath}' looks like a collection placeholder, but --collections-repo-path was not provided. Treating '${modelEntry}' as a literal model ID for now.`);
-                resolvedModels.push(modelEntry); // Add as is, might fail later if not a real model ID
-                continue;
-            }
-
-            logger.info(`Found model collection placeholder: '${modelEntry}'. Attempting to load from local collections path.`);
-            const collectionFileName = `${modelEntry}.json`;
-            const collectionFilePath = path.join(path.resolve(collectionsRepoPath), 'models', collectionFileName);
-            
-            try {
-                logger.info(`Reading model collection file: ${collectionFilePath}`);
-                const collectionContent = await fs.readFile(collectionFilePath, 'utf-8');
-                const collectionArray = JSON.parse(collectionContent);
-
-                if (Array.isArray(collectionArray) && collectionArray.every(m => typeof m === 'string')) {
-                    logger.info(`Successfully loaded and parsed model collection '${modelEntry}' from ${collectionFilePath}. Found ${collectionArray.length} models.`);
-                    resolvedModels.push(...collectionArray);
-                } else {
-                    const errorMsg = `Invalid format for local model collection '${modelEntry}' at ${collectionFilePath}. Expected a JSON array of strings.`;
-                    logger.error(errorMsg);
-                    throw new Error(errorMsg);
-                }
-            } catch (collectionError: any) {
-                if (collectionError.code === 'ENOENT') {
-                    const errorMsg = `Model collection file not found for placeholder '${modelEntry}' at expected path: ${collectionFilePath}. This is required when --collections-repo-path is specified.`;
-                    logger.error(errorMsg);
-                    throw new Error(errorMsg);
-                } else {
-                    const errorMsg = `Error reading or parsing local model collection '${modelEntry}' from ${collectionFilePath}: ${collectionError.message}`;
-                    logger.error(errorMsg);
-                    throw new Error(errorMsg);
-                }
-            }
-        } else if (typeof modelEntry === 'string') {
-            resolvedModels.push(modelEntry);
-        } else {
-            logger.warn(`Invalid non-string entry in models array found in '${configPath}': ${JSON.stringify(modelEntry)}. Skipping this entry.`);
-        }
+async function loadAndValidateConfig(configPath: string, collectionsRepoPath?: string): Promise<ComparisonConfig> {
+    const { logger } = getConfig();
+    logger.info(`Loading and validating config file: ${path.resolve(configPath)}`);
+    if (collectionsRepoPath) {
+        logger.info(`Attempting to resolve model collections from local path: ${path.resolve(collectionsRepoPath)}`);
+    }
+    
+    let configContent;
+    try {
+        configContent = await fs.readFile(path.resolve(configPath), 'utf-8');
+    } catch (fileReadError: any) {
+        logger.error(`Failed to read configuration file at '${path.resolve(configPath)}'. Please ensure the file exists and has correct permissions.`);
+        logger.error(`System error: ${fileReadError.message}`);
+        throw fileReadError;
     }
 
-    if (collectionResolutionAttempted && !collectionsRepoPath) {
-        logger.info('Note: Some model entries looked like collection placeholders, but no --collections-repo-path was provided. Placeholders were treated as literal model IDs.');
+    let configJson: ComparisonConfig;
+    try {
+        const fileType = (configPath.endsWith('.yaml') || configPath.endsWith('.yml')) ? 'yaml' : 'json';
+        configJson = parseAndNormalizeBlueprint(configContent, fileType);
+    } catch (parseError: any) {
+        logger.error(`Failed to parse or normalize configuration file at '${path.resolve(configPath)}'.`);
+        logger.error(`System error: ${parseError.message}`);
+        throw parseError;
+    }
+    
+    // If ID is missing, derive it from the filename.
+    if (!configJson.id) { // id is normalized from configId by the parser
+        const rawFileName = path.basename(configPath);
+        const id = rawFileName
+            .replace(/\.civic\.ya?ml$/, '')
+            .replace(/\.ya?ml$/, '')
+            .replace(/\.json$/, '');
+        logger.info(`'id' not found in blueprint. Deriving from filename: '${rawFileName}' -> '${id}'`);
+        configJson.id = id;
     }
 
-    configJson.models = [...new Set(resolvedModels)]; // Deduplicate
-    const finalId = configJson.id || configJson.configId!;
-    logger.info(`Final resolved models for blueprint ID '${finalId}': [${configJson.models.join(', ')}] (Count: ${configJson.models.length})`);
-    if (originalModels.length > 0 && configJson.models.length === 0) {
-        logger.warn(`Blueprint file '${configPath}' resulted in an empty list of models after attempting to resolve collections. Original models: [${originalModels.join(',')}]. Check blueprint and collection definitions.`);
+    // If title is missing, derive it from the ID.
+    if (!configJson.title) {
+        logger.info(`'title' not found in blueprint. Using derived or existing ID as title: '${configJson.id}'`);
+        configJson.title = configJson.id;
+    }
+
+    // Now that ID and title are expected to be populated, we can validate them.
+    if (!configJson.id || typeof configJson.id !== 'string' || configJson.id.trim() === '') {
+        throw new Error("Failed to determine a valid 'id' for the blueprint from file content or filename.");
+    }
+    if (!configJson.title || typeof configJson.title !== 'string' || configJson.title.trim() === '') {
+        throw new Error("Failed to determine a valid 'title' for the blueprint from file content or 'id'.");
+    }
+
+    if (!configJson.models || !Array.isArray(configJson.models) || configJson.models.length === 0) {
+        logger.info('Models field is missing, not an array, or empty. Defaulting to ["CORE"].');
+        configJson.models = ["CORE"];
+    }
+
+    validatePrompts(configJson.prompts, logger);
+    
+    logger.info(`Initial validation passed for configId '${configJson.id}'. Original models: [${configJson.models.join(', ')}]`);
+
+    const originalModelsCount = configJson.models.length;
+    configJson.models = await resolveModelCollections(configJson.models, collectionsRepoPath, logger);
+
+    logger.info(`Final resolved models for blueprint ID '${configJson.id}': [${configJson.models.join(', ')}] (Count: ${configJson.models.length})`);
+    if (originalModelsCount > 0 && configJson.models.length === 0) {
+        logger.warn(`Blueprint file '${configPath}' resulted in an empty list of models after attempting to resolve collections. Original models: [${configJson.models.join(',')}]. Check blueprint and collection definitions.`);
     }
 
     // Post-resolution validation (other fields)
@@ -234,8 +280,7 @@ async function loadAndValidateConfig(configPath: string, collectionsRepoPath?: s
         logger.warn(`Warning: Both 'temperature' (value: ${configJson.temperature}) and a non-empty 'temperatures' array are defined. The 'temperature' field will be ignored.`);
     }
 
-    const finalTitle = configJson.title || configJson.configTitle!;
-    logger.info(`Blueprint for '${finalId}' (Title: '${finalTitle}') loaded, validated, and models resolved successfully.`);
+    logger.info(`Blueprint for '${configJson.id}' (Title: '${configJson.title}') loaded, validated, and models resolved successfully.`);
     return configJson;
 }
 
@@ -283,8 +328,8 @@ async function actionV2(options: { config: string, runLabel?: string, evalMethod
         await loggerInstance.info(`CivicEval run_config CLI started. Options received: ${JSON.stringify(options)}`);
         
         const config = await loadAndValidateConfig(options.config, options.collectionsRepoPath);
-        const currentConfigId = config.id || config.configId!;
-        const currentTitle = config.title || config.configTitle!;
+        const currentConfigId = config.id!;
+        const currentTitle = config.title!;
         
         await loggerInstance.info(`Loaded blueprint ID: '${currentConfigId}', Title: '${currentTitle}' with resolved models.`);
 

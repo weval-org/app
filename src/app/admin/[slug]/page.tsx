@@ -3,6 +3,7 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
+import { BLUEPRINT_CONFIG_REPO_SLUG } from '@/lib/configConstants';
 
 interface ConfigFile {
   name: string;
@@ -55,7 +56,7 @@ export default function AdminPage() {
       const fetchConfigs = async () => {
         setLoadingConfigs(true);
         try {
-          const response = await axios.get('https://api.github.com/repos/civiceval/configs/contents/blueprints');
+          const response = await axios.get(`https://api.github.com/repos/${BLUEPRINT_CONFIG_REPO_SLUG}/contents/blueprints`);
           if (Array.isArray(response.data)) {
             const jsonFiles = response.data.filter(
               (file: any) => file.type === 'file' && file.name.endsWith('.json') && file.download_url
@@ -172,7 +173,7 @@ export default function AdminPage() {
       {loadingConfigs ? (
         <p>Loading configurations from GitHub...</p>
       ) : configs.length === 0 ? (
-        <p>No configurations found in the civiceval/configs repository (or an error occurred while fetching).</p>
+        <p>No configurations found in the {BLUEPRINT_CONFIG_REPO_SLUG} repository (or an error occurred while fetching).</p>
       ) : (
         <div className="space-y-4">
           {configs.map((configFile) => (

@@ -8,10 +8,8 @@ import { LLMCoverageEvaluator } from '@/cli/evaluators/llm-coverage-evaluator';
 import { saveResult as saveResultToStorage } from '@/lib/storageService';
 import { toSafeTimestamp } from '@/app/utils/timestampUtils';
 
-// Logger type, can be refined or passed as a generic
 type Logger = ReturnType<typeof getConfig>['logger'];
 
-// This function is moved from run-config.ts
 async function generateAllResponses(
     config: ComparisonConfig,
     logger: Logger,
@@ -24,14 +22,12 @@ async function generateAllResponses(
     const tasks: Promise<void>[] = [];
     let generatedCount = 0;
 
-    // Determine the list of temperatures to use
     const temperaturesToRun: (number | undefined)[] = 
         (config.temperatures && config.temperatures.length > 0) 
             ? config.temperatures 
             : [config.temperature]; // Use single global temp or undefined if not set
 
     const totalResponsesToGenerate = config.prompts.length * config.models.length * temperaturesToRun.length;
-    // Spinner logic will be handled by the CLI caller, not here.
     logger.info(`[PipelineService] Preparing to generate ${totalResponsesToGenerate} responses across ${temperaturesToRun.length} temperature(s). (config.temperature: ${config.temperature}, config.temperatures: ${config.temperatures})`);
 
     config.prompts.forEach(promptConfig => {
@@ -71,7 +67,6 @@ async function generateAllResponses(
                     let hasError = false;
                     let errorMessage: string | undefined;
 
-                    // Prepare messages for the LLM call
                     // loadAndValidateConfig ensures promptConfig.messages is always populated.
                     const messagesForLlm: ConversationMessage[] = [...promptConfig.messages!];
 
@@ -81,17 +76,6 @@ async function generateAllResponses(
                     if (systemPromptToUse && !messagesForLlm.find(m => m.role === 'system')) {
                         messagesForLlm.unshift({ role: 'system', content: systemPromptToUse });
                     }
-
-                    // ---- BEGIN ADDED DEBUG LOG ----
-                    logger.info(`[PipelineService] About to call getModelResponse for model: ${modelString} (Effective ID: ${finalEffectiveId}) with prompt ID: ${promptConfig.id}. Temperature: ${temperatureForThisCall}. Messages payload:`);
-                    try {
-                        // Attempt to pretty-print JSON
-                        logger.info(JSON.stringify(messagesForLlm, null, 2));
-                    } catch (e) {
-                        logger.info('Could not JSON.stringify messagesForLlm. Logging raw object below:');
-                        logger.info(messagesForLlm as any); // Cast to any if logger has trouble with specific type
-                    }
-                    // ---- END ADDED DEBUG LOG ----
 
                     try {
                         finalAssistantResponseText = await getModelResponse({
@@ -104,7 +88,6 @@ async function generateAllResponses(
                         hasError = checkForErrors(finalAssistantResponseText);
                         if (hasError) errorMessage = `Response contains error markers.`;
 
-                        // Construct full history
                         fullConversationHistoryWithResponse = [...messagesForLlm, { role: 'assistant', content: finalAssistantResponseText }];
 
                     } catch (error: any) {
@@ -112,7 +95,6 @@ async function generateAllResponses(
                         finalAssistantResponseText = `<error>${errorMessage}</error>`;
                         hasError = true;
                         logger.error(`[PipelineService] ${errorMessage}`);
-                        // Construct history even with error
                         fullConversationHistoryWithResponse = [...messagesForLlm, { role: 'assistant', content: finalAssistantResponseText }];
                     }
 
@@ -135,7 +117,6 @@ async function generateAllResponses(
     return allResponsesMap;
 }
 
-// This function is moved from run-config.ts
 async function aggregateAndSaveResults(
     config: ComparisonConfig,
     runLabel: string,
@@ -149,7 +130,6 @@ async function aggregateAndSaveResults(
     logger.info(`[PipelineService] Received config.configId for saving: '${config.configId}'`);
 
     const promptIds: string[] = [];
-    // Store either original promptText or a string representation of initialMessages
     const promptContexts: Record<string, string | ConversationMessage[]> = {}; 
     const allFinalAssistantResponses: Record<string, Record<string, string>> = {};
     const fullConversationHistories: Record<string, Record<string, ConversationMessage[]>> = {};
@@ -176,10 +156,9 @@ async function aggregateAndSaveResults(
         }
         
         allFinalAssistantResponses[promptId] = {};
-        if (process.env.STORE_FULL_HISTORY === 'true' || true) { // Default to true for now
+        if (process.env.STORE_FULL_HISTORY !== 'false') { // Default to true
              fullConversationHistories[promptId] = {};
         }
-
 
         // Add ideal response text if it was part of the input
         if (promptData.idealResponseText !== null && promptData.idealResponseText !== undefined) {
@@ -218,18 +197,19 @@ async function aggregateAndSaveResults(
     // Upstream validation in loadAndValidateConfig (run-config.ts) ensures that
     // (config.id OR config.configId) is a valid string,
     // AND (config.title OR config.configTitle) is a valid string.
+    // `parseAndNormalizeBlueprint` handles aliasing, so we can rely on `id` and `title`.
 
-    const resolvedConfigId: string = config.id || config.configId!;
-    const resolvedConfigTitle: string = config.title || config.configTitle!;
+    const resolvedConfigId: string = config.id!;
+    const resolvedConfigTitle: string = config.title!;
 
-    // Paranoia checks - these should ideally not be hit if upstream validation is robust.
-    if (typeof resolvedConfigId !== 'string' || resolvedConfigId.trim() === '') {
-        logger.error(`Critical: Blueprint ID resolved to an invalid string ('${resolvedConfigId}'). Config: ${JSON.stringify(config)}`);
-        throw new Error("Blueprint ID resolved to an invalid string unexpectedly.");
+    // Upstream validation guarantees these properties exist and are valid strings.
+    if (!resolvedConfigId) {
+        logger.error(`Critical: Blueprint ID is missing. Config: ${JSON.stringify(config)}`);
+        throw new Error("Blueprint ID is missing unexpectedly after validation.");
     }
-    if (typeof resolvedConfigTitle !== 'string' || resolvedConfigTitle.trim() === '') {
-        logger.error(`Critical: Blueprint Title resolved to an invalid string ('${resolvedConfigTitle}'). Config: ${JSON.stringify(config)}`);
-        throw new Error("Blueprint Title resolved to an invalid string unexpectedly.");
+    if (!resolvedConfigTitle) {
+        logger.error(`Critical: Blueprint Title is missing. Config: ${JSON.stringify(config)}`);
+        throw new Error("Blueprint Title is missing unexpectedly after validation.");
     }
 
     const finalOutput: FinalComparisonOutputV2 = {
@@ -247,7 +227,7 @@ async function aggregateAndSaveResults(
         promptContexts: promptContexts, // Changed from promptTexts
         extractedKeyPoints: evaluationResults.extractedKeyPoints ?? undefined,
         allFinalAssistantResponses: allFinalAssistantResponses, // Changed from allResponses
-        fullConversationHistories: (process.env.STORE_FULL_HISTORY === 'true' || true) ? fullConversationHistories : undefined, // Conditionally add
+        fullConversationHistories: (process.env.STORE_FULL_HISTORY !== 'false') ? fullConversationHistories : undefined,
         evaluationResults: {
             similarityMatrix: evaluationResults.similarityMatrix ?? undefined,
             perPromptSimilarities: evaluationResults.perPromptSimilarities ?? undefined,

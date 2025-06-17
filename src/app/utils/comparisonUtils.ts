@@ -1,8 +1,5 @@
-// src/app/(dashboard)/analysis/comparisonUtils.ts
-
-// Utility functions and constants for the Beta Comparison feature
-
 import type { EvaluationResults } from './types';
+import { calculateHybridScore } from './calculationUtils';
 
 export const IDEAL_MODEL_ID = 'IDEAL_BENCHMARK';
 
@@ -178,16 +175,17 @@ export const calculateHybridScoreExtremes = (
       const covScore = (covData && !('error' in covData) && typeof covData.avgCoverageExtent === 'number' && !isNaN(covData.avgCoverageExtent)) ? covData.avgCoverageExtent : null;
 
       const isValidCov = covScore !== null && covScore >= 0;
-      const isValidSim = typeof simData === 'number' && !isNaN(simData) && simData >= 0;
+      const isValidSim = typeof simData === 'number' && !isNaN(simData);
 
       if (isValidCov && isValidSim) {
-        const simScore = simData; // simData is known to be a number here
-        const hybridScore = Math.sqrt(simScore * covScore);
+        const hybridScore = calculateHybridScore(simData, covScore);
         
-        const current = modelHybridScores.get(modelId)!;
-        current.totalScore += hybridScore;
-        current.count++;
-        modelHybridScores.set(modelId, current);
+        if (hybridScore !== null) {
+            const current = modelHybridScores.get(modelId)!;
+            current.totalScore += hybridScore;
+            current.count++;
+            modelHybridScores.set(modelId, current);
+        }
       } else {
         // console.warn(`[calculateHybridScoreExtremes] Skipping model ${modelId} for prompt ${promptId} due to invalid Sim (${simData}) or Cov (${covData?.avgCoverageExtent}).`);
       }
@@ -265,69 +263,4 @@ export const calculateOverallAverageCoverage = (
   }
 
   return { average: averageForDisplay, stddev: stddev !== null ? stddev * 100 : null };
-};
-
-/**
- * Calculates the average hybrid score for an entire comparison run.
- * This score is the geometric mean of (similarity to IDEAL_BENCHMARK) and (avgCoverageExtent).
- * Averages these hybrid scores across all models (excluding IDEAL_BENCHMARK) and all prompts.
- */
-export const calculateAverageHybridScoreForRun = (
-  perPromptSimilarities: EvaluationResults['perPromptSimilarities'],
-  llmCoverageScores: EvaluationResults['llmCoverageScores'],
-  effectiveModels: string[],
-  promptIds: string[],
-  idealModelId: string = IDEAL_MODEL_ID
-): { average: number | null; stddev: number | null } => {
-  if (!perPromptSimilarities || !llmCoverageScores || !effectiveModels || !promptIds || !effectiveModels.includes(idealModelId)) {
-    return { average: null, stddev: null };
-  }
-
-  const individualHybridScores: number[] = []; // Store all individual scores for stddev calculation
-  const nonIdealModels = effectiveModels.filter(m => m !== idealModelId);
-
-  if (nonIdealModels.length === 0) {
-    return { average: null, stddev: null };
-  }
-
-  promptIds.forEach(promptId => {
-    const promptSimData = perPromptSimilarities[promptId];
-    const promptCovData = llmCoverageScores[promptId];
-
-    if (!promptSimData || !promptCovData) {
-      // console.warn(`[calculateAverageHybridScoreForRun] Missing sim or cov data for prompt ${promptId}. Skipping.`);
-      return; // Skip this prompt if essential data is missing
-    }
-
-    nonIdealModels.forEach(modelId => {
-      const simScoreToIdeal = promptSimData[modelId]?.[idealModelId] ?? promptSimData[idealModelId]?.[modelId];
-      const coverageData = promptCovData[modelId];
-      
-      const isValidSim = typeof simScoreToIdeal === 'number' && !isNaN(simScoreToIdeal) && simScoreToIdeal >= 0;
-      const avgCoverageExtent = coverageData && !('error' in coverageData) && typeof coverageData.avgCoverageExtent === 'number' && !isNaN(coverageData.avgCoverageExtent) ? coverageData.avgCoverageExtent : null;
-      const isValidCov = avgCoverageExtent !== null && avgCoverageExtent >=0;
-
-      if (isValidSim && isValidCov && avgCoverageExtent !== null) { 
-        const hybridScore = Math.sqrt(simScoreToIdeal * avgCoverageExtent);
-        individualHybridScores.push(hybridScore); // Add to list
-      } else {
-        // console.warn(`[calcAvgHybridForRun] Skipping ${modelId} for prompt ${promptId}. Sim: ${simScoreToIdeal}, CovExt: ${avgCoverageExtent}`);
-      }
-    });
-  });
-
-  if (individualHybridScores.length === 0) {
-    return { average: null, stddev: null };
-  }
-
-  const sum = individualHybridScores.reduce((acc, score) => acc + score, 0);
-  const average = sum / individualHybridScores.length;
-
-  let stddev: number | null = null;
-  if (individualHybridScores.length >= 2) {
-    const variance = individualHybridScores.reduce((acc, score) => acc + Math.pow(score - average, 2), 0) / individualHybridScores.length;
-    stddev = Math.sqrt(variance);
-  }
-
-  return { average, stddev: stddev !== null ? stddev * 100 : null };
 }; 

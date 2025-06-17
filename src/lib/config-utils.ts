@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { BLUEPRINT_CONFIG_REPO_SLUG } from './configConstants';
 
 // Define a simple logger interface for compatibility
 export interface SimpleLogger {
@@ -13,9 +14,8 @@ const defaultLogger: SimpleLogger = {
   warn: console.warn,
 };
 
-export const MODEL_COLLECTIONS_REPO_API_URL_BASE = "https://api.github.com/repos/civiceval/configs/contents/models";
-const GITHUB_API_VERSION_HEADERS = { 'Accept': 'application/vnd.github.v3+json' }; // For directory listing
-const GITHUB_RAW_CONTENT_HEADERS = { 'Accept': 'application/vnd.github.v3.raw' }; // For fetching raw file content
+export const MODEL_COLLECTIONS_REPO_API_URL_BASE = `https://api.github.com/repos/${BLUEPRINT_CONFIG_REPO_SLUG}/contents/models`;
+const GITHUB_RAW_CONTENT_HEADERS = { 'Accept': 'application/vnd.github.v3.raw' };
 
 /**
  * Fetches a model collection (a JSON array of model strings) from the civiceval/configs GitHub repository.

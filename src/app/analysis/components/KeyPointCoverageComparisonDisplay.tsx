@@ -19,6 +19,7 @@ interface PointAssessment {
     coverageExtent?: number;
     reflection?: string;
     error?: string;
+    isInverted?: boolean;
 }
 
 type CoverageResult = {

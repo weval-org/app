@@ -1,6 +1,5 @@
 import dotenv from 'dotenv';
 dotenv.config();
-console.log(`[DEBUG index.ts Immediately After dotenv.config] STORAGE_PROVIDER: ${process.env.STORAGE_PROVIDER}, APP_S3_REGION: ${process.env.APP_S3_REGION}`);
 
 console.log('Starting CLI script...');
 
@@ -12,7 +11,6 @@ process.on('uncaughtException', (error) => {
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('UNHANDLED REJECTION:', reason);
-  // console.error('Promise:', promise); // Optional: Log the promise
   process.exit(1);
 });
 

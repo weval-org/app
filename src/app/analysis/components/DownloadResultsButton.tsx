@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import { ComparisonDataV2 } from '@/app/utils/types';
+import { toSafeTimestamp } from '@/app/utils/timestampUtils';
 
 const DownloadIcon = dynamic(() => import('lucide-react').then(mod => mod.Download));
 
@@ -25,10 +26,15 @@ export default function DownloadResultsButton({ data, label }: DownloadResultsBu
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
 
-      // Use data.timestamp for the filename, formatted to be filename-friendly
+      console.log('data>>', data.timestamp);
+
+      // Use data.timestamp for the filename, formatted to be filename-friendly.
+      // The incoming timestamp can already be in the "safe" format, which isn't directly
+      // parsable by `new Date()`. We now use `toSafeTimestamp` to ensure a consistent,
+      // safe format, whether we're using an existing timestamp or generating a new one.
       const dataTimestamp = data.timestamp 
-        ? new Date(data.timestamp).toISOString().split('.')[0].replace(/:/g, '-') + 'Z'
-        : new Date().toISOString().split('.')[0].replace(/:/g, '-') + 'Z';
+        ? data.timestamp
+        : toSafeTimestamp(new Date().toISOString());
       
       const filename = `${label}_analysis_export_${dataTimestamp}.json`;
 

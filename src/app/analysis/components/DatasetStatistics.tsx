@@ -15,7 +15,6 @@ import { PromptAnalysisResults, ComparisonDataV2, EvaluationResults } from '@/ap
 import { IDEAL_MODEL_ID, findSimilarityExtremes as importedFindSimilarityExtremes } from '@/app/utils/comparisonUtils';
 import { getModelDisplayLabel, parseEffectiveModelId, IDEAL_MODEL_ID_BASE } from '../../utils/modelIdUtils';
 
-// Dynamically import icons
 const Sparkles = dynamic(() => import("lucide-react").then(mod => mod.Sparkles));
 const Info = dynamic(() => import("lucide-react").then(mod => mod.Info));
 const BarChartBig = dynamic(() => import("lucide-react").then(mod => mod.BarChartBig));

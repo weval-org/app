@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listRunsForConfig, getResultByFileName } from '@/lib/storageService';
-import { IDEAL_MODEL_ID, calculateOverallAverageCoverage, calculateAverageHybridScoreForRun } from '@/app/utils/comparisonUtils';
-import { calculatePerModelHybridScoresForRun } from '@/app/utils/calculationUtils';
 
 export const revalidate = 3600; // Revalidate once per hour (Next.js built-in caching)
 

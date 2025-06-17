@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import CoverageHeatmapCanvas from '@/app/analysis/components/CoverageHeatmapCanvas';
 import { EnhancedComparisonConfigInfo, AllCoverageScores } from '@/app/utils/homepageDataUtils';
 import ClientDateTime from '../ClientDateTime';
+import { BLUEPRINT_CONFIG_REPO_URL } from '@/lib/configConstants';
 
 interface BlueprintSummaryInfo extends EnhancedComparisonConfigInfo {
   latestInstanceTimestamp?: string | null;
@@ -46,7 +47,7 @@ const BrowseAllBlueprintsSection = ({ blueprints }: { blueprints: BlueprintSumma
         <div className="text-center py-10 bg-card/50 dark:bg-slate-800/40 rounded-lg shadow-md">
           {PackageSearch && <PackageSearch className="w-12 h-12 mx-auto mb-4 text-muted-foreground dark:text-slate-500" />}
           <p className="text-lg text-muted-foreground dark:text-slate-400">No evaluation blueprints found.</p>
-          <p className="text-sm text-muted-foreground dark:text-slate-500 mt-1">Contribute blueprints to the <a href="https://github.com/civiceval/configs/tree/main/blueprints" target="_blank" rel="noopener noreferrer" className="text-primary dark:text-sky-400 hover:underline">CivicEval Blueprints repository</a>.</p>
+          <p className="text-sm text-muted-foreground dark:text-slate-500 mt-1">Contribute blueprints to the <a href={`${BLUEPRINT_CONFIG_REPO_URL}/tree/main/blueprints`} target="_blank" rel="noopener noreferrer" className="text-primary dark:text-sky-400 hover:underline">CivicEval Blueprints repository</a>.</p>
         </div>
       ) : (
         <div className="space-y-5 md:space-y-6">

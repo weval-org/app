@@ -21,6 +21,7 @@ import type { Metadata } from 'next';
 import CoverageHeatmapCanvas from '@/app/analysis/components/CoverageHeatmapCanvas';
 import BrowseAllBlueprintsSection, { BlueprintSummaryInfo } from '@/app/components/home/BrowseAllBlueprintsSection';
 import LatestEvaluationRunsSection, { DisplayableRunInstanceInfo } from '@/app/components/home/LatestEvaluationRunsSection';
+import { BLUEPRINT_CONFIG_REPO_URL, APP_REPO_URL } from '@/lib/configConstants';
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:8888' : 'https://civiceval.org');
 
@@ -88,7 +89,7 @@ export default async function HomePage() {
     if (isDevelopment) {
       return true;
     }
-    return !(config.tags && config.tags.includes('test'));
+    return config.tags?.includes('show:home');
   });
 
   const allRunInstances: DisplayableRunInstanceInfo[] = [];
@@ -263,7 +264,7 @@ export default async function HomePage() {
             </h2>
             <p className="text-muted-foreground dark:text-slate-400 text-sm sm:text-base max-w-lg mx-auto mb-6">
               It looks like you haven't run any evaluation blueprints yet. Use the CLI to generate results, and they will appear here.
-              Explore example blueprints or contribute your own at the <a href="https://github.com/civiceval/configs/tree/main/blueprints" target="_blank" rel="noopener noreferrer" className="text-primary dark:text-sky-400 hover:underline">CivicEval Blueprints repository</a>.
+              Explore example blueprints or contribute your own at the <a href={`${BLUEPRINT_CONFIG_REPO_URL}/tree/main/blueprints`} target="_blank" rel="noopener noreferrer" className="text-primary dark:text-sky-400 hover:underline">CivicEval Blueprints repository</a>.
             </p>
             <div className="mt-4 text-xs text-muted-foreground/80 dark:text-slate-500/80 bg-muted dark:bg-slate-700/50 p-3 rounded-md w-full max-w-md">
                 <span className="font-semibold">Example command:</span>
@@ -283,11 +284,11 @@ export default async function HomePage() {
             <p className="text-sm text-muted-foreground">
             </p>
             <div className="mt-4 space-x-4">
-              <a href="https://github.com/civiceval/app" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-primary dark:hover:text-sky-400 transition-colors">
+              <a href={APP_REPO_URL} target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-primary dark:hover:text-sky-400 transition-colors">
                 View App on GitHub
               </a>
               <span className="text-sm text-muted-foreground">|</span>
-              <a href="https://github.com/civiceval/configs" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-primary dark:hover:text-sky-400 transition-colors">
+              <a href={BLUEPRINT_CONFIG_REPO_URL} target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-primary dark:hover:text-sky-400 transition-colors">
                 View Eval Blueprints on GitHub
               </a>
             </div>

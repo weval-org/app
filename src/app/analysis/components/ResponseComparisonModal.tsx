@@ -58,9 +58,6 @@ interface ResponseComparisonModalProps {
 // Constant for Ideal Model ID
 const IDEAL_MODEL_ID = 'IDEAL_BENCHMARK';
 
-// Dynamically import lucide-react icons for the modal
-const ChevronDown = dynamic(() => import("lucide-react").then((mod) => mod.ChevronDown));
-const ChevronUp = dynamic(() => import("lucide-react").then((mod) => mod.ChevronUp));
 const CheckCircle2 = dynamic(() => import("lucide-react").then((mod) => mod.CheckCircle2));
 const XCircle = dynamic(() => import("lucide-react").then((mod) => mod.XCircle));
 const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.AlertCircle));

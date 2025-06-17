@@ -28,6 +28,7 @@ interface PointAssessment {
     judgeModelId?: string;
     judgeLog?: string[];
     individualJudgements?: IndividualJudgement[];
+    isInverted?: boolean;
 }
 
 interface ModelEvaluationDetailModalData {
@@ -47,6 +48,14 @@ interface ModelEvaluationDetailModalProps {
 
 const getScoreColor = (score?: number): string => {
     if (score === undefined || score === null || isNaN(score)) return 'bg-slate-500'; // Neutral for undefined
+    if (score >= 0.7) return 'bg-green-600';
+    if (score >= 0.4) return 'bg-yellow-500';
+    return 'bg-red-600';
+};
+
+const getInvertedScoreColor = (score?: number): string => {
+    if (score === undefined || score === null || isNaN(score)) return 'bg-slate-500'; // Neutral for undefined
+    // For inverted scores, high is good (green), low is bad (red)
     if (score >= 0.7) return 'bg-green-600';
     if (score >= 0.4) return 'bg-yellow-500';
     return 'bg-red-600';
@@ -78,9 +87,18 @@ const AssessmentItem: React.FC<{
     toggleLogExpansion: (index: number) => void;
 }> = ({ assessment, index, isLogExpanded, toggleLogExpansion }) => {
     console.log(`[ModelEvaluationDetailModal] Rendering assessment for KP "${assessment.keyPointText}":`, assessment);
+    const scoreColor = assessment.isInverted ? getInvertedScoreColor(assessment.coverageExtent) : getScoreColor(assessment.coverageExtent);
+
     return (
         <div className="p-3 rounded-md border border-border/70 dark:border-slate-700/60 bg-card/50 dark:bg-slate-800/50 shadow-sm">
-            <h4 className="font-semibold text-sm text-primary mb-1.5">{assessment.keyPointText}</h4>
+            <div className="flex justify-between items-start">
+                <h4 className="font-semibold text-sm text-primary mb-1.5">{assessment.keyPointText}</h4>
+                {assessment.isInverted && (
+                    <Badge variant="destructive" className="text-xs font-normal whitespace-nowrap ml-2" title="This is a 'should not' criterion.">
+                        NOT
+                    </Badge>
+                )}
+            </div>
             {assessment.citation && (
             <div className="flex items-start space-x-1.5 mb-2 text-xs text-muted-foreground/90 italic border-l-2 border-border pl-2">
                 <Quote className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
@@ -97,7 +115,7 @@ const AssessmentItem: React.FC<{
             <div className="flex items-center space-x-2">
                 <span className="font-medium text-xs text-muted-foreground">Score:</span>
                 {typeof assessment.coverageExtent === 'number' && !isNaN(assessment.coverageExtent) ? (
-                <Badge className={`text-xs text-white ${getScoreColor(assessment.coverageExtent)}`}>
+                <Badge className={`text-xs text-white ${scoreColor}`}>
                     {assessment.coverageExtent.toFixed(2)}
                 </Badge>
                 ) : (
@@ -129,7 +147,7 @@ const AssessmentItem: React.FC<{
                             <div key={j_index} className="text-xs">
                                 <div className="flex items-center space-x-2">
                                     <Badge variant="secondary" className="font-normal">{getModelDisplayLabel(judgement.judgeModelId)}</Badge>
-                                    <Badge className={`text-white ${getScoreColor(judgement.coverageExtent)}`}>{judgement.coverageExtent.toFixed(2)}</Badge>
+                                    <Badge className={`text-white ${assessment.isInverted ? getInvertedScoreColor(judgement.coverageExtent) : getScoreColor(judgement.coverageExtent)}`}>{judgement.coverageExtent.toFixed(2)}</Badge>
                                 </div>
                                 <p className="text-muted-foreground/80 italic pl-1 mt-1 whitespace-pre-wrap">{judgement.reflection}</p>
                             </div>

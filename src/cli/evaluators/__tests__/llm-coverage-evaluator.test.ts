@@ -6,46 +6,27 @@ import { EvaluationInput, PointDefinition, PromptConfig, ComparisonConfig, Promp
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
-// Define mock functions separately for actual logger methods
 const mockInfo = jest.fn();
 const mockWarn = jest.fn();
 const mockError = jest.fn();
-const mockSuccess = jest.fn(); // Added based on observed usage
+const mockSuccess = jest.fn();
 
-// Create the typed mockLogger object
 const mockLogger: Logger = {
     info: mockInfo,
     warn: mockWarn,
     error: mockError,
-    success: mockSuccess, // Added
-    // debug, fatal, trace, silent are removed as they don't seem to be part of the actual Logger type
+    success: mockSuccess,
 };
 
-// Mock extractKeyPoints
 const mockExtractKeyPoints = jest.fn();
-// Mock evaluateSinglePoint (part of LLMCoverageEvaluator, so we might spyOn it or test its effects indirectly)
 
 jest.mock('@/cli/services/llm-evaluation-service', () => ({
     extractKeyPoints: (...args: any[]) => mockExtractKeyPoints(...args),
 }));
 
-// Mock pointFunctions (or specific functions)
-const mockContains = jest.fn();
-const mockMatches = jest.fn();
-const mockUnknownFunction = jest.fn();
-
-jest.mock('@/point-functions', () => ({
-    pointFunctions: {
-        contains: (...args: any[]) => mockContains(...args),
-        matches: (...args: any[]) => mockMatches(...args),
-        // Not including mockUnknownFunction here to test 'function not found'
-    },
-}));
-
 jest.mock('../../config');
 jest.mock('../../services/llm-evaluation-service');
 jest.mock('../../../lib/llm-clients/client-dispatcher');
-jest.mock('../../../point-functions/contains');
 jest.mock('../../../lib/cache-service');
 
 describe('LLMCoverageEvaluator', () => {
@@ -57,22 +38,16 @@ describe('LLMCoverageEvaluator', () => {
 
         (getConfig as jest.Mock).mockReturnValue({ logger: mockLogger });
 
-        // Reset the mock before each test
         (dispatchMakeApiCall as jest.Mock).mockReset();
 
-        // Instantiate the evaluator for each test
-        evaluator = new LLMCoverageEvaluator(mockLogger, false); // Caching disabled for tests by default
+        evaluator = new LLMCoverageEvaluator(mockLogger, false);
 
-        // Clear mock history
         (getCache as jest.Mock).mockClear();
         mockExtractKeyPoints.mockReset();
-        mockContains.mockReset();
-        mockMatches.mockReset();
-        // Clear individual mock functions
         mockInfo.mockClear();
         mockWarn.mockClear();
         mockError.mockClear();
-        mockSuccess.mockClear(); // Added
+        mockSuccess.mockClear();
     });
 
     const createMockEvaluationInput = (
@@ -129,20 +104,21 @@ describe('LLMCoverageEvaluator', () => {
     it('should process a simple string point', async () => {
         const points: PointDefinition[] = ['This is a string point'];
         const input = createMockEvaluationInput('prompt1', points);
-        requestIndividualJudgeSpy.mockResolvedValue({ coverage_extent: 0.8, reflection: 'Mocked reflection' });
+        // Mock the new classification-based return value
+        requestIndividualJudgeSpy.mockResolvedValue({ coverage_extent: 0.75, reflection: 'Mocked reflection' });
 
         const result = await evaluator.evaluate([input]);
 
-        expect(requestIndividualJudgeSpy).toHaveBeenCalledWith("Test response", "This is a string point", "user: Prompt for prompt1", expect.any(String));
+        expect(requestIndividualJudgeSpy).toHaveBeenCalledWith("Test response", "This is a string point", expect.stringContaining("Prompt for prompt1"), expect.any(String));
         const model1Result = result.llmCoverageScores?.['prompt1']?.['model1'];
         expect(model1Result).toBeDefined();
         expect(model1Result).not.toHaveProperty('error');
         const successResult = model1Result as Exclude<CoverageResult, { error: string } | null>;
 
-        expect(successResult.avgCoverageExtent).toBe(0.8);
+        expect(successResult.avgCoverageExtent).toBe(0.75);
         expect(successResult.pointAssessments?.[0]).toMatchObject({
             keyPointText: 'This is a string point',
-            coverageExtent: 0.8,
+            coverageExtent: 0.75,
             multiplier: 1,
         });
     });
@@ -150,11 +126,8 @@ describe('LLMCoverageEvaluator', () => {
     it('should process a "contains" function point correctly', async () => {
         const points: PointDefinition[] = [['contains', 'specific text']];
         const input = createMockEvaluationInput('prompt2', points, 'This response contains specific text.');
-        mockContains.mockReturnValue(true);
 
         const result = await evaluator.evaluate([input]);
-        expect(mockContains).toHaveBeenCalledWith('This response contains specific text.', 'specific text', expect.any(Object));
-
         const model1Result = result.llmCoverageScores?.['prompt2']?.['model1'];
         expect(model1Result).toBeDefined();
         expect(model1Result).not.toHaveProperty('error');
@@ -170,7 +143,6 @@ describe('LLMCoverageEvaluator', () => {
     it('should process a "matches" function point correctly that returns false', async () => {
         const points: PointDefinition[] = [['matches', '^pattern$']];
         const input = createMockEvaluationInput('prompt3', points, 'this does not match');
-        mockMatches.mockReturnValue(false);
 
         const result = await evaluator.evaluate([input]);
         const model1Result = result.llmCoverageScores?.['prompt3']?.['model1'];
@@ -205,23 +177,20 @@ describe('LLMCoverageEvaluator', () => {
 
     it('should use extracted key points if `points` is empty and `idealResponse` is provided', async () => {
         const input = createMockEvaluationInput('prompt7', [], "Test response", 'Ideal response with point one and point two.');
-        // Make test self-contained by defining judge models and mode
         input.config.evaluationConfig = { 'llm-coverage': { judgeMode: 'failover', judgeModels: ['judge1', 'judge2'] } };
         mockExtractKeyPoints.mockResolvedValue({ key_points: ['point one', 'point two'] });
         
-        // Make mock implementation specific to the judge model to ensure predictable calls
         requestIndividualJudgeSpy.mockImplementation(async (modelResponseText, keyPointText, promptContextText, modelId) => {
             if (modelId === 'judge1') {
-                if (keyPointText === 'point one') return { coverage_extent: 0.7, reflection: 'Point one covered' };
-                if (keyPointText === 'point two') return { coverage_extent: 0.9, reflection: 'Point two covered' };
+                if (keyPointText === 'point one') return { coverage_extent: 0.75, reflection: 'Point one covered' };
+                if (keyPointText === 'point two') return { coverage_extent: 1.0, reflection: 'Point two covered' };
             }
             return { error: 'unexpected keypoint or judge' };
         });
 
         const result = await evaluator.evaluate([input]);
         
-        expect(mockExtractKeyPoints).toHaveBeenCalledWith('Ideal response with point one and point two.', "user: Prompt for prompt7", mockLogger, ['judge1', 'judge2'], false);
-        // Each of the 2 points will be evaluated. In failover mode, the first judge ('judge1') succeeds for each, so the spy is called twice.
+        expect(mockExtractKeyPoints).toHaveBeenCalledWith('Ideal response with point one and point two.', expect.stringContaining("Prompt for prompt7"), mockLogger, ['judge1', 'judge2'], false);
         expect(requestIndividualJudgeSpy).toHaveBeenCalledTimes(2);
         expect(result.extractedKeyPoints?.['prompt7']).toEqual(['point one', 'point two']);
         
@@ -230,7 +199,7 @@ describe('LLMCoverageEvaluator', () => {
         expect(model1Result).not.toHaveProperty('error');
         const successResult = model1Result as Exclude<CoverageResult, { error: string } | null>;
         
-        expect(successResult.avgCoverageExtent).toBe(0.80);
+        expect(successResult.avgCoverageExtent).toBe(0.88); // (0.75 + 1.0) / 2 = 0.875 -> rounded
         expect(successResult.keyPointsCount).toBe(2);
     });
 
@@ -239,7 +208,6 @@ describe('LLMCoverageEvaluator', () => {
 
         it('should average scores in "consensus" mode when both judges succeed', async () => {
             const input = createMockEvaluationInput('prompt-consensus', points);
-            // Override the config for this specific test
             input.config.evaluationConfig = { 'llm-coverage': { judgeMode: 'consensus', judgeModels: ['judge1', 'judge2'] } };
 
             requestIndividualJudgeSpy.mockImplementation(async (modelResponseText, keyPointText, promptContextText, modelId) => {
@@ -258,7 +226,6 @@ describe('LLMCoverageEvaluator', () => {
                 { judgeModelId: 'judge1', coverageExtent: 1.0, reflection: 'Perfect from judge1' },
                 { judgeModelId: 'judge2', coverageExtent: 0.5, reflection: 'Partial from judge2' },
             ]));
-            // Test the new concise reflection format
             expect(assessment.reflection).toContain('Consensus from 2 judge(s).');
             expect(assessment.reflection).toContain('Average score: 0.75');
         });
@@ -288,7 +255,7 @@ describe('LLMCoverageEvaluator', () => {
 
              requestIndividualJudgeSpy.mockImplementation(async (modelResponseText, keyPointText, promptContextText, modelId) => {
                 if (modelId === 'judge1') return { error: 'Judge1 failed' };
-                if (modelId === 'judge2') return { coverage_extent: 0.8, reflection: 'OK from judge2' };
+                if (modelId === 'judge2') return { coverage_extent: 0.75, reflection: 'OK from judge2' };
                 return { error: 'unexpected judge' };
             });
             
@@ -296,12 +263,12 @@ describe('LLMCoverageEvaluator', () => {
             const assessment = (result.llmCoverageScores?.['prompt-failover']?.['model1'] as any)?.pointAssessments[0];
             
             expect(requestIndividualJudgeSpy).toHaveBeenCalledTimes(2);
-            expect(assessment.coverageExtent).toBe(0.8);
+            expect(assessment.coverageExtent).toBe(0.75);
             expect(assessment.judgeModelId).toBe('judge2');
             expect(assessment.individualJudgements).toBeUndefined();
             expect(assessment.judgeLog).toEqual(expect.arrayContaining([
                 '[Attempt 1][judge1] FAILED: Judge1 failed',
-                '[Attempt 1][judge2] SUCCEEDED. Score: 0.8',
+                `[Attempt 1][judge2] SUCCEEDED. Score: 0.75`,
             ]));
         });
     });
@@ -314,7 +281,7 @@ describe('LLMCoverageEvaluator', () => {
                 citation: 'Source A'
             }];
             const input = createMockEvaluationInput('prompt-rich-text', points);
-            requestIndividualJudgeSpy.mockResolvedValue({ coverage_extent: 0.8, reflection: 'Good coverage' });
+            requestIndividualJudgeSpy.mockResolvedValue({ coverage_extent: 1.0, reflection: 'Good coverage' });
 
             const result = await evaluator.evaluate([input]);
             const model1Result = result.llmCoverageScores?.['prompt-rich-text']?.['model1'];
@@ -322,10 +289,10 @@ describe('LLMCoverageEvaluator', () => {
             expect(model1Result).not.toHaveProperty('error');
             const successResult = model1Result as Exclude<CoverageResult, { error: string } | null>;
             
-            expect(successResult.avgCoverageExtent).toBe(0.8);
+            expect(successResult.avgCoverageExtent).toBe(1.0);
             expect(successResult.pointAssessments?.[0]).toMatchObject({
                 keyPointText: 'Important point',
-                coverageExtent: 0.8,
+                coverageExtent: 1.0,
                 multiplier: 2.5,
                 citation: 'Source A'
             });
@@ -339,7 +306,6 @@ describe('LLMCoverageEvaluator', () => {
                 citation: 'Requirement doc, section 2.1'
             }];
             const input = createMockEvaluationInput('prompt-rich-fn', points, 'This has the special word.');
-            mockContains.mockReturnValue(true);
 
             const result = await evaluator.evaluate([input]);
             const model1Result = result.llmCoverageScores?.['prompt-rich-fn']?.['model1'];
@@ -392,7 +358,7 @@ describe('LLMCoverageEvaluator', () => {
              
              const result = await evaluator.evaluate([input]);
              const model1Result = result.llmCoverageScores?.['prompt-invalid']?.['model1'];
-             expect(model1Result).toEqual({ error: expect.stringContaining("Point object cannot have both 'text' and 'fn' defined") });
+             expect(model1Result).toEqual({ error: expect.stringContaining("Point normalization failed") });
         });
 
         it('should throw an error for a point with an invalid multiplier', async () => {
@@ -402,6 +368,106 @@ describe('LLMCoverageEvaluator', () => {
              const result = await evaluator.evaluate([input]);
              const model1Result = result.llmCoverageScores?.['prompt-invalid-mult']?.['model1'];
              expect(model1Result).toEqual({ error: expect.stringContaining("Point multiplier must be a number between 0.1 and 10") });
+        });
+    });
+
+    describe('should_not functionality', () => {
+        it('should invert the score of a successful match', async () => {
+            const input = createMockEvaluationInput(
+                'prompt-should-not',
+                [], // No 'should' points
+                "This response contains the forbidden phrase."
+            );
+            input.config.prompts[0].should_not = [['contains', 'forbidden phrase']];
+
+            const result = await evaluator.evaluate([input]);
+            const model1Result = result.llmCoverageScores?.['prompt-should-not']?.['model1'];
+            
+            if (!model1Result || 'error' in model1Result) {
+                fail('Expected a valid coverage result, but got an error or undefined.');
+            }
+
+            expect(model1Result.avgCoverageExtent).toBe(0.0); // Inverted from 1.0
+            expect(model1Result.pointAssessments?.[0]).toMatchObject({
+                keyPointText: 'Function: contains("forbidden phrase")',
+                coverageExtent: 0.0,
+                isInverted: true,
+            });
+        });
+
+        it('should invert the score of a failed match', async () => {
+            const input = createMockEvaluationInput(
+                'prompt-should-not-2',
+                [],
+                "This response is clean."
+            );
+            input.config.prompts[0].should_not = [['contains', 'forbidden phrase']];
+
+            const result = await evaluator.evaluate([input]);
+            const model1Result = result.llmCoverageScores?.['prompt-should-not-2']?.['model1'];
+
+            if (!model1Result || 'error' in model1Result) {
+                fail('Expected a valid coverage result, but got an error or undefined.');
+            }
+
+            expect(model1Result.avgCoverageExtent).toBe(1.0); // Inverted from 0.0
+            expect(model1Result.pointAssessments?.[0]).toMatchObject({
+                keyPointText: 'Function: contains("forbidden phrase")',
+                coverageExtent: 1.0,
+                isInverted: true,
+            });
+        });
+
+        it('should invert a graded score from a function', async () => {
+            const input = createMockEvaluationInput(
+                'prompt-should-not-graded',
+                [],
+                "one two three four five six" // 6 words
+            );
+            // word_count_between [5, 10] returns 1.0 for 6 words. Inverted should be 0.0
+            input.config.prompts[0].should_not = [['word_count_between', [5, 10]]];
+
+            const result = await evaluator.evaluate([input]);
+            const model1Result = result.llmCoverageScores?.['prompt-should-not-graded']?.['model1'];
+
+            if (!model1Result || 'error' in model1Result) {
+                fail('Expected a valid coverage result, but got an error or undefined.');
+            }
+
+            expect(model1Result.avgCoverageExtent).toBeCloseTo(0.0); // 1.0 becomes 0.0
+            expect(model1Result.pointAssessments?.[0]).toMatchObject({
+                keyPointText: 'Function: word_count_between([5,10])',
+                coverageExtent: 0.0,
+                isInverted: true,
+            });
+        });
+
+        it('should invert a graded score from an LLM judge', async () => {
+            const input = createMockEvaluationInput(
+                'prompt-should-not-llm',
+                [],
+                "This response is moderately bad."
+            );
+            input.config.prompts[0].should_not = ["The response should be good"];
+
+            // Mock the judge to return a partial score of 0.75
+            requestIndividualJudgeSpy.mockResolvedValue({ coverage_extent: 0.75, reflection: 'Moderately good' });
+
+            const result = await evaluator.evaluate([input]);
+            const model1Result = result.llmCoverageScores?.['prompt-should-not-llm']?.['model1'];
+
+            if (!model1Result || 'error' in model1Result) {
+                fail('Expected a valid coverage result, but got an error or undefined.');
+            }
+
+            // The original score was 0.75, so the inverted score is 1 - 0.75 = 0.25
+            expect(model1Result.avgCoverageExtent).toBeCloseTo(0.25);
+            const assessment = model1Result.pointAssessments?.[0];
+            expect(assessment).toBeDefined();
+            expect(assessment?.keyPointText).toBe('The response should be good');
+            expect(assessment?.coverageExtent).toBeCloseTo(0.25);
+            expect(assessment?.isInverted).toBe(true);
+            expect(assessment?.reflection).toContain('[INVERTED]');
         });
     });
 }); 

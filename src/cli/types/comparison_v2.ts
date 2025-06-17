@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { IDEAL_MODEL_ID } from '../../app/utils/comparisonUtils'; // Corrected path
+import { IDEAL_MODEL_ID } from '../../app/utils/comparisonUtils';
 
 export type EvaluationMethod = 'embedding' | 'llm-coverage';
 
@@ -8,40 +8,32 @@ export interface ConversationMessage {
     content: string;
 }
 
+// A Point can be a simple string, a function call tuple, or a rich object.
+export type PointDefinition =
+    string |
+    [string, any] |
+    {
+        text?: string;
+        fn?: string;
+        fnArgs?: any;
+        arg?: any; // Alias for fnArgs
+        multiplier?: number;
+        citation?: string;
+        // This is the key part for the new syntax. It allows any other string key.
+        [key: string]: any;
+    };
+
 export interface PromptConfig {
     id: string;
-    description?: string; // Optional field for commentary on the prompt's purpose or design
-    promptText?: string; // Now optional for backward compatibility
-    messages?: ConversationMessage[]; // New field for multi-turn
-    idealResponse?: string | null; // This will be the ideal *final* assistant response
-    system?: string | null; // Can be handled as the first message in 'messages' or separately
+    description?: string;
+    messages?: ConversationMessage[];
+    promptText?: string;
+    points?: PointDefinition[];
+    should_not?: PointDefinition[]; // For inverted checks
+    idealResponse?: string | null;
+    system?: string | null;
     temperature?: number;
-    points?: PointDefinition[]; // These points apply to the *final* assistant response
 }
-
-export type PointFunctionArgs = any;
-export type PointFunctionDefinition = [string, PointFunctionArgs];
-
-/**
- * The rich object format for defining a point in a blueprint.
- * A point must have *either* 'text' (for LLM-based evaluation)
- * or 'fn' (for programmatic evaluation).
- */
-export interface PointObject {
-    text?: string;
-    fn?: string;
-    fnArgs?: PointFunctionArgs;
-    multiplier?: number;
-    citation?: string;
-}
-
-/**
- * Defines a single evaluation criterion (a "point").
- * Can be a simple string (shortcut for { text: "..." }),
- * a tuple for a function (shortcut for { fn: "...", fnArgs: "..." }),
- * or a full PointObject for more control.
- */
-export type PointDefinition = string | PointFunctionDefinition | PointObject;
 
 /**
  * The unified internal representation of a point after normalization.
@@ -53,11 +45,12 @@ export interface NormalizedPoint {
     multiplier: number; // The weight for scoring, defaults to 1.
     citation?: string;
     isFunction: boolean;
+    isInverted?: boolean; // To track if the point came from should_not
     // Fields for LLM-based evaluation
     textToEvaluate?: string;
     // Fields for function-based evaluation
     functionName?: string;
-    functionArgs?: PointFunctionArgs;
+    functionArgs?: any;
 }
 
 export interface ComparisonConfig {
@@ -82,18 +75,18 @@ export interface ComparisonConfig {
 }
 
 export interface ModelResponseDetail {
-    finalAssistantResponseText: string; // Renamed from responseText for clarity
-    fullConversationHistory?: ConversationMessage[]; // To store the whole exchange
+    finalAssistantResponseText: string;
+    fullConversationHistory?: ConversationMessage[];
     hasError: boolean;
     errorMessage?: string;
-    systemPromptUsed: string | null; // System prompt applied to the entire generation if applicable
+    systemPromptUsed: string | null;
 }
 
 export interface PromptResponseData {
     promptId: string;
-    promptText?: string; // For backward compatibility or single-turn context
-    initialMessages?: ConversationMessage[]; // The input messages for multi-turn
-    idealResponseText: string | null; // Ideal *final* assistant response
+    promptText?: string;
+    initialMessages?: ConversationMessage[];
+    idealResponseText: string | null;
     modelResponses: Map<string, ModelResponseDetail>;
 }
 
@@ -122,9 +115,10 @@ export interface PointAssessment {
     error?: string;
     multiplier: number;
     citation?: string;
-    judgeModelId?: string; // The model that made the final decision
-    judgeLog?: string[]; // A papertrail of evaluation attempts
+    judgeModelId?: string;
+    judgeLog?: string[];
     individualJudgements?: IndividualJudgement[];
+    isInverted?: boolean;
 }
 
 export type CoverageResult = ({
@@ -160,10 +154,10 @@ export interface FinalComparisonOutputV2 {
     effectiveModels: string[];
     modelSystemPrompts?: Record<string, string | null>;
     promptIds: string[];
-    promptContexts?: Record<string, string | ConversationMessage[]>; // Replaces promptTexts, stores initial input
+    promptContexts?: Record<string, string | ConversationMessage[]>;
     extractedKeyPoints?: Record<string, string[]>;
-    allFinalAssistantResponses?: Record<string, Record<string, string>>; // Stores the final model message
-    fullConversationHistories?: Record<string, Record<string, ConversationMessage[]>>; // Optional: Stores complete dialogues
+    allFinalAssistantResponses?: Record<string, Record<string, string>>;
+    fullConversationHistories?: Record<string, Record<string, ConversationMessage[]>>;
     errors?: Record<string, Record<string, string>>;
     evaluationResults: {
         similarityMatrix?: SimilarityScore;

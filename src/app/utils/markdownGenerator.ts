@@ -6,12 +6,11 @@ import {
 } from '@/app/utils/types';
 import {
     IDEAL_MODEL_ID,
-    calculateAverageHybridScoreForRun,
     calculateHybridScoreExtremes,
     calculateOverallAverageCoverage,
     calculateOverallCoverageExtremes,
 } from '@/app/utils/comparisonUtils';
-import { calculatePerModelHybridScoresForRun } from '@/app/utils/calculationUtils';
+import { calculatePerModelHybridScoresForRun, calculateAverageHybridScoreForRun } from '@/app/utils/calculationUtils';
 import { findIdealExtremes } from '@/app/utils/similarityUtils';
 import { fromSafeTimestamp, formatTimestampForDisplay } from '@/app/utils/timestampUtils';
 import { getModelDisplayLabel } from './modelIdUtils';

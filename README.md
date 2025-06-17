@@ -62,7 +62,7 @@ It achieves this through a combination of automated, LLM-judged (rubric-based) q
 
 ## Submitting an evaluation blueprint for [civiceval.org](https://civiceval.org)
 
-To contribute a blueprint to CivicEval.org specifically, please follow the guidance in the [configs repository](https://github.com/civiceval/configs). You'll be able to submit a 'pull request' to add your blueprint JSON file, which simply specifies a list of prompts, idealized responses, and key 'success' criteria.
+To contribute a blueprint to CivicEval.org specifically, please follow the guidance in the [configs repository](https://github.com/civiceval/configs). You'll be able to submit a 'pull request' to add your blueprint file (in our user-friendly YAML format, or legacy JSON). The blueprint simply specifies a list of prompts, idealized responses, and key 'success' criteria.
 
 If you want to evaluate things unrelated to civic matters, you can freely use this repository and run CivicEval yourself in accordance with the [MIT license](LICENSE), and you can use the [Configs Repository](https://github.com/civiceval/configs) as inspiration for your own suite of blueprints.
 
@@ -70,7 +70,7 @@ If you want to evaluate things unrelated to civic matters, you can freely use th
 
 Beyond local execution, CivicEval is designed to operate as an automated, deployed service:
 
-*   **Centralized Blueprints**: Evaluation configurations ("Blueprints") are managed in a dedicated public GitHub repository (`civiceval/configs`, in the `blueprints` subdirectory).
+*   **Centralized Blueprints**: Evaluation configurations ("Blueprints") are managed in a dedicated public GitHub repository (`civiceval/configs`, in the `blueprints` subdirectory). These can be `.yml`, `.yaml`, or `.json` files.
 *   **Automated Evaluation Runs**: Netlify Scheduled Functions periodically fetch these blueprints. If a blueprint is new or its last evaluation is outdated (e.g., older than a week), a new evaluation is triggered.
 *   **Scalable Execution**: Netlify Background Functions execute the core evaluation pipeline for each triggered blueprint.
 *   **Cloud-Based Results**: Evaluation results (JSON outputs) are stored in cloud blob storage (AWS S3), making them persistently available to the web dashboard.
@@ -85,7 +85,7 @@ This toolkit supports both locally run manual evaluations (ideal for developing 
 **1. Automated Deployed Workflow (Primary for Production System)**
 
 This is the main operational mode for the CivicEval platform.
-1.  **Contribute Blueprints**: Users propose new or updated evaluation blueprints by submitting pull requests to the `blueprints` directory in the [civiceval/configs](https://github.com/civiceval/configs) GitHub repository. Each blueprint is a JSON file.
+1.  **Contribute Blueprints**: Users propose new or updated evaluation blueprints by submitting pull requests to the `blueprints` directory in the [civiceval/configs](https://github.com/civiceval/configs) GitHub repository. Each blueprint can be a YAML (`.yml`, `.yaml`) or JSON (`.json`) file.
 2.  **Automated Fetch & Schedule**: A scheduled Netlify Function (`fetch-and-schedule-evals`) runs periodically (e.g., daily):
     *   It fetches all blueprint files from the `blueprints` directory in the `civiceval/configs` repository.
     *   For each blueprint, it calculates a content hash.
@@ -104,13 +104,13 @@ This is the main operational mode for the CivicEval platform.
         - Clicking a specific run label leads to `/analysis/[id]/[runLabel]`, showing all timestamped instances of that run.
         - Clicking "View Full Analysis" for a specific instance (either from the homepage's "Latest Evaluation Runs" or the run label page) navigates to `/analysis/[id]/[runLabel]/[timestamp]` to explore the rich, interactive visualizations for that specific execution.
 
-**2. Local JSON Config Workflow (`run_config` - For Development & Manual Runs)**
+**2. Local Blueprint Workflow (`run_config` - For Development & Manual Runs)**
 
 This method allows for detailed, reproducible evaluations driven by a single configuration file locally. It's highly recommended for developing new blueprints before contributing them to the `civiceval/configs` repository.
 
-1.  **Create Blueprint File**: Define your entire test run in a JSON file (see structure below).
+1.  **Create Blueprint File**: Define your entire test run in a YAML or JSON file (see structure below).
     *   Store these in a local directory like `/evaluation_blueprints`.
-2.  **Run Config Command**: Execute `pnpm cli run_config --config path/to/your_blueprint.json --run-label <your_run_label>`.
+2.  **Run Config Command**: Execute `pnpm cli run_config --config path/to/your_blueprint.civic.yml --run-label <your_run_label>`.
     *   The `--run-label` (e.g., "run-2024-07-18-initial") uniquely identifies this specific execution of the blueprint.
     *   You can specify evaluation methods (e.g., `--eval-method="embedding,llm-coverage"`).
     *   This command handles response generation, embedding, and chosen evaluations.
@@ -132,106 +132,121 @@ This suite provides tools for generating embeddings and comparing the semantic s
 
 **(Strongly Recommended for local development and testing blueprints)**
 
-Runs the entire response generation, embedding, and comparison process based on parameters defined in a JSON configuration file.
+Runs the entire response generation, embedding, and comparison process based on parameters defined in a blueprint file.
 
 ```bash
-pnpm cli run_config --config path/to/your_blueprint.json --run-label <your_run_label>
+pnpm cli run_config --config path/to/your_blueprint.civic.yml --run-label <your_run_label>
 ```
 
 Options:
-- `--config <path>`: (Required) Path to the JSON configuration file.
+- `--config <path>`: (Required) Path to the blueprint file (`.yml`, `.yaml`, or `.json`).
 - `--run-label <runLabelValue>`: Optional. A user-defined label for this specific execution run. A content hash will always be generated and appended.
 - `--eval-method <methods>`: Optional. Comma-separated evaluation methods. Defaults to `embedding`. (`embedding`, `llm-coverage`, `all`).
 - `--cache`: Optional. Enables caching for model responses. For automated runs in the deployed system, caching is enabled by default.
 
-**JSON Configuration File Structure:**
+**Blueprint File Structure (YAML recommended):**
 
-```json
-{
-  "id": "unique-evaluation-identifier",
-  "title": "Human-Readable Title for this Eval",
-  "description": "Optional detailed description...",
-  "tags": ["topic-A", "experimental-setup"],
-  "models": [ "<provider>:<model-identifier>" ],
-  "systemPrompt": null,
-  "concurrency": 5,
-  "temperature": 0.3,
-  "temperatures": [0.0, 0.5, 0.8],
-  "evaluationConfig": {
-    "llm-coverage": {
-      "judgeModels": ["openrouter:google/gemini-pro-1.5", "openai:gpt-4-turbo"],
-      "judgeMode": "consensus"
-    }
-  },
-  "prompts": [
-    {
-      "id": "prompt-unique-id-1",
-      "promptText": "Text of the first prompt...", // Optional, for single-turn prompts. Will be converted to messages format internally.
-      "messages": [
-        { "role": "system", "content": "You are a helpful historian." }, // Optional, prompt-specific system message
-        { "role": "user", "content": "What were the main causes of the French Revolution?" },
-        { "role": "assistant", "content": "The main causes included social inequality, economic hardship, and Enlightenment ideas." }, // Example of previous turn
-        { "role": "user", "content": "Can you elaborate on the economic hardship?" } // Final user message, LLM will generate next assistant turn
-      ],
-      "idealResponse": "The ideal final assistant response text...", // Optional, refers to the ideal *final* assistant response in a multi-turn conversation.
-      "system": null, // Optional: Prompt-specific system prompt (alternative to system message in messages array)
-      "points": [
-        "This is a simple key point, treated with default multiplier 1.",
-        ["contains", "mandatory keyword"],
-        {
-          "text": "This is a very important conceptual point that must be covered.",
-          "multiplier": 3.0,
-          "citation": "Project requirements, section 2.1a"
-        },
-        {
-          "fn": "matches",
-          "fnArgs": "^The response must start with this phrase",
-          "multiplier": 0.5,
-          "citation": "Style guide rule #5"
-        }
-      ]
-    }
-  ]
-}
+Our new YAML format uses a "multi-document" structure, separating the main configuration from the list of prompts with a `---` divider. This allows for a clean, un-indented list of prompts, making it easy for non-technical users to contribute.
+
+For simple blueprints that only contain a list of prompts (and no global configuration), you can omit the header and the `---` separator entirely, providing just the list of prompts. In this case, the blueprint's `id` and `title` will be derived from its filename.
+
+The system also supports several aliases for convenience:
+*   `prompt` for `promptText`
+*   `ideal` for `idealResponse`
+*   `should` (or `expect`/`expects`/`expectations`) for `points`
+*   `weight` for `multiplier`
+*   `arg` for `fnArgs`
+*   `system` for `systemPrompt`
+
+```yaml
+# Main configuration for the blueprint
+id: comprehensive-llm-test-v1
+title: "Comprehensive LLM Functionality Test (Version 1)"
+description: "Tests multiple LLMs on a mix of philosophy, tech explanation, and creative writing prompts. Includes ideal responses and system prompt overrides."
+tags: [general-knowledge, creative-writing, philosophy, stoicism]
+models:
+  - openai:gpt-4o-mini
+  - anthropic:claude-3-haiku-20240307
+  - google:gemini-1.5-flash-latest
+  - mistral:mistral-large-latest
+  - openrouter:meta-llama/llama-3-70b-instruct
+system: "You are a helpful assistant. Provide clear and concise answers."
+concurrency: 5
+temperatures: [0.0, 0.5, 0.8]
+evaluationConfig:
+  llm-coverage:
+    judgeModels: [openrouter:google/gemini-pro-1.5, openai:gpt-4-turbo]
+    judgeMode: consensus
+
+---
+
+# Prompts follow, one per YAML document.
+
+- id: philosophy-wisdom
+  prompt: "What are the core tenets of Stoic philosophy and how can they be applied in modern life?"
+  ideal: "Stoicism, founded in Athens by Zeno of Citium in the early 3rd century BC, emphasizes virtue, reason, and living in accordance with nature. Key tenets include: 1. Virtue is the only good (wisdom, justice, courage, temperance). 2. Focus on what you can control (your thoughts, judgments, actions) and accept what you cannot. 3. Live in accordance with nature/reason. 4. The practice of negative visualization (imagining potential misfortunes) to appreciate what you have and prepare for adversity. In modern life, these can be applied by practicing mindfulness, focusing on internal responses to external events, maintaining emotional resilience, and acting with integrity."
+  should:
+    - "Virtue is the only good (wisdom, justice, courage, temperance)."
+    - "Focus on what you can control and accept what you cannot."
+    - "Live in accordance with nature/reason."
+    - "Practice negative visualization."
+
+- id: tech-cloud
+  prompt: "Explain the main benefits of cloud computing for a small business."
+  system: "Explain in simple terms, avoiding overly technical jargon."
+
+- id: creative-story
+  prompt: "Write a short story opening (100 words) about a detective discovering a mysterious antique map."
+
 ```
 
-**Key Identifiers:** (Same as before, but `id` and `title` are preferred)
+**Rubric / `should` block syntax:**
+
+The `should` block (or `points` in legacy JSON) defines specific criteria for rubric-based evaluation. The `should_not` block follows the exact same syntax, but it inverts the result of the check (i.e., a boolean `true` becomes `false`, and a numeric score `n` becomes `1-n`). This is useful for penalizing undesirable content.
+
+Each item in these lists can be:
+
+1.  A **simple string**: A conceptual "fuzzy" check evaluated by an LLM judge.
+    ```yaml
+    should:
+      - "The response should mention the concept of fiscal responsibility."
+    ```
+2.  An **idiomatic function call**: The recommended way to perform deterministic checks. The key is the function name, and the value is the argument.
+    ```yaml
+    should:
+      - contains: "fiduciary duty"  # Case-sensitive check
+      - icontains: "fiduciary duty" # Case-insensitive
+      - ends_with: "." # Checks if the response ends with a period.
+      - contains_any_of: ["fiduciary", "duty"] # Returns true if any keyword is found
+      - contains_all_of: ["fiduciary", "duty"] # Returns a graded score (e.g., 0.5 if 1 of 2 is found)
+      - match: "^The ruling states that" # Regex check
+      - imatch: "^the ruling" # Case-insensitive regex
+      - match_all_of: ["^The ruling", "states that$"] # Graded score for multiple regex matches
+      - imatch_all_of: ["^the ruling", "states that$"] # Case-insensitive version of match_all_of
+      - contains_at_least_n_of: [2, ["apples", "oranges", "pears"]] # Graded score based on meeting a minimum count. Singular alias: contain_at_least_n_of
+      - word_count_between: [50, 100]
+
+    should_not:
+      - contains_any_of: ["I feel", "I believe", "As an AI"]
+      - contains: "guaranteed returns"
+    ```
+3.  A **full object with named keys**: For maximum control over weighting and documentation. This is the legacy format but is still fully supported.
+    ```yaml
+    should:
+      - text: "Covers the principle of 'prudent man' rule."
+        weight: 3.0 # This point is 3x as important as others
+        citation: "Investment Advisers Act of 1940, Section 206"
+      - fn: contains
+        arg: "fiduciary duty"
+        weight: 1.5
+    ```
+
+For more details on how these expectations are processed, see the [POINTS_DOCUMENTATION.md](docs/POINTS_DOCUMENTATION.md).
+
+**Key Identifiers:**
 - `id` / `configId`
 - `title` / `configTitle`
 - `runLabel`
-
-**Note on `idealResponse` and `points`:**
-- An `idealResponse` serves as a benchmark. If provided, it can be used for semantic similarity comparison (`IDEAL_BENCHMARK` model) and as the basis for automatic key point extraction if `points` are not explicitly defined for the `llm-coverage` method.
-- The `points` array defines specific criteria for rubric-based evaluation using the `llm-coverage` method. Each item in the `points` array can be:
-    1.  A **full `Point` object**: This is the most explicit format, allowing for fine-grained control. A point must have either `text` or `fn`.
-        -   `text` (string): The key point text to be evaluated by an LLM judge.
-        -   `fn` (string): The name of a natively supported point function to execute.
-        -   `fnArgs` (any): The arguments to pass to the function specified by `fn`.
-        -   `multiplier` (number, optional, default: 1): A weight (from 0.1 to 10) applied to this point's score when calculating the average. This allows you to define certain criteria as more or less important than others.
-        -   `citation` (string, optional): A note, URL, or reference explaining why this point is important. This is for documentation and is displayed in the UI.
-    2.  A **string**: This is a shortcut for `{ "text": "your string here", "multiplier": 1 }`. This is the simplest way to define a standard, LLM-judged key point.
-    3.  A **function definition tuple** `["functionName", arguments]`: This is a shortcut for `{ "fn": "functionName", "fnArgs": arguments, "multiplier": 1 }`.
--   **LLM-based "fuzzy" evaluation**: When using `text`-based points, a highly capable LLM judge provides a nuanced assessment of whether the response covers the semantic meaning of the key point, even if the wording isn't exact. The judge also generates a `reflection` (an explanation for its score), which is visible in the UI analysis. This is powerful for assessing conceptual coverage.
--   **Function-based "exact" evaluation**: When using `fn`-based points, the evaluation is deterministic. Natively supported functions (in `src/point-functions`) include `contains` and `matches` (regex), which return a score of 1 for a match and 0 for no match. Point functions can also be written to return a numeric score directly between 0.0 and 1.0. If a function encounters an error, it results in a score of 0.
-
-**Updated `points` example:**
-```json
-"points": [
-    "This is a simple key point, treated with default multiplier 1.",
-    ["contains", "mandatory keyword"],
-    {
-      "text": "This is a very important conceptual point that must be covered.",
-      "multiplier": 3.0,
-      "citation": "Project requirements, section 2.1a"
-    },
-    {
-      "fn": "matches",
-      "fnArgs": "^The response must start with this phrase",
-      "multiplier": 0.5,
-      "citation": "Style guide rule #5"
-    }
-]
-```
 
 **Output (from `run_config`):**
 - If `STORAGE_PROVIDER=s3` is configured, stores a JSON object in cloud blob storage (e.g., AWS S3) under a key like `multi/[id_or_configId]/[final_runLabel]_[timestamp]_comparison.json`.
@@ -354,63 +369,58 @@ Update your `.env` file (for local development) and configure these in your depl
 
 This example demonstrates the `run_config` command for local use.
 
-**1. Create a Rich Blueprint File (e.g., `evaluation_blueprints/comprehensive_test.json`)**
+**1. Create a Rich Blueprint File (e.g., `evaluation_blueprints/comprehensive_test.civic.yml`)**
 
-```json
-{
-  "id": "comprehensive-llm-test-v1",
-  "title": "Comprehensive LLM Functionality Test (Version 1)",
-  "description": "Tests multiple LLMs on a mix of philosophy, tech explanation, and creative writing prompts. Includes ideal responses and system prompt overrides.",
-  "tags": ["general-knowledge", "creative-writing", "philosophy", "stoicism"],
-  "models": [
-    "openai:gpt-4o-mini",
-    "anthropic:claude-3-haiku-20240307",
-    "google:gemini-1.5-flash-latest",
-    "mistral:mistral-large-latest",
-    "openrouter:meta-llama/llama-3-70b-instruct"
-  ],
-  "systemPrompt": "You are a helpful assistant. Provide clear and concise answers.",
-  "concurrency": 5,
-  "temperatures": [0.0, 0.5, 0.8],
-  "evaluationConfig": {
-    "llm-coverage": {
-      "judgeModels": ["openrouter:google/gemini-pro-1.5", "openai:gpt-4-turbo"],
-      "judgeMode": "consensus"
-    }
-  },
-  "prompts": [
-    {
-      "id": "philosophy-wisdom",
-      "promptText": "What are the core tenets of Stoic philosophy and how can they be applied in modern life?",
-      "idealResponse": "Stoicism, founded in Athens by Zeno of Citium in the early 3rd century BC, emphasizes virtue, reason, and living in accordance with nature. Key tenets include: 1. Virtue is the only good (wisdom, justice, courage, temperance). 2. Focus on what you can control (your thoughts, judgments, actions) and accept what you cannot. 3. Live in accordance with nature/reason. 4. The practice of negative visualization (imagining potential misfortunes) to appreciate what you have and prepare for adversity. In modern life, these can be applied by practicing mindfulness, focusing on internal responses to external events, maintaining emotional resilience, and acting with integrity.",
-      "points": [
-        "Virtue is the only good (wisdom, justice, courage, temperance).",
-        "Focus on what you can control and accept what you cannot.",
-        "Live in accordance with nature/reason.",
-        "Practice negative visualization."
-      ]
-    },
-    {
-      "id": "tech-cloud",
-      "promptText": "Explain the main benefits of cloud computing for a small business.",
-      "system": "Explain in simple terms, avoiding overly technical jargon."
-    },
-    {
-      "id": "creative-story",
-      "promptText": "Write a short story opening (100 words) about a detective discovering a mysterious antique map."
-    }
-  ]
-}
+```yaml
+# Main configuration for the blueprint
+id: comprehensive-llm-test-v1
+title: "Comprehensive LLM Functionality Test (Version 1)"
+description: "Tests multiple LLMs on a mix of philosophy, tech explanation, and creative writing prompts. Includes ideal responses and system prompt overrides."
+tags: [general-knowledge, creative-writing, philosophy, stoicism]
+models:
+  - openai:gpt-4o-mini
+  - anthropic:claude-3-haiku-20240307
+  - google:gemini-1.5-flash-latest
+  - mistral:mistral-large-latest
+  - openrouter:meta-llama/llama-3-70b-instruct
+system: "You are a helpful assistant. Provide clear and concise answers."
+concurrency: 5
+temperatures: [0.0, 0.5, 0.8]
+evaluationConfig:
+  llm-coverage:
+    judgeModels: [openrouter:google/gemini-pro-1.5, openai:gpt-4-turbo]
+    judgeMode: consensus
+
+---
+
+# Prompts follow, one per YAML document.
+
+- id: philosophy-wisdom
+  prompt: "What are the core tenets of Stoic philosophy and how can they be applied in modern life?"
+  ideal: "Stoicism, founded in Athens by Zeno of Citium in the early 3rd century BC, emphasizes virtue, reason, and living in accordance with nature. Key tenets include: 1. Virtue is the only good (wisdom, justice, courage, temperance). 2. Focus on what you can control (your thoughts, judgments, actions) and accept what you cannot. 3. Live in accordance with nature/reason. 4. The practice of negative visualization (imagining potential misfortunes) to appreciate what you have and prepare for adversity. In modern life, these can be applied by practicing mindfulness, focusing on internal responses to external events, maintaining emotional resilience, and acting with integrity."
+  should:
+    - "Virtue is the only good (wisdom, justice, courage, temperance)."
+    - "Focus on what you can control and accept what you cannot."
+    - "Live in accordance with nature/reason."
+    - "Practice negative visualization."
+
+- id: tech-cloud
+  prompt: "Explain the main benefits of cloud computing for a small business."
+  system: "Explain in simple terms, avoiding overly technical jargon."
+
+- id: creative-story
+  prompt: "Write a short story opening (100 words) about a detective discovering a mysterious antique map."
+
 ```
 
 **2. Run the Config-Based Command**
 
 ```bash
 # To save results locally (default for NODE_ENV=development)
-pnpm cli run_config --config evaluation_blueprints/comprehensive_test.json --run-label "initial-baseline-run" --eval-method="embedding,llm-coverage"
+pnpm cli run_config --config evaluation_blueprints/comprehensive_test.civic.yml --run-label "initial-baseline-run" --eval-method="embedding,llm-coverage"
 
 # To save results to S3 (ensure .env has S3 vars and STORAGE_PROVIDER=s3 if not in production)
-# STORAGE_PROVIDER=s3 pnpm cli run_config --config evaluation_blueprints/comprehensive_test.json --run-label "s3-baseline-run" --eval-method="embedding,llm-coverage"
+# STORAGE_PROVIDER=s3 pnpm cli run_config --config evaluation_blueprints/comprehensive_test.civic.yml --run-label "s3-baseline-run" --eval-method="embedding,llm-coverage"
 ```
 
 **3. Start the Web Dashboard**
@@ -440,139 +450,3 @@ Here are the supported providers and examples of their model identifiers:
     -   `"anthropic:claude-3-opus-20240229"`
 -   **Google**: Uses the `google:` prefix. The identifier is the model name.
     -   `"google:gemini-1.5-flash-latest"`
-    -   `"google:gemini-1.5-pro-latest"`
--   **Mistral AI**: Uses the `mistral:` prefix. The identifier is the model name.
-    -   `"mistral:mistral-large-latest"`
-    -   `"mistral:open-mixtral-8x22b"`
--   **xAI (Grok)**: Uses the `xai:` prefix.
-    -   `"xai:grok-1.5"`
--   **OpenRouter**: Uses the `openrouter:` prefix. The identifier includes the original provider slug. This is a versatile option for accessing models not directly integrated.
-    -   `"openrouter:perplexity/pplx-7b-online"`
-    -   `"openrouter:meta-llama/llama-3-70b-instruct"`
-
-Refer to each provider's documentation for a full list of available model names.
-
-### Environment Variables
-
-Update your `.env` file (for local development) and configure these in your deployment environment (e.g., Netlify). See `.env.example` for a template.
-
--   **LLM API Keys (Direct Providers):**
-    -   `OPENAI_API_KEY`: **Required for text embeddings**. Also required if you use the `openai:` provider for response generation.
-    -   `ANTHROPIC_API_KEY`: Required if using the `anthropic:` provider.
-    -   `GOOGLE_API_KEY`: Required if using the `google:` provider.
-    -   `MISTRAL_API_KEY`: Required if using the `mistral:` provider.
-    -   `TOGETHER_API_KEY`: Required if using the `together:` provider.
-    -   `XAI_API_KEY`: Required if using the `xai:` provider.
--   **LLM API Keys (Routing Services):**
-    -   `OPENROUTER_API_KEY`: Required if using the `openrouter:` provider.
--   **Storage Configuration:**
-    -   `STORAGE_PROVIDER`: (Optional) Set to `s3` to use AWS S3 for results storage. Defaults to `local` for development (`NODE_ENV=development`), `s3` otherwise.
-    -   `APP_S3_BUCKET_NAME`: Your AWS S3 bucket name (if using S3).
-    -   `APP_S3_REGION`: The AWS region of your S3 bucket (if using S3).
-    -   `APP_AWS_ACCESS_KEY_ID`: Your AWS IAM access key ID (if using S3 and explicit credentials).
-    -   `APP_AWS_SECRET_ACCESS_KEY`: Your AWS IAM secret access key (if using S3 and explicit credentials).
--   **Netlify Deployment (for automated functions):**
-    -   Netlify automatically provides `process.env.URL`.
-    -   `NETLIFY_API_TOKEN` and `SITE_ID` were previously considered for function invocation but are not strictly needed with the current direct POST method between functions. However, keep them in mind if more advanced Netlify API interactions are added later.
-
-### Quick Start (Local Development & Config Testing)
-
-This example demonstrates the `run_config` command for local use.
-
-**1. Create a Rich Blueprint File (e.g., `evaluation_blueprints/comprehensive_test.json`)**
-
-```json
-{
-  "id": "comprehensive-llm-test-v1",
-  "title": "Comprehensive LLM Functionality Test (Version 1)",
-  "description": "Tests multiple LLMs on a mix of philosophy, tech explanation, and creative writing prompts. Includes ideal responses and system prompt overrides.",
-  "tags": ["general-knowledge", "creative-writing", "philosophy", "stoicism"],
-  "models": [
-    "openai:gpt-4o-mini",
-    "anthropic:claude-3-haiku-20240307",
-    "google:gemini-1.5-flash-latest",
-    "mistral:mistral-large-latest",
-    "openrouter:meta-llama/llama-3-70b-instruct"
-  ],
-  "systemPrompt": "You are a helpful assistant. Provide clear and concise answers.",
-  "concurrency": 5,
-  "temperatures": [0.0, 0.5, 0.8],
-  "evaluationConfig": {
-    "llm-coverage": {
-      "judgeModels": ["openrouter:google/gemini-pro-1.5", "openai:gpt-4-turbo"],
-      "judgeMode": "consensus"
-    }
-  },
-  "prompts": [
-    {
-      "id": "philosophy-wisdom",
-      "promptText": "What are the core tenets of Stoic philosophy and how can they be applied in modern life?",
-      "idealResponse": "Stoicism, founded in Athens by Zeno of Citium in the early 3rd century BC, emphasizes virtue, reason, and living in accordance with nature. Key tenets include: 1. Virtue is the only good (wisdom, justice, courage, temperance). 2. Focus on what you can control (your thoughts, judgments, actions) and accept what you cannot. 3. Live in accordance with nature/reason. 4. The practice of negative visualization (imagining potential misfortunes) to appreciate what you have and prepare for adversity. In modern life, these can be applied by practicing mindfulness, focusing on internal responses to external events, maintaining emotional resilience, and acting with integrity.",
-      "points": [
-        "Virtue is the only good (wisdom, justice, courage, temperance).",
-        "Focus on what you can control and accept what you cannot.",
-        "Live in accordance with nature/reason.",
-        "Practice negative visualization."
-      ]
-    },
-    {
-      "id": "tech-cloud",
-      "promptText": "Explain the main benefits of cloud computing for a small business.",
-      "system": "Explain in simple terms, avoiding overly technical jargon."
-    },
-    {
-      "id": "creative-story",
-      "promptText": "Write a short story opening (100 words) about a detective discovering a mysterious antique map."
-    }
-  ]
-}
-```
-
-**2. Run the Config-Based Command**
-
-```bash
-# To save results locally (default for NODE_ENV=development)
-pnpm cli run_config --config evaluation_blueprints/comprehensive_test.json --run-label "initial-baseline-run" --eval-method="embedding,llm-coverage"
-
-# To save results to S3 (ensure .env has S3 vars and STORAGE_PROVIDER=s3 if not in production)
-# STORAGE_PROVIDER=s3 pnpm cli run_config --config evaluation_blueprints/comprehensive_test.json --run-label "s3-baseline-run" --eval-method="embedding,llm-coverage"
-```
-
-**3. Start the Web Dashboard**
-
-```bash
-pnpm dev
-```
-
-**4. Visualize Your Results**
-Open your browser. The dashboard will display results from the configured storage provider.
-
-## Important Considerations for API Keys & Internal Models
-
-*   **Text Embeddings (OpenAI Required)**:
-    *   The toolkit generates semantic embeddings using OpenAI models (e.g., `text-embedding-3-small`, `text-embedding-3-large`) via a direct OpenAI API client.
-    *   An `OPENAI_API_KEY` is **essential** for this core functionality.
-*   **`llm-coverage` Evaluation (Internal "Judge" Models)**:
-    *   The `llm-coverage` evaluation method involves two steps performed by LLMs:
-        1.  **Key Point Extraction**: Extracts key points from your `idealResponse`.
-        2.  **Coverage Assessment**: Checks if a model's actual output covers these extracted key points.
-    *   Both of these steps internally use a list of models specified with provider prefixes (e.g., `openai:gpt-4o-mini`, `openrouter:google/gemini-1.5-flash-latest`).
-    *   Therefore, to use the `llm-coverage` feature, you must have the necessary API key (e.g., `OPENAI_API_KEY`, `OPENROUTER_API_KEY`) configured for whichever judge models are defined internally for these tasks.
-
-## Project Structure
-
-- `/netlify/functions` - Contains Netlify Functions for automated tasks (e.g., `fetch-and-schedule-evals.ts`, `execute-evaluation.ts`).
-- `/src/app` - Next.js web application
-  - `/(dashboard)` - Dashboard components
-    - `/analysis/[configId]` - Page listing unique run labels for a config.
-    - `/analysis/[configId]/[runLabel]` - Page listing timestamped instances for a run label.
-    - `/analysis/[configId]/[runLabel]/[timestamp]` - Detailed comparison visualization page for a specific run instance.
-- `/src/cli` - Command-line tools and services
-  - `/commands` - CLI command implementations
-  - `/services` - Backend services (embedding, comparison logic)
-  - `/utils` - Shared utilities for CLI
-- `/src/lib` - Shared library code used by both CLI, Next.js app, and Netlify functions (e.g., `storageService.ts`, `hash-utils.ts`).
-- `/src/data` - (May contain built-in prompt definitions if used)
-- `/evaluation_blueprints` - (Suggested location for user-created JSON blueprint files for local testing)
-- `/.results` - Test results and visualizations (used when `STORAGE_PROVIDER=local`). This path structure might use `id` or `configId` based on what's present in the blueprint.
-  - `/multi` - Output files from `run_config` (if local)
