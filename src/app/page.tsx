@@ -89,7 +89,7 @@ export default async function HomePage() {
     if (isDevelopment) {
       return true;
     }
-    return config.tags?.includes('show:home');
+    return config.tags?.includes('_featured');
   });
 
   const allRunInstances: DisplayableRunInstanceInfo[] = [];
@@ -269,7 +269,7 @@ export default async function HomePage() {
             <div className="mt-4 text-xs text-muted-foreground/80 dark:text-slate-500/80 bg-muted dark:bg-slate-700/50 p-3 rounded-md w-full max-w-md">
                 <span className="font-semibold">Example command:</span>
                 <code className="block text-xs bg-transparent dark:bg-transparent p-1 rounded mt-1 select-all">
-                  pnpm cli run_config --config path/to/your_blueprint.json --run-label "my-first-run"
+                  pnpm cli run_config --config path/to/your_blueprint.yml --run-label "my-first-run"
                 </code>
             </div>
           </div>
