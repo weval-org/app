@@ -41,7 +41,7 @@ const BrowseAllBlueprintsSection = ({ blueprints }: { blueprints: BlueprintSumma
   return (
     <section id="browse-blueprints" className="mb-12 md:mb-16">
       <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground dark:text-slate-100 mb-6 md:mb-8 text-center">
-        Browse Evaluation Blueprints
+        Featured Blueprints
       </h2>
       {blueprints.length === 0 ? (
         <div className="text-center py-10 bg-card/50 dark:bg-slate-800/40 rounded-lg shadow-md">
