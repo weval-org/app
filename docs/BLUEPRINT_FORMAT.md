@@ -144,47 +144,59 @@ messages:
 
 These blocks define the criteria for rubric-based evaluation. The `should` block defines positive criteria (what a good response includes), while the `should_not` block defines negative criteria (what a good response avoids). The `should_not` block follows the exact same syntax, but it inverts the result of each check.
 
-Each item in these arrays is a point definition.
+Each item in these arrays is a point definition, processed in the following order of precedence:
 
-1.  **Plain Language Rubric (LLM-Judged Check)**: This is the simplest and most powerful way to create a rubric. Each string is a criterion that an AI "judge" will evaluate for its conceptual presence in the model's response. You can list multiple strings to form a comprehensive, qualitative rubric.
+1.  **Plain Language Rubric (LLM-Judged Check)**: This is the simplest and most powerful way to create a rubric. Each string is a criterion that an AI "judge" will evaluate for its conceptual presence in the model's response.
     ```yaml
     should:
       - "be empathetic and understanding."
       - "acknowledge the user's difficulty."
-      - "not offer specific advice but should suggest professional help instead."
     ```
-2.  **Idiomatic Function (Deterministic Check)**: A quick way to perform exact, programmatic checks.
+
+2.  **Point with Citation (Recommended Shorthand)**: For the common case of adding a citation to a conceptual point, you can use a direct key-value pair. This supports multi-line strings for complex criteria using YAML block syntax.
+    ```yaml
+    should:
+      - "Covers the principle of 'prudent man' rule.": "Investment Advisers Act of 1940"
+      - ? |
+          The response must detail the three core duties of a fiduciary:
+          1. The Duty of Care
+          2. The Duty of Loyalty
+        : "SEC Rule on Fiduciary Duty"
+    ```
+
+3.  **Idiomatic Function (Deterministic Check)**: A quick way to perform exact, programmatic checks. **All idiomatic function calls must be prefixed with a `$`** to distinguish them from citable points.
     ```yaml
     should:
       # Simple presence
-      - contains: "fiduciary duty"  # Case-sensitive check
-      - icontains: "fiduciary duty" # Case-insensitive
-      - ends_with: "."
+      - $contains: "fiduciary duty"  # Case-sensitive check
+      - $icontains: "fiduciary duty" # Case-insensitive
+      - $ends_with: "."
 
       # List-based checks
-      - contains_any_of: ["fiduciary", "duty"]  # True if any are found
-      - contains_all_of: ["fiduciary", "duty"]  # Graded score (0.5 if 1 of 2 is found)
-      - contains_at_least_n_of: [2, ["apples", "oranges", "pears"]]
+      - $contains_any_of: ["fiduciary", "duty"]  # True if any are found
+      - $contains_all_of: ["fiduciary", "duty"]  # Graded score (0.5 if 1 of 2 is found)
+      - $contains_at_least_n_of: [2, ["apples", "oranges", "pears"]]
 
       # Regex checks
-      - match: "^The ruling states" # Case-sensitive regex
-      - imatch: "^the ruling"       # Case-insensitive regex
-      - match_all_of: ["^The ruling", "states that$"] # Graded regex
-      - imatch_all_of: ["^the ruling", "states that$"] # Case-insensitive graded regex
+      - $match: "^The ruling states" # Case-sensitive regex
+      - $imatch: "^the ruling"       # Case-insensitive regex
+      - $match_all_of: ["^The ruling", "states that$"] # Graded regex
+      - $imatch_all_of: ["^the ruling", "states that$"] # Case-insensitive graded regex
 
       # Other checks
-      - word_count_between: [50, 100]
+      - $word_count_between: [50, 100]
+      - $js: "r.length > 100" # Advanced JS expression
 
     should_not:
-      - contains_any_of: ["I feel", "I believe", "As an AI"]
-      - contains: "guaranteed returns"
+      - $contains_any_of: ["I feel", "I believe", "As an AI"]
+      - $contains: "guaranteed returns"
     ```
-3.  **Full Object (Maximum Control)**: For weighting points or adding citations.
+4.  **Full Object (Maximum Control)**: For weighting points or adding citations. This is the most verbose, legacy-compatible format.
     ```yaml
     should:
       - text: "Covers the principle of 'prudent man' rule."
         weight: 3.0 # This point is 3x as important
-      - fn: contains
+      - fn: "contains"
         arg: "fiduciary duty"
         weight: 1.5
         citation: "Investment Advisers Act of 1940"
@@ -217,7 +229,7 @@ The system remains backwardly compatible with the original JSON format.
         { "text": "It is a data-interchange format", "multiplier": 1.0 }
       ],
       "should_not": [
-          { "contains": "YAML" }
+          { "fn": "contains", "fnArgs": "YAML" }
       ]
     }
   ]

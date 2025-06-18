@@ -15,6 +15,7 @@ import { contains_at_least_n_of } from './contains_at_least_n_of';
 import { icontains_at_least_n_of } from './icontains_at_least_n_of';
 import { matches_at_least_n_of } from './matches_at_least_n_of';
 import { imatch_at_least_n_of } from './imatch_at_least_n_of';
+import { js } from './js';
 
 export const pointFunctions: Record<string, PointFunction> = {
     contains,
@@ -41,4 +42,6 @@ export const pointFunctions: Record<string, PointFunction> = {
     matches_at_least_n_of,
     match_at_least_n_of: matches_at_least_n_of,
     imatch_at_least_n_of,
+    js,
+    expr: js,
 };

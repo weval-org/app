@@ -1,0 +1,91 @@
+# Main configuration for the blueprint
+id: comprehensive-system-test-v1
+title: "Comprehensive System Test"
+description: "A blueprint designed to test every feature of the CivicEval system, including all point functions, syntaxes, and configuration options."
+tags: ['system-test', 'internal', 'kitchen-sink']
+models:
+  - QUICK
+system: "You are a test assistant. Follow instructions precisely. Your responses should be brief."
+concurrency: 5
+temperatures: [0.1, 0.7]
+evaluationConfig:
+  llm-coverage:
+    judgeModels: [openrouter:google/gemini-pro-1.5]
+    judgeMode: consensus
+
+---
+
+# Prompts follow, one per YAML document.
+
+- id: test-basic-string-functions
+  prompt: "Please respond with the exact phrase: 'The quick brown FOX jumps over the lazy dog.'"
+  ideal: "The quick brown FOX jumps over the lazy dog."
+  should:
+    - contains: "brown FOX"         # Case-sensitive contains
+    - icontains: "brown fox"        # Case-insensitive contains
+    - starts_with: "The quick"
+    - ends_with: "lazy dog."
+
+- id: test-regex-and-negation
+  prompt: "Output a single sentence that starts with 'Report' and ends with a number, like 'Report #123'. Do not use the word 'confidential'."
+  ideal: "Report #456"
+  should:
+    - matches: "^Report #\\d+$"       # Case-sensitive regex
+    - imatch: "^report #\\d+$"        # Case-insensitive regex
+  should_not:
+    - contains: "confidential"
+
+- id: test-list-functions
+  prompt: "List three primary colors. Mention both 'red' and 'blue'."
+  ideal: "The three primary colors are red, blue, and yellow."
+  should:
+    - contains_any_of: ["red", "green", "purple"] # Should pass on "red"
+    - contains_all_of: ["red", "blue"]            # Should get a perfect score
+    - contains_all_of: ["red", "yellow", "indigo"] # Should get a graded score of 2/3
+
+- id: test-graded-n-of-functions
+  prompt: "Name five fruits. Include 'Apple', 'banana', and 'Cherry'."
+  ideal: "Five fruits are Apple, banana, Cherry, durian, and elderberry."
+  should:
+    - contains_at_least_n_of: [3, ["Apple", "banana", "Cherry", "Date"]]
+    - icontains_at_least_n_of: [2, ["apple", "BANANA", "fig"]]
+    - matches_at_least_n_of: [2, ["^Apple", "banana", "Grape"]]
+    - imatch_at_least_n_of: [1, ["^apple", "grape"]]
+
+- id: test-utility-and-full-syntax
+  prompt: "Provide a JSON object with two keys, 'name' and 'value'. The value should be a number. Make your entire response between 5 and 15 words."
+  ideal: '{"name": "test", "value": 123}'
+  should:
+    - fn: is_json
+      arg: null # Arg is ignored for is_json, but shown for syntax example
+      weight: 3.0
+      citation: "Requirement 1"
+    - fn: word_count_between
+      arg: [5, 15]
+      weight: 1.5
+    - text: "The response is a valid JSON object as requested."
+
+- id: test-js-function-and-system-override
+  prompt: "Respond with just a single number: 85"
+  system: "You are a number-emitting machine. You must only output the number requested, with no other text."
+  ideal: "85"
+  should:
+    - expr: "r == 85" # Test 'expr' alias
+    - js: |
+        const num = parseInt(r, 10);
+        if (isNaN(num)) return 0;
+        if (num > 100) return 0;
+        // Graded score for being close to 100
+        return num / 100;
+
+- id: test-multiturn-conversation
+  messages:
+    - role: user
+      content: "Remember this number: 42."
+    - role: assistant
+      content: "I will remember the number 42."
+    - role: user
+      content: "What number am I thinking of?"
+  ideal: "You are thinking of the number 42."
+  should:
+    - contains: "42" 

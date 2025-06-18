@@ -55,11 +55,11 @@ async function generateAllResponses(
                     // Prioritize temp from the temperatures array, then prompt-specific, then global, then the hardcoded default.
                     const temperatureForThisCall = tempValue ?? promptConfig.temperature ?? config.temperature ?? DEFAULT_TEMPERATURE;
 
-                    // This block now correctly and consistently creates the effective ID
-                    let { effectiveId: baseEffectiveId } = getEffectiveModelId(modelString, systemPromptToUse);
-                    let finalEffectiveId = baseEffectiveId;
+                    // Do not include the system prompt in the effective ID, as it can vary per-prompt.
+                    // The ID should be consistent for a model/temperature pair across the entire run.
+                    let finalEffectiveId = modelString;
                     if (temperatureForThisCall !== undefined) {
-                        finalEffectiveId = `${baseEffectiveId}[temp:${temperatureForThisCall}]`;
+                        finalEffectiveId = `${finalEffectiveId}[temp:${temperatureForThisCall}]`;
                     }
                     
                     let finalAssistantResponseText = '';
@@ -135,7 +135,6 @@ async function aggregateAndSaveResults(
     const fullConversationHistories: Record<string, Record<string, ConversationMessage[]>> = {};
     const errors: Record<string, Record<string, string>> = {};
     const effectiveModelsSet = new Set<string>();
-    const modelSystemPrompts: Record<string, string | null> = {};
     let hasAnyIdeal = false;
 
     // Determine if any ideal response exists based on the config
@@ -168,7 +167,6 @@ async function aggregateAndSaveResults(
 
         for (const [effectiveModelId, responseData] of promptData.modelResponses.entries()) {
             effectiveModelsSet.add(effectiveModelId);
-            modelSystemPrompts[effectiveModelId] = responseData.systemPromptUsed; // systemPromptUsed might be less relevant if system message is in messages
             allFinalAssistantResponses[promptId][effectiveModelId] = responseData.finalAssistantResponseText;
             
             if (responseData.fullConversationHistory && fullConversationHistories[promptId]) {
@@ -184,9 +182,6 @@ async function aggregateAndSaveResults(
 
     if (hasAnyIdeal) {
         effectiveModelsSet.add(IDEAL_MODEL_ID);
-        if (!(IDEAL_MODEL_ID in modelSystemPrompts)) { // Add system prompt for IDEAL_MODEL_ID if not already set (e.g. if only from config)
-             modelSystemPrompts[IDEAL_MODEL_ID] = null;
-        }
     }
 
     const effectiveModels = Array.from(effectiveModelsSet).sort();
@@ -222,7 +217,6 @@ async function aggregateAndSaveResults(
         config: config, // This config still has promptText and messages, which is fine
         evalMethodsUsed: evalMethodsUsed,
         effectiveModels: effectiveModels,
-        modelSystemPrompts: modelSystemPrompts,
         promptIds: promptIds.sort(),
         promptContexts: promptContexts, // Changed from promptTexts
         extractedKeyPoints: evaluationResults.extractedKeyPoints ?? undefined,

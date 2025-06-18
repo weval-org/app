@@ -288,7 +288,16 @@ export async function generateRunMarkdown(data: ComparisonDataV2): Promise<strin
             md += `### Prompt: \`${promptId}\`\n\n`;
             
             md += "#### Context\n\n";
-            md += formatConversation(promptContexts[promptId]);
+            // The fullConversationHistories contains the definitive record of messages sent to the model,
+            // including any prepended system prompts. We take the history from the first available model
+            // and slice off the last message (the assistant's reply) to get the input context.
+            const firstModelId = modelsToDisplay[0];
+            const conversationHistoryForContext = allFinalAssistantResponses[promptId]?.[firstModelId] && data.fullConversationHistories?.[promptId]?.[firstModelId];
+            const initialMessagesForContext = conversationHistoryForContext 
+                ? conversationHistoryForContext.slice(0, -1) // All but the last message (the assistant's reply)
+                : promptContexts[promptId]; // Fallback to old way if history is not available
+
+            md += formatConversation(initialMessagesForContext);
             md += "\n\n";
 
             const idealResponse = allFinalAssistantResponses[promptId]?.[IDEAL_MODEL_ID];

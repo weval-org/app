@@ -110,7 +110,7 @@ This method allows for detailed, reproducible evaluations driven by a single con
 
 1.  **Create Blueprint File**: Define your entire test run in a YAML or JSON file (see structure below).
     *   Store these in a local directory like `/evaluation_blueprints`.
-2.  **Run Config Command**: Execute `pnpm cli run_config --config path/to/your_blueprint.civic.yml --run-label <your_run_label>`.
+2.  **Run Config Command**: Execute `pnpm cli run_config --config path/to/your_blueprint.yml --run-label <your_run_label>`.
     *   The `--run-label` (e.g., "run-2024-07-18-initial") uniquely identifies this specific execution of the blueprint.
     *   You can specify evaluation methods (e.g., `--eval-method="embedding,llm-coverage"`).
     *   This command handles response generation, embedding, and chosen evaluations.
@@ -135,7 +135,7 @@ This suite provides tools for generating embeddings and comparing the semantic s
 Runs the entire response generation, embedding, and comparison process based on parameters defined in a blueprint file.
 
 ```bash
-pnpm cli run_config --config path/to/your_blueprint.civic.yml --run-label <your_run_label>
+pnpm cli run_config --config path/to/your_blueprint.yml --run-label <your_run_label>
 ```
 
 Options:
@@ -211,29 +211,35 @@ Each item in these lists can be:
     should:
       - "The response should mention the concept of fiscal responsibility."
     ```
-2.  An **idiomatic function call**: The recommended way to perform deterministic checks. The key is the function name, and the value is the argument.
+2.  A **"Point: Citation" pair**: The recommended way to associate a conceptual point with a source.
     ```yaml
     should:
-      - contains: "fiduciary duty"  # Case-sensitive check
-      - icontains: "fiduciary duty" # Case-insensitive
-      - ends_with: "." # Checks if the response ends with a period.
-      - contains_any_of: ["fiduciary", "duty"] # Returns true if any keyword is found
-      - contains_all_of: ["fiduciary", "duty"] # Returns a graded score (e.g., 0.5 if 1 of 2 is found)
-      - match: "^The ruling states that" # Regex check
-      - imatch: "^the ruling" # Case-insensitive regex
-      - match_all_of: ["^The ruling", "states that$"] # Graded score for multiple regex matches
-      - imatch_all_of: ["^the ruling", "states that$"] # Case-insensitive version of match_all_of
-      - contains_at_least_n_of: [2, ["apples", "oranges", "pears"]] # Graded score based on meeting a minimum count. Singular alias: contain_at_least_n_of
-      - word_count_between: [50, 100]
+      - "Covers the principle of 'prudent man' rule.": "Investment Advisers Act of 1940"
+    ```
+3.  An **idiomatic function call**: The recommended way to perform deterministic checks. The key must be prefixed with a `$` and be the function name, and the value is the argument.
+    ```yaml
+    should:
+      - $contains: "fiduciary duty"  # Case-sensitive check
+      - $icontains: "fiduciary duty" # Case-insensitive
+      - $ends_with: "." # Checks if the response ends with a period.
+      - $contains_any_of: ["fiduciary", "duty"] # Returns true if any keyword is found
+      - $contains_all_of: ["fiduciary", "duty"] # Returns a graded score (e.g., 0.5 if 1 of 2 is found)
+      - $match: "^The ruling states that" # Regex check
+      - $imatch: "^the ruling" # Case-insensitive regex
+      - $match_all_of: ["^The ruling", "states that$"] # Graded score for multiple regex matches
+      - $imatch_all_of: ["^the ruling", "states that$"] # Case-insensitive version of match_all_of
+      - $contains_at_least_n_of: [2, ["apples", "oranges", "pears"]] # Graded score based on meeting a minimum count. Singular alias: contain_at_least_n_of
+      - $word_count_between: [50, 100]
+      - $js: "r.length > 100 && r.includes('foo')" # Advanced: Executes a JS expression. 'r' is the response text.
 
     should_not:
-      - contains_any_of: ["I feel", "I believe", "As an AI"]
-      - contains: "guaranteed returns"
+      - $contains_any_of: ["I feel", "I believe", "As an AI"]
+      - $contains: "guaranteed returns"
     ```
-3.  A **full object with named keys**: For maximum control over weighting and documentation. This is the legacy format but is still fully supported.
+4.  A **full object with named keys**: For maximum control over weighting and documentation. This is the legacy format but is still fully supported. You can use `point` to define the conceptual check.
     ```yaml
     should:
-      - text: "Covers the principle of 'prudent man' rule."
+      - point: "Covers the principle of 'prudent man' rule."
         weight: 3.0 # This point is 3x as important as others
         citation: "Investment Advisers Act of 1940, Section 206"
       - fn: contains
@@ -369,7 +375,7 @@ Update your `.env` file (for local development) and configure these in your depl
 
 This example demonstrates the `run_config` command for local use.
 
-**1. Create a Rich Blueprint File (e.g., `evaluation_blueprints/comprehensive_test.civic.yml`)**
+**1. Create a Rich Blueprint File (e.g., `evaluation_blueprints/comprehensive_test.yml`)**
 
 ```yaml
 # Main configuration for the blueprint
@@ -417,10 +423,10 @@ evaluationConfig:
 
 ```bash
 # To save results locally (default for NODE_ENV=development)
-pnpm cli run_config --config evaluation_blueprints/comprehensive_test.civic.yml --run-label "initial-baseline-run" --eval-method="embedding,llm-coverage"
+pnpm cli run_config --config evaluation_blueprints/comprehensive_test.yml --run-label "initial-baseline-run" --eval-method="embedding,llm-coverage"
 
 # To save results to S3 (ensure .env has S3 vars and STORAGE_PROVIDER=s3 if not in production)
-# STORAGE_PROVIDER=s3 pnpm cli run_config --config evaluation_blueprints/comprehensive_test.civic.yml --run-label "s3-baseline-run" --eval-method="embedding,llm-coverage"
+# STORAGE_PROVIDER=s3 pnpm cli run_config --config evaluation_blueprints/comprehensive_test.yml --run-label "s3-baseline-run" --eval-method="embedding,llm-coverage"
 ```
 
 **3. Start the Web Dashboard**

@@ -4,7 +4,7 @@ This document provides a detailed breakdown of the `should` system (formerly `po
 
 ### Part 1: How to Define an Expectation (The Blueprint)
 
-From the perspective of a user creating a blueprint file (`.civic.yml`), you have several flexible ways to define an evaluation criterion, or an "expectation." This is defined in the `should` block for any given prompt. (`expect`, `expects`, and `expectations` are also supported as aliases for backward compatibility).
+From the perspective of a user creating a blueprint file (`.yml`), you have several flexible ways to define an evaluation criterion, or an "expectation." This is defined in the `should` block for any given prompt. (`expect`, `expects`, and `expectations` are also supported as aliases for backward compatibility).
 
 The `should` block accepts a list where each item can be in one of these formats:
 
@@ -48,7 +48,7 @@ When you run an evaluation, here is the step-by-step journey your `should` defin
 #### Step 1: Reading the Blueprint File
 
 The process starts in one of two places:
-*   **Local CLI**: `src/cli/commands/run-config.ts` reads the specified blueprint file (e.g., `my-blueprint.civic.yml`).
+*   **Local CLI**: `src/cli/commands/run-config.ts` reads the specified blueprint file (e.g., `my-blueprint.yml`).
 *   **Deployed System**: `netlify/functions/fetch-and-schedule-evals.ts` fetches the raw content of blueprint files from the `civiceval/configs` GitHub repository.
 
 #### Step 2: Parsing and Normalization (`blueprint-parser.ts`)

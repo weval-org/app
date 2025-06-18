@@ -352,10 +352,14 @@ export default function BlueprintEditorClientPage() {
             }
             // function type
             if (!exp.fn || !exp.fn_args) return null;
+            const key = `$${exp.fn}`;
             if (exp.weight && exp.weight !== 1.0) {
+                // This case is not handled by the new parser logic for idiomatic functions
+                // but we can keep it for forward compatibility if we add it back.
+                // For now, it will be parsed as a full object.
                 return { fn: exp.fn, arg: exp.fn_args, weight: exp.weight };
             }
-            return { [exp.fn]: exp.fn_args };
+            return { [key]: exp.fn_args };
         };
 
         const prompts = blueprint.prompts.map(p => {
@@ -428,12 +432,27 @@ export default function BlueprintEditorClientPage() {
                 return { id, type: 'concept', value: rawExp };
             }
             if (typeof rawExp === 'object' && rawExp !== null) {
-                if (rawExp.text) {
-                    return { id, type: 'concept', value: rawExp.text, weight: rawExp.weight };
+                // Check for 'Point: Citation' shorthand
+                const keys = Object.keys(rawExp);
+                if (keys.length === 1 && typeof rawExp[keys[0]] === 'string' && !keys[0].startsWith('$')) {
+                    // This is a citable point, but the UI state doesn't have a citation field.
+                    // We'll treat the value as part of the point for now.
+                    // A more advanced UI would handle citations separately.
+                    return { id, type: 'concept', value: `${keys[0]}: ${rawExp[keys[0]]}` };
                 }
-                const fn = rawExp.fn || Object.keys(rawExp).find(k => k !== 'weight' && k !== 'arg');
-                if (fn) {
-                    return { id, type: 'function', fn, fn_args: rawExp.arg || rawExp[fn], weight: rawExp.weight };
+
+                // Check for idiomatic function
+                const idiomaticFnKey = keys.find(k => k.startsWith('$'));
+                if (idiomaticFnKey) {
+                    return { id, type: 'function', fn: idiomaticFnKey.substring(1) as ExpectationFunction, fn_args: rawExp[idiomaticFnKey] };
+                }
+
+                if (rawExp.text || rawExp.point || rawExp.criterion) {
+                    return { id, type: 'concept', value: rawExp.text || rawExp.point || rawExp.criterion, weight: rawExp.weight };
+                }
+
+                if (rawExp.fn) {
+                    return { id, type: 'function', fn: rawExp.fn, fn_args: rawExp.arg || rawExp.fnArgs, weight: rawExp.weight };
                 }
             }
             // Fallback for malformed data

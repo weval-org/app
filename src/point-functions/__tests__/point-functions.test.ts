@@ -7,6 +7,7 @@ import { word_count_between } from '@/point-functions/word_count_between';
 import { icontains } from '@/point-functions/icontains';
 import { imatch } from '@/point-functions/imatch';
 import { PointFunctionContext } from '../types';
+import { js } from '../js';
 
 // Mock context for functions that might use it
 const mockContext: PointFunctionContext = {
@@ -120,6 +121,68 @@ describe('Point Functions', () => {
         });
         it('should return false if no regex match', () => {
             expect(imatch('Sentence.', '^foo', mockContext)).toBe(false);
+        });
+    });
+
+    describe('js', () => {
+        it('should return true for a valid, true expression', () => {
+            expect(js('hello world', 'r.length === 11', mockContext)).toBe(true);
+        });
+
+        it('should return false for a valid, false expression', () => {
+            expect(js('hello world', 'r === "foo"', mockContext)).toBe(false);
+        });
+
+        it('should return a number if the expression evaluates to one', () => {
+            expect(js('test', 'r.length / 10', mockContext)).toBe(0.4);
+        });
+
+        it('should clamp numbers greater than 1', () => {
+            expect(js('test', 'r.length * 100', mockContext)).toBe(1);
+        });
+
+        it('should clamp numbers less than 0', () => {
+            expect(js('test', '-5', mockContext)).toBe(0);
+        });
+
+        it('should handle multi-line scripts with return statements', () => {
+            const script = `
+                const num = parseInt(r, 10);
+                if (num === 85) return true;
+                return false;
+            `;
+            expect(js('85', script, mockContext)).toBe(true);
+        });
+
+        it('should handle simple expressions without a return statement', () => {
+            expect(js('85', 'r == 85', mockContext)).toBe(true);
+            expect(js('84', 'r == 85', mockContext)).toBe(false);
+        });
+
+        it('should return false for a script with no return value', () => {
+            const script = `const x = 1;`;
+            expect(js('test', script, mockContext)).toBe(false);
+        });
+
+        it('should return an error if the expression is invalid', () => {
+            expect(js('hello world', 'r.foo()', mockContext)).toHaveProperty('error');
+        });
+
+        it('should return an error for invalid return types like strings', () => {
+            expect(js('hello world', '"a string"', mockContext)).toHaveProperty('error');
+        });
+
+        it('should not allow access to Node.js globals', () => {
+            expect(js('hello world', 'this.process === undefined', mockContext)).toBe(true);
+        });
+
+        it('should timeout on a long-running script', () => {
+            const result = js('hello world', 'while(true) {}', mockContext);
+            expect(result).toEqual(
+                expect.objectContaining({
+                    error: expect.stringContaining('Script execution timed out'),
+                }),
+            );
         });
     });
 }); 

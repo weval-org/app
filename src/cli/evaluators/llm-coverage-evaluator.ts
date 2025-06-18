@@ -79,7 +79,7 @@ export class LLMCoverageEvaluator implements Evaluator {
                 }
 
                 const standardKeys = ['text', 'fn', 'fnArgs', 'arg', 'multiplier', 'citation'];
-                const idiomaticFnName = Object.keys(rest).find(k => !standardKeys.includes(k));
+                const idiomaticFnName = Object.keys(rest).find(k => !standardKeys.includes(k) && k.startsWith('$'));
 
                 if (text && (fn || idiomaticFnName)) {
                     throw new Error(`Point object cannot have both 'text' and a function ('fn' or idiomatic). Prompt ID: '${promptId}'`);
@@ -89,9 +89,9 @@ export class LLMCoverageEvaluator implements Evaluator {
                      return { id: text, displayText: text, textToEvaluate: text, multiplier: multiplier ?? 1, citation, isFunction: false, isInverted };
                 }
                 
-                const fnName = fn || idiomaticFnName;
+                const fnName = fn || (idiomaticFnName ? idiomaticFnName.substring(1) : undefined);
                 if (!fnName) {
-                    throw new Error(`Point object must have 'text', 'fn', or an idiomatic function name. Found: ${JSON.stringify(pointDef)}`);
+                    throw new Error(`Point object must have 'text', 'fn', or an idiomatic function name (starting with $). Found: ${JSON.stringify(pointDef)}`);
                 }
 
                 const effectiveFnArgs = fnArgs ?? arg ?? (idiomaticFnName ? pointDef[idiomaticFnName] : undefined);
