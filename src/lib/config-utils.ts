@@ -15,10 +15,75 @@ const defaultLogger: SimpleLogger = {
 };
 
 export const MODEL_COLLECTIONS_REPO_API_URL_BASE = `https://api.github.com/repos/${BLUEPRINT_CONFIG_REPO_SLUG}/contents/models`;
+export const BLUEPRINTS_API_URL = `https://api.github.com/repos/${BLUEPRINT_CONFIG_REPO_SLUG}/contents/blueprints`;
 const GITHUB_RAW_CONTENT_HEADERS = { 'Accept': 'application/vnd.github.v3.raw' };
 
 /**
- * Fetches a model collection (a JSON array of model strings) from the civiceval/configs GitHub repository.
+ * Fetches a blueprint's content and metadata from the weval/configs GitHub repository by name.
+ * It will try fetching .yml, .yaml, and .json extensions.
+ * @param blueprintName The name of the blueprint (e.g., "my-blueprint").
+ * @param githubToken Optional GitHub token for authenticated requests.
+ * @param logger Optional logger instance.
+ * @returns A promise that resolves to an object with content, fileType, and fileName, or null if not found.
+ */
+export async function fetchBlueprintContentByName(
+  blueprintName: string,
+  githubToken?: string,
+  logger: SimpleLogger = defaultLogger
+): Promise<{ content: string; fileType: 'json' | 'yaml'; fileName: string; commitSha: string | null } | null> {
+  const apiHeaders: Record<string, string> = { 'Accept': 'application/vnd.github.v3+json' };
+  const rawContentHeaders: Record<string, string> = { ...GITHUB_RAW_CONTENT_HEADERS };
+
+  if (githubToken) {
+    apiHeaders['Authorization'] = `token ${githubToken}`;
+    rawContentHeaders['Authorization'] = `token ${githubToken}`;
+  }
+
+  // 1. Fetch the latest commit SHA for the main branch first
+  const repoCommitsApiUrl = `https://api.github.com/repos/${BLUEPRINT_CONFIG_REPO_SLUG}/commits/main`;
+  let latestCommitSha: string | null = null;
+  try {
+    const commitResponse = await axios.get(repoCommitsApiUrl, { headers: apiHeaders });
+    latestCommitSha = commitResponse.data.sha;
+    if (latestCommitSha) {
+      logger.info(`[config-utils] Fetched latest commit SHA for ${BLUEPRINT_CONFIG_REPO_SLUG}@main: ${latestCommitSha}`);
+    } else {
+      logger.warn(`[config-utils] Could not determine latest commit SHA from API response.`);
+    }
+  } catch (commitError: any) {
+    logger.error(`[config-utils] Failed to fetch latest commit SHA: ${commitError.message}. Proceeding without it.`);
+  }
+  
+  // 2. Now fetch the blueprint file content
+  const extensions = ['yml', 'yaml', 'json'];
+  for (const ext of extensions) {
+    const fileName = `${blueprintName}.${ext}`;
+    const url = `${BLUEPRINTS_API_URL}/${fileName}`;
+    logger.info(`[config-utils] Attempting to fetch blueprint from: ${url}`);
+    
+    try {
+      const response = await axios.get(url, { headers: rawContentHeaders });
+      if (response.status === 200 && response.data) {
+        logger.info(`[config-utils] Successfully fetched blueprint '${fileName}'`);
+        const content = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+        const fileType = ext === 'json' ? 'json' : 'yaml';
+        return { content, fileType, fileName, commitSha: latestCommitSha };
+      }
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        logger.info(`[config-utils] Blueprint '${fileName}' not found. Trying next extension.`);
+      } else {
+        logger.error(`[config-utils] Error fetching blueprint '${fileName}' from ${url}: ${error.message}`);
+      }
+    }
+  }
+
+  logger.warn(`[config-utils] Could not find blueprint named '${blueprintName}' with any of the extensions (.yml, .yaml, .json) in the GitHub repository.`);
+  return null;
+}
+
+/**
+ * Fetches a model collection (a JSON array of model strings) from the weval/configs GitHub repository.
  * @param collectionName The name of the collection (e.g., "CORE"), which corresponds to a file like "CORE.json".
  * @param githubToken Optional GitHub token for authenticated requests.
  * @param logger Optional logger instance.

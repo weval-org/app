@@ -137,6 +137,7 @@ async function aggregateAndSaveResults(
     evalMethodsUsed: EvaluationMethod[],
     logger: Logger,
     commitSha?: string,
+    blueprintFileName?: string,
 ): Promise<{ data: FinalComparisonOutputV2, fileName: string | null }> {
     logger.info('[PipelineService] Aggregating results...');
     logger.info(`[PipelineService] Received blueprint ID for saving: '${config.id}'`);
@@ -222,6 +223,7 @@ async function aggregateAndSaveResults(
         timestamp: safeTimestamp,
         description: config.description,
         sourceCommitSha: commitSha,
+        sourceBlueprintFileName: blueprintFileName,
         config: config,
         evalMethodsUsed: evalMethodsUsed,
         effectiveModels: effectiveModels,
@@ -272,6 +274,7 @@ export async function executeComparisonPipeline(
     forcePointwiseKeyEval?: boolean,
     useCache: boolean = false,
     commitSha?: string,
+    blueprintFileName?: string,
 ): Promise<{ data: FinalComparisonOutputV2, fileName: string | null }> {
     logger.info(`[PipelineService] Starting comparison pipeline for configId: '${config.id || config.configId}' runLabel: '${runLabel}'`);
     
@@ -323,6 +326,7 @@ export async function executeComparisonPipeline(
         evalMethods,
         logger,
         commitSha,
+        blueprintFileName,
     );
     logger.info(`[PipelineService] executeComparisonPipeline finished successfully. Results at: ${finalResult.fileName}`);
     return finalResult;

@@ -76,7 +76,7 @@ describe('backfill-summary command', () => {
         expect(mockedStorage.saveConfigSummary).toHaveBeenCalledWith('config-2', mockConfigData2);
     });
 
-    it('should save a homepage summary containing only featured configs', async () => {
+    it('should save a hybrid homepage summary with run data only for featured configs', async () => {
         await backfillSummaryCommand.parseAsync(['node', 'test']);
 
         // Check that the final homepage summary was saved
@@ -85,10 +85,20 @@ describe('backfill-summary command', () => {
         // Get the argument passed to saveHomepageSummary
         const savedHomepageSummary = mockedStorage.saveHomepageSummary.mock.calls[0][0];
 
-        // Assert that it only contains the featured config
-        expect(savedHomepageSummary.configs).toHaveLength(1);
-        expect(savedHomepageSummary.configs[0].configId).toBe('config-1');
-        expect(savedHomepageSummary.configs[0].tags).toContain('_featured');
+        // Assert that the summary contains metadata for ALL configs
+        expect(savedHomepageSummary.configs).toHaveLength(2);
+
+        // Find the featured config and assert it has its run data
+        const featuredConfig = savedHomepageSummary.configs.find(c => c.configId === 'config-1');
+        expect(featuredConfig).toBeDefined();
+        expect(featuredConfig!.tags).toContain('_featured');
+        expect(featuredConfig!.runs).toHaveLength(1); // It should have its run data
+
+        // Find the non-featured config and assert its run data is stripped
+        const nonFeaturedConfig = savedHomepageSummary.configs.find(c => c.configId === 'config-2');
+        expect(nonFeaturedConfig).toBeDefined();
+        expect(nonFeaturedConfig!.tags).not.toContain('_featured');
+        expect(nonFeaturedConfig!.runs).toHaveLength(0); // Its runs should be an empty array
     });
 
     it('should handle cases where no configs are found', async () => {

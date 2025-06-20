@@ -14,7 +14,7 @@ const geist = Geist({
 
 // This metadata is now primarily managed in metadata.ts
 export const metadata: Metadata = {
-  title: 'CivicEval',
+  title: 'Weval',
   description: 'A framework for generating, analyzing, and visualizing the semantic similarity of responses from large language models.',
 };
 

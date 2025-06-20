@@ -1,12 +1,12 @@
-# CivicEval Development Guide
+# Weval Development Guide
 
 *Last updated: 1 June 2025*
 
-This guide provides instructions for setting up and running the CivicEval project locally for development purposes, as well as notes on deployment.
+This guide provides instructions for setting up and running the Weval project locally for development purposes, as well as notes on deployment.
 
 ## 1. Overview of Development Environment
 
-The CivicEval project consists of several key components:
+The Weval project consists of several key components:
 -   **Next.js Web Application**: The user-facing dashboard and admin panel, located in `src/app`.
 -   **CLI Tools**: For running evaluations from the command line (e.g., `run_config`), located in `src/cli`.
 -   **Netlify Functions**: For automated tasks in the deployed environment:
@@ -29,7 +29,7 @@ Ensure you have the following installed:
 
 1.  **Clone the Repository:**
     ```bash
-    git clone https://github.com/civiceval/app.git
+    git clone https://github.com/weval/app.git
     cd llm-semantic-comparison # Or your repository name
     ```
 
@@ -119,7 +119,7 @@ While `netlify dev` is recommended for a full-stack experience, you can also run
 
 ## 8. Deployment to Netlify
 
-The CivicEval project is designed for deployment on Netlify. Deployment is typically handled via Git integration.
+The Weval project is designed for deployment on Netlify. Deployment is typically handled via Git integration.
 
 -   **Build Settings:** Netlify should be configured to use `pnpm` and appropriate build commands (e.g., `pnpm build`). The publish directory is usually `.next` for Next.js apps.
 
@@ -169,7 +169,7 @@ The CivicEval project is designed for deployment on Netlify. Deployment is typic
 
 ## Appendix: Changelog of Transition to Automated System (31 MAY 2025)
 
-This section outlines the major development phases and key changes that transitioned the CivicEval project from a local, file-based system to a deployed, automated evaluation system.
+This section outlines the major development phases and key changes that transitioned the Weval project from a local, file-based system to a deployed, automated evaluation system.
 
 ### Phase 1: Decoupling from Local Filesystem (Core Abstraction)
 
@@ -202,7 +202,7 @@ The initial goal was to move away from direct filesystem reads/writes for evalua
 This phase focused on automating the evaluation process by fetching configurations from a central repository and running evaluations periodically or on-demand.
 
 1.  **Blueprint Sourcing from GitHub:**
-    *   Established `https://github.com/civiceval/configs` (specifically the `/blueprints` subdirectory) as the central public repository for `ComparisonConfig` JSON files (now referred to as Blueprints).
+    *   Established `https://github.com/weval/configs` (specifically the `/blueprints` subdirectory) as the central public repository for `ComparisonConfig` JSON files (now referred to as Blueprints).
 
 2.  **Content Hashing for Uniqueness:**
     *   Extracted config content hashing logic into `src/lib/hash-utils.ts` (`generateConfigContentHash` function).
@@ -215,7 +215,7 @@ This phase focused on automating the evaluation process by fetching configuratio
 
 4.  **Scheduled Function (`fetch-and-schedule-evals.ts`):**
     *   Runs on a schedule (e.g., daily via `netlify.toml` cron definition).
-    *   Fetches all blueprint files from the `civiceval/configs` GitHub repository (from the `blueprints` directory).
+    *   Fetches all blueprint files from the `weval/configs` GitHub repository (from the `blueprints` directory).
     *   For each blueprint:
         *   Calculates its content hash.
         *   Checks S3 (via `storageService.listRunsForConfig`) for existing runs with the same content hash (using `id` or `configId` as the primary key).
@@ -241,7 +241,7 @@ To allow for manual control and testing of the automated system, a simple admin 
 
 1.  **Admin Page (`src/app/admin/[slug]/page.tsx`):**
     *   Client-side component protected by a secret slug in the URL (`NEXT_PUBLIC_ADMIN_SECRET_SLUG`).
-    *   Fetches available blueprints from the `civiceval/configs` GitHub repository (`blueprints` directory).
+    *   Fetches available blueprints from the `weval/configs` GitHub repository (`blueprints` directory).
     *   Provides a "Run Now" button for each blueprint.
     *   Displays status messages for triggering evaluations.
 

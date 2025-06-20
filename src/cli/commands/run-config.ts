@@ -28,6 +28,8 @@ import {
 import { executeComparisonPipeline } from '../services/comparison-pipeline-service';
 import { generateConfigContentHash } from '../../lib/hash-utils';
 import { parseAndNormalizeBlueprint } from '../../lib/blueprint-parser';
+import { fetchBlueprintContentByName, resolveModelsInConfig } from '../../lib/config-utils';
+import { SimpleLogger } from '@/lib/config-utils';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
@@ -193,35 +195,57 @@ export function validatePrompts(prompts: ComparisonConfig['prompts'], logger: Lo
     }
 }
 
-async function loadAndValidateConfig(configPath: string, collectionsRepoPath?: string): Promise<ComparisonConfig> {
+async function loadAndValidateConfig(options: {
+    configPath?: string,
+    configContent?: string,
+    fileName?: string,
+    fileType?: 'json' | 'yaml',
+    collectionsRepoPath?: string,
+    isRemote?: boolean,
+}): Promise<ComparisonConfig> {
+    const { configPath, configContent, fileName, fileType, collectionsRepoPath, isRemote } = options;
     const { logger } = getConfig();
-    logger.info(`Loading and validating config file: ${path.resolve(configPath)}`);
+
+    let content: string;
+    let type: 'json' | 'yaml';
+    let sourceName: string; // for logging and deriving ID
+
+    if (configPath) {
+        logger.info(`Loading and validating config file: ${path.resolve(configPath)}`);
+        sourceName = path.basename(configPath);
+        type = (configPath.endsWith('.yaml') || configPath.endsWith('.yml')) ? 'yaml' : 'json';
+        try {
+            content = await fs.readFile(path.resolve(configPath), 'utf-8');
+        } catch (fileReadError: any) {
+            logger.error(`Failed to read configuration file at '${path.resolve(configPath)}'. Please ensure the file exists and has correct permissions.`);
+            logger.error(`System error: ${fileReadError.message}`);
+            throw fileReadError;
+        }
+    } else if (configContent && fileName && fileType) {
+        logger.info(`Loading and validating config from remote blueprint: ${fileName}`);
+        sourceName = fileName;
+        type = fileType;
+        content = configContent;
+    } else {
+        throw new Error("loadAndValidateConfig requires either a configPath or configContent with a fileName and fileType.");
+    }
+
     if (collectionsRepoPath) {
         logger.info(`Attempting to resolve model collections from local path: ${path.resolve(collectionsRepoPath)}`);
     }
     
-    let configContent;
-    try {
-        configContent = await fs.readFile(path.resolve(configPath), 'utf-8');
-    } catch (fileReadError: any) {
-        logger.error(`Failed to read configuration file at '${path.resolve(configPath)}'. Please ensure the file exists and has correct permissions.`);
-        logger.error(`System error: ${fileReadError.message}`);
-        throw fileReadError;
-    }
-
     let configJson: ComparisonConfig;
     try {
-        const fileType = (configPath.endsWith('.yaml') || configPath.endsWith('.yml')) ? 'yaml' : 'json';
-        configJson = parseAndNormalizeBlueprint(configContent, fileType);
+        configJson = parseAndNormalizeBlueprint(content, type);
     } catch (parseError: any) {
-        logger.error(`Failed to parse or normalize configuration file at '${path.resolve(configPath)}'.`);
+        logger.error(`Failed to parse or normalize configuration from source '${sourceName}'.`);
         logger.error(`System error: ${parseError.message}`);
         throw parseError;
     }
     
     // If ID is missing, derive it from the filename.
     if (!configJson.id) { // id is normalized from configId by the parser
-        const rawFileName = path.basename(configPath);
+        const rawFileName = sourceName;
         const id = rawFileName
             .replace(/\.civic\.ya?ml$/, '')
             .replace(/\.ya?ml$/, '')
@@ -254,11 +278,23 @@ async function loadAndValidateConfig(configPath: string, collectionsRepoPath?: s
     logger.info(`Initial validation passed for configId '${configJson.id}'. Original models: [${configJson.models.join(', ')}]`);
 
     const originalModelsCount = configJson.models.length;
-    configJson.models = await resolveModelCollections(configJson.models, collectionsRepoPath, logger);
+    
+    if (collectionsRepoPath) {
+        logger.info(`--collections-repo-path provided. Resolving collections from local path: ${path.resolve(collectionsRepoPath)}`);
+        configJson.models = await resolveModelCollections(configJson.models, collectionsRepoPath, logger);
+    } else if (isRemote) {
+        logger.info(`Resolving collections from GitHub for remote blueprint.`);
+        const githubToken = process.env.GITHUB_TOKEN;
+        const resolvedConfig = await resolveModelsInConfig(configJson, githubToken, logger as SimpleLogger);
+        configJson.models = resolvedConfig.models;
+    } else {
+        // Local blueprint, no collections path specified. Let resolveModelCollections handle it (it will just process literals).
+        configJson.models = await resolveModelCollections(configJson.models, undefined, logger);
+    }
 
     logger.info(`Final resolved models for blueprint ID '${configJson.id}': [${configJson.models.join(', ')}] (Count: ${configJson.models.length})`);
     if (originalModelsCount > 0 && configJson.models.length === 0) {
-        logger.warn(`Blueprint file '${configPath}' resulted in an empty list of models after attempting to resolve collections. Original models: [${configJson.models.join(',')}]. Check blueprint and collection definitions.`);
+        logger.warn(`Blueprint from ${sourceName} resulted in an empty list of models after attempting to resolve collections. Original models: [${configJson.models.join(',')}]. Check blueprint and collection definitions.`);
     }
 
     // Post-resolution validation (other fields)
@@ -363,33 +399,36 @@ function parseEvalMethods(evalMethodString: string | undefined): EvaluationMetho
     return chosenMethods;
 }
 
-async function actionV2(options: { config: string, runLabel?: string, evalMethod?: string, cache?: boolean, collectionsRepoPath?: string }) {
-    let loggerInstance: ReturnType<typeof getConfig>['logger'];
-    try {
-        const configService = getConfig();
-        loggerInstance = configService.logger;
-    } catch (e: any) {
-        console.error('[CivicEval_RUN_CONFIG_CRITICAL] Error during initial logger setup:', e.message, e.stack);
-        process.exit(1);
-    }
+interface RunOptions {
+    runLabel?: string;
+    evalMethod?: string;
+    cache?: boolean;
+    collectionsRepoPath?: string;
+}
+
+async function runBlueprint(config: ComparisonConfig, options: RunOptions, commitSha?: string | null, blueprintFileName?: string) {
+    const { logger: loggerInstance } = getConfig();
 
     try {
-        await loggerInstance.info(`CivicEval run_config CLI started. Options received: ${JSON.stringify(options)}`);
-        
-        const config = await loadAndValidateConfig(options.config, options.collectionsRepoPath);
         const currentConfigId = config.id!;
         const currentTitle = config.title!;
         
-        await loggerInstance.info(`Loaded blueprint ID: '${currentConfigId}', Title: '${currentTitle}' with resolved models.`);
+        await loggerInstance.info(`Executing blueprint ID: '${currentConfigId}', Title: '${currentTitle}'`);
 
-        let commitSha: string | undefined;
-        if (options.collectionsRepoPath) {
+        // If a commitSha for the blueprint is known, log it.
+        // It could come from a local git repo or from a remote fetch.
+        if (commitSha) {
+            loggerInstance.info(`Using blueprint version from commit: ${commitSha}`);
+        }
+        
+        // If collectionsRepoPath is provided and we don't already have a commitSha from a remote blueprint fetch,
+        // try to get it from the local repo.
+        if (options.collectionsRepoPath && !commitSha) {
             try {
                 const repoPath = path.resolve(options.collectionsRepoPath);
-                // Check if it's a git repository before running git command
                 await fs.access(path.join(repoPath, '.git'));
                 commitSha = execSync('git rev-parse HEAD', { cwd: repoPath, encoding: 'utf-8' }).trim();
-                loggerInstance.info(`Retrieved git commit SHA from collections repo: ${commitSha}`);
+                loggerInstance.info(`Retrieved git commit SHA from local collections repo: ${commitSha}`);
             } catch (gitError: any) {
                 loggerInstance.warn(`Could not retrieve git commit SHA from ${options.collectionsRepoPath}: ${gitError.message}. This is expected if it's not a git repository.`);
                 commitSha = undefined;
@@ -397,7 +436,7 @@ async function actionV2(options: { config: string, runLabel?: string, evalMethod
         }
 
         let runLabel = options.runLabel?.trim();
-        const contentHash = generateConfigContentHash(config); // Hash is now based on resolved models
+        const contentHash = generateConfigContentHash(config);
         let finalRunLabel: string;
 
         if (runLabel) {
@@ -412,41 +451,25 @@ async function actionV2(options: { config: string, runLabel?: string, evalMethod
             throw new Error('Run label is unexpectedly empty after processing.');
         }
         if (config.models.length === 0) {
-            loggerInstance.error('The final list of models to evaluate is empty. This can happen if model collections are specified but not resolved, or if the config itself has no models. Halting execution.');
+            loggerInstance.error('The final list of models to evaluate is empty. Halting execution.');
             throw new Error('No models to evaluate after resolving collections.');
         }
 
         const chosenMethods = parseEvalMethods(options.evalMethod);
         await loggerInstance.info(`Evaluation methods to be used: ${chosenMethods.join(', ')}`);
 
-        await loggerInstance.info('--- Run Blueprint Summary (Post Model Collection Resolution) ---');
+        await loggerInstance.info('--- Run Blueprint Summary ---');
         await loggerInstance.info(`Blueprint ID: ${currentConfigId}`);
         await loggerInstance.info(`Blueprint Title: ${currentTitle}`);
-        await loggerInstance.info(`Run Label: ${finalRunLabel}`); 
-        if (config.description) {
-            await loggerInstance.info(`Description: ${config.description.substring(0, 200)}...`);
-        }
-        await loggerInstance.info(`Models to run: [${config.models.join(', ')}] (Count: ${config.models.length})`);
-        await loggerInstance.info(`Number of Prompts: ${config.prompts.length}`);
-        await loggerInstance.info(`Concurrency: ${config.concurrency || 10}`);
+        await loggerInstance.info(`Run Label: ${finalRunLabel}`);
         await loggerInstance.info(`Evaluation Methods: ${chosenMethods.join(', ')}`);
-        if (config.temperatures && config.temperatures.length > 0) {
-            await loggerInstance.info(`Temperatures to run: ${config.temperatures.join(', ')}`);
-        } else if (config.temperature !== undefined) {
-            await loggerInstance.info(`Default Temperature: ${config.temperature}`);
-        }
-        if (config.systems && config.systems.length > 0) {
-            await loggerInstance.info(`System prompts to run: ${config.systems.length} variants`);
-        } else if (config.system) {
-            await loggerInstance.info(`Default System Prompt: ${config.system.substring(0,100)}...`);
-        }
-        await loggerInstance.info('-----------------------------------------------------------------');
+        await loggerInstance.info(`Models to run: [${config.models.join(', ')}] (Count: ${config.models.length})`);
+        await loggerInstance.info('-----------------------------');
 
         const ora = (await import('ora')).default;
-        const mainSpinner = ora('Starting comparison pipeline with resolved models...').start();
-        let outputPathOrKey: string | null = null; // To store the result path/key
-        let newResultData: FetchedComparisonData | null = null; // To store the actual data object
-        let actualResultFileName: string | null = null; // To store the definitive file name of the saved result
+        const mainSpinner = ora('Starting comparison pipeline...').start();
+        let newResultData: FetchedComparisonData | null = null;
+        let actualResultFileName: string | null = null;
 
         try {
             mainSpinner.text = `Executing comparison pipeline for blueprint ID: ${currentConfigId}, runLabel: ${finalRunLabel}. Caching: ${options.cache ?? false}`;
@@ -456,36 +479,19 @@ async function actionV2(options: { config: string, runLabel?: string, evalMethod
                 finalRunLabel, 
                 chosenMethods, 
                 loggerInstance, 
-                undefined, 
-                undefined, 
+                undefined, // existingResponsesMap
+                undefined, // forcePointwiseKeyEval
                 options.cache,
-                commitSha,
+                commitSha || undefined,
+                blueprintFileName
             ); 
 
-            // The pipeline now returns an object with the data and the filename/key it was saved under
             if (pipelineResult && typeof pipelineResult === 'object' && 'fileName' in pipelineResult && 'data' in pipelineResult) {
                 newResultData = pipelineResult.data as FetchedComparisonData;
                 actualResultFileName = pipelineResult.fileName;
-                outputPathOrKey = actualResultFileName; // The filename is the key/path
+                mainSpinner.succeed(`Comparison pipeline finished successfully! Results may be found at: ${actualResultFileName}`);
             } else {
-                // Fallback for older pipeline versions or local-only runs that might return just data
-                if (typeof pipelineResult === 'object' && pipelineResult !== null) {
-                    newResultData = pipelineResult as FetchedComparisonData;
-                    // For local, non-S3 runs, a filename might not be returned, construct a conceptual one
-                    outputPathOrKey = `local-result-for-config-${currentConfigId}-run-${finalRunLabel}`; 
-                    if (process.env.STORAGE_PROVIDER === 's3') {
-                        mainSpinner.warn('Pipeline returned data without a filename, but S3 provider is active. Summary update might fail if filename is required.');
-                    }
-                } else {
-                     throw new Error('executeComparisonPipeline returned an unexpected or null result.');
-                }
-            }
-            
-            if (outputPathOrKey) {
-              mainSpinner.succeed(`Comparison pipeline finished successfully! Results may be found at: ${outputPathOrKey}`);
-            } else {
-              mainSpinner.fail(`Comparison pipeline completed, but failed to save results or get a valid reference.`);
-              process.exit(1);
+                throw new Error('executeComparisonPipeline returned an unexpected or null result.');
             }
         } catch (pipelineError: any) {
             mainSpinner.fail(`Comparison pipeline failed: ${pipelineError.message}`);
@@ -495,48 +501,40 @@ async function actionV2(options: { config: string, runLabel?: string, evalMethod
             process.exit(1);
         }
 
-        if (newResultData && (process.env.STORAGE_PROVIDER === 's3' || process.env.UPDATE_LOCAL_SUMMARY === 'true')) { // Only update if S3 or explicitly told for local
+        if (newResultData && (process.env.STORAGE_PROVIDER === 's3' || process.env.UPDATE_LOCAL_SUMMARY === 'true')) {
             loggerInstance.info('Attempting to update summary files...');
             if (!actualResultFileName) {
-                throw new Error('Could not determine result filename for summary update. Result might not have been saved to a persistent location.');
+                throw new Error('Could not determine result filename for summary update.');
             }
 
-            // --- 1. Update per-config summary ---
+            // Update per-config summary
             try {
                 loggerInstance.info(`Updating summary for config: ${currentConfigId}`);
-                // Fetch the existing summary for just this one config
                 const existingConfigSummary = await getConfigSummary(currentConfigId);
-                // updateSummaryDataWithNewRun expects an array of configs, so we wrap/unwrap
                 const existingConfigsArray = existingConfigSummary ? [existingConfigSummary] : null;
                 const updatedConfigArray = updateSummaryDataWithNewRun(
                     existingConfigsArray,
                     newResultData,
                     actualResultFileName
                 );
-                const newConfigSummary = updatedConfigArray[0]; // It will always return one config object
+                const newConfigSummary = updatedConfigArray[0];
                 await saveConfigSummary(currentConfigId, newConfigSummary);
                 loggerInstance.info(`Successfully saved per-config summary for ${currentConfigId}.`);
             } catch (configSummaryError: any) {
                 loggerInstance.error(`Failed to update per-config summary for ${currentConfigId}: ${configSummaryError.message}`);
-                 if (process.env.DEBUG && configSummaryError.stack) {
-                    loggerInstance.error(`Per-config summary update stack trace: ${configSummaryError.stack}`);
-                }
-                // Do not exit, as homepage summary update might still be possible/important.
             }
 
-            // --- 2. Update homepage summary (for _featured configs) ---
+            // Update homepage summary
             try {
-                loggerInstance.info('Attempting to update homepage summary manifest with new calculations...');
-                const currentFullSummary = await getHomepageSummary(); // Fetches HomepageSummaryFileContent | null
-                
-                // 1. Update the in-memory list of configs with the new run data
+                loggerInstance.info('Attempting to update homepage summary manifest...');
+                const currentFullSummary = await getHomepageSummary();
                 const updatedConfigsArrayForHomepage = updateSummaryDataWithNewRun(
                     currentFullSummary?.configs || null,
                     newResultData, 
                     actualResultFileName
                 );
 
-                // --- BEGIN: Log Hybrid Score for the New Run (Unchanged) ---
+                // --- BEGIN: Log Hybrid Score for the New Run ---
                 loggerInstance.info('--- Newly Calculated Hybrid Scores ---');
                 const newRunConfig = updatedConfigsArrayForHomepage.find(c => c.configId === newResultData.configId);
                 if (newRunConfig) {
@@ -562,69 +560,121 @@ async function actionV2(options: { config: string, runLabel?: string, evalMethod
                 loggerInstance.info('------------------------------------');
                 // --- END: Log Hybrid Score for the New Run ---
 
-                // 2. Filter for '_featured' tag before calculating stats and saving the homepage summary
-                const featuredConfigs = updatedConfigsArrayForHomepage.filter(
-                    config => config.tags?.includes('_featured')
+                const homepageConfigs = updatedConfigsArrayForHomepage.map(c => {
+                    if (c.tags?.includes('_featured')) return c;
+                    return { ...c, runs: [] };
+                });
+                
+                const configsForStatsCalculation = updatedConfigsArrayForHomepage.filter(
+                    c => c.tags?.includes('_featured') && !c.tags?.includes('test')
                 );
-                loggerInstance.info(`Total configs in memory: ${updatedConfigsArrayForHomepage.length}. Found ${featuredConfigs.length} configs tagged with '_featured' to be saved in homepage summary.`);
 
-                // Filter out 'test' tags from the featured list for the final public stat calculation
-                const configsForStatsCalculation = featuredConfigs.filter(
-                    config => !(config.tags && config.tags.includes('test'))
-                );
-                loggerInstance.info(`Total featured configs for summary: ${featuredConfigs.length}. Configs after filtering 'test' tags for stats calculation: ${configsForStatsCalculation.length}`);
-
-
-                // 3. Recalculate headlineStats and driftDetectionResult using the filtered 'featured' configs array
                 const newHeadlineStats = calculateHeadlineStats(configsForStatsCalculation);
                 const newDriftDetectionResult = calculatePotentialModelDrift(configsForStatsCalculation);
 
-                // 4. Construct the complete new HomepageSummaryFileContent object
                 const newHomepageSummaryContent: HomepageSummaryFileContent = {
-                    configs: featuredConfigs, // CRITICAL: Save only the featured configs
+                    configs: homepageConfigs,
                     headlineStats: newHeadlineStats,
                     driftDetectionResult: newDriftDetectionResult,
                     lastUpdated: new Date().toISOString(),
                 };
 
                 await saveHomepageSummary(newHomepageSummaryContent);
-                loggerInstance.info('Homepage summary manifest updated successfully with re-calculated stats based on featured configs.');
+                loggerInstance.info('Homepage summary manifest updated successfully.');
             } catch (summaryError: any) {
                 loggerInstance.error(`Failed to update homepage summary manifest: ${summaryError.message}`);
-                if (process.env.DEBUG && summaryError.stack) {
-                    loggerInstance.error(`Summary update stack trace: ${summaryError.stack}`);
-                }
-                // Do not exit process here, as the main run and per-config summary might have been successful.
             }
         } else {
-            loggerInstance.info('Skipping summary file updates (not S3 provider or not explicitly enabled for local).');
+            loggerInstance.info('Skipping summary file updates.');
         }
 
-        await loggerInstance.info('CivicEval run_config command finished successfully.');
+        await loggerInstance.info('Weval run_config command finished successfully.');
     } catch (error: any) {
-        loggerInstance.error(`Top-level error in CivicEval run_config action: ${error.message}`);
+        const logger = getConfig()?.logger || console;
+        logger.error(`Top-level error in Weval run command: ${error.message}`);
         if (process.env.DEBUG && error.stack) {
-            loggerInstance.error(`Overall stack trace: ${error.stack}`);
+            logger.error(`Overall stack trace: ${error.stack}`);
         }
-        // Ensure spinner is stopped on error
         try {
-            // If mainSpinner is in scope and is an ora instance, stop it directly.
-            // However, mainSpinner is defined in the try block above and not accessible here.
-            // Revert to a simpler way to stop any active ora spinner, similar to original handling.
             const ora = (await import('ora')).default;
-            ora().stop(); // Assumes ora().stop() can halt any active spinner from the library.
+            ora().stop();
         } catch (spinnerError: any) {
-            loggerInstance.warn(`Could not stop ora spinner on error: ${spinnerError.message}`);
+            logger.warn(`Could not stop ora spinner on error: ${spinnerError.message}`);
         }
         process.exit(1);
     }
 }
 
-export const runConfigCommand = new Command('run_config')
-    .description('Runs response generation and configurable evaluations based on a JSON blueprint file. Can resolve model collections from a local path.')
-    .requiredOption('-c, --config <path>', 'Path to the JSON blueprint file')
+async function actionLocal(options: { config: string } & RunOptions) {
+    const { logger: loggerInstance } = getConfig();
+    loggerInstance.info(`Weval 'run-config local' CLI started. Options received: ${JSON.stringify(options)}`);
+    
+    try {
+        const config = await loadAndValidateConfig({ 
+            configPath: options.config, 
+            collectionsRepoPath: options.collectionsRepoPath,
+            isRemote: false,
+        });
+        await runBlueprint(config, options);
+    } catch (error: any) {
+        loggerInstance.error(`Error during 'run-config local': ${error.message}`);
+        if (process.env.DEBUG && error.stack) {
+            loggerInstance.error(`Stack trace: ${error.stack}`);
+        }
+        process.exit(1);
+    }
+}
+
+async function actionGitHub(options: { name: string } & RunOptions) {
+    const { logger: loggerInstance } = getConfig();
+    loggerInstance.info(`Weval 'run-config github' CLI started. Options received: ${JSON.stringify(options)}`);
+    
+    try {
+        const githubToken = process.env.GITHUB_TOKEN;
+        const remoteConfig = await fetchBlueprintContentByName(options.name, githubToken, loggerInstance as SimpleLogger);
+
+        if (!remoteConfig) {
+            throw new Error(`Failed to load blueprint '${options.name}'. It was not found in the GitHub repository.`);
+        }
+
+        const config = await loadAndValidateConfig({
+            configContent: remoteConfig.content,
+            fileName: remoteConfig.fileName,
+            fileType: remoteConfig.fileType,
+            collectionsRepoPath: options.collectionsRepoPath,
+            isRemote: true,
+        });
+
+        await runBlueprint(config, options, remoteConfig.commitSha, remoteConfig.fileName);
+    } catch (error: any) {
+        loggerInstance.error(`Error during 'run-config github': ${error.message}`);
+        if (process.env.DEBUG && error.stack) {
+            loggerInstance.error(`Stack trace: ${error.stack}`);
+        }
+        process.exit(1);
+    }
+}
+
+
+const localCommand = new Command('local')
+    .description('Runs an evaluation from a local blueprint file.')
+    .requiredOption('-c, --config <path>', 'Path to the local blueprint file (.yml, .yaml, or .json)')
     .option('-r, --run-label <runLabelValue>', 'A unique label for this specific execution run. If not provided, a label will be generated based on the blueprint content.')
     .option('--eval-method <methods>', "Comma-separated evaluation methods (embedding, llm-coverage, all)")
     .option('--cache', 'Enable caching for model responses (defaults to false).')
-    .option('--collections-repo-path <path>', 'Path to your local checkout of the civiceval/configs repository (or a similar structure) to resolve model collections from its "models" subdirectory. The evaluation blueprints themselves are expected in a "blueprints" subdirectory within this path if not using direct GitHub fetching.')
-    .action(actionV2); 
+    .option('--collections-repo-path <path>', 'Path to a local checkout of a collections repository (e.g., weval/configs) to resolve model collection placeholders.')
+    .action(actionLocal);
+
+const githubCommand = new Command('github')
+    .description('Runs an evaluation from a blueprint on the weval/configs GitHub repository.')
+    .requiredOption('-n, --name <name>', 'Name of the blueprint in the GitHub repo (e.g., "my-test-blueprint"), without file extension.')
+    .option('-r, --run-label <runLabelValue>', 'A unique label for this specific execution run. If not provided, a label will be generated based on the blueprint content.')
+    .option('--eval-method <methods>', "Comma-separated evaluation methods (embedding, llm-coverage, all)")
+    .option('--cache', 'Enable caching for model responses (defaults to false).')
+    .option('--collections-repo-path <path>', 'Optional. Path to a local checkout of a collections repository to override the default behavior of fetching collections from GitHub.')
+    .action(actionGitHub);
+
+export const runConfigCommand = new Command('run-config')
+    .description('Runs an evaluation from a local file or a blueprint on GitHub.')
+    .addCommand(localCommand)
+    .addCommand(githubCommand); 

@@ -22,23 +22,24 @@ import CoverageHeatmapCanvas from '@/app/analysis/components/CoverageHeatmapCanv
 import BrowseAllBlueprintsSection, { BlueprintSummaryInfo } from '@/app/components/home/BrowseAllBlueprintsSection';
 import LatestEvaluationRunsSection, { DisplayableRunInstanceInfo } from '@/app/components/home/LatestEvaluationRunsSection';
 import { BLUEPRINT_CONFIG_REPO_URL, APP_REPO_URL } from '@/lib/configConstants';
+import { processBlueprintSummaries } from '@/app/utils/blueprintSummaryUtils';
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:8888' : 'https://civiceval.org');
+const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:8888' : 'https://weval.org');
 
 export const metadata: Metadata = {
-  title: 'CivicEval - AI evaluations for civic good',
+  title: 'Weval - AI evaluations for civic good',
   description: 'Open-source, independent evaluations of large language models on human rights, law, and civic topics. Track AI model accuracy and consistency.',
   openGraph: {
-    title: 'CivicEval - AI Model Evaluations for Civic Topics',
+    title: 'Weval - AI Model Evaluations for Civic Topics',
     description: 'Explore how accurately and consistently AI models understand human rights, law, and global civic issues. Public, open-source, and continuously updated.',
     url: appUrl,
-    siteName: 'CivicEval',
+    siteName: 'Weval',
     images: [
       {
         url: `${appUrl}/opengraph-image`,
         width: 1200,
         height: 630,
-        alt: "CivicEval - Measuring AI's fitness for civic life",
+        alt: "Weval - Measuring AI's fitness for civic life",
       },
     ],
     locale: 'en_US',
@@ -46,32 +47,13 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'CivicEval - AI Model Evaluations for Civic Good',
+    title: 'Weval - AI Model Evaluations for Civic Good',
     description: 'Track AI model accuracy on human rights, law, and civic topics. Open, independent, and continuously updated evaluations.',
     images: [`${appUrl}/opengraph-image`],
   },
 };
 
 export const revalidate = 3600;
-
-function getLatestDateOfData(configs: EnhancedComparisonConfigInfo[]): string {
-  let maxDate: Date | null = null;
-
-  for (const config of configs) {
-    for (const run of config.runs) {
-      if (run.timestamp) {
-        const currentDate = new Date(fromSafeTimestamp(run.timestamp));
-        if (!isNaN(currentDate.getTime())) {
-          if (!maxDate || currentDate > maxDate) {
-            maxDate = currentDate;
-          }
-        }
-      }
-    }
-  }
-
-  return maxDate ? maxDate.toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' }) : "N/A";
-}
 
 export default async function HomePage() {
   const [initialConfigsRaw, headlineStats, driftDetectionResult]: [
@@ -84,10 +66,19 @@ export default async function HomePage() {
     getCachedHomepageDriftDetectionResult()
   ]);
 
-  const initialConfigs = initialConfigsRaw;
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  // Filter for featured configs on the client, or show all in development.
+  // This is necessary because the homepage summary now contains metadata for all configs.
+  const featuredConfigs = initialConfigsRaw.filter(config => {
+    if (isDevelopment) {
+      return true; // Show all configs in dev mode for easier testing
+    }
+    // In production, only show configs that are explicitly featured and have runs.
+    return config.tags?.includes('_featured');
+  });
 
   const allRunInstances: DisplayableRunInstanceInfo[] = [];
-  initialConfigs.forEach(config => {
+  featuredConfigs.forEach(config => {
       config.runs.forEach(run => {
           allRunInstances.push({
               ...run,
@@ -105,102 +96,7 @@ export default async function HomePage() {
   });
   const top20LatestRuns = allRunInstances.slice(0, 20);
 
-  const blueprintSummaries: BlueprintSummaryInfo[] = initialConfigs.map(config => {
-    let latestInstanceTimestamp: string | null = null;
-    let latestRunActualLabel: string | null = null;
-    let latestRunSafeTimestampForUrl: string | null = null;
-    let latestRun: EnhancedRunInfo | null = null;
-
-    if (config.runs && config.runs.length > 0) {
-      let latestDateObj: Date | null = null;
-
-      for (const run of config.runs) {
-        if (run.timestamp && run.runLabel) {
-          const currentDateObj = new Date(fromSafeTimestamp(run.timestamp)); 
-          if (!isNaN(currentDateObj.getTime())) {
-            if (!latestDateObj || currentDateObj.getTime() > latestDateObj.getTime()) {
-              latestDateObj = currentDateObj;
-              latestRun = run;
-            }
-          }
-        }
-      }
-
-      if (latestRun && latestDateObj) {
-        latestInstanceTimestamp = latestDateObj.toISOString();
-        latestRunActualLabel = latestRun.runLabel;
-        latestRunSafeTimestampForUrl = latestRun.timestamp; 
-      }
-    }
-
-    const uniqueRunLabels = new Set(config.runs.map(r => r.runLabel).filter(Boolean));
-    
-    const latestRunCoverageScores = latestRun?.allCoverageScores;
-    const latestRunModels = latestRun?.models;
-    const latestRunPromptIds = latestRunCoverageScores ? Object.keys(latestRunCoverageScores) : [];
-
-    let bestOverallModelData: { name: string; score: number; displayName: string } | null = null;
-    if (config.runs && config.runs.length > 0) {
-      const allModelScoresAcrossRuns = new Map<string, { scoreSum: number; count: number }>();
-
-      config.runs.forEach(run => {
-        if (run.perModelHybridScores) {
-          const scoresMap = run.perModelHybridScores instanceof Map
-            ? run.perModelHybridScores
-            : new Map(Object.entries(run.perModelHybridScores || {}) as [string, { average: number | null; stddev: number | null }][]);
-
-          scoresMap.forEach((scoreData, modelId) => {
-            if (modelId !== IDEAL_MODEL_ID && scoreData.average !== null && scoreData.average !== undefined) {
-              const current = allModelScoresAcrossRuns.get(modelId) || { scoreSum: 0, count: 0 };
-              current.scoreSum += scoreData.average;
-              current.count += 1;
-              allModelScoresAcrossRuns.set(modelId, current);
-            }
-          });
-        }
-      });
-
-      let bestOverallScore = -Infinity;
-      let bestModelId: string | null = null;
-
-      allModelScoresAcrossRuns.forEach((data, modelId) => {
-        const avgScore = data.scoreSum / data.count;
-        if (avgScore > bestOverallScore) {
-          bestOverallScore = avgScore;
-          bestModelId = modelId;
-        }
-      });
-
-      if (bestModelId) {
-        bestOverallModelData = {
-          name: bestModelId,
-          score: bestOverallScore,
-          displayName: getModelDisplayLabel(bestModelId, {hideProvider:true})
-        };
-      }
-    }
-
-    return {
-      ...config,
-      latestInstanceTimestamp,
-      uniqueRunLabelCount: uniqueRunLabels.size,
-      latestRunActualLabel,
-      latestRunSafeTimestamp: latestRunSafeTimestampForUrl,
-      bestOverallModel: bestOverallModelData, 
-      latestRunCoverageScores,
-      latestRunModels,
-      latestRunPromptIds,
-    };
-  });
-
-  blueprintSummaries.sort((a, b) => {
-    const tsA = a.latestInstanceTimestamp; 
-    const tsB = b.latestInstanceTimestamp;
-
-    if (!tsA) return 1;
-    if (!tsB) return -1;
-    return new Date(tsB).getTime() - new Date(tsA).getTime();
-  });
+  const blueprintSummaries = processBlueprintSummaries(featuredConfigs);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -208,24 +104,28 @@ export default async function HomePage() {
       
       <header className="w-full bg-header py-4 shadow-sm border-b border-border/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <a href="/" className="flex items-center space-x-4">
-            <CIPLogo className="w-12 h-12 text-foreground" />
+          <div className="flex items-center space-x-4">
+            <a href="/" aria-label="Homepage">
+              <CIPLogo className="w-12 h-12 text-foreground" />
+            </a>
             <div>
-              <h1 className="text-3xl font-bold text-foreground">
-                we-val
-              </h1>
-              <p className="text-base text-muted-foreground leading-tight">
+              <a href="/">
+                <h1 className="text-3xl font-bold text-foreground">
+                  weval
+                </h1>
+              </a>
+              <a href="https://cip.org" target="_blank" rel="noopener noreferrer" className="text-base text-muted-foreground leading-tight hover:underline">
                 A Collective Intelligence Project
-              </p>
+              </a>
             </div>
-          </a>
+          </div>
         </div>
       </header>
 
       <HomePageBanner />
       
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 sm:pb-2 md:pb-4 pt-8 md:pt-10 space-y-8 md:space-y-10">
-        {initialConfigs.length > 0 && headlineStats && (
+        {featuredConfigs.length > 0 && headlineStats && (
           <section 
             aria-labelledby="platform-summary-heading"
             className="bg-card/50 dark:bg-slate-800/50 backdrop-blur-md p-6 rounded-2xl shadow-lg ring-1 ring-border/60 dark:ring-slate-700/60"
@@ -240,10 +140,10 @@ export default async function HomePage() {
           </section>
         )}
 
-        {initialConfigs.length > 0 ? (
+        {featuredConfigs.length > 0 ? (
           <>
             <hr className="my-8 md:my-12 border-border/70 dark:border-slate-700/50 w-3/4 mx-auto" />
-            <BrowseAllBlueprintsSection blueprints={blueprintSummaries} />
+            <BrowseAllBlueprintsSection blueprints={blueprintSummaries} title="Featured Blueprints" />
             <hr className="my-8 md:my-12 border-border/70 dark:border-slate-700/50 w-3/4 mx-auto" />
             <LatestEvaluationRunsSection latestRuns={top20LatestRuns} />
           </>
@@ -255,7 +155,7 @@ export default async function HomePage() {
             </h2>
             <p className="text-muted-foreground dark:text-slate-400 text-sm sm:text-base max-w-lg mx-auto mb-6">
               It looks like you haven't run any evaluation blueprints yet. Use the CLI to generate results, and they will appear here.
-              Explore example blueprints or contribute your own at the <a href={`${BLUEPRINT_CONFIG_REPO_URL}/tree/main/blueprints`} target="_blank" rel="noopener noreferrer" className="text-primary dark:text-sky-400 hover:underline">CivicEval Blueprints repository</a>.
+              Explore example blueprints or contribute your own at the <a href={`${BLUEPRINT_CONFIG_REPO_URL}/tree/main/blueprints`} target="_blank" rel="noopener noreferrer" className="text-primary dark:text-sky-400 hover:underline">Weval Blueprints repository</a>.
             </p>
             <div className="mt-4 text-xs text-muted-foreground/80 dark:text-slate-500/80 bg-muted dark:bg-slate-700/50 p-3 rounded-md w-full max-w-md">
                 <span className="font-semibold">Example command:</span>
@@ -269,17 +169,21 @@ export default async function HomePage() {
       </main>
 
       {/* Footer with full-width background */}
-      <div className="w-full bg-slate-100 dark:bg-slate-800 py-8 md:py-12 mt-12 md:mt-16">
+      <div className="w-full bg-header py-6 border-t border-border/50 mt-12 md:mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <footer className="text-center">
-            <p className="text-sm text-muted-foreground">
-            </p>
-            <div className="mt-4 space-x-4">
-              <a href={APP_REPO_URL} target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-primary dark:hover:text-sky-400 transition-colors">
+          <footer className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <a href="https://cip.org" target="_blank" rel="noopener noreferrer" className="flex items-center space-x-3 group">
+              <CIPLogo className="w-8 h-8 text-muted-foreground group-hover:text-foreground transition-colors duration-200" />
+              <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors duration-200">
+                A Collective Intelligence Project
+              </span>
+            </a>
+            <div className="flex items-center space-x-4 text-sm">
+              <a href={APP_REPO_URL} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary dark:hover:text-sky-400 transition-colors">
                 View App on GitHub
               </a>
-              <span className="text-sm text-muted-foreground">|</span>
-              <a href={BLUEPRINT_CONFIG_REPO_URL} target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-primary dark:hover:text-sky-400 transition-colors">
+              <span className="text-muted-foreground/60">|</span>
+              <a href={BLUEPRINT_CONFIG_REPO_URL} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary dark:hover:text-sky-400 transition-colors">
                 View Eval Blueprints on GitHub
               </a>
             </div>

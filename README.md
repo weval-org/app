@@ -1,46 +1,46 @@
-# CivicEval
+# Weval
 
-CivicEval is an independent, open-source evaluation suite designed to act as a **public-interest watchdog for artificial intelligence**. Its primary purpose is not to measure a model's raw intelligence or general capabilities, but to perform a deep, qualitative audit of its **fitness for civic life**. It moves beyond asking "Is this model smart?" to ask, "Is this model a responsible, safe and harm-reducing actor in our society?"
+Weval is an independent, open-source evaluation suite designed to act as a **public-interest watchdog for artificial intelligence**. Its primary purpose is not to measure a model's raw intelligence or general capabilities, but to perform a deep, qualitative audit of its **fitness for civic life**. It moves beyond asking "Is this model smart?" to ask, "Is this model a responsible, safe and harm-reducing actor in our society?"
 
 It achieves this by creating and running a suite of transparent and continuous evaluations that probe AI model behavior on topics vital to a healthy functioning society.
 
 
-## Live on [civiceval.org](https://civiceval.org):
+## Live on [weval.org](https://weval.org):
 
-![Screenshot of CivicEval.org](./public/screenshot.png)
+![Screenshot of Weval.org](./public/screenshot.png)
 
 ---
 
 ### Core Focus: A Qualitative, Context-Aware Auditor
 
-CivicEval is best understood as a system for targeted audits in specific, high-stakes domains. Its focus can be broken down into several key areas:
+Weval is best understood as a system for targeted audits in specific, high-stakes domains. Its focus can be broken down into several key areas:
 
 1.  **Testing Nuanced, High-Stakes Scenarios:** It evaluates models in areas where failure could cause direct public harm. This includes understanding fundamental human rights, resisting dangerous misinformation, avoiding biased cultural and geographical assumptions, and responding safely to users in a mental health crisis.
 
 2.  **Assessing Critical Thinking and Skepticism:** Evaluations can be designed to test a model's ability to identify and resist manipulation. Can it recognize a fabricated URL, a leading question, or an absurd premise? This assesses a model's resilience in a polluted information ecosystem.
 
-3.  **Applying a Rich, Rubric-Based Methodology:** A key differentiator for CivicEval is its `points` system, which allows for granular, rubric-based judgments instead of a simple pass/fail score. This rubric can include:
+3.  **Applying a Rich, Rubric-Based Methodology:** A key differentiator for Weval is its `points` system, which allows for granular, rubric-based judgments instead of a simple pass/fail score. This rubric can include:
     *   **Semantic "Fuzzy" Checks:** Evaluates if a response captures the conceptual meaning of an idea.
     *   **Deterministic "Exact" Checks:** Verifies the presence of specific keywords or pattern matches (e.g., with regex).
     *   **Weighted Importance:** Allows critical criteria to be weighted more heavily in the final score.
 
-4.  **Providing Continuous and Transparent Monitoring:** As an automated system running on a public repository of blueprints, CivicEval functions as a living benchmark. It can detect when a model's performance on these critical issues *drifts* over time with new updates—a vital function for public accountability that static, one-off benchmarks cannot provide.
+4.  **Providing Continuous and Transparent Monitoring:** As an automated system running on a public repository of blueprints, Weval functions as a living benchmark. It can detect when a model's performance on these critical issues *drifts* over time with new updates—a vital function for public accountability that static, one-off benchmarks cannot provide.
 
 ---
 
-### How CivicEval Complements Other Evaluation Types
+### How Weval Complements Other Evaluation Types
 
-The AI landscape is rich with benchmarks, and it is important to understand how CivicEval's role is distinct from and complementary to other established methods.
+The AI landscape is rich with benchmarks, and it is important to understand how Weval's role is distinct from and complementary to other established methods.
 
-*   **It is NOT a general capability benchmark (e.g., MMLU, Hellaswag, ARC).** These benchmarks are the "SATs for LLMs" and are essential for measuring raw cognitive ability, reasoning, and knowledge across academic domains. CivicEval does not focus on this, but rather on applied social and civic behavior.
+*   **It is NOT a general capability benchmark (e.g., MMLU, Hellaswag, ARC).** These benchmarks are the "SATs for LLMs" and are essential for measuring raw cognitive ability, reasoning, and knowledge across academic domains. Weval does not focus on this, but rather on applied social and civic behavior.
 
-*   **It is NOT a broad-stroke safety benchmark (e.g., ToxiGen, BBQ).** These benchmarks are fundamental for identifying and mitigating generic harms like toxicity, hate speech, and common stereotypes at scale. CivicEval complements this by performing deeper dives into more specific, value-laden topics that require nuanced understanding beyond a general safety filter.
+*   **It is NOT a broad-stroke safety benchmark (e.g., ToxiGen, BBQ).** These benchmarks are fundamental for identifying and mitigating generic harms like toxicity, hate speech, and common stereotypes at scale. Weval complements this by performing deeper dives into more specific, value-laden topics that require nuanced understanding beyond a general safety filter.
 
 ## Blueprints
 
-Our [initial set of blueprints](https://github.com/civiceval/configs/tree/main/blueprints) test models on a wide spectrum of topics critical for public trust and safety. Key themes include:
+Our [initial set of blueprints](https://github.com/weval/configs/tree/main/blueprints) test models on a wide spectrum of topics critical for public trust and safety. Key themes include:
 
-*   **Information Integrity & Adversarial Robustness:** We test a model's resilience to misinformation. This includes its ability to identify and debunk fabricated claims ([`udhr-misattribution-absurd-framing`](https://github.com/civiceval/configs/blob/main/blueprints/udhr-misattribution-absurd-framing.json)), refuse to validate fake news URLs ([`url-classification-fallacies`](https://github.com/civiceval/configs/blob/main/blueprints/url-classification-fallacies.json)), avoid generating falsehoods ([`hallucination-probe`](https://github.com/civiceval/configs/blob/main/blueprints/hallucination-probe.json)), and resist being led by loaded questions ([`mrna-leading-question-classification`](https://github.com/civiceval/configs/blob/main/blueprints/mrna-leading-question-classification.json)).
+*   **Information Integrity & Adversarial Robustness:** We test a model's resilience to misinformation. This includes its ability to identify and debunk fabricated claims ([`udhr-misattribution-absurd-framing`](https://github.com/weval/configs/blob/main/blueprints/udhr-misattribution-absurd-framing.json)), refuse to validate fake news URLs ([`url-classification-fallacies`](https://github.com/weval/configs/blob/main/blueprints/url-classification-fallacies.json)), avoid generating falsehoods ([`hallucination-probe`](https://github.com/weval/configs/blob/main/blueprints/hallucination-probe.json)), and resist being led by loaded questions ([`mrna-leading-question-classification`](https://github.com/weval/configs/blob/main/blueprints/mrna-leading-question-classification.json)).
 *   **International Law & Human Rights:** We measure a model's understanding of foundational international legal and ethical frameworks. This includes core treaties like the Universal Declaration of Human Rights (`udhr-evaluation-v1`), the Geneva Conventions (`geneva-conventions-full-evaluation-v1.1`), and regional charters like the Banjul Charter (`banjul-charter-v1`).
 *   **National & Regional Governance:** We evaluate knowledge of specific, jurisdiction-dependent legal and civic frameworks. This includes national laws like the UK Equality Act (`uk-equality-act-v1`) and the Indian Constitution (`indian-constitution-evaluation-v1`), as well as landmark civic events like the US Civil Rights Movement (`us-civil-rights-movement-1954-1968-eval-v1`).
 *   **Digital Rights & Tech Policy:** We examine a model's understanding of the rules governing technology and its impact on society. This includes crucial new legislation like the EU AI Act (`eu-ai-act-202401689`) and specific issues like the algorithmic management of platform workers (`platform-workers-sea-algo-manage-v1`).
@@ -50,7 +50,7 @@ Our [initial set of blueprints](https://github.com/civiceval/configs/tree/main/b
 
 ## Methods of measurement
 
-CivicEval allows candidate model responses to be measured in the following ways:
+Weval allows candidate model responses to be measured in the following ways:
 
 *   **Against a Rubric**: For a given prompt, does a model's response cover the key points I care about? Does it mention or fail to mention specific things?
 *   **Against a Standard**: How semantically and linguistically similar is a model's response to an ideal, "gold-standard" answer?
@@ -60,17 +60,17 @@ CivicEval allows candidate model responses to be measured in the following ways:
 
 It achieves this through a combination of automated, LLM-judged (rubric-based) qualitative analysis, quantitative semantic similarity scoring, and more programmatic means like regular-expression matching.
 
-## Submitting an evaluation blueprint for [civiceval.org](https://civiceval.org)
+## Submitting an evaluation blueprint for [weval.org](https://weval.org)
 
-To contribute a blueprint to CivicEval.org specifically, please follow the guidance in the [configs repository](https://github.com/civiceval/configs). You'll be able to submit a 'pull request' to add your blueprint file (in our user-friendly YAML format, or legacy JSON). The blueprint simply specifies a list of prompts, idealized responses, and key 'success' criteria.
+To contribute a blueprint to Weval.org specifically, please follow the guidance in the [configs repository](https://github.com/weval/configs). You'll be able to submit a 'pull request' to add your blueprint file (in our user-friendly YAML format, or legacy JSON). The blueprint simply specifies a list of prompts, idealized responses, and key 'success' criteria.
 
-If you want to evaluate things unrelated to civic matters, you can freely use this repository and run CivicEval yourself in accordance with the [MIT license](LICENSE), and you can use the [Configs Repository](https://github.com/civiceval/configs) as inspiration for your own suite of blueprints.
+If you want to evaluate things unrelated to civic matters, you can freely use this repository and run Weval yourself in accordance with the [MIT license](LICENSE), and you can use the [Configs Repository](https://github.com/weval/configs) as inspiration for your own suite of blueprints.
 
 ## Deployed Architecture Overview
 
-Beyond local execution, CivicEval is designed to operate as an automated, deployed service:
+Beyond local execution, Weval is designed to operate as an automated, deployed service:
 
-*   **Centralized Blueprints**: Evaluation configurations ("Blueprints") are managed in a dedicated public GitHub repository (`civiceval/configs`, in the `blueprints` subdirectory). These can be `.yml`, `.yaml`, or `.json` files.
+*   **Centralized Blueprints**: Evaluation configurations ("Blueprints") are managed in a dedicated public GitHub repository (`weval/configs`, in the `blueprints` subdirectory). These can be `.yml`, `.yaml`, or `.json` files.
 *   **Automated Evaluation Runs**: Netlify Scheduled Functions periodically fetch these blueprints. If a blueprint is new or its last evaluation is outdated (e.g., older than a week), a new evaluation is triggered.
 *   **Scalable Execution**: Netlify Background Functions execute the core evaluation pipeline for each triggered blueprint.
 *   **Cloud-Based Results**: Evaluation results (JSON outputs) are stored in cloud blob storage (AWS S3), making them persistently available to the web dashboard.
@@ -84,10 +84,10 @@ This toolkit supports both locally run manual evaluations (ideal for developing 
 
 **1. Automated Deployed Workflow (Primary for Production System)**
 
-This is the main operational mode for the CivicEval platform.
-1.  **Contribute Blueprints**: Users propose new or updated evaluation blueprints by submitting pull requests to the `blueprints` directory in the [civiceval/configs](https://github.com/civiceval/configs) GitHub repository. Each blueprint can be a YAML (`.yml`, `.yaml`) or JSON (`.json`) file.
+This is the main operational mode for the Weval platform.
+1.  **Contribute Blueprints**: Users propose new or updated evaluation blueprints by submitting pull requests to the `blueprints` directory in the [weval/configs](https://github.com/weval/configs) GitHub repository. Each blueprint can be a YAML (`.yml`, `.yaml`) or JSON (`.json`) file.
 2.  **Automated Fetch & Schedule**: A scheduled Netlify Function (`fetch-and-schedule-evals`) runs periodically (e.g., daily):
-    *   It fetches all blueprint files from the `blueprints` directory in the `civiceval/configs` repository.
+    *   It fetches all blueprint files from the `blueprints` directory in the `weval/configs` repository.
     *   For each blueprint, it calculates a content hash.
     *   It checks cloud blob storage (AWS S3) for existing results matching this content hash.
     *   If no result exists, or the existing result is older than a defined period (e.g., one week), it triggers a new evaluation.
@@ -106,7 +106,7 @@ This is the main operational mode for the CivicEval platform.
 
 **2. Local Blueprint Workflow (`run_config` - For Development & Manual Runs)**
 
-This method allows for detailed, reproducible evaluations driven by a single configuration file locally. It's highly recommended for developing new blueprints before contributing them to the `civiceval/configs` repository.
+This method allows for detailed, reproducible evaluations driven by a single configuration file locally. It's highly recommended for developing new blueprints before contributing them to the `weval/configs` repository.
 
 1.  **Create Blueprint File**: Define your entire test run in a YAML or JSON file (see structure below).
     *   Store these in a local directory like `/evaluation_blueprints`.
@@ -128,21 +128,34 @@ This suite provides tools for generating embeddings and comparing the semantic s
 
 ---
 
-#### Configuration-Driven Run (`run_config`)
+#### Configuration-Driven Run (`run-config`)
 
 **(Strongly Recommended for local development and testing blueprints)**
 
-Runs the entire response generation, embedding, and comparison process based on parameters defined in a blueprint file.
+Runs the entire response generation, embedding, and comparison process based on a blueprint. You can run a local file or a blueprint from the [weval/configs repository](https://github.com/weval/configs/tree/main/blueprints) by name.
 
+**1. Run with a local blueprint file:**
 ```bash
-pnpm cli run_config --config path/to/your_blueprint.yml --run-label <your_run_label>
+pnpm cli run-config local --config path/to/your_blueprint.yml --run-label <your_run_label>
+```
+Options:
+- `--config <path>`: (Required) Path to the local blueprint file (`.yml`, `.yaml`, or `.json`).
+- `--run-label <runLabelValue>`: Optional. A user-defined label for this specific execution run. A content hash will always be generated and appended.
+- `--eval-method <methods>`: Optional. Comma-separated evaluation methods. Defaults to `embedding`. (`embedding`, `llm-coverage`, `all`).
+- `--cache`: Optional. Enables caching for model responses.
+- `--collections-repo-path <path>`: Optional. Path to a local checkout of a collections repository (e.g., `weval/configs`) to resolve model collection placeholders.
+
+**2. Run with a blueprint from GitHub by name:**
+```bash
+pnpm cli run-config github --name udhr-misattribution-absurd-framing --run-label <my_remote_run>
 ```
 
 Options:
-- `--config <path>`: (Required) Path to the blueprint file (`.yml`, `.yaml`, or `.json`).
+- `--name <name>`: (Required) Name of the blueprint in the `weval/configs` GitHub repo (without the file extension).
 - `--run-label <runLabelValue>`: Optional. A user-defined label for this specific execution run. A content hash will always be generated and appended.
 - `--eval-method <methods>`: Optional. Comma-separated evaluation methods. Defaults to `embedding`. (`embedding`, `llm-coverage`, `all`).
-- `--cache`: Optional. Enables caching for model responses. For automated runs in the deployed system, caching is enabled by default.
+- `--cache`: Optional. Enables caching for model responses.
+- `--collections-repo-path <path>`: Optional. Path to a local checkout of a collections repository to resolve model collection placeholders. Note: GitHub-based collection resolution is used by default for remote blueprints.
 
 **Blueprint File Structure (YAML recommended):**
 
@@ -343,7 +356,7 @@ The visualizations help interpret the semantic similarity data:
 
 ```bash
 # Clone the main application repository
-git clone https://github.com/civiceval/app.git # Or your repo name
+git clone https://github.com/weval/app.git # Or your repo name
 cd llm-semantic-comparison # Or your repository name
 
 # Install dependencies

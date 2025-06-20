@@ -229,7 +229,7 @@ const AggregateStatsDisplay: React.FC<AggregateStatsDisplayProps> = ({ stats }) 
           {InfoIcon && <InfoIcon className="w-4 h-4 mr-2 mt-0.5 text-sky-500 flex-shrink-0" />}
           <span>
             <strong>Note on Leaderboard:</strong> This leaderboard reflects models evaluated based on available resources. Only models that have participated in at least {MIN_RUNS_FOR_LEADERBOARD} evaluation runs are shown. Due to API costs, we cannot currently include all models or run evaluations at the scale we aspire to. 
-            Your support can help expand our coverage. <Link href="https://github.com/sponsors/civiceval" target="_blank" rel="noopener noreferrer" className="underline text-primary dark:text-sky-400 hover:text-primary/80 dark:hover:text-sky-300 font-medium">Contribute here</Link>.
+            Your support can help expand our coverage. <Link href="https://github.com/sponsors/weval" target="_blank" rel="noopener noreferrer" className="underline text-primary dark:text-sky-400 hover:text-primary/80 dark:hover:text-sky-300 font-medium">Contribute here</Link>.
           </span>
         </div>
         <OverallModelLeaderboard

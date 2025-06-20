@@ -6,9 +6,9 @@ import { listRunsForConfig } from "@/lib/storageService";
 import { resolveModelsInConfig, SimpleLogger } from "@/lib/config-utils";
 import { parseAndNormalizeBlueprint } from "@/lib/blueprint-parser";
 
-const EVAL_CONFIGS_REPO_API_URL = "https://api.github.com/repos/civiceval/configs/contents/blueprints";
-const MODEL_COLLECTIONS_REPO_API_URL_BASE = "https://api.github.com/repos/civiceval/configs/contents/models";
-const REPO_COMMITS_API_URL = "https://api.github.com/repos/civiceval/configs/commits/main";
+const EVAL_CONFIGS_REPO_API_URL = "https://api.github.com/repos/weval/configs/contents/blueprints";
+const MODEL_COLLECTIONS_REPO_API_URL_BASE = "https://api.github.com/repos/weval/configs/contents/models";
+const REPO_COMMITS_API_URL = "https://api.github.com/repos/weval/configs/commits/main";
 const ONE_WEEK_IN_MS = 7 * 24 * 60 * 60 * 1000;
 
 // Helper function to create a simple console-based logger with a prefix
@@ -49,7 +49,7 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
       const commitResponse = await axios.get(REPO_COMMITS_API_URL, { headers: githubHeaders });
       latestCommitSha = commitResponse.data.sha;
       if (latestCommitSha) {
-        logger.info(`[fetch-and-schedule-evals] Fetched latest commit SHA for civiceval/configs@main: ${latestCommitSha}`);
+        logger.info(`[fetch-and-schedule-evals] Fetched latest commit SHA for weval/configs@main: ${latestCommitSha}`);
       } else {
         logger.warn(`[fetch-and-schedule-evals] Could not determine latest commit SHA from API response.`);
       }

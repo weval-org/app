@@ -28,7 +28,7 @@ const ModelDriftIndicator: React.FC<ModelDriftIndicatorProps> = ({ driftInfo }) 
         {Info && <Info className="w-5 h-5 mr-3 text-sky-500 flex-shrink-0 mt-0.5" />}
         <div>
           <span>No significant performance variance detected for any model across identical test runs (same parameters, &gt;= 1 day apart). I.e. no model regressions detected.</span>
-          <p className="text-xs text-muted-foreground/80 mt-1">This suggests model behavior, as measured by Hybrid Score, has remained consistent for repeated evaluations in your dataset. Note: it can be normal for model aliases to not point to the same underlying model, but it is fair to expect that the type of fundamental knowledge that CivicEval tests for should be consistent.</p>
+          <p className="text-xs text-muted-foreground/80 mt-1">This suggests model behavior, as measured by Hybrid Score, has remained consistent for repeated evaluations in your dataset. Note: it can be normal for model aliases to not point to the same underlying model, but it is fair to expect that the type of fundamental knowledge that Weval tests for should be consistent.</p>
         </div>
       </div>
     );

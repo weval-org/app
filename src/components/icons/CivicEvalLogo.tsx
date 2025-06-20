@@ -1,10 +1,10 @@
 import React from 'react';
 
-interface CivicEvalLogoProps extends React.SVGProps<SVGSVGElement> {
+interface WevalLogoProps extends React.SVGProps<SVGSVGElement> {
   // Custom props can be added here if needed in the future
 }
 
-const CivicEvalLogo: React.FC<CivicEvalLogoProps> = (props) => (
+const WevalLogo: React.FC<WevalLogoProps> = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     width="2000"
@@ -25,4 +25,4 @@ const CivicEvalLogo: React.FC<CivicEvalLogoProps> = (props) => (
   </svg>
 );
 
-export default CivicEvalLogo; 
+export default WevalLogo; 

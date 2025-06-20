@@ -1,6 +1,6 @@
-# CivicEval Blueprint Format
+# Weval Blueprint Format
 
-This document provides a comprehensive guide to creating evaluation blueprints for the CivicEval suite. Blueprints are configuration files that define a set of prompts, models to test, and the criteria for evaluating the models' responses.
+This document provides a comprehensive guide to creating evaluation blueprints for the Weval suite. Blueprints are configuration files that define a set of prompts, models to test, and the criteria for evaluating the models' responses.
 
 While the system maintains support for a legacy JSON format, the recommended and most user-friendly format is **YAML**.
 

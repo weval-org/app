@@ -1,7 +1,7 @@
 # Main configuration for the blueprint
 id: comprehensive-system-test-v1
 title: "Comprehensive System Test"
-description: "A blueprint designed to test every feature of the CivicEval system, including all point functions, syntaxes, and configuration options."
+description: "A blueprint designed to test every feature of the Weval system, including all point functions, syntaxes, and configuration options."
 tags: ['system-test', 'internal', 'kitchen-sink']
 models:
   - QUICK

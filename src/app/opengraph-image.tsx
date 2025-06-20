@@ -4,7 +4,7 @@ import { ImageResponse } from 'next/og';
 export const runtime = 'edge';
 
 // Image metadata
-export const alt = 'CivicEval - Measuring AI\'s fitness for civic life';
+export const alt = 'Weval - Measuring AI\'s fitness for civic life';
 export const size = {
   width: 1200,
   height: 630,
@@ -46,13 +46,13 @@ export default async function Image() {
         {/* You could add your logo here if you have it as an SVG or can fetch it */}
         {/* <img src={...logo_url} width="100" height="100" /> */}
         <div style={{ marginTop: 20, fontSize: 80, fontWeight: 700 /* Use numeric weight for bold */, fontFamily: '"GeistBold"' }}>
-          CivicEval
+          Weval
         </div>
         <div style={{ marginTop: 30, fontSize: 42, color: '#E0E0E0', lineHeight: 1.4, fontFamily: '"GeistRegular"' }}>
           Measuring AI's fitness for civic life
         </div>
         <div style={{ position: 'absolute', bottom: 30, fontSize: 24, color: '#A0A0A0', fontFamily: '"GeistRegular"' }}>
-          civiceval.org
+          weval.org
         </div>
       </div>
     ),

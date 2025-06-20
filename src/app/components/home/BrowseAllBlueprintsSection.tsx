@@ -37,17 +37,24 @@ const PackageSearch = nextDynamic(() => import('lucide-react').then(mod => mod.P
 const ExternalLink = nextDynamic(() => import('lucide-react').then(mod => mod.ExternalLink));
 const Trophy = nextDynamic(() => import('lucide-react').then(mod => mod.Trophy));
 
-const BrowseAllBlueprintsSection = ({ blueprints }: { blueprints: BlueprintSummaryInfo[] }) => {
+interface BrowseAllBlueprintsSectionProps {
+  blueprints: BlueprintSummaryInfo[];
+  title?: string;
+}
+
+const BrowseAllBlueprintsSection = ({ blueprints, title }: BrowseAllBlueprintsSectionProps) => {
   return (
     <section id="browse-blueprints" className="mb-12 md:mb-16">
-      <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground dark:text-slate-100 mb-6 md:mb-8 text-center">
-        Featured Blueprints
-      </h2>
+      {title && (
+        <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground dark:text-slate-100 mb-6 md:mb-8 text-center">
+          {title}
+        </h2>
+      )}
       {blueprints.length === 0 ? (
         <div className="text-center py-10 bg-card/50 dark:bg-slate-800/40 rounded-lg shadow-md">
           {PackageSearch && <PackageSearch className="w-12 h-12 mx-auto mb-4 text-muted-foreground dark:text-slate-500" />}
           <p className="text-lg text-muted-foreground dark:text-slate-400">No evaluation blueprints found.</p>
-          <p className="text-sm text-muted-foreground dark:text-slate-500 mt-1">Contribute blueprints to the <a href={`${BLUEPRINT_CONFIG_REPO_URL}/tree/main/blueprints`} target="_blank" rel="noopener noreferrer" className="text-primary dark:text-sky-400 hover:underline">CivicEval Blueprints repository</a>.</p>
+          <p className="text-sm text-muted-foreground dark:text-slate-500 mt-1">Contribute blueprints to the <a href={`${BLUEPRINT_CONFIG_REPO_URL}/tree/main/blueprints`} target="_blank" rel="noopener noreferrer" className="text-primary dark:text-sky-400 hover:underline">Weval Blueprints repository</a>.</p>
         </div>
       ) : (
         <div className="space-y-5 md:space-y-6">

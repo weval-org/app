@@ -151,6 +151,7 @@ export interface FinalComparisonOutputV2 {
     timestamp: string;
     description?: string;
     sourceCommitSha?: string;
+    sourceBlueprintFileName?: string;
     config: ComparisonConfig;
     evalMethodsUsed: EvaluationMethod[];
     effectiveModels: string[];

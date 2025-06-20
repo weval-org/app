@@ -8,7 +8,7 @@
 
 ## 1. Introduction & Problem Statement
 
-In the CivicEval blueprint format, rubrics are defined within `should` and `should_not` blocks. Each item in these rubrics is a "Point Definition." Currently, a point can be a simple conceptual check (a plain string) or a programmatic function call.
+In the Weval blueprint format, rubrics are defined within `should` and `should_not` blocks. Each item in these rubrics is a "Point Definition." Currently, a point can be a simple conceptual check (a plain string) or a programmatic function call.
 
 A key feature is the ability to associate a `citation` with a point, linking a specific criterion to its source (e.g., a law, a style guide, or a requirements document). This is critical for creating auditable and transparent evaluations.
 

@@ -3,7 +3,7 @@ import { fromSafeTimestamp } from '@/app/utils/timestampUtils'; // Assuming this
 
 export const runtime = 'edge';
 
-export const alt = 'CivicEval Analysis Result'; // Consider making this more dynamic if fetching titles
+export const alt = 'Weval Analysis Result'; // Consider making this more dynamic if fetching titles
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -67,7 +67,7 @@ export default async function Image({ params }: { params: { configId: string, ru
           alignItems: 'center'
         }}>
           <div style={{ fontSize: 32, color: '#A0A0A0', marginBottom: '20px', fontFamily: 'GeistRegular' }}>
-            CIVICEVAL ANALYSIS
+            WEVAL ANALYSIS
           </div>
           <div style={{ fontSize: 60, fontWeight: 700, color: '#00A8FF', marginBottom: '25px', fontFamily: 'GeistBold', lineHeight: 1.2, maxWidth: '90%' }}>
             {displayConfigTitle}
@@ -82,7 +82,7 @@ export default async function Image({ params }: { params: { configId: string, ru
 
         {/* Footer block - second flex item, no absolute positioning */}
         <div style={{ fontSize: 24, color: '#A0A0A0', fontFamily: 'GeistRegular' }}>
-          civiceval.org
+          weval.org
         </div>
       </div>
     ),

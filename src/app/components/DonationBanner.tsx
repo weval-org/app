@@ -28,7 +28,7 @@ const DonationBanner = () => {
     <div className="bg-accent-cta text-accent-cta-foreground p-3 text-center relative shadow-md rounded-lg mb-6">
       <p className="text-sm sm:text-base font-medium">
         Donations help us run evaluations on a wider range of AI models, including more powerful and costly ones.
-        <Link href="https://github.com/sponsors/civiceval" target="_blank" rel="noopener noreferrer" className="underline hover:text-accent-cta-foreground/80 font-semibold ml-2">
+        <Link href="https://github.com/sponsors/weval" target="_blank" rel="noopener noreferrer" className="underline hover:text-accent-cta-foreground/80 font-semibold ml-2">
           Donate Here
         </Link>
       </p>

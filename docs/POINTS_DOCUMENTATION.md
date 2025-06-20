@@ -1,6 +1,6 @@
 # Understanding the `should` System
 
-This document provides a detailed breakdown of the `should` system (formerly `points` and `expect`), which is the core of CivicEval's rubric-based evaluation capabilities. It explains how to define evaluation criteria in a blueprint and how the codebase processes them to generate a final score.
+This document provides a detailed breakdown of the `should` system (formerly `points` and `expect`), which is the core of Weval's rubric-based evaluation capabilities. It explains how to define evaluation criteria in a blueprint and how the codebase processes them to generate a final score.
 
 ### Part 1: How to Define an Expectation (The Blueprint)
 
@@ -49,7 +49,7 @@ When you run an evaluation, here is the step-by-step journey your `should` defin
 
 The process starts in one of two places:
 *   **Local CLI**: `src/cli/commands/run-config.ts` reads the specified blueprint file (e.g., `my-blueprint.yml`).
-*   **Deployed System**: `netlify/functions/fetch-and-schedule-evals.ts` fetches the raw content of blueprint files from the `civiceval/configs` GitHub repository.
+*   **Deployed System**: `netlify/functions/fetch-and-schedule-evals.ts` fetches the raw content of blueprint files from the `weval/configs` GitHub repository.
 
 #### Step 2: Parsing and Normalization (`blueprint-parser.ts`)
 

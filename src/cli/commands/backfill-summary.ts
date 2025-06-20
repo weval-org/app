@@ -18,9 +18,9 @@ import {
 
 async function actionBackfillSummary(options: { verbose?: boolean }) {
     const { logger } = getConfig();
-    logger.info('Starting homepage summary backfill process (v2 with per-config summaries)...');
+    logger.info('Starting homepage summary backfill process (v3 hybrid summary)...');
 
-    let allFeaturedConfigsForHomepage: EnhancedComparisonConfigInfo[] = [];
+    let allConfigsForHomepage: EnhancedComparisonConfigInfo[] = [];
     let totalConfigsProcessed = 0;
     let totalRunsProcessed = 0;
     let totalRunsFailed = 0;
@@ -80,34 +80,44 @@ async function actionBackfillSummary(options: { verbose?: boolean }) {
                 logger.info(`Saving per-config summary for ${configId}...`);
                 await saveConfigSummary(configId, finalConfigSummary);
 
-                // If it's featured, add it to the list for the main homepage summary
-                if (finalConfigSummary.tags?.includes('_featured')) {
-                    allFeaturedConfigsForHomepage.push(finalConfigSummary);
-                    if(options.verbose) logger.info(` -> Config ${configId} is featured. Adding to homepage summary list.`);
-                }
+                // Add the completed summary to our list for the homepage summary generation
+                allConfigsForHomepage.push(finalConfigSummary);
             }
         }
 
-        // Now, build and save the main homepage summary from the collected featured configs
-        if (allFeaturedConfigsForHomepage.length > 0) {
-            logger.info(`Backfill data compiled for homepage. Found ${allFeaturedConfigsForHomepage.length} featured configs.`);
-            logger.info(`Calculating headline statistics and drift detection...`);
+        // Now, build and save the main homepage summary from the collected configs
+        if (allConfigsForHomepage.length > 0) {
+            logger.info(`Backfill data compiled. Found ${allConfigsForHomepage.length} total configs to process for homepage summary.`);
             
-            const headlineStats = calculateHeadlineStats(allFeaturedConfigsForHomepage);
-            const driftDetectionResult = calculatePotentialModelDrift(allFeaturedConfigsForHomepage);
+            // 1. Create the hybrid array for the homepage summary file itself.
+            const homepageConfigs = allConfigsForHomepage.map(config => {
+                if (config.tags?.includes('_featured')) {
+                    return config; // Keep full run data
+                }
+                return { ...config, runs: [] }; // Strip run data
+            });
+
+            // 2. Create the array for calculating stats (featured only, no test).
+            const configsForStatsCalculation = allConfigsForHomepage.filter(
+                config => config.tags?.includes('_featured') && !config.tags?.includes('test')
+            );
+            logger.info(`Headline stats will be calculated based on ${configsForStatsCalculation.length} featured configs (excluding 'test' tag).`);
+
+            const headlineStats = calculateHeadlineStats(configsForStatsCalculation);
+            const driftDetectionResult = calculatePotentialModelDrift(configsForStatsCalculation);
 
             const finalHomepageSummaryObject: HomepageSummaryFileContent = {
-                configs: allFeaturedConfigsForHomepage,
+                configs: homepageConfigs, // The hybrid array
                 headlineStats: headlineStats,
                 driftDetectionResult: driftDetectionResult,
                 lastUpdated: new Date().toISOString(),
             };
 
-            logger.info('Saving comprehensive homepage summary with new stats...');
+            logger.info('Saving comprehensive homepage summary...');
             await saveHomepageSummary(finalHomepageSummaryObject);
             logger.info('Comprehensive homepage summary saved successfully.');
         } else {
-            logger.warn('No featured configs found. Homepage summary file will be empty or not saved.');
+            logger.warn('No data was compiled for the summary. Summary file not saved.');
         }
 
         logger.info('--- Backfill Summary ---');
@@ -126,6 +136,6 @@ async function actionBackfillSummary(options: { verbose?: boolean }) {
 }
 
 export const backfillSummaryCommand = new Command('backfill-summary')
-    .description('Rebuilds all summary files. Creates a summary.json for each config and a homepage_summary.json for featured configs.')
+    .description('Rebuilds all summary files. Creates a summary.json for each config and a hybrid homepage_summary.json (metadata for all, runs for featured).')
     .option('-v, --verbose', 'Enable verbose logging for detailed processing steps.')
     .action(actionBackfillSummary); 
