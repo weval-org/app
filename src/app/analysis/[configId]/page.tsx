@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import dynamic from 'next/dynamic';
 import { EnhancedRunInfo } from '@/app/utils/homepageDataUtils';
-import { fromSafeTimestamp } from '@/app/utils/timestampUtils';
+import { fromSafeTimestamp } from '@/lib/timestampUtils';
 import AnalysisPageHeader from '../components/AnalysisPageHeader';
 import { Badge } from '@/components/ui/badge';
 

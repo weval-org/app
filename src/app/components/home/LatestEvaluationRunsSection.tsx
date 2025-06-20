@@ -4,7 +4,7 @@ import nextDynamic from 'next/dynamic';
 import Link from 'next/link';
 import { EnhancedRunInfo } from '@/app/utils/homepageDataUtils';
 import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
-import { IDEAL_MODEL_ID } from '@/app/utils/comparisonUtils';
+import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import ClientDateTime from '../ClientDateTime';
 
 export interface DisplayableRunInstanceInfo extends EnhancedRunInfo {

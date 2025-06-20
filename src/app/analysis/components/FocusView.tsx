@@ -62,12 +62,7 @@ export const FocusView: React.FC<FocusViewProps> = ({
                     Focus View: <span className="text-primary text-primary">{getModelDisplayLabel(focusedModelParsed)}</span>
                 </h3>
                 <div className="flex items-center space-x-3">
-                    {onSwitchFocus && (
-                        <p className="text-xs">
-                            (<a onClick={() => onSwitchFocus('prev')} className="block text-primary hover:text-primary/80 hover:underline cursor-pointer">Prev</a> / 
-                            <a onClick={() => onSwitchFocus('next')} className="block text-primary hover:text-primary/80 hover:underline cursor-pointer">Next</a>)
-                        </p>
-                    )}
+
                     <Button
                         variant="ghost"
                         size="sm"

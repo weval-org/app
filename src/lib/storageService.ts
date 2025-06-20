@@ -11,18 +11,18 @@ import { ComparisonDataV2 as FetchedComparisonData } from '@/app/utils/types';
 import {
   calculateAverageHybridScoreForRun,
   calculatePerModelHybridScoresForRun,
-  calculateStandardDeviation
+  calculateStandardDeviation,
+  IDEAL_MODEL_ID
 } from '@/app/utils/calculationUtils';
-import { IDEAL_MODEL_ID } from '@/app/utils/comparisonUtils';
 import { AggregateStatsData } from '@/app/components/AggregateStatsDisplay';
 import { PotentialDriftInfo } from '@/app/components/ModelDriftIndicator';
 import {
   calculateHeadlineStats,
   calculatePotentialModelDrift,
 } from '@/cli/utils/summaryCalculationUtils';
-import { fromSafeTimestamp } from '@/app/utils/timestampUtils';
+import { fromSafeTimestamp } from '@/lib/timestampUtils';
 
-const storageProvider = process.env.STORAGE_PROVIDER || (process.env.NODE_ENV === 'development' ? 'local' : 's3'); // Restored
+const storageProvider = process.env.STORAGE_PROVIDER || (process.env.NODE_ENV === 'development' ? 'local' : 's3');
 
 // Define and export the new summary structure type
 export interface HomepageSummaryFileContent {

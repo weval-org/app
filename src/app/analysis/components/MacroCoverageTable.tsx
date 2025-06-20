@@ -348,7 +348,7 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
 
                                     const cellClasses = [
                                         "border-x border-border dark:border-slate-700",
-                                        "p-0 align-middle",
+                                        "p-1 align-middle",
                                         onCellClick ? "cursor-pointer" : "",
                                     ].filter(Boolean).join(" ");
 

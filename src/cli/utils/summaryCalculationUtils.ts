@@ -9,9 +9,8 @@ import {
 } from '@/app/components/AggregateStatsDisplay';
 import { PotentialDriftInfo } from '@/app/components/ModelDriftIndicator';
 import { parseEffectiveModelId, getModelDisplayLabel } from '@/app/utils/modelIdUtils';
-import { calculateStandardDeviation } from '@/app/utils/calculationUtils';
-import { IDEAL_MODEL_ID } from '@/app/utils/comparisonUtils';
-import { fromSafeTimestamp } from '@/app/utils/timestampUtils';
+import { calculateStandardDeviation, IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
+import { fromSafeTimestamp } from '../../lib/timestampUtils';
 
 const SIGNIFICANT_SCORE_CHANGE_THRESHOLD = 0.1; // 10% change
 const MIN_ABSOLUTE_SCORE_DIFFERENCE = 0.05; // 5 percentage points

@@ -1,4 +1,4 @@
-import { toSafeTimestamp, fromSafeTimestamp, formatTimestampForDisplay } from '../timestampUtils';
+import { toSafeTimestamp, fromSafeTimestamp, formatTimestampForDisplay } from '@/lib/timestampUtils';
 
 describe('timestampUtils', () => {
 

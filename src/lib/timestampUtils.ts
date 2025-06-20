@@ -63,4 +63,43 @@ export const formatTimestampForDisplay = (safeTimestamp: string): string => {
     console.error("Error formatting timestamp for display:", e);
     return safeTimestamp; 
   }
-}; 
+};
+
+/**
+ * Extracts the label and processes the timestamp from a comparison result filename.
+ * Expected filename format: label_YYYY-MM-DDTHH-MM-SS-mmmZ_comparison[_v2].json
+ * 
+ * @param filename The full filename string.
+ * @returns An object with { label, correctedTimestamp, originalTimestampSegment } or null if the filename doesn't match.
+ */
+export function extractInfoFromFilename(filename: string): {
+  label: string;
+  correctedTimestamp: string | null;
+  originalTimestampSegment: string;
+} | null {
+  if (!filename || typeof filename !== 'string') {
+    return null;
+  }
+
+  // Regex updated to be a bit more specific on the label part to avoid over-matching
+  const fileMatch = filename.match(/^(.*?)_(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z)_(comparison(?:_v2)?\.json)$/);
+
+  if (fileMatch) {
+    const label = fileMatch[1];
+    const originalTimestampSegment = fileMatch[2]; // e.g., "2025-05-01T00-38-30-062Z"
+    
+    const correctedTimestampISO = fromSafeTimestamp(originalTimestampSegment);
+    
+    // fromSafeTimestamp returns epoch on failure, so we check for it and return null to match original behavior.
+    const correctedTimestamp = correctedTimestampISO === new Date(0).toISOString() ? null : correctedTimestampISO;
+
+    return {
+      label,
+      correctedTimestamp,
+      originalTimestampSegment
+    };
+  } else {
+    // console.warn(`[timestampUtils] Filename "${filename}" does not match expected pattern.`);
+    return null;
+  }
+} 

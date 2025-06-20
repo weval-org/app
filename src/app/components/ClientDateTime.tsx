@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { fromSafeTimestamp } from '@/app/utils/timestampUtils';
+import { fromSafeTimestamp } from '@/lib/timestampUtils';
 
 interface ClientDateTimeProps {
   timestamp: string | null | undefined;

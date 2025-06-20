@@ -6,14 +6,17 @@ import {
 } from '@/app/utils/types';
 import {
     IDEAL_MODEL_ID,
+    calculateAverageSimilarity,
+    findSimilarityExtremes,
+    calculateOverallCoverageExtremes,
     calculateHybridScoreExtremes,
     calculateOverallAverageCoverage,
-    calculateOverallCoverageExtremes,
-} from '@/app/utils/comparisonUtils';
-import { calculatePerModelHybridScoresForRun, calculateAverageHybridScoreForRun } from '@/app/utils/calculationUtils';
-import { findIdealExtremes } from '@/app/utils/similarityUtils';
-import { fromSafeTimestamp, formatTimestampForDisplay } from '@/app/utils/timestampUtils';
-import { getModelDisplayLabel } from './modelIdUtils';
+    calculatePerModelHybridScoresForRun, 
+    calculateAverageHybridScoreForRun,
+    findIdealExtremes
+} from '@/app/utils/calculationUtils';
+import { fromSafeTimestamp, formatTimestampForDisplay } from '@/lib/timestampUtils';
+import { getModelDisplayLabel, parseEffectiveModelId } from './modelIdUtils';
 
 function escapeMarkdown(text: string): string {
     if (!text) return text;

@@ -2,7 +2,13 @@ import {
     calculateStandardDeviation,
     calculateHybridScore,
     calculateAverageHybridScoreForRun,
-    calculatePerModelHybridScoresForRun
+    calculatePerModelHybridScoresForRun,
+    calculateAverageSimilarity,
+    findSimilarityExtremes,
+    calculateOverallCoverageExtremes,
+    calculateHybridScoreExtremes,
+    calculateOverallAverageCoverage,
+    IDEAL_MODEL_ID
 } from '../calculationUtils';
 import { ComparisonDataV2, EvaluationResults } from '@/app/utils/types';
 
@@ -163,6 +169,100 @@ describe('calculationUtils', () => {
             const result = calculateAverageHybridScoreForRun(undefined, undefined, effectiveModels_base, promptIds_base, idealModelId);
             expect(result.average).toBeNull();
             expect(result.stddev).toBeNull();
+        });
+    });
+
+    // New tests for functions moved from comparisonUtils
+    describe('calculateAverageSimilarity', () => {
+        const matrix = {
+            modelA: { modelB: 0.8, modelC: 0.6 },
+            modelB: { modelA: 0.8, modelC: 0.7 },
+            modelC: { modelA: 0.6, modelB: 0.7 },
+        };
+        it('should calculate the average similarity correctly', () => {
+            // (0.8 + 0.6 + 0.8 + 0.7 + 0.6 + 0.7) / 6 = 4.2 / 6 = 0.7
+            expect(calculateAverageSimilarity(matrix)).toBeCloseTo(0.7);
+        });
+        it('should return 0 for an undefined matrix', () => {
+            expect(calculateAverageSimilarity(undefined)).toBe(0);
+        });
+        it('should handle empty matrix', () => {
+            expect(calculateAverageSimilarity({})).toBe(0);
+        });
+    });
+
+    describe('findSimilarityExtremes', () => {
+        const matrix = {
+            modelA: { modelB: 0.9, modelC: 0.2 },
+            modelB: { modelA: 0.9, modelC: 0.5 },
+            modelC: { modelA: 0.2, modelB: 0.5 },
+        };
+        it('should find the most and least similar pairs', () => {
+            const extremes = findSimilarityExtremes(matrix);
+            expect(extremes.mostSimilar?.value).toBe(0.9);
+            expect(extremes.leastSimilar?.value).toBe(0.2);
+        });
+        it('should return null for undefined matrix', () => {
+            const extremes = findSimilarityExtremes(undefined);
+            expect(extremes.mostSimilar).toBeNull();
+            expect(extremes.leastSimilar).toBeNull();
+        });
+    });
+
+    describe('calculateOverallCoverageExtremes', () => {
+        const models = ['modelA', 'modelB', 'modelC', IDEAL_MODEL_ID];
+        const coverageScores: EvaluationResults['llmCoverageScores'] = {
+            prompt1: { modelA: { keyPointsCount: 2, avgCoverageExtent: 0.9 }, modelB: { keyPointsCount: 2, avgCoverageExtent: 0.5 } },
+            prompt2: { modelA: { keyPointsCount: 2, avgCoverageExtent: 0.8 }, modelB: { keyPointsCount: 2, avgCoverageExtent: 0.6 } },
+        };
+        it('should find the best and worst coverage models', () => {
+            const extremes = calculateOverallCoverageExtremes(coverageScores, models);
+            // modelA avg: 0.85, modelB avg: 0.55
+            expect(extremes.bestCoverage?.modelId).toBe('modelA');
+            expect(extremes.bestCoverage?.avgScore).toBeCloseTo(0.85);
+            expect(extremes.worstCoverage?.modelId).toBe('modelB');
+            expect(extremes.worstCoverage?.avgScore).toBeCloseTo(0.55);
+        });
+        it('should return nulls for empty data', () => {
+            const extremes = calculateOverallCoverageExtremes({}, []);
+            expect(extremes.bestCoverage).toBeNull();
+            expect(extremes.worstCoverage).toBeNull();
+        });
+    });
+
+    describe('calculateHybridScoreExtremes', () => {
+        const models = ['modelA', 'modelB', IDEAL_MODEL_ID];
+        const similarities: EvaluationResults['perPromptSimilarities'] = {
+            prompt1: { modelA: { [IDEAL_MODEL_ID]: 0.8 }, modelB: { [IDEAL_MODEL_ID]: 0.4 } },
+            prompt2: { modelA: { [IDEAL_MODEL_ID]: 0.9 }, modelB: { [IDEAL_MODEL_ID]: 0.3 } },
+        };
+        const coverageScores: EvaluationResults['llmCoverageScores'] = {
+            prompt1: { modelA: { keyPointsCount: 2, avgCoverageExtent: 0.7 }, modelB: { keyPointsCount: 2, avgCoverageExtent: 0.6 } },
+            prompt2: { modelA: { keyPointsCount: 2, avgCoverageExtent: 0.8 }, modelB: { keyPointsCount: 2, avgCoverageExtent: 0.5 } },
+        };
+        it('should find the best and worst hybrid score models', () => {
+            const extremes = calculateHybridScoreExtremes(similarities, coverageScores, models, IDEAL_MODEL_ID);
+            // modelA hybrid: sqrt(0.8*0.7)=0.748, sqrt(0.9*0.8)=0.848. Avg = 0.798
+            // modelB hybrid: sqrt(0.4*0.6)=0.490, sqrt(0.3*0.5)=0.387. Avg = 0.4385
+            expect(extremes.bestHybrid?.modelId).toBe('modelA');
+            expect(extremes.bestHybrid?.avgScore).toBeCloseTo(0.798);
+            expect(extremes.worstHybrid?.modelId).toBe('modelB');
+            expect(extremes.worstHybrid?.avgScore).toBeCloseTo(0.4385);
+        });
+    });
+
+    describe('calculateOverallAverageCoverage', () => {
+        const models = ['modelA', 'modelB', IDEAL_MODEL_ID];
+        const promptIds = ['prompt1', 'prompt2'];
+        const coverageScores: EvaluationResults['llmCoverageScores'] = {
+            prompt1: { modelA: { keyPointsCount: 2, avgCoverageExtent: 0.9 }, modelB: { keyPointsCount: 2, avgCoverageExtent: 0.5 } },
+            prompt2: { modelA: { keyPointsCount: 2, avgCoverageExtent: 0.8 }, modelB: { keyPointsCount: 2, avgCoverageExtent: 0.6 } },
+        };
+        it('should calculate overall average and stddev for coverage', () => {
+            const result = calculateOverallAverageCoverage(coverageScores, models, promptIds);
+            // scores: 0.9, 0.5, 0.8, 0.6. Avg = 0.7.
+            // As decimal: 0.7. For display: 70
+            expect(result.average).toBeCloseTo(70);
         });
     });
 }); 

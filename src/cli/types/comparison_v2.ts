@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { IDEAL_MODEL_ID } from '../../app/utils/comparisonUtils';
+import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 
 export type EvaluationMethod = 'embedding' | 'llm-coverage';
 

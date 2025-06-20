@@ -12,10 +12,11 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { PromptAnalysisResults, ComparisonDataV2, EvaluationResults } from '@/app/utils/types';
-import { IDEAL_MODEL_ID, findSimilarityExtremes as importedFindSimilarityExtremes } from '@/app/utils/comparisonUtils';
+import { IDEAL_MODEL_ID, findSimilarityExtremes as importedFindSimilarityExtremes } from '@/app/utils/calculationUtils';
 import { getModelDisplayLabel, parseEffectiveModelId, IDEAL_MODEL_ID_BASE } from '../../utils/modelIdUtils';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
 const Sparkles = dynamic(() => import("lucide-react").then(mod => mod.Sparkles));
 const BarChartBig = dynamic(() => import("lucide-react").then(mod => mod.BarChartBig));

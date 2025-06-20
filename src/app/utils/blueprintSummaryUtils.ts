@@ -1,7 +1,7 @@
 import { EnhancedComparisonConfigInfo, EnhancedRunInfo, AllCoverageScores } from './homepageDataUtils';
-import { getModelDisplayLabel } from './modelIdUtils';
-import { IDEAL_MODEL_ID } from './comparisonUtils';
-import { fromSafeTimestamp } from './timestampUtils';
+import { getModelDisplayLabel, parseEffectiveModelId } from './modelIdUtils';
+import { IDEAL_MODEL_ID } from './calculationUtils';
+import { fromSafeTimestamp } from '@/lib/timestampUtils';
 
 export interface BlueprintSummaryInfo extends EnhancedComparisonConfigInfo {
   latestInstanceTimestamp: string | null;

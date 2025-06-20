@@ -1,9 +1,6 @@
-# Weval
+Current AI evaluations measure what's easy, not what's important. Benchmarks that rely on multiple-choice questions or simple pass/fail tests can't capture the nuance of real-world tasks. They can tell you if code runs, but not if it's well-written. They can test for textbook knowledge, but not for applied wisdom or safety.
 
-Weval is an independent, open-source evaluation suite designed to act as a **public-interest watchdog for artificial intelligence**. Its primary purpose is not to measure a model's raw intelligence or general capabilities, but to perform a deep, qualitative audit of its **fitness for civic life**. It moves beyond asking "Is this model smart?" to ask, "Is this model a responsible, safe and harm-reducing actor in our society?"
-
-It achieves this by creating and running a suite of transparent and continuous evaluations that probe AI model behavior on topics vital to a healthy functioning society.
-
+**Weval** is our answer. It's an open, collaborative platform to build evaluations that test what truly matters. We empower a global community to create rich, qualitative benchmarks for any domain—from the safety of a medical chatbot to the quality of a legal summary. Just as Wikipedia democratized knowledge, Weval aims to democratize scrutiny, ensuring that AI works for, and represents, everyone.
 
 ## Live on [weval.org](https://weval.org):
 
@@ -11,11 +8,11 @@ It achieves this by creating and running a suite of transparent and continuous e
 
 ---
 
-### Core Focus: A Qualitative, Context-Aware Auditor
+### Core Focus: A Community-Driven, Qualitative Auditor
 
-Weval is best understood as a system for targeted audits in specific, high-stakes domains. Its focus can be broken down into several key areas:
+Weval is best understood as a system for targeted, user-contributed audits in any domain. Its core principles are:
 
-1.  **Testing Nuanced, High-Stakes Scenarios:** It evaluates models in areas where failure could cause direct public harm. This includes understanding fundamental human rights, resisting dangerous misinformation, avoiding biased cultural and geographical assumptions, and responding safely to users in a mental health crisis.
+1.  **Testing Nuanced, User-Defined Scenarios:** It empowers anyone to evaluate models in areas where performance is critical. This could include understanding complex legal texts, generating code in a niche programming language, adopting a specific brand voice, or responding safely to users in a mental health crisis.
 
 2.  **Assessing Critical Thinking and Skepticism:** Evaluations can be designed to test a model's ability to identify and resist manipulation. Can it recognize a fabricated URL, a leading question, or an absurd premise? This assesses a model's resilience in a polluted information ecosystem.
 
@@ -24,7 +21,7 @@ Weval is best understood as a system for targeted audits in specific, high-stake
     *   **Deterministic "Exact" Checks:** Verifies the presence of specific keywords or pattern matches (e.g., with regex).
     *   **Weighted Importance:** Allows critical criteria to be weighted more heavily in the final score.
 
-4.  **Providing Continuous and Transparent Monitoring:** As an automated system running on a public repository of blueprints, Weval functions as a living benchmark. It can detect when a model's performance on these critical issues *drifts* over time with new updates—a vital function for public accountability that static, one-off benchmarks cannot provide.
+4.  **Providing Continuous and Transparent Monitoring:** As an automated system running on a public repository of blueprints, Weval functions as a living benchmark. It can detect when a model's performance on *your* critical issues *drifts* over time with new updates—a vital function for accountability that static, one-off benchmarks cannot provide.
 
 ---
 
@@ -38,12 +35,12 @@ The AI landscape is rich with benchmarks, and it is important to understand how 
 
 ## Blueprints
 
-Our [initial set of blueprints](https://github.com/weval/configs/tree/main/blueprints) test models on a wide spectrum of topics critical for public trust and safety. Key themes include:
+Our [initial set of blueprints](https://github.com/weval/configs/tree/main/blueprints) showcase the platform's flexibility, testing models on a wide spectrum of topics. While many focus on areas critical for public trust and safety, the system is designed for any domain. Key themes from our initial set include:
 
 *   **Information Integrity & Adversarial Robustness:** We test a model's resilience to misinformation. This includes its ability to identify and debunk fabricated claims ([`udhr-misattribution-absurd-framing`](https://github.com/weval/configs/blob/main/blueprints/udhr-misattribution-absurd-framing.json)), refuse to validate fake news URLs ([`url-classification-fallacies`](https://github.com/weval/configs/blob/main/blueprints/url-classification-fallacies.json)), avoid generating falsehoods ([`hallucination-probe`](https://github.com/weval/configs/blob/main/blueprints/hallucination-probe.json)), and resist being led by loaded questions ([`mrna-leading-question-classification`](https://github.com/weval/configs/blob/main/blueprints/mrna-leading-question-classification.json)).
-*   **International Law & Human Rights:** We measure a model's understanding of foundational international legal and ethical frameworks. This includes core treaties like the Universal Declaration of Human Rights (`udhr-evaluation-v1`), the Geneva Conventions (`geneva-conventions-full-evaluation-v1.1`), and regional charters like the Banjul Charter (`banjul-charter-v1`).
-*   **National & Regional Governance:** We evaluate knowledge of specific, jurisdiction-dependent legal and civic frameworks. This includes national laws like the UK Equality Act (`uk-equality-act-v1`) and the Indian Constitution (`indian-constitution-evaluation-v1`), as well as landmark civic events like the US Civil Rights Movement (`us-civil-rights-movement-1954-1968-eval-v1`).
-*   **Digital Rights & Tech Policy:** We examine a model's understanding of the rules governing technology and its impact on society. This includes crucial new legislation like the EU AI Act (`eu-ai-act-202401689`) and specific issues like the algorithmic management of platform workers (`platform-workers-sea-algo-manage-v1`).
+*   **International Law & Human Rights:** We measure a model's understanding of foundational international legal and ethical frameworks. This includes core treaties like the Universal Declaration of Human Rights (`udhr-evaluation`), the Geneva Conventions (`geneva-conventions-full-evaluation`), and regional charters like the Banjul Charter (`banjul-charter`).
+*   **National & Regional Governance:** We evaluate knowledge of specific, jurisdiction-dependent legal and civic frameworks. This includes national laws like the UK Equality Act (`uk-equality-act`) and the Indian Constitution (`indian-constitution-evaluation`).
+*   **Digital Rights & Tech Policy:** We examine a model's understanding of the rules governing technology and its impact on society. This includes crucial new legislation like the EU AI Act (`eu-ai-act-202401689`) and specific issues like the algorithmic management of platform workers (`platform-workers-sea-algo-manage`).
 *   **Cultural & Geographic Nuance:** We probe for default biases by testing whether a model recognizes the global context of its users. The `locale-assumption-probe-v1` example blueprint checks for US-centric assumptions.
 *   **Evidence-Based Crisis Response:** We assess a model's ability to respond safely and effectively to users in acute crisis, based on established clinical and expert guidelines. The `mental-health-crisis-prompt-examples` blueprint, for example, evaluates whether the model provides responsible, non-judgmental support and referral information, rather than platitudes or potentially harmful advice.
 *   **Responsible AI Behavior:** We assess whether the model interacts with users in a manner consistent with established principles for safe AI deployment. For instance, the `llm-self-anthropomorphism-evasion-v1` blueprint checks if the model avoids making false claims of sentience or personal feelings.
@@ -60,11 +57,14 @@ Weval allows candidate model responses to be measured in the following ways:
 
 It achieves this through a combination of automated, LLM-judged (rubric-based) qualitative analysis, quantitative semantic similarity scoring, and more programmatic means like regular-expression matching.
 
-## Submitting an evaluation blueprint for [weval.org](https://weval.org)
+## Contributing & Custom Use
 
-To contribute a blueprint to Weval.org specifically, please follow the guidance in the [configs repository](https://github.com/weval/configs). You'll be able to submit a 'pull request' to add your blueprint file (in our user-friendly YAML format, or legacy JSON). The blueprint simply specifies a list of prompts, idealized responses, and key 'success' criteria.
+The Weval framework is open-source ([MIT licensed](LICENSE)), and all evaluation blueprints contributed to the public repository are dedicated to the public domain. This makes them easy for you to scrutinize, adapt, and contribute to.
 
-If you want to evaluate things unrelated to civic matters, you can freely use this repository and run Weval yourself in accordance with the [MIT license](LICENSE), and you can use the [Configs Repository](https://github.com/weval/configs) as inspiration for your own suite of blueprints.
+You have two main ways to use Weval:
+
+1.  **Contribute to the Public Commons**: To contribute a blueprint to be run on [weval.org](https://weval.org), please follow the guidance in the [configs repository](https://github.com/weval/configs) and submit a pull request.
+2.  **Run Your Own Instance**: You are free to run your own version of Weval for any purpose allowable under the MIT license, public or private. Use the public blueprints as inspiration, or build your own evaluation suite from scratch for your specific niche.
 
 ## Deployed Architecture Overview
 
@@ -178,16 +178,15 @@ title: "Comprehensive LLM Functionality Test (Version 1)"
 description: "Tests multiple LLMs on a mix of philosophy, tech explanation, and creative writing prompts. Includes ideal responses and system prompt overrides."
 tags: [general-knowledge, creative-writing, philosophy, stoicism]
 models:
-  - openai:gpt-4o-mini
-  - anthropic:claude-3-haiku-20240307
-  - google:gemini-1.5-flash-latest
-  - mistral:mistral-large-latest
-  - openrouter:meta-llama/llama-3-70b-instruct
+  - CORE # Our core set of typically tested models
+  - mistral:mistral-large-latest # Custom model
+  - openrouter:meta-llama/llama-3-70b-instruct # Custom model
 system: "You are a helpful assistant. Provide clear and concise answers."
 concurrency: 5
 temperatures: [0.0, 0.5, 0.8]
 evaluationConfig:
   llm-coverage:
+    # Ability to define which models to use for LLM judging (rubrics)
     judgeModels: [openrouter:google/gemini-pro-1.5, openai:gpt-4-turbo]
     judgeMode: consensus
 

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listRunsForConfig, getResultByFileName } from '@/lib/storageService';
-import { IDEAL_MODEL_ID } from '@/app/utils/comparisonUtils';
+import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { calculatePerModelHybridScoresForRun } from '@/app/utils/calculationUtils';
-import { fromSafeTimestamp } from '@/app/utils/timestampUtils';
+import { fromSafeTimestamp } from '@/lib/timestampUtils';
 
 export const revalidate = 3600; // Revalidate once per hour (Next.js built-in caching)
 

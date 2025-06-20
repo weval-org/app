@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
-import { fromSafeTimestamp } from '@/app/utils/timestampUtils';
+import { fromSafeTimestamp } from '@/lib/timestampUtils';
 import { AllCoverageScores, EnhancedRunInfo } from '@/app/utils/homepageDataUtils';
 import AnalysisPageHeader from '../../components/AnalysisPageHeader';
 import CoverageHeatmapCanvas from '../../components/CoverageHeatmapCanvas';

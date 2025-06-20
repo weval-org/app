@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import { ComparisonDataV2 } from '@/app/utils/types';
-import { toSafeTimestamp } from '@/app/utils/timestampUtils';
+import { toSafeTimestamp } from '@/lib/timestampUtils';
 
 const DownloadIcon = dynamic(() => import('lucide-react').then(mod => mod.Download));
 

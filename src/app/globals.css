@@ -93,8 +93,8 @@
     --chart-5: 348 83% 60%;  /* Rose */
 
     --highlight-info: 205 90% 55%; /* ORIGINAL Brighter Sky blue for info */
-    --highlight-success: 167 59% 22%; /* Dark Green #185849 */
-    --highlight-success-foreground: 0 0% 100%; /* White #ffffff for success text */
+    --highlight-success: 167 60% 45%; /* Brighter Green for dark mode */
+    --highlight-success-foreground: 167 60% 10%; /* Dark Green text for success button */
     --highlight-warning: 45 90% 55%;  /* Brighter Amber/Orange for warnings */
     --highlight-error: 329 76.1% 40.8%;    /* Dark Pink #b51963 */
 

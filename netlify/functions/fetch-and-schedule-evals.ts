@@ -3,7 +3,7 @@ import axios from 'axios';
 import { ComparisonConfig } from "@/cli/types/comparison_v2";
 import { generateConfigContentHash } from "@/lib/hash-utils";
 import { listRunsForConfig } from "@/lib/storageService";
-import { resolveModelsInConfig, SimpleLogger } from "@/lib/config-utils";
+import { resolveModelsInConfig, SimpleLogger } from "@/lib/blueprint-service";
 import { parseAndNormalizeBlueprint } from "@/lib/blueprint-parser";
 
 const EVAL_CONFIGS_REPO_API_URL = "https://api.github.com/repos/weval/configs/contents/blueprints";

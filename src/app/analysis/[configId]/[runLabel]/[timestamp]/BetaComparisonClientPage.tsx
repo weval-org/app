@@ -12,7 +12,6 @@ import SimilarityGraph from '@/app/analysis/components/SimilarityGraph'
 import DendrogramChart from '@/app/analysis/components/DendrogramChart'
 import { ResponseComparisonModal } from '@/app/analysis/components/ResponseComparisonModal'
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { findIdealExtremes } from '@/app/utils/similarityUtils'
 import KeyPointCoverageTable from '@/app/analysis/components/KeyPointCoverageTable'
 import MacroCoverageTable from '@/app/analysis/components/MacroCoverageTable'
 import DatasetStatistics from '@/app/analysis/components/DatasetStatistics'
@@ -30,10 +29,9 @@ import {
     IDEAL_MODEL_ID,
     calculateOverallCoverageExtremes as importedCalculateOverallCoverageExtremes,
     calculateHybridScoreExtremes as importedCalculateHybridScoreExtremes,
-    calculateOverallAverageCoverage as importedCalculateOverallAverageCoverage
-} from '@/app/utils/comparisonUtils';
-import {
-    calculateAverageHybridScoreForRun
+    calculateOverallAverageCoverage as importedCalculateOverallAverageCoverage,
+    calculateAverageHybridScoreForRun,
+    findIdealExtremes
 } from '@/app/utils/calculationUtils';
 
 import { useTheme } from 'next-themes';
@@ -41,13 +39,14 @@ import DownloadResultsButton from '@/app/analysis/components/DownloadResultsButt
 import PerModelHybridScoresCard from '@/app/analysis/components/PerModelHybridScoresCard';
 import AnalysisPageHeader from '@/app/analysis/components/AnalysisPageHeader';
 import type { AnalysisPageHeaderProps } from '@/app/analysis/components/AnalysisPageHeader';
-import { fromSafeTimestamp, formatTimestampForDisplay } from '@/app/utils/timestampUtils';
+import { fromSafeTimestamp, formatTimestampForDisplay } from '@/lib/timestampUtils';
 import ModelEvaluationDetailModal from '@/app/analysis/components/ModelEvaluationDetailModal';
 import DebugPanel from '@/app/analysis/components/DebugPanel';
 import CoverageHeatmapCanvas from '@/app/analysis/components/CoverageHeatmapCanvas';
 import { Badge } from '@/components/ui/badge';
 import { getModelDisplayLabel, parseEffectiveModelId, getCanonicalModels } from '@/app/utils/modelIdUtils';
 import { BLUEPRINT_CONFIG_REPO_URL } from '@/lib/configConstants';
+import { useComparisonData } from '@/app/analysis/hooks/useComparisonData';
 import {
     Tabs,
     TabsContent,
@@ -91,18 +90,18 @@ export default function BetaComparisonClientPage() {
 
   const currentPromptId = searchParams.get('prompt');
 
-  const [data, setData] = useState<ImportedComparisonDataV2 | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [promptNotFound, setPromptNotFound] = useState<boolean>(false);
+  const { data, loading, error, promptNotFound, excludedModelsList } = useComparisonData({
+    configId: configIdFromUrl,
+    runLabel,
+    timestamp: timestampFromUrl,
+    currentPromptId,
+  });
+
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
   const [selectedPairForModal, setSelectedPairForModal] = useState<ImportedSelectedPairInfo | null>(null);
-  const [excludedModelsList, setExcludedModelsList] = useState<string[]>([]);
   const [forceIncludeExcludedModels, setForceIncludeExcludedModels] = useState<boolean>(false);
   const [selectedTemperatures, setSelectedTemperatures] = useState<number[]>([]);
   const [activeSysPromptIndex, setActiveSysPromptIndex] = useState(0);
-  const [perSystemVariantHybridScores, setPerSystemVariantHybridScores] = useState<Record<number, number | null>>({});
-  const [perTemperatureVariantHybridScores, setPerTemperatureVariantHybridScores] = useState<Record<string, number | null>>({});
 
   const displayedModels = useMemo(() => {
     if (!data?.effectiveModels) return [];
@@ -144,14 +143,120 @@ export default function BetaComparisonClientPage() {
     return getCanonicalModels(data.effectiveModels, data.config);
   }, [data]);
 
-  const [overallIdealExtremes, setOverallIdealExtremes] = useState<ReturnType<typeof findIdealExtremes> | null>(null);
-  const [overallAvgCoverageStats, setOverallAvgCoverageStats] = useState<{average: number | null, stddev: number | null} | null>(null);
-  const [overallCoverageExtremes, setOverallCoverageExtremes] = useState<ReturnType<typeof importedCalculateOverallCoverageExtremes> | null>(null);
-  const [overallHybridExtremes, setOverallHybridExtremes] = useState<ReturnType<typeof importedCalculateHybridScoreExtremes> | null>(null);
-  const [overallAverageHybridScore, setOverallAverageHybridScore] = useState<number | null>(null);
-  const [overallHybridScoreStdDev, setOverallHybridScoreStdDev] = useState<number | null>(null);
-  const [calculatedPerModelHybridScores, setCalculatedPerModelHybridScores] = useState<Map<string, { average: number | null; stddev: number | null }>>(new Map());
-  const [calculatedPerModelSemanticScores, setCalculatedPerModelSemanticScores] = useState<Map<string, { average: number | null; stddev: number | null }>>(new Map());
+  const { 
+    overallIdealExtremes, 
+    overallAvgCoverageStats, 
+    overallCoverageExtremes, 
+    overallHybridExtremes,
+    overallRunHybridStats,
+    calculatedPerModelHybridScores,
+    calculatedPerModelSemanticScores,
+    perSystemVariantHybridScores,
+    perTemperatureVariantHybridScores
+  } = useMemo(() => {
+    if (!data) {
+      return {
+        overallIdealExtremes: null,
+        overallAvgCoverageStats: null,
+        overallCoverageExtremes: null,
+        overallHybridExtremes: null,
+        overallRunHybridStats: { average: null, stddev: null },
+        calculatedPerModelHybridScores: new Map(),
+        calculatedPerModelSemanticScores: new Map(),
+        perSystemVariantHybridScores: {},
+        perTemperatureVariantHybridScores: {}
+      };
+    }
+
+    const { evaluationResults, effectiveModels, promptIds, config } = data;
+    const llmCoverageScores = evaluationResults?.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>> | undefined;
+
+    const overallIdealExtremes = evaluationResults?.similarityMatrix ? findIdealExtremes(evaluationResults.similarityMatrix, IDEAL_MODEL_ID) : null;
+    
+    const overallAvgCoverageStats = (llmCoverageScores && effectiveModels && promptIds) 
+      ? importedCalculateOverallAverageCoverage(llmCoverageScores, effectiveModels, promptIds) 
+      : null;
+
+    const overallCoverageExtremes = (llmCoverageScores && effectiveModels) 
+      ? importedCalculateOverallCoverageExtremes(llmCoverageScores, effectiveModels) 
+      : null;
+
+    const overallHybridExtremes = (evaluationResults?.perPromptSimilarities && llmCoverageScores && effectiveModels)
+      ? importedCalculateHybridScoreExtremes(evaluationResults.perPromptSimilarities, llmCoverageScores, effectiveModels, IDEAL_MODEL_ID)
+      : null;
+
+    const overallRunHybridStats = (evaluationResults?.perPromptSimilarities && llmCoverageScores && effectiveModels && promptIds)
+      ? calculateAverageHybridScoreForRun(evaluationResults.perPromptSimilarities, llmCoverageScores, effectiveModels, promptIds, IDEAL_MODEL_ID)
+      : { average: null, stddev: null };
+
+    let calculatedPerModelHybridScores = new Map<string, { average: number | null; stddev: number | null }>();
+    if (evaluationResults?.perModelHybridScores) {
+      let scoresToSet = evaluationResults.perModelHybridScores;
+      if (typeof scoresToSet === 'object' && !(scoresToSet instanceof Map)) {
+        scoresToSet = new Map(Object.entries(scoresToSet));
+      }
+      calculatedPerModelHybridScores = scoresToSet as Map<string, { average: number | null; stddev: number | null }>;
+    }
+    
+    let calculatedPerModelSemanticScores = new Map<string, { average: number | null; stddev: number | null }>();
+    if (evaluationResults?.perModelSemanticScores) {
+      let scoresToSet = evaluationResults.perModelSemanticScores;
+      if (typeof scoresToSet === 'object' && !(scoresToSet instanceof Map)) {
+        scoresToSet = new Map(Object.entries(scoresToSet));
+      }
+      calculatedPerModelSemanticScores = scoresToSet as Map<string, { average: number | null; stddev: number | null }>;
+    }
+
+    const perSystemVariantHybridScores: Record<number, number | null> = {};
+    if (config.systems && config.systems.length > 1 && evaluationResults?.perPromptSimilarities && llmCoverageScores && effectiveModels && promptIds) {
+        for (let i = 0; i < config.systems.length; i++) {
+            const modelsForVariant = effectiveModels.filter(modelId => {
+                const { systemPromptIndex } = parseEffectiveModelId(modelId);
+                return systemPromptIndex === i;
+            });
+
+            if (modelsForVariant.length > 0) {
+                const hybridStatsForVariant = calculateAverageHybridScoreForRun(
+                    evaluationResults.perPromptSimilarities, llmCoverageScores, modelsForVariant, promptIds, IDEAL_MODEL_ID
+                );
+                perSystemVariantHybridScores[i] = hybridStatsForVariant?.average ?? null;
+            } else {
+                perSystemVariantHybridScores[i] = null;
+            }
+        }
+    }
+    
+    const perTemperatureVariantHybridScores: Record<string, number | null> = {};
+    if (config.temperatures && config.temperatures.length > 1 && evaluationResults?.perPromptSimilarities && llmCoverageScores && effectiveModels && promptIds) {
+        for (const temp of config.temperatures) {
+            const modelsForTemp = effectiveModels.filter(modelId => {
+                const { temperature } = parseEffectiveModelId(modelId);
+                return temperature === temp;
+            });
+
+            if (modelsForTemp.length > 0) {
+                const hybridStatsForTemp = calculateAverageHybridScoreForRun(
+                    evaluationResults.perPromptSimilarities, llmCoverageScores, modelsForTemp, promptIds, IDEAL_MODEL_ID
+                );
+                perTemperatureVariantHybridScores[temp.toFixed(1)] = hybridStatsForTemp?.average ?? null;
+            } else {
+                perTemperatureVariantHybridScores[temp.toFixed(1)] = null;
+            }
+        }
+    }
+    
+    return { 
+        overallIdealExtremes, 
+        overallAvgCoverageStats,
+        overallCoverageExtremes,
+        overallHybridExtremes,
+        overallRunHybridStats,
+        calculatedPerModelHybridScores,
+        calculatedPerModelSemanticScores,
+        perSystemVariantHybridScores,
+        perTemperatureVariantHybridScores
+    };
+  }, [data]);
   
   const [modelEvaluationDetailModalData, setModelEvaluationDetailModalData] = useState<ModelEvaluationDetailModalData | null>(null);
   const [isModelEvaluationDetailModalOpen, setIsModelEvaluationDetailModalOpen] = useState<boolean>(false);
@@ -177,190 +282,6 @@ export default function BetaComparisonClientPage() {
       />
     );
   }, [currentPromptId, data, displayedModels]);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        setPromptNotFound(false);
-        const response = await fetch(`/api/comparison/${configIdFromUrl}/${runLabel}/${timestampFromUrl}`);
-        
-        if (!response.ok) {
-          throw new Error(`Failed to fetch comparison data: ${response.statusText} for ${configIdFromUrl}/${runLabel}/${timestampFromUrl}`);
-        }
-        
-        const result: ImportedComparisonDataV2 = await response.json();
-        setData(result);
-        
-        const excludedFromData = result.excludedModels || [];
-        const modelsWithEmptyResponses = new Set<string>(excludedFromData);
-
-        if (result.allFinalAssistantResponses && result.effectiveModels) {
-          result.effectiveModels
-            .filter((modelId) => modelId !== IDEAL_MODEL_ID)
-            .forEach((modelId: string) => {
-            if (modelsWithEmptyResponses.has(modelId)) return;
-            if (result.allFinalAssistantResponses) {
-              for (const promptId in result.allFinalAssistantResponses) {
-                const responseText = result.allFinalAssistantResponses[promptId]?.[modelId];
-                if (responseText === undefined || responseText.trim() === '') {
-                  modelsWithEmptyResponses.add(modelId);
-                  break;
-                }
-              }
-            }
-          });
-        }
-
-        const finalExcluded = Array.from(modelsWithEmptyResponses);
-        const finalDisplayed = (result.effectiveModels || []).filter((m: string) => !modelsWithEmptyResponses.has(m));
-
-        setExcludedModelsList(finalExcluded);
-        
-        if (currentPromptId && result.promptIds && !result.promptIds.includes(currentPromptId)) {
-          setPromptNotFound(true);
-        }
-        
-        if (result.evaluationResults?.similarityMatrix && result.effectiveModels) {
-            const idealExtremes = findIdealExtremes(result.evaluationResults.similarityMatrix, IDEAL_MODEL_ID);
-            setOverallIdealExtremes(idealExtremes);
-        } else {
-            setOverallIdealExtremes({ mostSimilar: null, leastSimilar: null });
-        }
-        
-        if (result.evaluationResults?.llmCoverageScores && result.effectiveModels) {
-            const coverageExtremes = importedCalculateOverallCoverageExtremes(result.evaluationResults.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>>, result.effectiveModels);
-            setOverallCoverageExtremes(coverageExtremes);
-            
-            if (result.promptIds) {
-                const avgCoverageStats = importedCalculateOverallAverageCoverage(
-                    result.evaluationResults.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>>, 
-                    result.effectiveModels, 
-                    result.promptIds
-                );
-                setOverallAvgCoverageStats(avgCoverageStats);
-            } else {
-                setOverallAvgCoverageStats(null);
-            }
-        } else {
-            setOverallCoverageExtremes({ bestCoverage: null, worstCoverage: null });
-            setOverallAvgCoverageStats(null);
-        }
-        
-        if (result.evaluationResults?.perPromptSimilarities && result.evaluationResults?.llmCoverageScores && result.effectiveModels) {
-          const hybridExtremes = importedCalculateHybridScoreExtremes(
-              result.evaluationResults.perPromptSimilarities,
-              result.evaluationResults.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>>,
-              result.effectiveModels,
-              IDEAL_MODEL_ID
-          );
-          setOverallHybridExtremes(hybridExtremes);
-
-          if (result.evaluationResults?.perPromptSimilarities && 
-              result.evaluationResults?.llmCoverageScores && 
-              result.effectiveModels && 
-              result.promptIds) {
-            const hybridStats = calculateAverageHybridScoreForRun(
-              result.evaluationResults.perPromptSimilarities,
-              result.evaluationResults.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>>,
-              result.effectiveModels,
-              result.promptIds,
-              IDEAL_MODEL_ID
-            );
-            setOverallAverageHybridScore(hybridStats?.average ?? null);
-            setOverallHybridScoreStdDev(hybridStats?.stddev ?? null);
-          } else {
-            setOverallAverageHybridScore(null);
-            setOverallHybridScoreStdDev(null);
-          }
-        } else {
-            setOverallHybridExtremes({ bestHybrid: null, worstHybrid: null });
-        }
-
-        if (result.evaluationResults?.perModelHybridScores) {
-          let scoresToSet = result.evaluationResults.perModelHybridScores;
-          if (typeof scoresToSet === 'object' && !(scoresToSet instanceof Map)) {
-            scoresToSet = new Map(Object.entries(scoresToSet));
-          }
-          setCalculatedPerModelHybridScores(scoresToSet as Map<string, { average: number | null; stddev: number | null }>);
-        } else {
-          setCalculatedPerModelHybridScores(new Map());
-        }
-        
-        if (result.evaluationResults?.perModelSemanticScores) {
-          let scoresToSet = result.evaluationResults.perModelSemanticScores;
-          if (typeof scoresToSet === 'object' && !(scoresToSet instanceof Map)) {
-            scoresToSet = new Map(Object.entries(scoresToSet));
-          }
-          setCalculatedPerModelSemanticScores(scoresToSet as Map<string, { average: number | null; stddev: number | null }>);
-        } else {
-          console.warn("API did not provide perModelSemanticScores. Ensure API calculates this.");
-          setCalculatedPerModelSemanticScores(new Map());
-        }
-
-        if (result.config.systems && result.config.systems.length > 1 && result.evaluationResults?.perPromptSimilarities && result.evaluationResults?.llmCoverageScores && result.effectiveModels && result.promptIds) {
-            const scoresByVariant: Record<number, number | null> = {};
-            for (let i = 0; i < result.config.systems.length; i++) {
-                const modelsForVariant = result.effectiveModels.filter(modelId => {
-                    const { systemPromptIndex } = parseEffectiveModelId(modelId);
-                    return systemPromptIndex === i;
-                });
-
-                if (modelsForVariant.length > 0) {
-                    const hybridStatsForVariant = calculateAverageHybridScoreForRun(
-                        result.evaluationResults.perPromptSimilarities,
-                        result.evaluationResults.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>>,
-                        modelsForVariant,
-                        result.promptIds,
-                        IDEAL_MODEL_ID
-                    );
-                    scoresByVariant[i] = hybridStatsForVariant?.average ?? null;
-                } else {
-                    scoresByVariant[i] = null;
-                }
-            }
-            setPerSystemVariantHybridScores(scoresByVariant);
-        } else {
-            setPerSystemVariantHybridScores({});
-        }
-
-        if (result.config.temperatures && result.config.temperatures.length > 1 && result.evaluationResults?.perPromptSimilarities && result.evaluationResults?.llmCoverageScores && result.effectiveModels && result.promptIds) {
-            const scoresByTemp: Record<string, number | null> = {};
-            for (const temp of result.config.temperatures) {
-                const modelsForTemp = result.effectiveModels.filter(modelId => {
-                    const { temperature } = parseEffectiveModelId(modelId);
-                    return temperature === temp;
-                });
-
-                if (modelsForTemp.length > 0) {
-                    const hybridStatsForTemp = calculateAverageHybridScoreForRun(
-                        result.evaluationResults.perPromptSimilarities,
-                        result.evaluationResults.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>>,
-                        modelsForTemp,
-                        result.promptIds,
-                        IDEAL_MODEL_ID
-                    );
-                    scoresByTemp[temp.toFixed(1)] = hybridStatsForTemp?.average ?? null;
-                } else {
-                    scoresByTemp[temp.toFixed(1)] = null;
-                }
-            }
-            setPerTemperatureVariantHybridScores(scoresByTemp);
-        } else {
-            setPerTemperatureVariantHybridScores({});
-        }
-
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'An unknown error occurred');
-        console.error(`Error fetching comparison data for ${configIdFromUrl}/${runLabel}/${timestampFromUrl}:`, err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    if (configIdFromUrl && runLabel && timestampFromUrl) {
-      fetchData();
-    }
-  }, [configIdFromUrl, runLabel, timestampFromUrl, currentPromptId]);
 
   useEffect(() => {
     import('react-markdown').then(mod => setReactMarkdown(() => mod.default));
@@ -873,8 +794,8 @@ export default function BetaComparisonClientPage() {
                 overallHybridExtremes={overallHybridExtremes === null ? undefined : overallHybridExtremes}
                 promptTexts={promptTextsForMacroTable}
                 allPromptIds={promptIds}
-                overallAverageHybridScore={overallAverageHybridScore === null ? undefined : overallAverageHybridScore}
-                overallHybridScoreStdDev={overallHybridScoreStdDev === null ? undefined : overallHybridScoreStdDev}
+                overallAverageHybridScore={overallRunHybridStats?.average === null ? undefined : overallRunHybridStats?.average}
+                overallHybridScoreStdDev={overallRunHybridStats?.stddev === null ? undefined : overallRunHybridStats?.stddev}
                 allLlmCoverageScores={data.evaluationResults?.llmCoverageScores}
             />
         )}
@@ -999,7 +920,7 @@ export default function BetaComparisonClientPage() {
                                                     }}
                                                 >
                                                     {(() => {
-                                                        const score = perTemperatureVariantHybridScores[temp.toFixed(1)];
+                                                        const score = (perTemperatureVariantHybridScores as Record<string, number | null>)[temp.toFixed(1)];
                                                         if (score !== null && score !== undefined) {
                                                             return (
                                                                 <>
@@ -1168,7 +1089,7 @@ export default function BetaComparisonClientPage() {
                                             ? `: "${systemPrompt.substring(0, 20)}${systemPrompt.length > 20 ? '...' : ''}"`
                                             : ': [No Prompt]';
                                         
-                                        const score = perSystemVariantHybridScores[index];
+                                        const score = (perSystemVariantHybridScores as Record<number, number | null>)[index];
                                         const tabLabel = `Sys. Variant ${index}${truncatedPrompt}`;
 
                                         return (
@@ -1217,7 +1138,7 @@ export default function BetaComparisonClientPage() {
                                                                 }}
                                                             >
                                                                 {(() => {
-                                                                    const score = perTemperatureVariantHybridScores[temp.toFixed(1)];
+                                                                    const score = (perTemperatureVariantHybridScores as Record<string, number | null>)[temp.toFixed(1)];
                                                                     if (score !== null && score !== undefined) {
                                                                         return (
                                                                             <>

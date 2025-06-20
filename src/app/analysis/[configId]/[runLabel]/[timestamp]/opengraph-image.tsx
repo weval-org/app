@@ -1,5 +1,5 @@
 import { ImageResponse } from 'next/og';
-import { fromSafeTimestamp } from '@/app/utils/timestampUtils'; // Assuming this util is accessible
+import { fromSafeTimestamp } from '@/lib/timestampUtils'; // Assuming this util is accessible
 
 export const runtime = 'edge';
 

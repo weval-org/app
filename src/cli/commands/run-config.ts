@@ -28,8 +28,8 @@ import {
 import { executeComparisonPipeline } from '../services/comparison-pipeline-service';
 import { generateConfigContentHash } from '../../lib/hash-utils';
 import { parseAndNormalizeBlueprint } from '../../lib/blueprint-parser';
-import { fetchBlueprintContentByName, resolveModelsInConfig } from '../../lib/config-utils';
-import { SimpleLogger } from '@/lib/config-utils';
+import { fetchBlueprintContentByName, resolveModelsInConfig } from '../../lib/blueprint-service';
+import { SimpleLogger } from '@/lib/blueprint-service';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 

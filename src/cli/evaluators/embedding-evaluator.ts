@@ -1,7 +1,7 @@
 import { getConfig } from '../config';
 import { EvaluationInput, FinalComparisonOutputV2, Evaluator, EvaluationMethod, IDEAL_MODEL_ID } from '../types/comparison_v2';
 import { getEmbedding } from '../services/embedding-service'; // Correct path to existing service
-import { calculateSimilarity } from '../utils/similarity';
+import { cosineSimilarity as calculateSimilarity } from '@/lib/math';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 

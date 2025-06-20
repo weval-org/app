@@ -9,16 +9,10 @@ import {
   EnhancedRunInfo,
   getCachedHomepageHeadlineStats,
   getCachedHomepageDriftDetectionResult,
-  AllCoverageScores
 } from '@/app/utils/homepageDataUtils';
-import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
-import { IDEAL_MODEL_ID } from '@/app/utils/comparisonUtils';
-import { fromSafeTimestamp } from '@/app/utils/timestampUtils';
-import Link from 'next/link';
-import { Card } from '@/components/ui/card';
+import { fromSafeTimestamp } from '@/lib/timestampUtils';
 import React from 'react';
 import type { Metadata } from 'next';
-import CoverageHeatmapCanvas from '@/app/analysis/components/CoverageHeatmapCanvas';
 import BrowseAllBlueprintsSection, { BlueprintSummaryInfo } from '@/app/components/home/BrowseAllBlueprintsSection';
 import LatestEvaluationRunsSection, { DisplayableRunInstanceInfo } from '@/app/components/home/LatestEvaluationRunsSection';
 import { BLUEPRINT_CONFIG_REPO_URL, APP_REPO_URL } from '@/lib/configConstants';
@@ -27,11 +21,11 @@ import { processBlueprintSummaries } from '@/app/utils/blueprintSummaryUtils';
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:8888' : 'https://weval.org');
 
 export const metadata: Metadata = {
-  title: 'Weval - AI evaluations for civic good',
-  description: 'Open-source, independent evaluations of large language models on human rights, law, and civic topics. Track AI model accuracy and consistency.',
+  title: 'Weval - The Open Platform for AI Evaluation',
+  description: 'An open-source framework for creating, sharing, and running a collaborative library of AI model evaluations. Test what matters to you.',
   openGraph: {
-    title: 'Weval - AI Model Evaluations for Civic Topics',
-    description: 'Explore how accurately and consistently AI models understand human rights, law, and global civic issues. Public, open-source, and continuously updated.',
+    title: 'Weval - The Open Platform for AI Evaluation',
+    description: 'Create, share, and run a massive, collaborative library of AI model evaluations. Like a Wikipedia for benchmarks, Weval empowers anyone to test what matters to them.',
     url: appUrl,
     siteName: 'Weval',
     images: [
@@ -47,8 +41,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Weval - AI Model Evaluations for Civic Good',
-    description: 'Track AI model accuracy on human rights, law, and civic topics. Open, independent, and continuously updated evaluations.',
+    title: 'Weval - The Open Platform for AI Evaluation',
+    description: 'Create, share, and run a massive, collaborative library of AI model evaluations. Test what matters to you.',
     images: [`${appUrl}/opengraph-image`],
   },
 };

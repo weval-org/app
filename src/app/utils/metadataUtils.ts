@@ -1,5 +1,5 @@
 import type { Metadata, ResolvingMetadata } from 'next';
-import { fromSafeTimestamp } from './timestampUtils'; // Adjusted import path
+import { fromSafeTimestamp } from '@/lib/timestampUtils';
 
 // Props type for generateMetadata function - params and searchParams as Promises
 export type GenerateMetadataProps = {

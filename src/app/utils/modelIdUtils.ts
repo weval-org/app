@@ -1,4 +1,4 @@
-import { IDEAL_MODEL_ID } from "./comparisonUtils";
+import { IDEAL_MODEL_ID } from "./calculationUtils";
 import { ConfigData } from "./types";
 
 export interface ParsedModelId {
