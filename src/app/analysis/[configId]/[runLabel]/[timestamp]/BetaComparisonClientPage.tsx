@@ -101,15 +101,22 @@ export default function BetaComparisonClientPage() {
   const [selectedPairForModal, setSelectedPairForModal] = useState<ImportedSelectedPairInfo | null>(null);
   const [forceIncludeExcludedModels, setForceIncludeExcludedModels] = useState<boolean>(false);
   const [selectedTemperatures, setSelectedTemperatures] = useState<number[]>([]);
+  const [selectedSysPromptIndexes, setSelectedSysPromptIndexes] = useState<number[]>([]);
   const [activeSysPromptIndex, setActiveSysPromptIndex] = useState(0);
 
   const displayedModels = useMemo(() => {
     if (!data?.effectiveModels) return [];
+    // On the overall view, we should not filter by excludedModelsList here,
+    // because it's too aggressive for permutation runs. The warning banner handles informing the user.
+    if (!currentPromptId) {
+      return data.effectiveModels;
+    }
+    // On a single-prompt view, it's safe to filter.
     if (forceIncludeExcludedModels) {
         return data.effectiveModels;
     }
     return (data.effectiveModels || []).filter((m: string) => !excludedModelsList.includes(m));
-  }, [data?.effectiveModels, excludedModelsList, forceIncludeExcludedModels]);
+  }, [data?.effectiveModels, excludedModelsList, forceIncludeExcludedModels, currentPromptId]);
 
   const modelsForMacroTable = useMemo(() => {
     if (!data) return [];
@@ -600,6 +607,44 @@ export default function BetaComparisonClientPage() {
     );
   }, [data?.promptContexts, getPromptContextDisplayString]);
 
+  useEffect(() => {
+    if (loading) {
+        console.log('[DEBUG] Component is loading...');
+        return;
+    }
+    if (error) {
+        console.log('[DEBUG] Component has error:', error);
+        return;
+    }
+    if (!data) {
+        console.log('[DEBUG] No data available.');
+        return;
+    }
+
+    console.group(`[DEBUG] Data Flow for run: ${configIdFromUrl}/${runLabel}`);
+    
+    console.log('[1] Data from useComparisonData hook:', {
+        configId: data.configId,
+        runLabel: data.runLabel,
+        effectiveModelsCount: data.effectiveModels.length,
+        promptIdsCount: data.promptIds.length,
+        hasSystems: !!data.config.systems,
+        systemsCount: data.config.systems?.length,
+    });
+    console.log('[2] Excluded models list from hook:', excludedModelsList);
+    
+    console.log('[3] `displayedModels` (after view-specific filter):', displayedModels);
+    
+    console.log('[4] `modelsForMacroTable` (after tab/temp filters):', {
+        activeSysPromptIndex,
+        selectedTemperatures,
+        models: modelsForMacroTable
+    });
+
+    console.groupEnd();
+
+}, [data, loading, error, excludedModelsList, displayedModels, modelsForMacroTable, activeSysPromptIndex, selectedTemperatures, configIdFromUrl, runLabel]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
@@ -946,9 +991,9 @@ export default function BetaComparisonClientPage() {
                                                 <Button
                                                     key={index}
                                                     size="sm"
-                                                    variant={selectedTemperatures.includes(index) ? "default" : "outline"}
+                                                    variant={selectedSysPromptIndexes.includes(index) ? "default" : "outline"}
                                                     onClick={() => {
-                                                        setSelectedTemperatures(prev =>
+                                                        setSelectedSysPromptIndexes(prev =>
                                                             prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index]
                                                         );
                                                     }}
@@ -959,9 +1004,10 @@ export default function BetaComparisonClientPage() {
                                         </div>
                                     </div>
                                 )}
-                                {(selectedTemperatures.length > 0 || selectedTemperatures.length > 0) && (
+                                {(selectedTemperatures.length > 0 || selectedSysPromptIndexes.length > 0) && (
                                     <Button variant="link" size="sm" className="p-0 h-auto text-xs" onClick={() => {
                                         setSelectedTemperatures([]);
+                                        setSelectedSysPromptIndexes([]);
                                     }}>Reset Filters</Button>
                                 )}
                             </div>
@@ -1082,42 +1128,41 @@ export default function BetaComparisonClientPage() {
                     </CardHeader>
                     <CardContent className="pt-0">
                         {data.config.systems && data.config.systems.length > 1 ? (
-                            <Tabs defaultValue={"0"} onValueChange={(value) => setActiveSysPromptIndex(parseInt(value, 10))} className="pt-4">
-                                <TabsList className={`grid w-full ${data.config.systems.length > 4 ? 'grid-cols-4' : `grid-cols-${data.config.systems.length}`}`}>
-                                    {data.config.systems.map((systemPrompt, index) => {
-                                        const truncatedPrompt = systemPrompt
-                                            ? `: "${systemPrompt.substring(0, 20)}${systemPrompt.length > 20 ? '...' : ''}"`
-                                            : ': [No Prompt]';
-                                        
-                                        const score = (perSystemVariantHybridScores as Record<number, number | null>)[index];
-                                        const tabLabel = `Sys. Variant ${index}${truncatedPrompt}`;
+                            <Tabs defaultValue={"0"} onValueChange={(value) => setActiveSysPromptIndex(parseInt(value, 10))} className="w-full pt-2">
+                                <div className="border-b border-border">
+                                    <TabsList className="h-auto -mb-px justify-start bg-transparent p-0 w-full overflow-x-auto custom-scrollbar">
+                                        {data.config.systems.map((systemPrompt, index) => {
+                                            const truncatedPrompt = systemPrompt
+                                                ? `: "${systemPrompt.substring(0, 30)}${systemPrompt.length > 30 ? '...' : ''}"`
+                                                : ': [No Prompt]';
+                                            
+                                            const score = (perSystemVariantHybridScores as Record<number, number | null>)[index];
+                                            const tabLabel = `Sys. Variant ${index}`;
 
-                                        return (
-                                            <TooltipProvider key={index}>
-                                                <Tooltip>
-                                                    <TabsTrigger asChild value={String(index)}>
-                                                        <TooltipTrigger asChild>
-                                                            <div className="truncate flex items-center justify-center gap-2 w-full px-1">
-                                                                {score !== null && score !== undefined && (
-                                                                    <span className={`px-1.5 py-0.5 rounded-sm text-xs font-semibold ${getHybridScoreColorClass(score)}`}>
-                                                                        {score.toFixed(2)}
-                                                                    </span>
-                                                                )}
-                                                                <span className="flex-shrink truncate">{tabLabel}</span>
-                                                            </div>
-                                                        </TooltipTrigger>
-                                                    </TabsTrigger>
-                                                    <TooltipContent>
-                                                        <p className="max-w-xs text-sm">
-                                                            {systemPrompt === null ? <em>[No SystemPrompt]</em> : systemPrompt}
-                                                        </p>
-                                                    </TooltipContent>
-                                                </Tooltip>
-                                            </TooltipProvider>
-                                        );
-                                    })}
-                                </TabsList>
-                                <div className="mt-4">
+                                            return (
+                                                <TabsTrigger
+                                                    key={index}
+                                                    value={String(index)} 
+                                                    className="whitespace-nowrap rounded-none border-b-2 border-transparent bg-transparent px-5 py-3 text-sm font-medium text-muted-foreground transition-colors duration-150 ease-in-out hover:text-foreground/80 data-[state=active]:border-primary data-[state=active]:text-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                                                    title={systemPrompt === null ? '[No SystemPrompt]' : systemPrompt}
+                                                >
+                                                    <div className="flex items-center gap-2.5">
+                                                        {score !== null && score !== undefined && (
+                                                            <span className={`px-1.5 py-0.5 rounded-sm text-xs font-semibold ${getHybridScoreColorClass(score)}`}>
+                                                                {score.toFixed(2)}
+                                                            </span>
+                                                        )}
+                                                        <div className="flex flex-col items-start text-left">
+                                                            <span className="font-semibold leading-tight">{tabLabel}</span>
+                                                            <span className="text-xs font-normal leading-tight">{truncatedPrompt}</span>
+                                                        </div>
+                                                    </div>
+                                                </TabsTrigger>
+                                            );
+                                        })}
+                                    </TabsList>
+                                </div>
+                                <div className="pt-6">
                                     {/* Temperature Filter UI */}
                                     {data.config.temperatures && data.config.temperatures.length > 1 && (
                                         <div className="py-4 border-t border-b mb-4">
@@ -1173,6 +1218,7 @@ export default function BetaComparisonClientPage() {
                                         runLabel={runLabel}
                                         safeTimestampFromParams={timestampFromUrl}
                                         onCellClick={handleMacroCellClick} 
+                                        systemPromptIndex={activeSysPromptIndex}
                                     />
                                 </div>
                             </Tabs>

@@ -18,7 +18,10 @@ import {
     getResultByFileName, // To fetch the result if executeComparisonPipeline only returns a key/path
     HomepageSummaryFileContent, // Import the main type
     getConfigSummary,
-    saveConfigSummary
+    saveConfigSummary,
+    getLatestRunsSummary,
+    saveLatestRunsSummary,
+    LatestRunSummaryItem,
 } from '../../lib/storageService'; // Adjusted path
 import {
     calculateHeadlineStats,
@@ -30,6 +33,7 @@ import { generateConfigContentHash } from '../../lib/hash-utils';
 import { parseAndNormalizeBlueprint } from '../../lib/blueprint-parser';
 import { fetchBlueprintContentByName, resolveModelsInConfig } from '../../lib/blueprint-service';
 import { SimpleLogger } from '@/lib/blueprint-service';
+import { fromSafeTimestamp } from '@/lib/timestampUtils';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
@@ -582,6 +586,44 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions, commi
 
                 await saveHomepageSummary(newHomepageSummaryContent);
                 loggerInstance.info('Homepage summary manifest updated successfully.');
+
+                // --- BEGIN: Update Latest Runs Summary (after homepage summary is successfully saved) ---
+                try {
+                    loggerInstance.info('Attempting to update latest runs summary...');
+                    const currentLatestRunsSummary = await getLatestRunsSummary();
+                    
+                    // Find the full run info object that was just added to the updated homepage summary
+                    const justAddedRunInfo = updatedConfigsArrayForHomepage
+                        .find(c => c.configId === newResultData.configId)?.runs
+                        .find(r => r.runLabel === newResultData.runLabel && r.timestamp === newResultData.timestamp);
+
+                    if (justAddedRunInfo) {
+                        const newRunSummaryItem: LatestRunSummaryItem = {
+                            ...justAddedRunInfo,
+                            configId: newResultData.configId,
+                            configTitle: newResultData.configTitle
+                        };
+
+                        const newRuns = [newRunSummaryItem, ...currentLatestRunsSummary.runs];
+                        // De-duplicate based on filename to prevent multiple entries for the same execution
+                        const uniqueRuns = Array.from(new Map(newRuns.map(run => [run.fileName, run])).values());
+                        
+                        const sortedRuns = uniqueRuns.sort((a, b) => new Date(fromSafeTimestamp(b.timestamp)).getTime() - new Date(fromSafeTimestamp(a.timestamp)).getTime());
+                        const latest50Runs = sortedRuns.slice(0, 50);
+
+                        await saveLatestRunsSummary({
+                            runs: latest50Runs,
+                            lastUpdated: new Date().toISOString(),
+                        });
+                        loggerInstance.info(`Latest runs summary updated successfully. Now contains ${latest50Runs.length} runs.`);
+                    } else {
+                        loggerInstance.warn('Could not find the new run in the summary data to add it to the latest runs summary. Skipping update.');
+                    }
+                } catch (latestRunsError: any) {
+                    loggerInstance.error(`Failed to update latest runs summary: ${latestRunsError.message}`);
+                }
+                // --- END: Update Latest Runs Summary ---
+
             } catch (summaryError: any) {
                 loggerInstance.error(`Failed to update homepage summary manifest: ${summaryError.message}`);
             }

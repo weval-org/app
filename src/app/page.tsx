@@ -17,6 +17,7 @@ import BrowseAllBlueprintsSection, { BlueprintSummaryInfo } from '@/app/componen
 import LatestEvaluationRunsSection, { DisplayableRunInstanceInfo } from '@/app/components/home/LatestEvaluationRunsSection';
 import { BLUEPRINT_CONFIG_REPO_URL, APP_REPO_URL } from '@/lib/configConstants';
 import { processBlueprintSummaries } from '@/app/utils/blueprintSummaryUtils';
+import Link from 'next/link';
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:8888' : 'https://weval.org');
 
@@ -131,13 +132,18 @@ export default async function HomePage() {
                 <AggregateStatsDisplay stats={headlineStats} />
                 {driftDetectionResult && <ModelDriftIndicator driftInfo={driftDetectionResult} />}
             </div>
+            <div className="text-center mt-6">
+                <Link href="/latest" className="text-sm font-medium text-primary hover:underline dark:text-sky-400 dark:hover:text-sky-300">
+                    View the 50 most recent platform runs &rarr;
+                </Link>
+            </div>
           </section>
         )}
 
         {featuredConfigs.length > 0 ? (
           <>
             <hr className="my-8 md:my-12 border-border/70 dark:border-slate-700/50 w-3/4 mx-auto" />
-            <BrowseAllBlueprintsSection blueprints={blueprintSummaries} title="Featured Blueprints" />
+            <BrowseAllBlueprintsSection blueprints={blueprintSummaries} title="Featured Blueprints" actionLink={{ href: '/all', text: 'View All Blueprints' }} />
             <hr className="my-8 md:my-12 border-border/70 dark:border-slate-700/50 w-3/4 mx-auto" />
             <LatestEvaluationRunsSection latestRuns={top20LatestRuns} />
           </>

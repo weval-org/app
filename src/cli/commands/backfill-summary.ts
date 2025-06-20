@@ -7,7 +7,9 @@ import {
     saveHomepageSummary,
     updateSummaryDataWithNewRun,
     HomepageSummaryFileContent,
-    saveConfigSummary
+    saveConfigSummary,
+    saveLatestRunsSummary,
+    LatestRunSummaryItem,
 } from '../../lib/storageService';
 import { EnhancedComparisonConfigInfo } from '../../app/utils/homepageDataUtils';
 import { ComparisonDataV2 as FetchedComparisonData } from '../../app/utils/types';
@@ -15,6 +17,7 @@ import {
     calculateHeadlineStats,
     calculatePotentialModelDrift
 } from '../utils/summaryCalculationUtils';
+import { fromSafeTimestamp } from '../../lib/timestampUtils';
 
 async function actionBackfillSummary(options: { verbose?: boolean }) {
     const { logger } = getConfig();
@@ -116,6 +119,30 @@ async function actionBackfillSummary(options: { verbose?: boolean }) {
             logger.info('Saving comprehensive homepage summary...');
             await saveHomepageSummary(finalHomepageSummaryObject);
             logger.info('Comprehensive homepage summary saved successfully.');
+
+            // --- BEGIN: Backfill Latest Runs Summary ---
+            logger.info('Creating latest runs summary from backfilled data...');
+            const allRunsFlat: LatestRunSummaryItem[] = allConfigsForHomepage.flatMap(config =>
+                config.runs.map(run => ({
+                    ...run,
+                    configId: config.configId,
+                    configTitle: config.title || config.configTitle,
+                }))
+            );
+
+            const sortedRuns = allRunsFlat.sort((a, b) => 
+                new Date(fromSafeTimestamp(b.timestamp)).getTime() - new Date(fromSafeTimestamp(a.timestamp)).getTime()
+            );
+
+            const latest50Runs = sortedRuns.slice(0, 50);
+
+            await saveLatestRunsSummary({
+                runs: latest50Runs,
+                lastUpdated: new Date().toISOString(),
+            });
+            logger.info(`Latest runs summary saved successfully with ${latest50Runs.length} runs.`);
+            // --- END: Backfill Latest Runs Summary ---
+
         } else {
             logger.warn('No data was compiled for the summary. Summary file not saved.');
         }

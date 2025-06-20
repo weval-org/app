@@ -34,6 +34,14 @@ export function parseEffectiveModelId(effectiveModelId: string): ParsedModelId {
     remainingId = remainingId.replace(tempRegex, '');
   }
 
+  // Regex to capture [sp_idx:value] at the end of the (potentially shortened) string
+  const spIdxRegex = /\[sp_idx:(\d+)\]$/;
+  const spIdxMatch = remainingId.match(spIdxRegex);
+  if (spIdxMatch) {
+    systemPromptIndex = parseInt(spIdxMatch[1], 10);
+    remainingId = remainingId.replace(spIdxRegex, '');
+  }
+
   // Regex to capture [sys:value] at the end of the (potentially shortened) string
   const sysRegex = /\[sys:([a-zA-Z0-9]+)\]$/;
   const sysMatch = remainingId.match(sysRegex);

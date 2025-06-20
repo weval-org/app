@@ -26,6 +26,7 @@ interface MacroCoverageTableProps {
     onModelClick?: (modelId: string) => void;
     onPromptClick?: (promptId: string) => void;
     onModelHover?: (modelId: string | null) => void;
+    systemPromptIndex?: number;
 }
 
 const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
@@ -41,6 +42,7 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
     onModelClick,
     onPromptClick,
     onModelHover,
+    systemPromptIndex,
 }) => {
     const [focusedModelId, setFocusedModelId] = useState<string | null>(null);
     const [markdownModule, setMarkdownModule] = useState<{ ReactMarkdown: any, RemarkGfm: any } | null>(null);
@@ -74,6 +76,21 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
         return <p className="p-4 text-muted-foreground italic">No prompts available.</p>;
     }
     if (localSortedModels.length === 0 && !focusedModelId) {
+        console.log("No models available. All details [debug]: ", {
+            allCoverageScores,
+            localSortedModels,
+            focusedModelId,
+            allFinalAssistantResponses,
+            promptIds,
+            promptTexts,
+            models,
+            parsedModelsMap,
+            baseModelGlobalIndexMap,
+            baseIdToVisualGroupStyleMap,
+            sortedPromptIds,
+            promptStats,
+            systemPromptIndex,
+        });
         return <p className="p-4 text-muted-foreground italic">No models available.</p>;
     }
     

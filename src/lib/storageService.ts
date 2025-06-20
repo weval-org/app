@@ -32,6 +32,18 @@ export interface HomepageSummaryFileContent {
   lastUpdated: string;
 }
 
+// --- New Types for Latest Runs Summary ---
+export interface LatestRunSummaryItem extends EnhancedRunInfo {
+  configId: string;
+  configTitle?: string;
+}
+
+export interface LatestRunsSummaryFileContent {
+  runs: LatestRunSummaryItem[];
+  lastUpdated: string;
+}
+// --- End New Types ---
+
 // Use prefixed environment variables to avoid conflicts with Netlify reserved names
 const s3BucketName = process.env.APP_S3_BUCKET_NAME;
 const s3Region = process.env.APP_S3_REGION;
@@ -77,6 +89,7 @@ const streamToString = (stream: Readable): Promise<string> =>
   });
 
 const HOMEPAGE_SUMMARY_KEY = 'multi/homepage_summary.json';
+const LATEST_RUNS_SUMMARY_KEY = 'multi/latest_runs_summary.json';
 
 // Helper types for serialization
 type SerializableScoreMap = Record<string, { average: number | null; stddev: number | null }>;
@@ -93,6 +106,15 @@ interface SerializableEnhancedComparisonConfigInfo extends Omit<EnhancedComparis
 interface SerializableHomepageSummaryFileContent extends Omit<HomepageSummaryFileContent, 'configs'> {
   configs: SerializableEnhancedComparisonConfigInfo[];
 }
+
+// --- New Serializable Types for Latest Runs Summary ---
+interface SerializableLatestRunSummaryItem extends Omit<LatestRunSummaryItem, 'perModelHybridScores'> {
+    perModelHybridScores?: SerializableScoreMap;
+}
+interface SerializableLatestRunsSummaryFileContent extends Omit<LatestRunsSummaryFileContent, 'runs'> {
+    runs: SerializableLatestRunSummaryItem[];
+}
+// --- End New Serializable Types ---
 
 export async function getHomepageSummary(): Promise<HomepageSummaryFileContent | null> {
   const fileName = 'homepage_summary.json';
@@ -959,5 +981,108 @@ export async function deleteResultByFileName(configId: string, fileName: string)
     } else {
         console.warn(`[StorageService] No valid storage provider configured for deleteResultByFileName. File not deleted.`);
         return false;
+    }
+}
+
+export async function getLatestRunsSummary(): Promise<LatestRunsSummaryFileContent> {
+  let fileContent: string | null = null;
+
+  if (storageProvider === 's3' && s3Client && s3BucketName) {
+    try {
+      const command = new GetObjectCommand({ Bucket: s3BucketName, Key: LATEST_RUNS_SUMMARY_KEY });
+      const { Body } = await s3Client.send(command);
+      if (Body) {
+        fileContent = await streamToString(Body as Readable);
+      }
+    } catch (error: any) {
+      if (error.name === 'NoSuchKey') {
+        // File doesn't exist, return default empty state
+        return { runs: [], lastUpdated: '' };
+      }
+      console.error(`[StorageService] Error fetching latest runs summary from S3: ${LATEST_RUNS_SUMMARY_KEY}`, error);
+      return { runs: [], lastUpdated: '' };
+    }
+  } else if (storageProvider === 'local') {
+    try {
+      const filePath = path.join(RESULTS_DIR, MULTI_DIR, 'latest_runs_summary.json');
+      if (fsSync.existsSync(filePath)) {
+        fileContent = await fs.readFile(filePath, 'utf-8');
+      } else {
+        // File doesn't exist, return default empty state
+        return { runs: [], lastUpdated: '' };
+      }
+    } catch (error) {
+      console.error(`[StorageService] Error fetching latest runs summary from local disk: latest_runs_summary.json`, error);
+      return { runs: [], lastUpdated: '' };
+    }
+  }
+
+  if (!fileContent) {
+    return { runs: [], lastUpdated: '' };
+  }
+
+  try {
+    const parsedContent: SerializableLatestRunsSummaryFileContent = JSON.parse(fileContent);
+    const runsWithMaps: LatestRunSummaryItem[] = parsedContent.runs.map(run => ({
+      ...run,
+      perModelHybridScores: run.perModelHybridScores
+        ? new Map(Object.entries(run.perModelHybridScores))
+        : new Map(),
+    }));
+    return { ...parsedContent, runs: runsWithMaps };
+  } catch (error) {
+    console.error(`[StorageService] Error parsing latest runs summary content:`, error);
+    return { runs: [], lastUpdated: '' };
+  }
+}
+
+export async function saveLatestRunsSummary(summaryData: LatestRunsSummaryFileContent): Promise<void> {
+    const serializableRuns: SerializableLatestRunSummaryItem[] = summaryData.runs.map(run => {
+        const { perModelHybridScores, ...restOfRun } = run;
+        const serializableRun: SerializableLatestRunSummaryItem = { ...restOfRun };
+
+        if (perModelHybridScores instanceof Map) {
+            serializableRun.perModelHybridScores = Object.fromEntries(perModelHybridScores);
+        } else if (perModelHybridScores) {
+            serializableRun.perModelHybridScores = perModelHybridScores as SerializableScoreMap;
+        } else {
+            serializableRun.perModelHybridScores = {};
+        }
+        return serializableRun;
+    });
+
+    const serializableSummary: SerializableLatestRunsSummaryFileContent = {
+        ...summaryData,
+        runs: serializableRuns,
+    };
+    
+    const fileContent = JSON.stringify(serializableSummary, null, 2);
+
+    if (storageProvider === 's3' && s3Client && s3BucketName) {
+        try {
+            const command = new PutObjectCommand({
+                Bucket: s3BucketName,
+                Key: LATEST_RUNS_SUMMARY_KEY,
+                Body: fileContent,
+                ContentType: 'application/json',
+            });
+            await s3Client.send(command);
+            console.log(`[StorageService] Latest runs summary saved to S3: ${LATEST_RUNS_SUMMARY_KEY}`);
+        } catch (error) {
+            console.error(`[StorageService] Error saving latest runs summary to S3: ${LATEST_RUNS_SUMMARY_KEY}`, error);
+            throw error;
+        }
+    } else if (storageProvider === 'local') {
+        const filePath = path.join(RESULTS_DIR, MULTI_DIR, 'latest_runs_summary.json');
+        try {
+            await fs.mkdir(path.dirname(filePath), { recursive: true });
+            await fs.writeFile(filePath, fileContent, 'utf-8');
+            console.log(`[StorageService] Latest runs summary saved to local disk: ${filePath}`);
+        } catch (error) {
+            console.error(`[StorageService] Error saving latest runs summary to local disk: ${filePath}`, error);
+            throw error;
+        }
+    } else {
+        console.warn(`[StorageService] No valid storage provider configured for saveLatestRunsSummary. Data not saved.`);
     }
 } 

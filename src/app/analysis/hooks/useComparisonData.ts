@@ -41,26 +41,25 @@ export function useComparisonData({ configId, runLabel, timestamp, currentPrompt
                 setData(result);
 
                 // --- Begin: Logic for determining excluded models ---
-                const excludedFromData = result.excludedModels || [];
-                const modelsWithEmptyResponses = new Set<string>(excludedFromData);
+                const excludedFromData = new Set(result.excludedModels || []);
 
                 if (result.allFinalAssistantResponses && result.effectiveModels) {
                     result.effectiveModels
                         .filter((modelId) => modelId !== IDEAL_MODEL_ID)
                         .forEach((modelId: string) => {
-                            if (modelsWithEmptyResponses.has(modelId)) return;
+                            if (excludedFromData.has(modelId)) return;
                             if (result.allFinalAssistantResponses) {
                                 for (const promptId in result.allFinalAssistantResponses) {
                                     const responseText = result.allFinalAssistantResponses[promptId]?.[modelId];
                                     if (responseText === undefined || responseText.trim() === '') {
-                                        modelsWithEmptyResponses.add(modelId);
+                                        excludedFromData.add(modelId);
                                         break;
                                     }
                                 }
                             }
                         });
                 }
-                setExcludedModelsList(Array.from(modelsWithEmptyResponses));
+                setExcludedModelsList(Array.from(excludedFromData));
                 // --- End: Logic for determining excluded models ---
                 
                 if (currentPromptId && result.promptIds && !result.promptIds.includes(currentPromptId)) {

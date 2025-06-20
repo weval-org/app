@@ -7,6 +7,8 @@ import CoverageHeatmapCanvas from '@/app/analysis/components/CoverageHeatmapCanv
 import { EnhancedComparisonConfigInfo, AllCoverageScores } from '@/app/utils/homepageDataUtils';
 import ClientDateTime from '../ClientDateTime';
 import { BLUEPRINT_CONFIG_REPO_URL } from '@/lib/configConstants';
+import { Button } from '@/components/ui/button';
+import { useState } from 'react';
 
 interface BlueprintSummaryInfo extends EnhancedComparisonConfigInfo {
   latestInstanceTimestamp?: string | null;
@@ -18,6 +20,7 @@ interface BlueprintSummaryInfo extends EnhancedComparisonConfigInfo {
   latestRunCoverageScores?: AllCoverageScores | null;
   latestRunModels?: string[];
   latestRunPromptIds?: string[];
+  tags?: string[];
 }
 
 const getHybridScoreColor = (score: number | null | undefined): string => {
@@ -39,17 +42,31 @@ const Trophy = nextDynamic(() => import('lucide-react').then(mod => mod.Trophy))
 
 interface BrowseAllBlueprintsSectionProps {
   blueprints: BlueprintSummaryInfo[];
-  title?: string;
+  title: string;
+  actionLink?: {
+    href: string;
+    text: string;
+  }
 }
 
-const BrowseAllBlueprintsSection = ({ blueprints, title }: BrowseAllBlueprintsSectionProps) => {
+const BrowseAllBlueprintsSection = ({ blueprints, title, actionLink }: BrowseAllBlueprintsSectionProps) => {
+  const [filteredBlueprints, setFilteredBlueprints] = useState(blueprints);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  
   return (
     <section id="browse-blueprints" className="mb-12 md:mb-16">
-      {title && (
-        <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground dark:text-slate-100 mb-6 md:mb-8 text-center">
+      <div className="flex flex-col sm:flex-row justify-between items-center mb-6 md:mb-8">
+        <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground dark:text-slate-100 text-center sm:text-left">
           {title}
         </h2>
-      )}
+        {actionLink && (
+           <Button asChild variant="link" className="mt-2 sm:mt-0">
+             <Link href={actionLink.href}>
+                {actionLink.text}
+             </Link>
+           </Button>
+        )}
+      </div>
       {blueprints.length === 0 ? (
         <div className="text-center py-10 bg-card/50 dark:bg-slate-800/40 rounded-lg shadow-md">
           {PackageSearch && <PackageSearch className="w-12 h-12 mx-auto mb-4 text-muted-foreground dark:text-slate-500" />}
