@@ -17,6 +17,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 
 // CodeMirror imports
 import CodeMirror from '@uiw/react-codemirror';
@@ -36,6 +41,7 @@ const CheckCircle = dynamic(() => import('lucide-react').then(mod => mod.CheckCi
 const XCircle = dynamic(() => import('lucide-react').then(mod => mod.XCircle));
 const Braces = dynamic(() => import('lucide-react').then(mod => mod.Braces));
 const Pilcrow = dynamic(() => import('lucide-react').then(mod => mod.Pilcrow));
+const ChevronsUpDown = dynamic(() => import('lucide-react').then(mod => mod.ChevronsUpDown));
 
 // --- TYPES (Expanded to match full blueprint spec) ---
 type ExpectationFunction = 'contains' | 'icontains' | 'starts_with' | 'ends_with' | 'match' | 'imatch' | 'contains_any_of' | 'contains_all_of' | 'word_count_between';
@@ -43,12 +49,12 @@ type ExpectationFunction = 'contains' | 'icontains' | 'starts_with' | 'ends_with
 interface Expectation {
   id: string;
   type: 'concept' | 'function';
-  // For concept
+  // A simple expectation is just a string
   value?: string;
-  // For function
+  // A function expectation has a function name and arguments
   fn?: ExpectationFunction;
   fn_args?: any;
-  // Common
+  // All expectations can have a weight
   weight?: number;
 }
 
@@ -98,105 +104,29 @@ const DEFAULT_BLUEPRINT: BlueprintState = {
 
 // --- HELPER COMPONENTS (Now supports full Expectation model) ---
 
-const ExpectationEditor = ({ expectation, onUpdate, onRemove, variant, isAdvancedMode }: { expectation: Expectation, onUpdate: (exp: Expectation) => void, onRemove: () => void, variant: 'should' | 'should-not', isAdvancedMode: boolean }) => {
+const ExpectationEditor = ({ expectation, onUpdate, onRemove, variant }: { expectation: Expectation, onUpdate: (exp: Expectation) => void, onRemove: () => void, variant: 'should' | 'should-not' }) => {
     
     const setField = (field: keyof Expectation, value: any) => {
         onUpdate({ ...expectation, [field]: value });
     };
 
-    const toggleType = () => {
-        const newType = expectation.type === 'concept' ? 'function' : 'concept';
-        onUpdate({ 
-            ...expectation, 
-            type: newType,
-            value: newType === 'concept' ? '' : undefined,
-            fn: newType === 'function' ? 'contains' : undefined,
-            fn_args: newType === 'function' ? '' : undefined,
-        });
-    };
-    
-    const fns: ExpectationFunction[] = ['contains', 'icontains', 'starts_with', 'ends_with', 'match', 'imatch', 'contains_any_of', 'contains_all_of', 'word_count_between'];
-    const requiresArray = ['contains_any_of', 'contains_all_of'];
-
-    const renderFnArgs = () => {
-        const value = expectation.fn_args;
-        if (requiresArray.includes(expectation.fn!)) {
-            const strValue = Array.isArray(value) ? value.join(', ') : (value || '');
-            return (
-                <Input
-                    placeholder="Comma-separated values"
-                    value={strValue}
-                    onChange={(e) => setField('fn_args', e.target.value.split(',').map(s => s.trim()))}
-                />
-            )
-        }
-        return (
-             <Input
-                placeholder="Argument (e.g., a word, a regex)"
-                value={value || ''}
-                onChange={(e) => setField('fn_args', e.target.value)}
-            />
-        )
-    }
-
-    const renderEditor = () => {
-        if (expectation.type === 'concept' || !isAdvancedMode) {
-            return (
-                 <Textarea
-                    placeholder={variant === 'should' ? 'E.g., The response should be empathetic...' : 'E.g., Avoid making definitive claims...'}
-                    value={expectation.value || ''}
-                    onChange={(e) => setField('value', e.target.value)}
-                    className="h-auto resize-y"
-                    rows={2}
-                />
-            )
-        }
-        // Advanced mode + function type
-        return (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <Select value={expectation.fn || ''} onValueChange={(v: ExpectationFunction) => setField('fn', v)}>
-                        <SelectTrigger>
-                        <SelectValue placeholder="Select a function" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {fns.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-                {renderFnArgs()}
-            </div>
-        );
-    }
-
     return (
         <div className="flex items-start gap-2">
-            <div className="flex-grow space-y-2">
-               {renderEditor()}
-               {isAdvancedMode && (
-                 <Input
-                    type="number"
-                    placeholder="Weight (default: 1.0)"
-                    value={expectation.weight || ''}
-                    onChange={(e) => setField('weight', e.target.value ? parseFloat(e.target.value) : undefined)}
-                    className="h-8 text-xs w-48"
-                    step="0.1"
-                />
-               )}
-            </div>
-             <div className="flex flex-col gap-1">
-                {isAdvancedMode && (
-                    <Button size="icon" variant="ghost" onClick={toggleType} className="h-8 w-8 flex-shrink-0" title={expectation.type === 'concept' ? 'Switch to Function' : 'Switch to Concept'}>
-                        {expectation.type === 'concept' ? <Braces className="h-4 w-4" /> : <Pilcrow className="h-4 w-4" />}
-                    </Button>
-                )}
-                <Button size="icon" variant="ghost" onClick={onRemove} className="h-8 w-8 flex-shrink-0" title="Remove Criterion">
-                    <Trash2 className="h-4 w-4 text-muted-foreground" />
-                </Button>
-            </div>
+            <Textarea
+                placeholder={variant === 'should' ? 'E.g., The response should be empathetic...' : 'E.g., Avoid making definitive claims...'}
+                value={expectation.value || ''}
+                onChange={(e) => setField('value', e.target.value)}
+                className="h-auto resize-y blueprint-input"
+                rows={2}
+            />
+            <Button size="icon" variant="ghost" onClick={onRemove} className="h-8 w-8 flex-shrink-0" title="Remove Criterion">
+                <Trash2 className="h-4 w-4 text-muted-foreground" />
+            </Button>
         </div>
     );
 };
 
-const ExpectationGroup = ({ title, expectations, onUpdate, variant, isAdvancedMode }: { title: string, expectations: Expectation[], onUpdate: (exps: Expectation[]) => void, variant: 'should' | 'should-not', isAdvancedMode: boolean }) => {
+const ExpectationGroup = ({ title, expectations, onUpdate, variant }: { title: string, expectations: Expectation[], onUpdate: (exps: Expectation[]) => void, variant: 'should' | 'should-not' }) => {
     const handleAdd = () => {
         onUpdate([...expectations, { id: `exp-${Date.now()}`, type: 'concept', value: '' }]);
     };
@@ -212,14 +142,14 @@ const ExpectationGroup = ({ title, expectations, onUpdate, variant, isAdvancedMo
     const variantStyles = {
         should: {
             Icon: CheckCircle,
-            bgColor: 'bg-green-50 dark:bg-green-500/5',
-            borderColor: 'border-green-500/20',
+            bgColor: 'bg-white dark:bg-green-500/5',
+            borderColor: 'border-green-200 dark:border-green-500/20',
             titleColor: 'text-green-800 dark:text-green-300',
         },
         'should-not': {
             Icon: XCircle,
-            bgColor: 'bg-red-50 dark:bg-red-500/5',
-            borderColor: 'border-red-500/20',
+            bgColor: 'bg-white dark:bg-red-500/5',
+            borderColor: 'border-red-200 dark:border-red-500/20',
             titleColor: 'text-red-800 dark:text-red-300',
         }
     };
@@ -245,7 +175,6 @@ const ExpectationGroup = ({ title, expectations, onUpdate, variant, isAdvancedMo
                         onUpdate={(updatedExp) => handleUpdate(exp.id, updatedExp)}
                         onRemove={() => handleRemove(exp.id)}
                         variant={variant}
-                        isAdvancedMode={isAdvancedMode}
                     />
                 ))}
                 <Button size="sm" variant="ghost" onClick={handleAdd} className="text-muted-foreground">
@@ -258,7 +187,7 @@ const ExpectationGroup = ({ title, expectations, onUpdate, variant, isAdvancedMo
 };
 
 
-const PromptBlock = ({ prompt, onUpdate, onRemove, isAdvancedMode }: { prompt: Prompt, onUpdate: (p: Prompt) => void, onRemove: () => void, isAdvancedMode: boolean }) => {
+const PromptBlock = ({ prompt, onUpdate, onRemove }: { prompt: Prompt, onUpdate: (p: Prompt) => void, onRemove: () => void }) => {
     const setField = (field: keyof Prompt, value: any) => {
         onUpdate({ ...prompt, [field]: value });
     };
@@ -275,7 +204,7 @@ const PromptBlock = ({ prompt, onUpdate, onRemove, isAdvancedMode }: { prompt: P
                         placeholder="e.g., my-custom-prompt-id"
                         value={prompt.id}
                         onChange={(e) => setField('id', e.target.value)}
-                        className="text-sm h-9"
+                        className="text-sm h-9 blueprint-input"
                     />
                 </div>
                  <div>
@@ -284,7 +213,7 @@ const PromptBlock = ({ prompt, onUpdate, onRemove, isAdvancedMode }: { prompt: P
                         placeholder="The exact question or instruction for the AI. Be specific and avoid ambiguity."
                         value={prompt.prompt}
                         onChange={(e) => setField('prompt', e.target.value)}
-                        className="min-h-[120px] text-base"
+                        className="min-h-[120px] text-base blueprint-input"
                     />
                 </div>
                  <div>
@@ -293,12 +222,12 @@ const PromptBlock = ({ prompt, onUpdate, onRemove, isAdvancedMode }: { prompt: P
                         placeholder="What would a perfect, 'gold-standard' answer look like?"
                         value={prompt.ideal}
                         onChange={(e) => setField('ideal', e.target.value)}
-                         className="min-h-[120px] text-base"
+                         className="min-h-[120px] text-base blueprint-input"
                     />
                 </div>
                 <div className="space-y-4">
-                    <ExpectationGroup variant="should" title="Response SHOULD..." expectations={prompt.should} onUpdate={(exps) => setField('should', exps)} isAdvancedMode={isAdvancedMode} />
-                    <ExpectationGroup variant="should-not" title="Response SHOULD NOT..." expectations={prompt.should_not} onUpdate={(exps) => setField('should_not', exps)} isAdvancedMode={isAdvancedMode} />
+                    <ExpectationGroup variant="should" title="Response SHOULD..." expectations={prompt.should} onUpdate={(exps) => setField('should', exps)} />
+                    <ExpectationGroup variant="should-not" title="Response SHOULD NOT..." expectations={prompt.should_not} onUpdate={(exps) => setField('should_not', exps)} />
                 </div>
             </div>
         </div>
@@ -310,22 +239,12 @@ const PromptBlock = ({ prompt, onUpdate, onRemove, isAdvancedMode }: { prompt: P
 
 export default function BlueprintEditorClientPage() {
   const [blueprint, setBlueprint] = useState<BlueprintState>(DEFAULT_BLUEPRINT);
-  const [isAdvancedMode, setIsAdvancedMode] = useState(false);
   const [yamlText, setYamlText] = useState('');
   const [yamlError, setYamlError] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   const [isClient, setIsClient] = useState(false);
+  const [isGlobalConfigOpen, setIsGlobalConfigOpen] = useState(false);
   const { resolvedTheme } = useTheme();
-
-  const showGlobalConfig = useMemo(() => {
-    return blueprint.models.length > 0 
-        || (blueprint.system && blueprint.system.trim() !== '')
-        || (blueprint.tags && blueprint.tags.length > 0)
-        || blueprint.concurrency !== undefined
-        || blueprint.temperature !== undefined
-        || (blueprint.temperatures && blueprint.temperatures.length > 0)
-  }, [blueprint]);
-
 
   useEffect(() => setIsClient(true), []);
 
@@ -343,23 +262,19 @@ export default function BlueprintEditorClientPage() {
         if (blueprint.temperatures && blueprint.temperatures.length > 0) header.temperatures = blueprint.temperatures;
         
         const formatExpectationToYaml = (exp: Expectation) => {
-            if (exp.type === 'concept') {
-                if (!exp.value?.trim()) return null;
-                if (exp.weight && exp.weight !== 1.0) {
-                    return { point: exp.value, weight: exp.weight };
+            if (!exp.value?.trim()) return null;
+            // If value is valid YAML (likely an advanced object), parse and return it.
+            // Otherwise, return it as a plain string.
+            try {
+                const parsed = yaml.load(exp.value);
+                // Ensure it's not a simple string that got parsed
+                if (typeof parsed === 'object' && parsed !== null) {
+                    return parsed;
                 }
-                return exp.value;
+            } catch (e) {
+                // Not valid YAML, so it's a plain string concept.
             }
-            // function type
-            if (!exp.fn || !exp.fn_args) return null;
-            const key = `$${exp.fn}`;
-            if (exp.weight && exp.weight !== 1.0) {
-                // This case is not handled by the new parser logic for idiomatic functions
-                // but we can keep it for forward compatibility if we add it back.
-                // For now, it will be parsed as a full object.
-                return { fn: exp.fn, arg: exp.fn_args, weight: exp.weight };
-            }
-            return { [key]: exp.fn_args };
+            return exp.value;
         };
 
         const prompts = blueprint.prompts.map(p => {
@@ -407,7 +322,6 @@ export default function BlueprintEditorClientPage() {
         if (docs.length === 0) {
             setBlueprint(newBlueprint);
             setYamlError(null);
-            setIsAdvancedMode(false);
             return;
         }
 
@@ -432,31 +346,19 @@ export default function BlueprintEditorClientPage() {
                 return { id, type: 'concept', value: rawExp };
             }
             if (typeof rawExp === 'object' && rawExp !== null) {
-                // Check for 'Point: Citation' shorthand
-                const keys = Object.keys(rawExp);
-                if (keys.length === 1 && typeof rawExp[keys[0]] === 'string' && !keys[0].startsWith('$')) {
-                    // This is a citable point, but the UI state doesn't have a citation field.
-                    // We'll treat the value as part of the point for now.
-                    // A more advanced UI would handle citations separately.
-                    return { id, type: 'concept', value: `${keys[0]}: ${rawExp[keys[0]]}` };
-                }
+                 // For any complex object (function, weighted point, etc.),
+                 // we just dump it back to a YAML string to be displayed in the simple textarea.
+                 // This preserves the data for power-users editing YAML, without cluttering the UI.
+                 const key = Object.keys(rawExp)[0];
+                 const isSimpleConcept = (key === 'point' || key === 'text' || key === 'criterion') && Object.keys(rawExp).length === 1;
 
-                // Check for idiomatic function
-                const idiomaticFnKey = keys.find(k => k.startsWith('$'));
-                if (idiomaticFnKey) {
-                    return { id, type: 'function', fn: idiomaticFnKey.substring(1) as ExpectationFunction, fn_args: rawExp[idiomaticFnKey] };
-                }
-
-                if (rawExp.text || rawExp.point || rawExp.criterion) {
-                    return { id, type: 'concept', value: rawExp.text || rawExp.point || rawExp.criterion, weight: rawExp.weight };
-                }
-
-                if (rawExp.fn) {
-                    return { id, type: 'function', fn: rawExp.fn, fn_args: rawExp.arg || rawExp.fnArgs, weight: rawExp.weight };
-                }
+                 if (!isSimpleConcept) {
+                    return { id, type: 'concept', value: yaml.dump(rawExp).trim() };
+                 }
+                 return { id, type: 'concept', value: rawExp[key] };
             }
             // Fallback for malformed data
-            return { id, type: 'concept', value: JSON.stringify(rawExp) };
+            return { id, type: 'concept', value: yaml.dump(rawExp).trim() };
         };
         
         const parsedPrompts = (promptDocs.flat() as any[]).map((p: any, index: number): Prompt => ({
@@ -468,19 +370,7 @@ export default function BlueprintEditorClientPage() {
         }));
         newBlueprint.prompts = parsedPrompts;
 
-        const checkForAdvanced = (bp: BlueprintState): boolean => {
-             for (const prompt of bp.prompts) {
-                for (const exp of [...prompt.should, ...prompt.should_not]) {
-                    if (exp.type === 'function' || exp.weight) {
-                        return true;
-                    }
-                }
-            }
-            return false;
-        }
-
         setBlueprint(newBlueprint);
-        setIsAdvancedMode(checkForAdvanced(newBlueprint));
         setYamlError(null);
     } catch (e: any) {
         setYamlError(e.message);
@@ -526,7 +416,7 @@ export default function BlueprintEditorClientPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-foreground">
+    <div className="min-h-screen bg-background text-foreground">
         <div className="fixed inset-0 -z-10 h-full w-full bg-white bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] dark:bg-slate-950 dark:bg-[radial-gradient(rgba(255,255,255,0.1)_1px,transparent_1px)]"></div>
       
         <header className="sticky top-0 z-20 bg-white/80 dark:bg-slate-950/80 backdrop-blur-lg border-b border-slate-200 dark:border-slate-800">
@@ -557,48 +447,49 @@ export default function BlueprintEditorClientPage() {
           {/* Left Column: Document-Style UI */}
           <div className="lg:pr-8">
             <div className="max-w-none">
-                <div className="flex justify-end mb-2">
-                    <Button variant="ghost" size="sm" onClick={() => setIsAdvancedMode(p => !p)}>
-                        <Wand2 className="w-4 w-4 mr-2" />
-                        {isAdvancedMode ? 'Hide Advanced Options' : 'Show Advanced Options'}
-                    </Button>
-                </div>
                 <div className="space-y-4 mb-8">
                     <Input 
                         type="text" 
-                        placeholder="My Awesome Blueprint Title"
+                        placeholder="My Awesome Blueprint"
                         value={blueprint.title}
                         onChange={(e: ChangeEvent<HTMLInputElement>) => setBlueprint(p => ({ ...p, title: e.target.value }))}
-                        className="text-3xl font-bold h-auto p-2"
+                        className="text-3xl font-bold h-auto p-2 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 blueprint-input"
                     />
                     <Textarea
-                        placeholder="A clear, one-sentence description of the blueprint's goal. What specific capability or risk is it designed to measure?"
+                        placeholder="A clear, one-sentence description of the blueprint's goal."
                         value={blueprint.description}
                         onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setBlueprint(p => ({ ...p, description: e.target.value }))}
-                        className="text-lg text-muted-foreground resize-none"
+                        className="text-lg text-muted-foreground resize-none border-0 focus-visible:ring-0 focus-visible:ring-offset-0 blueprint-input"
                         rows={2}
                     />
                 </div>
                 
-                {showGlobalConfig && (
-                    <Card className="mb-8 border-border">
-                        <CardHeader>
-                            <CardTitle>Global Config</CardTitle>
-                            <CardDescription>These settings were found in your YAML and apply to all prompts.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            {blueprint.models.length > 0 && (
+                <Card className="mb-8 border-border">
+                    <Collapsible
+                        open={isGlobalConfigOpen}
+                        onOpenChange={setIsGlobalConfigOpen}
+                    >
+                        <CollapsibleTrigger className="w-full text-left p-0">
+                            <CardHeader className="flex flex-row items-center justify-between cursor-pointer rounded-t-lg hover:bg-muted/50">
+                                <div>
+                                    <CardTitle>Global Config</CardTitle>
+                                    <CardDescription>Optional settings that apply to all prompts in this blueprint.</CardDescription>
+                                </div>
+                                <ChevronsUpDown className="h-4 w-4 text-muted-foreground data-[state=open]:rotate-180 transition-transform" />
+                            </CardHeader>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                            <CardContent className="space-y-4 pt-4">
                                 <div>
                                     <label className="text-sm font-medium block mb-1.5">Models</label>
                                     <Input
                                         placeholder="openai:gpt-4o-mini, anthropic:claude-3-haiku..."
                                         value={blueprint.models.join(', ')}
                                         onChange={(e: ChangeEvent<HTMLInputElement>) => setBlueprint(p => ({ ...p, models: e.target.value.split(',').map(m => m.trim()).filter(Boolean) }))}
+                                        className="blueprint-input"
                                     />
                                     <p className="text-xs text-muted-foreground mt-1.5">Comma-separated list of model identifiers.</p>
                                 </div>
-                            )}
-                            {blueprint.system && (
                                 <div>
                                     <label className="text-sm font-medium block mb-1.5">System Prompt</label>
                                     <Textarea
@@ -606,58 +497,55 @@ export default function BlueprintEditorClientPage() {
                                         value={blueprint.system}
                                         onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setBlueprint(p => ({ ...p, system: e.target.value }))}
                                         rows={3}
+                                        className="blueprint-input"
                                     />
                                 </div>
-                            )}
-                            {blueprint.tags && blueprint.tags.length > 0 && (
                                 <div>
                                     <label className="text-sm font-medium block mb-1.5">Tags</label>
                                     <Input
                                         placeholder="creative-writing, classification..."
-                                        value={blueprint.tags.join(', ')}
+                                        value={(blueprint.tags || []).join(', ')}
                                         onChange={(e: ChangeEvent<HTMLInputElement>) => setBlueprint(p => ({ ...p, tags: e.target.value.split(',').map(m => m.trim()).filter(Boolean) }))}
+                                        className="blueprint-input"
                                     />
                                 </div>
-                            )}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {blueprint.concurrency !== undefined && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                     <div>
                                         <label className="text-sm font-medium block mb-1.5">Concurrency</label>
                                         <Input
                                             type="number"
                                             placeholder="10"
-                                            value={blueprint.concurrency}
+                                            value={blueprint.concurrency || ''}
                                             onChange={(e: ChangeEvent<HTMLInputElement>) => setBlueprint(p => ({ ...p, concurrency: parseInt(e.target.value, 10) || undefined }))}
+                                            className="blueprint-input"
                                         />
                                     </div>
-                                )}
-                                {blueprint.temperature !== undefined && (
                                     <div>
                                         <label className="text-sm font-medium block mb-1.5">Temperature</label>
                                         <Input
                                             type="number"
                                             step="0.1"
                                             placeholder="0.5"
-                                            value={blueprint.temperature}
+                                            value={blueprint.temperature || ''}
                                             onChange={(e: ChangeEvent<HTMLInputElement>) => setBlueprint(p => ({ ...p, temperature: parseFloat(e.target.value) || undefined }))}
+                                            className="blueprint-input"
                                         />
                                     </div>
-                                )}
-                                 {blueprint.temperatures && blueprint.temperatures.length > 0 && (
-                                    <div className="sm:col-span-2 lg:col-span-3">
+                                        <div className="sm:col-span-2 lg:col-span-3">
                                         <label className="text-sm font-medium block mb-1.5">Temperatures (Array)</label>
                                         <Input
                                             placeholder="0.0, 0.5, 1.0"
-                                            value={blueprint.temperatures.join(', ')}
+                                            value={(blueprint.temperatures || []).join(', ')}
                                             onChange={(e: ChangeEvent<HTMLInputElement>) => setBlueprint(p => ({ ...p, temperatures: e.target.value.split(',').map(m => parseFloat(m.trim())).filter(n => !isNaN(n)) }))}
+                                            className="blueprint-input"
                                         />
-                                         <p className="text-xs text-muted-foreground mt-1.5">Array of temperatures overrides single temperature field.</p>
-                                    </div>
-                                )}
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
+                                            <p className="text-xs text-muted-foreground mt-1.5">An array of temperatures to test, overriding the single field above.</p>
+                                        </div>
+                                </div>
+                            </CardContent>
+                        </CollapsibleContent>
+                    </Collapsible>
+                </Card>
 
                 <div className="divide-y divide-slate-200/70 dark:divide-slate-800/50">
                     {blueprint.prompts.map((prompt) => (
@@ -666,15 +554,16 @@ export default function BlueprintEditorClientPage() {
                             prompt={prompt}
                             onUpdate={handleUpdatePrompt}
                             onRemove={() => handleRemovePrompt(prompt.id)}
-                            isAdvancedMode={isAdvancedMode}
                         />
                     ))}
                 </div>
 
-                <Button onClick={handleAddPrompt} variant="outline" className="w-full mt-8 py-6 border-dashed">
-                    <Plus className="h-5 w-5 mr-2" />
-                    Add New Prompt
-                </Button>
+                <div className="text-center mt-8">
+                    <Button onClick={handleAddPrompt} size="lg" className="h-12 font-semibold">
+                        <Plus className="h-5 w-5 mr-2" />
+                        Add New Prompt
+                    </Button>
+                </div>
             </div>
           </div>
 

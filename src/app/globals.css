@@ -13,7 +13,7 @@
     --card: 0 0% 100%; /* Light card - White */
     --card-foreground: 222.2 84% 4.9%; /* Dark text for card */
     --border: 214.3 31.8% 91.4%; /* Light border - Light gray */
-    --input: 214.3 31.8% 91.4%; /* Light input - Light gray */
+    --input: 214.3 31.8% 91.4%; /* Light input border - Light gray */
     --primary: 210 100% 45.1%; /* ORIGINAL BLUE: #0073e6 */
     --primary-foreground: 0 0% 100%; /* ORIGINAL WHITE: #ffffff */
     --secondary: 210 40% 96.1%; /* Light secondary - Light gray */
@@ -70,7 +70,7 @@
     --card: 222.2 84% 4.9%; /* Dark card */
     --card-foreground: 210 40% 98%; /* Light text for card */
     --border: 217.2 32.6% 17.5%; /* Dark border - Dark gray */
-    --input: 217.2 32.6% 17.5%; /* Dark input - Dark gray */
+    --input: 217.2 32.6% 17.5%; /* Dark input border - Dark gray */
     --primary: 210 100% 45.1%; /* ORIGINAL BLUE: #0073e6 */
     --primary-foreground: 0 0% 100%; /* ORIGINAL WHITE: #ffffff */
     --secondary: 217.2 32.6% 17.5%; /* Dark secondary - Dark gray */
@@ -132,6 +132,11 @@ body {
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Add custom class for forcing white background on inputs in light mode */
+.light .blueprint-input {
+  @apply bg-white;
 }
 
 .scroll-fade-bottom {
