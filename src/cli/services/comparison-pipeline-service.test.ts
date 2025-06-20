@@ -4,7 +4,6 @@ import { ComparisonConfig, ConversationMessage, EvaluationMethod } from '../type
 import { getConfig, configure } from '../config';
 import { getModelResponse, GetModelResponseOptions } from '../services/llm-service';
 import * as llmService from './llm-service';
-import { LLMApiCallOptions } from '../../lib/llm-clients/types';
 
 // Mock dependencies
 jest.mock('../../lib/storageService', () => ({

@@ -2,7 +2,6 @@ import { getConfig } from '../config';
 import { ComparisonConfig, EvaluationMethod, PromptResponseData, EvaluationInput, FinalComparisonOutputV2, Evaluator, IDEAL_MODEL_ID, ConversationMessage } from '../types/comparison_v2';
 import { getModelResponse, DEFAULT_TEMPERATURE } from './llm-service';
 import { checkForErrors } from '../utils/response-utils';
-import { getEffectiveModelId, getUniqueModelIds } from '@/app/utils/modelIdUtils';
 import { EmbeddingEvaluator } from '@/cli/evaluators/embedding-evaluator';
 import { LLMCoverageEvaluator } from '@/cli/evaluators/llm-coverage-evaluator';
 import { saveResult as saveResultToStorage } from '@/lib/storageService';
