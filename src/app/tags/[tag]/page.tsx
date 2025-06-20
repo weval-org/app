@@ -112,7 +112,7 @@ export default async function TaggedBlueprintsPage({ params }: { params: Promise
 
           {filteredConfigs.length > 0 && (
             <div className="space-y-5 md:space-y-6">
-              <BrowseAllBlueprintsSection blueprints={blueprintSummaries} />
+              <BrowseAllBlueprintsSection blueprints={blueprintSummaries} title={`Evaluations Tagged: "${tagName}"`} />
             </div>
           )}
         </main>

@@ -3,8 +3,10 @@ import { getLatestRunsSummary } from '@/lib/storageService';
 import Link from 'next/link';
 import CIPLogo from '@/components/icons/CIPLogo';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
 import LatestEvaluationRunsSection, { DisplayableRunInstanceInfo } from '@/app/components/home/LatestEvaluationRunsSection';
+import dynamic from 'next/dynamic';
+
+const ArrowLeft = dynamic(() => import('lucide-react').then((mod) => mod.ArrowLeft));
 
 export const revalidate = 60; // Revalidate every 60 seconds
 

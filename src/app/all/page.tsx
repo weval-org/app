@@ -21,8 +21,11 @@ interface BlueprintIndexItem {
     tags: string[];
 }
 
-export default async function AllBlueprintsPage({ searchParams }: { searchParams: { page?: string } }) {
-    const page = parseInt(searchParams.page || '1', 10);
+export default async function AllBlueprintsPage(props: {
+    searchParams: Promise<{ page?: string }>;
+}) {
+    const searchParams = await props.searchParams;
+    const page = parseInt(searchParams?.page || '1', 10);
     const allConfigIds = await listConfigIds();
     const totalPages = Math.ceil(allConfigIds.length / ITEMS_PER_PAGE);
     const currentPage = Math.max(1, Math.min(page, totalPages));

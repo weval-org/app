@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import { ComparisonConfig } from '@/cli/types/comparison_v2';
 import { resolveModelsInConfig, SimpleLogger } from '@/lib/blueprint-service';
-import { fetchBlueprintContentByName } from '@/lib/blueprint-parser';
-import { scheduleEvaluation } from '@/lib/scheduling-service';
 
 // Simple logger for this API route
 const logger: SimpleLogger = {
