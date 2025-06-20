@@ -193,7 +193,7 @@ const AggregateStatsDisplay: React.FC<AggregateStatsDisplayProps> = ({ stats }) 
   );
 
   return (
-    <div className="my-8 pt-2">
+    <div className="my-2 pt-2">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard 
           title="Best Performing Eval"

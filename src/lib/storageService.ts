@@ -100,6 +100,7 @@ export async function getHomepageSummary(): Promise<HomepageSummaryFileContent |
 
   if (storageProvider === 's3' && s3Client && s3BucketName) {
     try {
+      // Note: The key for the homepage summary is at the root of the bucket for legacy reasons.
       const command = new GetObjectCommand({ Bucket: s3BucketName, Key: fileName });
       const { Body } = await s3Client.send(command);
       if (Body) {
@@ -115,8 +116,9 @@ export async function getHomepageSummary(): Promise<HomepageSummaryFileContent |
     }
   } else if (storageProvider === 'local') {
     try {
+      // The homepage summary is stored in the root of the multi directory
       const filePath = path.join(RESULTS_DIR, MULTI_DIR, fileName);
-      if (fsSync.existsSync(filePath)) { // Use fsSync for existsSync
+      if (fsSync.existsSync(filePath)) {
         fileContent = await fs.readFile(filePath, 'utf-8');
       } else {
         console.log(`[StorageService] Homepage summary file not found locally: ${filePath}`);
@@ -192,6 +194,7 @@ export async function saveHomepageSummary(summaryData: HomepageSummaryFileConten
     try {
       const command = new PutObjectCommand({
         Bucket: s3BucketName,
+        // Note: The key for the homepage summary is at the root of the bucket for legacy reasons.
         Key: fileName,
         Body: fileContent,
         ContentType: 'application/json',
@@ -215,6 +218,132 @@ export async function saveHomepageSummary(summaryData: HomepageSummaryFileConten
   } else {
     console.warn(`[StorageService] No valid storage provider configured for saveHomepageSummary. Data not saved. STORAGE_PROVIDER: ${storageProvider}`);
     // Potentially throw an error here if saving is critical and no provider is found
+  }
+}
+
+/**
+ * Retrieves the summary for a single configuration.
+ * @param configId The configuration ID.
+ * @returns The parsed summary data for the config, or null if not found.
+ */
+export async function getConfigSummary(configId: string): Promise<EnhancedComparisonConfigInfo | null> {
+  const fileName = 'summary.json';
+  let fileContent: string | null = null;
+
+  if (storageProvider === 's3' && s3Client && s3BucketName) {
+    const s3Key = path.join(MULTI_DIR, configId, fileName);
+    try {
+      const command = new GetObjectCommand({ Bucket: s3BucketName, Key: s3Key });
+      const { Body } = await s3Client.send(command);
+      if (Body) {
+        fileContent = await streamToString(Body as Readable);
+      }
+    } catch (error: any) {
+      if (error.name === 'NoSuchKey') {
+        console.log(`[StorageService] Per-config summary not found in S3: ${s3Key}`);
+        return null;
+      }
+      console.error(`[StorageService] Error fetching per-config summary from S3: ${s3Key}`, error);
+      return null;
+    }
+  } else if (storageProvider === 'local') {
+    try {
+      const filePath = path.join(RESULTS_DIR, MULTI_DIR, configId, fileName);
+      if (fsSync.existsSync(filePath)) {
+        fileContent = await fs.readFile(filePath, 'utf-8');
+      } else {
+        console.log(`[StorageService] Per-config summary not found locally: ${filePath}`);
+        return null;
+      }
+    } catch (error) {
+      console.error(`[StorageService] Error fetching per-config summary from local disk: ${fileName}`, error);
+      return null;
+    }
+  }
+
+  if (!fileContent) {
+    return null;
+  }
+
+  try {
+    const parsedContent: SerializableEnhancedComparisonConfigInfo = JSON.parse(fileContent);
+    
+    // Rehydrate Maps
+    const configWithMaps: EnhancedComparisonConfigInfo = {
+      ...parsedContent,
+      runs: parsedContent.runs.map(run => ({
+        ...run,
+        perModelHybridScores: run.perModelHybridScores 
+          ? new Map(Object.entries(run.perModelHybridScores)) 
+          : new Map()
+      })),
+    };
+
+    return configWithMaps;
+  } catch (error) {
+    console.error(`[StorageService] Error parsing per-config summary for ${configId}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Saves the summary for a single configuration.
+ * @param configId The configuration ID.
+ * @param summaryData The summary data for that single configuration.
+ */
+export async function saveConfigSummary(configId: string, summaryData: EnhancedComparisonConfigInfo): Promise<void> {
+  const fileName = 'summary.json';
+
+  // Prepare data for serialization: convert Maps to objects
+  const serializableRuns: SerializableEnhancedRunInfo[] = summaryData.runs.map((run: EnhancedRunInfo) => {
+    const { perModelHybridScores, ...restOfRun } = run;
+    const serializableRun: SerializableEnhancedRunInfo = { ...restOfRun };
+
+    if (perModelHybridScores instanceof Map) {
+      serializableRun.perModelHybridScores = Object.fromEntries(perModelHybridScores);
+    } else if (perModelHybridScores) { 
+      serializableRun.perModelHybridScores = perModelHybridScores as SerializableScoreMap;
+    } else {
+      serializableRun.perModelHybridScores = {}; 
+    }
+
+    return serializableRun;
+  });
+
+  const serializableSummary: SerializableEnhancedComparisonConfigInfo = {
+    ...summaryData,
+    runs: serializableRuns,
+  };
+
+  const fileContent = JSON.stringify(serializableSummary, null, 2);
+
+  if (storageProvider === 's3' && s3Client && s3BucketName) {
+    const s3Key = path.join(MULTI_DIR, configId, fileName);
+    try {
+      const command = new PutObjectCommand({
+        Bucket: s3BucketName,
+        Key: s3Key,
+        Body: fileContent,
+        ContentType: 'application/json',
+      });
+      await s3Client.send(command);
+      console.log(`[StorageService] Per-config summary saved to S3: ${s3Key}`);
+    } catch (error) {
+      console.error(`[StorageService] Error saving per-config summary to S3: ${s3Key}`, error);
+      throw error;
+    }
+  } else if (storageProvider === 'local') {
+    const filePath = path.join(RESULTS_DIR, MULTI_DIR, configId, fileName);
+    try {
+      await fs.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.writeFile(filePath, fileContent, 'utf-8');
+      console.log(`[StorageService] Per-config summary saved to local disk: ${filePath}`);
+    } catch (error) {
+      console.error(`[StorageService] Error saving per-config summary to local disk: ${filePath}`, error);
+      throw error;
+    }
+  } else {
+    console.warn(`[StorageService] No valid storage provider configured for saveConfigSummary. Data not saved.`);
   }
 }
 

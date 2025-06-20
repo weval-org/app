@@ -12,6 +12,7 @@ export default {
   		colors: {
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
+  			header: 'hsl(var(--header))',
   			card: {
   				DEFAULT: 'hsl(var(--card))',
   				foreground: 'hsl(var(--card-foreground))'
@@ -41,6 +42,7 @@ export default {
   				DEFAULT: 'hsl(var(--accent))',
   				foreground: 'hsl(var(--accent-foreground))'
   			},
+        surface: 'hsl(var(--surface))',
         'accent-cta': {
           DEFAULT: 'hsl(var(--accent-cta))',
           foreground: 'hsl(var(--accent-cta-foreground))'
@@ -59,7 +61,10 @@ export default {
   				'5': 'hsl(var(--chart-5))'
   			},
         'highlight-info': 'hsl(var(--highlight-info))',
-        'highlight-success': 'hsl(var(--highlight-success))',
+        'highlight-success': {
+          DEFAULT: 'hsl(var(--highlight-success))',
+          foreground: 'hsl(var(--highlight-success-foreground))'
+        },
         'highlight-warning': 'hsl(var(--highlight-warning))',
         'highlight-error': 'hsl(var(--highlight-error))',
         'coverage-unmet': 'hsl(var(--coverage-unmet))',

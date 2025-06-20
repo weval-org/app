@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import CivicEvalLogo from '@/components/icons/CivicEvalLogo';
+import CIPLogo from '@/components/icons/CIPLogo';
 import Link from 'next/link';
 import { BLUEPRINT_CONFIG_REPO_URL } from '@/lib/configConstants';
 import {
@@ -346,7 +346,7 @@ export default function BlueprintEditorClientPage() {
             if (exp.type === 'concept') {
                 if (!exp.value?.trim()) return null;
                 if (exp.weight && exp.weight !== 1.0) {
-                    return { text: exp.value, weight: exp.weight };
+                    return { point: exp.value, weight: exp.weight };
                 }
                 return exp.value;
             }
@@ -520,7 +520,7 @@ export default function BlueprintEditorClientPage() {
   if (!isClient) {
     return (
         <div className="flex h-screen items-center justify-center bg-slate-50 dark:bg-slate-950">
-            <CivicEvalLogo className="w-12 h-12 text-primary dark:text-sky-400 animate-pulse" />
+            <CIPLogo className="w-12 h-12 text-foreground animate-pulse" />
         </div>
     );
   }
@@ -535,7 +535,7 @@ export default function BlueprintEditorClientPage() {
                      <div className="justify-self-start" />
                     <div className="justify-self-center">
                         <h1 className="text-xl font-bold tracking-tight text-foreground dark:text-slate-50 flex items-center gap-2">
-                           <CivicEvalLogo className="w-7 h-7 text-primary dark:text-sky-400" />
+                           <CIPLogo className="w-7 h-7 text-foreground" />
                            <span>Blueprint Editor</span>
                         </h1>
                     </div>

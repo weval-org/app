@@ -165,16 +165,12 @@ export function parseAndNormalizeBlueprint(content: string, fileType: 'json' | '
     // Normalize header fields
     finalConfig.id = finalConfig.id || configHeader.configId;
     finalConfig.title = finalConfig.title || configHeader.configTitle;
-    finalConfig.systemPrompt = finalConfig.systemPrompt || configHeader.system;
+    finalConfig.system = finalConfig.system || configHeader.systemPrompt; // Legacy alias
     
-    // Clean up header aliases
-    const headerKeys = Object.keys(finalConfig);
-    const allowedHeaderKeys: (keyof ComparisonConfig)[] = ['id', 'title', 'description', 'tags', 'models', 'systemPrompt', 'concurrency', 'temperatures', 'evaluationConfig', 'prompts'];
-    headerKeys.forEach(key => {
-        if (!allowedHeaderKeys.includes(key as any)) {
-            delete (finalConfig as any)[key];
-        }
-    });
+    // Clean up header aliases and old fields
+    delete (finalConfig as any).configId;
+    delete (finalConfig as any).configTitle;
+    delete (finalConfig as any).systemPrompt;
 
     // Normalize prompts
     finalConfig.prompts = (rawPrompts || []).map((p: any) => {

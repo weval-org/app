@@ -370,12 +370,22 @@ Update your `.env` file (for local development) and configure these in your depl
 - **Netlify Deployment (for automated functions):**
     - Netlify automatically provides `process.env.URL`.
     - `NETLIFY_API_TOKEN` and `SITE_ID` were previously considered for function invocation but are not strictly needed with the current direct POST method between functions. However, keep them in mind if more advanced Netlify API interactions are added later.
+- **Branding & Theming (Optional):**
+    - `NEXT_PUBLIC_THEME_COLOR_PRIMARY_HSL`: The main brand accent color (e.g., for buttons, links). Format: "H S% L%"
+    - `NEXT_PUBLIC_THEME_COLOR_FOREGROUND_HSL`: The primary text color. Format: "H S% L%"
+    - `NEXT_PUBLIC_THEME_COLOR_BACKGROUND_HSL`: The main page background. Format: "H S% L%"
+    - `NEXT_PUBLIC_THEME_COLOR_HEADER_HSL`: The background color for the main site header. Format: "H S% L%"
+    - `NEXT_PUBLIC_THEME_COLOR_SURFACE_HSL`: Background for elevated elements like cards and popovers. Format: "H S% L%"
+    - `NEXT_PUBLIC_THEME_COLOR_DESTRUCTIVE_HSL`: For errors and destructive actions. Format: "H S% L%"
+    - `NEXT_PUBLIC_THEME_COLOR_ACCENT_HSL`: A secondary accent color. Format: "H S% L%"
+    - `NEXT_PUBLIC_THEME_COLOR_WARNING_HSL`: An accent for warning messages. Format: "H S% L%"
+    - `NEXT_PUBLIC_THEME_COLOR_FOREGROUND_ON_PRIMARY_HSL`: Text color for elements with a primary background. Format: "H S% L%"
 
 ### Quick Start (Local Development & Config Testing)
 
 This example demonstrates the `run_config` command for local use.
 
-**1. Create a Rich Blueprint File (e.g., `evaluation_blueprints/comprehensive_test.yml`)**
+**1. Create a Rich Blueprint File**
 
 ```yaml
 # Main configuration for the blueprint

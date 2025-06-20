@@ -63,7 +63,7 @@ evaluationConfig:
     - fn: word_count_between
       arg: [5, 15]
       weight: 1.5
-    - text: "The response is a valid JSON object as requested."
+    - point: "The response is a valid JSON object as requested."
 
 - id: test-js-function-and-system-override
   prompt: "Respond with just a single number: 85"

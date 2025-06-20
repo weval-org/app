@@ -83,9 +83,12 @@ export interface ConfigData {
     title?: string;
     description?: string;
     models: string[];
+    system?: string | null; // For single system prompt
+    systems?: (string | null)[]; // For system prompt permutations
     systemPrompt?: string | null;
     concurrency?: number;
     temperature?: number;
+    temperatures?: number[];
     prompts: ConfigPromptData[];
     tags?: string[];
 }

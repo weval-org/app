@@ -46,8 +46,14 @@ import ModelEvaluationDetailModal from '@/app/analysis/components/ModelEvaluatio
 import DebugPanel from '@/app/analysis/components/DebugPanel';
 import CoverageHeatmapCanvas from '@/app/analysis/components/CoverageHeatmapCanvas';
 import { Badge } from '@/components/ui/badge';
-import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelIdUtils';
+import { getModelDisplayLabel, parseEffectiveModelId, getCanonicalModels } from '@/app/utils/modelIdUtils';
 import { BLUEPRINT_CONFIG_REPO_URL } from '@/lib/configConstants';
+import {
+    Tabs,
+    TabsContent,
+    TabsList,
+    TabsTrigger,
+} from "@/components/ui/tabs"
 
 const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.AlertCircle))
 const XCircle = dynamic(() => import("lucide-react").then((mod) => mod.XCircle))
@@ -56,6 +62,14 @@ const HelpCircle = dynamic(() => import("lucide-react").then(mod => mod.HelpCirc
 const CheckCircle2 = dynamic(() => import("lucide-react").then((mod) => mod.CheckCircle2))
 const GitCommit = dynamic(() => import("lucide-react").then((mod) => mod.GitCommit))
 const AlertTriangle = dynamic(() => import("lucide-react").then((mod) => mod.AlertTriangle))
+
+const getHybridScoreColorClass = (score: number | null | undefined): string => {
+    if (score === null || score === undefined) return 'bg-muted/30 text-muted-foreground dark:text-slate-400';
+    if (score >= 0.75) return 'bg-highlight-success/80 text-white dark:text-slate-50';
+    if (score >= 0.50) return 'bg-highlight-warning/80 text-white dark:text-slate-50';
+    if (score > 0) return 'bg-highlight-error/80 text-white dark:text-slate-50';
+    return 'bg-muted/80 text-white dark:text-slate-50';
+};
 
 interface ModelEvaluationDetailModalData {
   modelId: string;
@@ -85,6 +99,10 @@ export default function BetaComparisonClientPage() {
   const [selectedPairForModal, setSelectedPairForModal] = useState<ImportedSelectedPairInfo | null>(null);
   const [excludedModelsList, setExcludedModelsList] = useState<string[]>([]);
   const [forceIncludeExcludedModels, setForceIncludeExcludedModels] = useState<boolean>(false);
+  const [selectedTemperatures, setSelectedTemperatures] = useState<number[]>([]);
+  const [activeSysPromptIndex, setActiveSysPromptIndex] = useState(0);
+  const [perSystemVariantHybridScores, setPerSystemVariantHybridScores] = useState<Record<number, number | null>>({});
+  const [perTemperatureVariantHybridScores, setPerTemperatureVariantHybridScores] = useState<Record<string, number | null>>({});
 
   const displayedModels = useMemo(() => {
     if (!data?.effectiveModels) return [];
@@ -93,6 +111,38 @@ export default function BetaComparisonClientPage() {
     }
     return (data.effectiveModels || []).filter((m: string) => !excludedModelsList.includes(m));
   }, [data?.effectiveModels, excludedModelsList, forceIncludeExcludedModels]);
+
+  const modelsForMacroTable = useMemo(() => {
+    if (!data) return [];
+    
+    let models = displayedModels;
+
+    // Filter by the active system prompt tab if it's a permutation run
+    if (data.config.systems && data.config.systems.length > 1) {
+        models = models.filter(modelId => {
+            const { systemPromptIndex } = parseEffectiveModelId(modelId);
+            // Models without an index are not part of any permutation tab.
+            return systemPromptIndex === activeSysPromptIndex;
+        });
+    }
+
+    // Further filter by temperature if a selection has been made
+    if (selectedTemperatures.length > 0) {
+        models = models.filter(modelId => {
+            const { temperature } = parseEffectiveModelId(modelId);
+            return temperature === undefined || selectedTemperatures.includes(temperature);
+        });
+    }
+
+    return models;
+  }, [displayedModels, activeSysPromptIndex, selectedTemperatures, data]);
+
+  const modelsForAggregateView = useMemo(() => {
+    if (!data) return [];
+    // For aggregate views, we want a cleaner, canonical list of models.
+    // We pass the *original* effectiveModels list to the canonical function, not the one that may have exclusions.
+    return getCanonicalModels(data.effectiveModels, data.config);
+  }, [data]);
 
   const [overallIdealExtremes, setOverallIdealExtremes] = useState<ReturnType<typeof findIdealExtremes> | null>(null);
   const [overallAvgCoverageStats, setOverallAvgCoverageStats] = useState<{average: number | null, stddev: number | null} | null>(null);
@@ -246,6 +296,58 @@ export default function BetaComparisonClientPage() {
         } else {
           console.warn("API did not provide perModelSemanticScores. Ensure API calculates this.");
           setCalculatedPerModelSemanticScores(new Map());
+        }
+
+        if (result.config.systems && result.config.systems.length > 1 && result.evaluationResults?.perPromptSimilarities && result.evaluationResults?.llmCoverageScores && result.effectiveModels && result.promptIds) {
+            const scoresByVariant: Record<number, number | null> = {};
+            for (let i = 0; i < result.config.systems.length; i++) {
+                const modelsForVariant = result.effectiveModels.filter(modelId => {
+                    const { systemPromptIndex } = parseEffectiveModelId(modelId);
+                    return systemPromptIndex === i;
+                });
+
+                if (modelsForVariant.length > 0) {
+                    const hybridStatsForVariant = calculateAverageHybridScoreForRun(
+                        result.evaluationResults.perPromptSimilarities,
+                        result.evaluationResults.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>>,
+                        modelsForVariant,
+                        result.promptIds,
+                        IDEAL_MODEL_ID
+                    );
+                    scoresByVariant[i] = hybridStatsForVariant?.average ?? null;
+                } else {
+                    scoresByVariant[i] = null;
+                }
+            }
+            setPerSystemVariantHybridScores(scoresByVariant);
+        } else {
+            setPerSystemVariantHybridScores({});
+        }
+
+        if (result.config.temperatures && result.config.temperatures.length > 1 && result.evaluationResults?.perPromptSimilarities && result.evaluationResults?.llmCoverageScores && result.effectiveModels && result.promptIds) {
+            const scoresByTemp: Record<string, number | null> = {};
+            for (const temp of result.config.temperatures) {
+                const modelsForTemp = result.effectiveModels.filter(modelId => {
+                    const { temperature } = parseEffectiveModelId(modelId);
+                    return temperature === temp;
+                });
+
+                if (modelsForTemp.length > 0) {
+                    const hybridStatsForTemp = calculateAverageHybridScoreForRun(
+                        result.evaluationResults.perPromptSimilarities,
+                        result.evaluationResults.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>>,
+                        modelsForTemp,
+                        result.promptIds,
+                        IDEAL_MODEL_ID
+                    );
+                    scoresByTemp[temp.toFixed(1)] = hybridStatsForTemp?.average ?? null;
+                } else {
+                    scoresByTemp[temp.toFixed(1)] = null;
+                }
+            }
+            setPerTemperatureVariantHybridScores(scoresByTemp);
+        } else {
+            setPerTemperatureVariantHybridScores({});
         }
 
       } catch (err) {
@@ -653,7 +755,7 @@ export default function BetaComparisonClientPage() {
         )}
         <DownloadResultsButton data={data} label={`${data.configTitle || configIdFromUrl} - ${data.runLabel || runLabel}${timestampFromUrl ? ' (' + formatTimestampForDisplay(fromSafeTimestamp(timestampFromUrl)) + ')' : ''}`} />
         <Button asChild variant="outline">
-            <Link href={`/api/comparison/${configIdFromUrl}/${runLabel}/${timestampFromUrl}/markdown`} download={`${data.configTitle || configIdFromUrl}_${data.runLabel || runLabel}.md`}>
+            <Link href={`/api/comparison/${configIdFromUrl}/${runLabel}/${timestampFromUrl}/markdown`} download>
                 Download Markdown
             </Link>
         </Button>
@@ -677,6 +779,31 @@ export default function BetaComparisonClientPage() {
         />
 
         {renderPromptSelector()}
+
+        {data?.config?.systems && data.config.systems.length > 1 && (
+            <Card className="shadow-lg border-border dark:border-slate-700">
+                <CardHeader>
+                <CardTitle className="text-primary dark:text-sky-400">System Prompt Variants</CardTitle>
+                <CardDescription>This run was executed against the following system prompt variations.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                <ul className="space-y-3">
+                    {data.config.systems.map((systemPrompt, index) => (
+                    <li key={index} className="flex items-start gap-3 p-2 rounded-md bg-muted/50 dark:bg-slate-800/30">
+                        <Badge variant="secondary" className="mt-1">{`sp_idx:${index}`}</Badge>
+                        <div className="text-sm text-card-foreground dark:text-slate-200">
+                        {systemPrompt === null ? (
+                            <em className="text-muted-foreground">[No System Prompt]</em>
+                        ) : (
+                            <p className="whitespace-pre-wrap font-mono">{systemPrompt}</p>
+                        )}
+                        </div>
+                    </li>
+                    ))}
+                </ul>
+                </CardContent>
+            </Card>
+        )}
 
         {excludedModelsList.length > 0 && !currentPromptId && !forceIncludeExcludedModels && (
              <Alert variant="destructive">
@@ -851,6 +978,74 @@ export default function BetaComparisonClientPage() {
                      <CardDescription className="text-muted-foreground dark:text-slate-400 pt-1 text-sm">
                         Detailed breakdown of how each model response covers the evaluation criteria for prompt: <strong className="text-card-foreground dark:text-slate-200 font-normal">{currentPromptDisplayText}</strong>.
                     </CardDescription>
+
+                    {/* Variant Filters moved here for better usability */}
+                    {!currentPromptId && (data?.config.temperatures || data?.config.systems) && (
+                        <div className="pt-4 mt-4 border-t border-border/50 dark:border-slate-700/50">
+                            <div className="flex flex-wrap items-end gap-x-6 gap-y-4">
+                                {data.config.temperatures && data.config.temperatures.length > 1 && (
+                                    <div>
+                                        <label className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">Temperatures</label>
+                                        <div className="flex flex-wrap gap-2 mt-1">
+                                            {data.config.temperatures.map(temp => (
+                                                <Button
+                                                    key={temp}
+                                                    size="sm"
+                                                    variant={selectedTemperatures.includes(temp) ? "default" : "outline"}
+                                                    onClick={() => {
+                                                        setSelectedTemperatures(prev =>
+                                                            prev.includes(temp) ? prev.filter(t => t !== temp) : [...prev, temp]
+                                                        );
+                                                    }}
+                                                >
+                                                    {(() => {
+                                                        const score = perTemperatureVariantHybridScores[temp.toFixed(1)];
+                                                        if (score !== null && score !== undefined) {
+                                                            return (
+                                                                <>
+                                                                    <span className={`px-1.5 py-0.5 rounded-sm text-xs font-semibold ${getHybridScoreColorClass(score)}`}>
+                                                                        {score.toFixed(2)}
+                                                                    </span>
+                                                                    <span>{temp.toFixed(1)}</span>
+                                                                </>
+                                                            );
+                                                        }
+                                                        return temp.toFixed(1);
+                                                    })()}
+                                                </Button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {data.config.systems && data.config.systems.length > 1 && (
+                                    <div>
+                                        <label className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">System Prompts</label>
+                                        <div className="flex flex-wrap gap-2 mt-1">
+                                            {data.config.systems.map((_, index) => (
+                                                <Button
+                                                    key={index}
+                                                    size="sm"
+                                                    variant={selectedTemperatures.includes(index) ? "default" : "outline"}
+                                                    onClick={() => {
+                                                        setSelectedTemperatures(prev =>
+                                                            prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index]
+                                                        );
+                                                    }}
+                                                >
+                                                    {`sp_idx:${index}`}
+                                                </Button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {(selectedTemperatures.length > 0 || selectedTemperatures.length > 0) && (
+                                    <Button variant="link" size="sm" className="p-0 h-auto text-xs" onClick={() => {
+                                        setSelectedTemperatures([]);
+                                    }}>Reset Filters</Button>
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </CardHeader>
                 <CardContent>
                     <KeyPointCoverageTable 
@@ -958,26 +1153,126 @@ export default function BetaComparisonClientPage() {
                             </Button>
                         </div>
                         <CardDescription className="text-muted-foreground dark:text-slate-400 pt-1 text-sm">
-                            Average key point coverage extent for each model across all prompts. Click cell segments for detailed breakdown.
+                            {data.config.systems && data.config.systems.length > 1 
+                                ? "Average key point coverage, broken down by system prompt variant. Select a tab to view its results."
+                                : "Average key point coverage extent for each model across all prompts."
+                            }
                         </CardDescription>
                     </CardHeader>
-                    <CardContent>
-                        <MacroCoverageTable 
-                            allCoverageScores={data.evaluationResults.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>>}
-                            promptIds={promptIds}
-                            promptTexts={promptTextsForMacroTable} 
-                            models={displayedModels.filter(m => m !== IDEAL_MODEL_ID)}
-                            allFinalAssistantResponses={allFinalAssistantResponses}
-                            configId={configIdFromUrl}
-                            runLabel={runLabel}
-                            safeTimestampFromParams={timestampFromUrl}
-                            onCellClick={handleMacroCellClick} 
-                        />
+                    <CardContent className="pt-0">
+                        {data.config.systems && data.config.systems.length > 1 ? (
+                            <Tabs defaultValue={"0"} onValueChange={(value) => setActiveSysPromptIndex(parseInt(value, 10))} className="pt-4">
+                                <TabsList className={`grid w-full ${data.config.systems.length > 4 ? 'grid-cols-4' : `grid-cols-${data.config.systems.length}`}`}>
+                                    {data.config.systems.map((systemPrompt, index) => {
+                                        const truncatedPrompt = systemPrompt
+                                            ? `: "${systemPrompt.substring(0, 20)}${systemPrompt.length > 20 ? '...' : ''}"`
+                                            : ': [No Prompt]';
+                                        
+                                        const score = perSystemVariantHybridScores[index];
+                                        const tabLabel = `Sys. Variant ${index}${truncatedPrompt}`;
+
+                                        return (
+                                            <TooltipProvider key={index}>
+                                                <Tooltip>
+                                                    <TabsTrigger asChild value={String(index)}>
+                                                        <TooltipTrigger asChild>
+                                                            <div className="truncate flex items-center justify-center gap-2 w-full px-1">
+                                                                {score !== null && score !== undefined && (
+                                                                    <span className={`px-1.5 py-0.5 rounded-sm text-xs font-semibold ${getHybridScoreColorClass(score)}`}>
+                                                                        {score.toFixed(2)}
+                                                                    </span>
+                                                                )}
+                                                                <span className="flex-shrink truncate">{tabLabel}</span>
+                                                            </div>
+                                                        </TooltipTrigger>
+                                                    </TabsTrigger>
+                                                    <TooltipContent>
+                                                        <p className="max-w-xs text-sm">
+                                                            {systemPrompt === null ? <em>[No SystemPrompt]</em> : systemPrompt}
+                                                        </p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                        );
+                                    })}
+                                </TabsList>
+                                <div className="mt-4">
+                                    {/* Temperature Filter UI */}
+                                    {data.config.temperatures && data.config.temperatures.length > 1 && (
+                                        <div className="py-4 border-t border-b mb-4">
+                                            <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+                                                <div>
+                                                    <label className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">Filter Temperatures</label>
+                                                    <div className="flex flex-wrap gap-2 mt-2">
+                                                        {data.config.temperatures.map(temp => (
+                                                            <Button
+                                                                key={temp}
+                                                                size="sm"
+                                                                variant={selectedTemperatures.includes(temp) ? "default" : "outline"}
+                                                                className="flex items-center gap-2"
+                                                                onClick={() => {
+                                                                    setSelectedTemperatures(prev =>
+                                                                        prev.includes(temp) ? prev.filter(t => t !== temp) : [...prev, temp]
+                                                                    );
+                                                                }}
+                                                            >
+                                                                {(() => {
+                                                                    const score = perTemperatureVariantHybridScores[temp.toFixed(1)];
+                                                                    if (score !== null && score !== undefined) {
+                                                                        return (
+                                                                            <>
+                                                                                <span className={`px-1.5 py-0.5 rounded-sm text-xs font-semibold ${getHybridScoreColorClass(score)}`}>
+                                                                                    {score.toFixed(2)}
+                                                                                </span>
+                                                                                <span>{temp.toFixed(1)}</span>
+                                                                            </>
+                                                                        );
+                                                                    }
+                                                                    return temp.toFixed(1);
+                                                                })()}
+                                                            </Button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                                {(selectedTemperatures.length > 0) && (
+                                                    <Button variant="link" size="sm" className="p-0 h-auto text-xs self-end" onClick={() => setSelectedTemperatures([])}>
+                                                        Reset
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                    <MacroCoverageTable 
+                                        allCoverageScores={data.evaluationResults.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>>}
+                                        promptIds={promptIds}
+                                        promptTexts={promptTextsForMacroTable} 
+                                        models={modelsForMacroTable.filter(m => m !== IDEAL_MODEL_ID)}
+                                        allFinalAssistantResponses={allFinalAssistantResponses}
+                                        configId={configIdFromUrl}
+                                        runLabel={runLabel}
+                                        safeTimestampFromParams={timestampFromUrl}
+                                        onCellClick={handleMacroCellClick} 
+                                    />
+                                </div>
+                            </Tabs>
+                        ) : (
+                            <MacroCoverageTable 
+                                allCoverageScores={data.evaluationResults.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>>}
+                                promptIds={promptIds}
+                                promptTexts={promptTextsForMacroTable} 
+                                models={displayedModels.filter(m => m !== IDEAL_MODEL_ID)}
+                                allFinalAssistantResponses={allFinalAssistantResponses}
+                                configId={configIdFromUrl}
+                                runLabel={runLabel}
+                                safeTimestampFromParams={timestampFromUrl}
+                                onCellClick={handleMacroCellClick} 
+                            />
+                        )}
                     </CardContent>
                 </Card>
             )}
 
-            {!currentPromptId && data?.evaluationResults?.similarityMatrix && displayedModels && displayedModels.length > 1 && (
+            {!currentPromptId && data?.evaluationResults?.similarityMatrix && modelsForAggregateView && modelsForAggregateView.length > 1 && (
               <>
                 <Card className="shadow-lg border-border dark:border-slate-700">
                   <CardHeader>
@@ -990,7 +1285,7 @@ export default function BetaComparisonClientPage() {
                     <div className="h-[600px] w-full">
                       <SimilarityGraph 
                         similarityMatrix={data.evaluationResults.similarityMatrix}
-                        models={displayedModels}
+                        models={modelsForAggregateView}
                         resolvedTheme={resolvedTheme}
                       />
                     </div>
@@ -1008,7 +1303,7 @@ export default function BetaComparisonClientPage() {
                      <div className="h-[600px] w-full">
                       <DendrogramChart 
                         similarityMatrix={data.evaluationResults.similarityMatrix}
-                        models={displayedModels}
+                        models={modelsForAggregateView}
                       />
                     </div>
                   </CardContent>

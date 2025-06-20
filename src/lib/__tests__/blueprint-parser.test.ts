@@ -143,7 +143,7 @@ prompts:
 
             expect(result.id).toBe('normalization-test');
             expect(result.title).toBe('Normalization Test');
-            expect(result.systemPrompt).toBe('Global system prompt');
+            expect(result.system).toBe('Global system prompt');
             expect(result.prompts).toHaveLength(1);
 
             const prompt = result.prompts[0];
@@ -176,10 +176,10 @@ prompts:
             ['Invalid JSON syntax', `{"id": "json-fail", "prompts": [}`, 'json', 'Failed to parse JSON blueprint'],
             ['Empty YAML file', ``, 'yaml', 'YAML blueprint is empty or contains only null documents.'],
             ['Malformed single-doc file', `id: fail\ntitle: fail`, 'yaml', 'A single YAML document must be an array of prompts, or an object with a "prompts" key.'],
-            ['Point with text and fn', `- prompt: p\n  should:\n    - text: "t"\n      fn: "f"`, 'yaml', "Point cannot have both 'text' and 'fn' defined"],
+            ['Point with text and fn', `- prompt: p\n  should:\n    - point: "t"\n      fn: "f"`, 'yaml', "Point cannot have both 'text' and 'fn' defined"],
             ['Invalid tuple function', `- prompt: p\n  should:\n    - ['contains', 'missing dollar']`, 'yaml', "first element must be a function name starting with '$'"],
             ['Malformed shorthand message', `- prompt: p\n  messages:\n    - { user: "u", assistant: "a" }`, 'yaml', 'Each message in the shorthand format must have exactly one key'],
-            ['Invalid multiplier value', `- prompt: p\n  should:\n    - text: "bad weight"\n      weight: 101`, 'yaml', 'Point multiplier must be a number between 0.1 and 10'],
+            ['Invalid multiplier value', `- prompt: p\n  should:\n    - point: "bad weight"\n      weight: 101`, 'yaml', 'Point multiplier must be a number between 0.1 and 10'],
             ['Invalid point format', `- prompt: p\n  should:\n    - 123`, 'yaml', 'Point must be a string, array, or object'],
             ['Point object with no valid content', `- prompt: p\n  should:\n    - weight: 2.0`, 'yaml', "Point must define 'text', a function ('fn' or '$...'), or a 'Point: Citation' pair"]
         ])('should throw for %s', (_, content, type, expectedError) => {

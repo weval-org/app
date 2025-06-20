@@ -194,7 +194,7 @@ Each item in these arrays is a point definition, processed in the following orde
 4.  **Full Object (Maximum Control)**: For weighting points or adding citations. This is the most verbose, legacy-compatible format.
     ```yaml
     should:
-      - text: "Covers the principle of 'prudent man' rule."
+      - point: "Covers the principle of 'prudent man' rule."
         weight: 3.0 # This point is 3x as important
       - fn: "contains"
         arg: "fiduciary duty"

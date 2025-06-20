@@ -16,7 +16,9 @@ import {
     saveHomepageSummary,
     updateSummaryDataWithNewRun,
     getResultByFileName, // To fetch the result if executeComparisonPipeline only returns a key/path
-    HomepageSummaryFileContent // Import the main type
+    HomepageSummaryFileContent, // Import the main type
+    getConfigSummary,
+    saveConfigSummary
 } from '../../lib/storageService'; // Adjusted path
 import {
     calculateHeadlineStats,
@@ -280,6 +282,53 @@ async function loadAndValidateConfig(configPath: string, collectionsRepoPath?: s
         logger.warn(`Warning: Both 'temperature' (value: ${configJson.temperature}) and a non-empty 'temperatures' array are defined. The 'temperature' field will be ignored.`);
     }
 
+    // Handle system prompt aliasing and validation
+    
+    // If 'system' is an array, treat it as the 'systems' permutation array.
+    if (Array.isArray(configJson.system)) {
+        if (configJson.systems && configJson.systems.length > 0) {
+            logger.warn(`Warning: Both 'system' (as an array) and 'systems' are defined. Using 'systems' and ignoring the array in 'system'.`);
+        } else {
+            logger.info(`Found 'system' field is an array. Treating it as the 'systems' array for permutation.`);
+            configJson.systems = configJson.system;
+        }
+        // Unset 'system' to avoid conflicts and errors with code expecting a string.
+        configJson.system = undefined;
+    }
+
+    // Handle legacy 'systemPrompt' field. This runs after we've potentially handled 'system' as an array.
+    if (configJson.systemPrompt) {
+        if (configJson.system) { // 'system' here would have to be a string.
+            logger.warn(`Warning: Both 'system' (as a string) and legacy 'systemPrompt' are defined. Using 'system' and ignoring 'systemPrompt'.`);
+        } else {
+            logger.info(`Found legacy 'systemPrompt'. Mapping to 'system' for processing.`);
+            configJson.system = configJson.systemPrompt;
+        }
+    }
+
+    // Now 'system' can only be a string or undefined, and 'systems' can be an array or undefined.
+    // This warning should be updated to reflect the new logic.
+    if (configJson.system && Array.isArray(configJson.systems) && configJson.systems.length > 0) {
+        logger.warn(`Warning: Both a singular 'system' prompt and a non-empty 'systems' array are defined. The singular 'system' prompt will be ignored in favor of permutation.`);
+    }
+    
+    if (configJson.systems !== undefined && (!Array.isArray(configJson.systems) || !configJson.systems.every((s: any) => typeof s === 'string' || s === null))) {
+        throw new Error("Config file has invalid 'systems' (must be an array of strings or nulls).");
+    }
+
+    if (Array.isArray(configJson.systems) && configJson.systems.filter(s => s === null).length > 1) {
+        throw new Error("Config file validation error: The 'systems' array can contain at most one 'null' entry.");
+    }
+
+    // If a 'systems' array is defined for permutation, individual prompt-level system prompts are disallowed to ensure experimental hygiene.
+    if (Array.isArray(configJson.systems) && configJson.systems.length > 0) {
+        const promptWithSystemOverride = configJson.prompts.find(p => p.system);
+        if (promptWithSystemOverride) {
+            throw new Error(`Config validation error: When a top-level 'systems' array is defined for permutation, individual prompts (like '${promptWithSystemOverride.id}') cannot have their own 'system' override. This is to ensure a clean comparison across all system prompts.`);
+        }
+        logger.info(`'systems' array found for permutation. All prompts will be run against ${configJson.systems.length} system prompts.`);
+    }
+
     logger.info(`Blueprint for '${configJson.id}' (Title: '${configJson.title}') loaded, validated, and models resolved successfully.`);
     return configJson;
 }
@@ -386,6 +435,11 @@ async function actionV2(options: { config: string, runLabel?: string, evalMethod
         } else if (config.temperature !== undefined) {
             await loggerInstance.info(`Default Temperature: ${config.temperature}`);
         }
+        if (config.systems && config.systems.length > 0) {
+            await loggerInstance.info(`System prompts to run: ${config.systems.length} variants`);
+        } else if (config.system) {
+            await loggerInstance.info(`Default System Prompt: ${config.system.substring(0,100)}...`);
+        }
         await loggerInstance.info('-----------------------------------------------------------------');
 
         const ora = (await import('ora')).default;
@@ -442,24 +496,49 @@ async function actionV2(options: { config: string, runLabel?: string, evalMethod
         }
 
         if (newResultData && (process.env.STORAGE_PROVIDER === 's3' || process.env.UPDATE_LOCAL_SUMMARY === 'true')) { // Only update if S3 or explicitly told for local
+            loggerInstance.info('Attempting to update summary files...');
+            if (!actualResultFileName) {
+                throw new Error('Could not determine result filename for summary update. Result might not have been saved to a persistent location.');
+            }
+
+            // --- 1. Update per-config summary ---
+            try {
+                loggerInstance.info(`Updating summary for config: ${currentConfigId}`);
+                // Fetch the existing summary for just this one config
+                const existingConfigSummary = await getConfigSummary(currentConfigId);
+                // updateSummaryDataWithNewRun expects an array of configs, so we wrap/unwrap
+                const existingConfigsArray = existingConfigSummary ? [existingConfigSummary] : null;
+                const updatedConfigArray = updateSummaryDataWithNewRun(
+                    existingConfigsArray,
+                    newResultData,
+                    actualResultFileName
+                );
+                const newConfigSummary = updatedConfigArray[0]; // It will always return one config object
+                await saveConfigSummary(currentConfigId, newConfigSummary);
+                loggerInstance.info(`Successfully saved per-config summary for ${currentConfigId}.`);
+            } catch (configSummaryError: any) {
+                loggerInstance.error(`Failed to update per-config summary for ${currentConfigId}: ${configSummaryError.message}`);
+                 if (process.env.DEBUG && configSummaryError.stack) {
+                    loggerInstance.error(`Per-config summary update stack trace: ${configSummaryError.stack}`);
+                }
+                // Do not exit, as homepage summary update might still be possible/important.
+            }
+
+            // --- 2. Update homepage summary (for _featured configs) ---
             try {
                 loggerInstance.info('Attempting to update homepage summary manifest with new calculations...');
                 const currentFullSummary = await getHomepageSummary(); // Fetches HomepageSummaryFileContent | null
                 
-                if (!actualResultFileName) {
-                    throw new Error('Could not determine result filename for summary update. Result might not have been saved to a persistent location.');
-                }
-
-                // 1. Update the configs array part of the summary
-                const updatedConfigsArray = updateSummaryDataWithNewRun(
-                    currentFullSummary?.configs || null, // Pass only the configs array, or null if no current summary
+                // 1. Update the in-memory list of configs with the new run data
+                const updatedConfigsArrayForHomepage = updateSummaryDataWithNewRun(
+                    currentFullSummary?.configs || null,
                     newResultData, 
                     actualResultFileName
                 );
 
-                // --- BEGIN: Log Hybrid Score for the New Run ---
+                // --- BEGIN: Log Hybrid Score for the New Run (Unchanged) ---
                 loggerInstance.info('--- Newly Calculated Hybrid Scores ---');
-                const newRunConfig = updatedConfigsArray.find(c => c.configId === newResultData.configId);
+                const newRunConfig = updatedConfigsArrayForHomepage.find(c => c.configId === newResultData.configId);
                 if (newRunConfig) {
                     const newRun = newRunConfig.runs.find(r => r.runLabel === newResultData.runLabel && r.timestamp === newResultData.timestamp);
                     if (newRun && newRun.perModelHybridScores) {
@@ -469,7 +548,6 @@ async function actionV2(options: { config: string, runLabel?: string, evalMethod
                         newRun.perModelHybridScores.forEach((stats, modelId) => {
                            scoresToLog[modelId] = stats.average !== null && stats.average !== undefined ? stats.average.toFixed(4) : 'N/A';
                         });
-                        // Use console.table for nice formatting if possible, otherwise just log the object
                         if (typeof console.table === 'function') {
                             console.table(scoresToLog);
                         } else {
@@ -484,37 +562,42 @@ async function actionV2(options: { config: string, runLabel?: string, evalMethod
                 loggerInstance.info('------------------------------------');
                 // --- END: Log Hybrid Score for the New Run ---
 
-                // Filter out configs with 'test' tag before calculating aggregate stats
-                // These stats are for public consumption, so 'test' items should always be excluded from the *calculation*
-                // of the globally cached/stored homepage summary.
-                const configsForStatsCalculation = updatedConfigsArray.filter(
+                // 2. Filter for '_featured' tag before calculating stats and saving the homepage summary
+                const featuredConfigs = updatedConfigsArrayForHomepage.filter(
+                    config => config.tags?.includes('_featured')
+                );
+                loggerInstance.info(`Total configs in memory: ${updatedConfigsArrayForHomepage.length}. Found ${featuredConfigs.length} configs tagged with '_featured' to be saved in homepage summary.`);
+
+                // Filter out 'test' tags from the featured list for the final public stat calculation
+                const configsForStatsCalculation = featuredConfigs.filter(
                     config => !(config.tags && config.tags.includes('test'))
                 );
-                loggerInstance.info(`Total configs for summary: ${updatedConfigsArray.length}. Configs after filtering 'test' tags for stats calculation: ${configsForStatsCalculation.length}`);
+                loggerInstance.info(`Total featured configs for summary: ${featuredConfigs.length}. Configs after filtering 'test' tags for stats calculation: ${configsForStatsCalculation.length}`);
 
-                // 2. Recalculate headlineStats and driftDetectionResult using the newly updated configs array
+
+                // 3. Recalculate headlineStats and driftDetectionResult using the filtered 'featured' configs array
                 const newHeadlineStats = calculateHeadlineStats(configsForStatsCalculation);
                 const newDriftDetectionResult = calculatePotentialModelDrift(configsForStatsCalculation);
 
-                // 3. Construct the complete new HomepageSummaryFileContent object
+                // 4. Construct the complete new HomepageSummaryFileContent object
                 const newHomepageSummaryContent: HomepageSummaryFileContent = {
-                    configs: updatedConfigsArray,
+                    configs: featuredConfigs, // CRITICAL: Save only the featured configs
                     headlineStats: newHeadlineStats,
                     driftDetectionResult: newDriftDetectionResult,
                     lastUpdated: new Date().toISOString(),
                 };
 
                 await saveHomepageSummary(newHomepageSummaryContent);
-                loggerInstance.info('Homepage summary manifest updated successfully with re-calculated stats.');
+                loggerInstance.info('Homepage summary manifest updated successfully with re-calculated stats based on featured configs.');
             } catch (summaryError: any) {
                 loggerInstance.error(`Failed to update homepage summary manifest: ${summaryError.message}`);
                 if (process.env.DEBUG && summaryError.stack) {
                     loggerInstance.error(`Summary update stack trace: ${summaryError.stack}`);
                 }
-                // Do not exit process here, as the main run was successful.
+                // Do not exit process here, as the main run and per-config summary might have been successful.
             }
         } else {
-            loggerInstance.info('Skipping homepage summary manifest update (not S3 provider or not explicitly enabled for local).');
+            loggerInstance.info('Skipping summary file updates (not S3 provider or not explicitly enabled for local).');
         }
 
         await loggerInstance.info('CivicEval run_config command finished successfully.');

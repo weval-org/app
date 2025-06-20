@@ -202,7 +202,12 @@ function formatPointAssessments(assessments: PointAssessment[] | undefined): str
     return table;
 }
 
-export async function generateRunMarkdown(data: ComparisonDataV2): Promise<string> {
+interface MarkdownGenerationOptions {
+    truncateLength?: number;
+}
+
+export async function generateRunMarkdown(data: ComparisonDataV2, options: MarkdownGenerationOptions = {}): Promise<string> {
+    const { truncateLength } = options;
     const stats = calculateAllRunStats(data);
     const {
         configTitle,
@@ -225,6 +230,10 @@ export async function generateRunMarkdown(data: ComparisonDataV2): Promise<strin
     md += `**Timestamp:** ${formatTimestampForDisplay(fromSafeTimestamp(timestamp))}\n`;
     if (description) md += `**Description:** ${description}\n`;
     if (config?.tags && config.tags.length > 0) md += `**Tags:** ${config.tags.map(t => `\`${t}\``).join(', ')}\n`;
+
+    if (truncateLength) {
+        md += `\n**Note:** All model responses in this report have been truncated to a maximum of ${truncateLength} characters.\n`;
+    }
 
     md += "\n---\n\n";
 
@@ -302,7 +311,11 @@ export async function generateRunMarkdown(data: ComparisonDataV2): Promise<strin
 
             const idealResponse = allFinalAssistantResponses[promptId]?.[IDEAL_MODEL_ID];
             if (idealResponse) {
-                md += `#### Ideal Response\n\n> ${escapeMarkdown(idealResponse).replace(/\n/g, '\n> ')}\n\n`;
+                let displayIdealResponse = idealResponse;
+                if (truncateLength && displayIdealResponse.length > truncateLength) {
+                    displayIdealResponse = displayIdealResponse.substring(0, truncateLength) + `... [truncated, full length: ${idealResponse.length}]`;
+                }
+                md += `#### Ideal Response\n\n> ${escapeMarkdown(displayIdealResponse).replace(/\n/g, '\n> ')}\n\n`;
             }
 
             const points = extractedKeyPoints?.[promptId] || config.prompts.find(p => p.id === promptId)?.points;
@@ -313,11 +326,16 @@ export async function generateRunMarkdown(data: ComparisonDataV2): Promise<strin
             md += "#### Model Responses & Assessments\n\n";
             
             for (const modelId of modelsToDisplay) {
-                const response = allFinalAssistantResponses[promptId]?.[modelId] || "_Response not found._";
+                let response = allFinalAssistantResponses[promptId]?.[modelId] || "_Response not found._";
+                const originalLength = response.length;
                 const llmCoverageResult = evaluationResults?.llmCoverageScores?.[promptId]?.[modelId];
 
                 md += `<details>\n<summary><strong>${getModelDisplayLabel(modelId)}</strong></summary>\n\n`;
                 
+                if (truncateLength && response.length > truncateLength) {
+                    response = response.substring(0, truncateLength) + `... [truncated, full length: ${originalLength}]`;
+                }
+
                 md += `**Response:**\n\n> ${escapeMarkdown(response).replace(/\n/g, '\n> ')}\n\n`;
                 
                 md += "**Scores:**\n";

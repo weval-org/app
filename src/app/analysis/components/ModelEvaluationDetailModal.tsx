@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, ComponentType } from 'react';
 import dynamic from 'next/dynamic';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { getModelDisplayLabel } from '../../utils/modelIdUtils';
+import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelIdUtils';
 import { ConversationMessage, IndividualJudgement } from '../../../app/utils/types';
 
 const AlertTriangle = dynamic(() => import('lucide-react').then(mod => mod.AlertTriangle));
@@ -31,19 +31,17 @@ interface PointAssessment {
     isInverted?: boolean;
 }
 
-interface ModelEvaluationDetailModalData {
-  modelId: string;
-  assessments: PointAssessment[];
-  promptContext: string | ConversationMessage[];
-  promptDescription?: string;
-  modelResponse: string;
-  systemPrompt: string | null;
-}
-
 interface ModelEvaluationDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
-  data: ModelEvaluationDetailModalData | null;
+  data: {
+    modelId: string;
+    assessments: PointAssessment[];
+    promptContext: string | ConversationMessage[];
+    promptDescription?: string;
+    modelResponse: string;
+    systemPrompt: string | null;
+  };
 }
 
 const getScoreColor = (score?: number): string => {
@@ -193,17 +191,36 @@ const AssessmentItem: React.FC<{
     );
 };
 
-const ModelEvaluationDetailModalV2: React.FC<ModelEvaluationDetailModalProps> = ({ isOpen, onClose, data }) => {
+const ModelEvaluationDetailModal: React.FC<ModelEvaluationDetailModalProps> = ({ isOpen, onClose, data }) => {
+  if (!isOpen) return null;
+
   const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
+  const [ReactMarkdownComponent, setReactMarkdownComponent] = useState<ComponentType<any> | null>(null);
 
-  if (!data) return null;
-  console.log('[ModelEvaluationDetailModal] Received data:', data);
-
-  const { modelId, assessments, promptContext, modelResponse } = data;
+  const { modelId, assessments, promptContext, modelResponse, systemPrompt } = data;
   const displayModelName = getModelDisplayLabel(modelId);
 
   const toggleLogExpansion = (index: number) => {
     setExpandedLogs(prev => ({ ...prev, [index]: !prev[index] }));
+  };
+
+  const renderPromptContent = () => {
+    if (typeof promptContext === 'string') {
+      return <div className="whitespace-pre-wrap">{promptContext}</div>;
+    }
+    if (Array.isArray(promptContext) && promptContext.length > 0) {
+      return (
+        <div className="space-y-1 max-h-40 overflow-y-auto custom-scrollbar pr-1">
+          {promptContext.map((msg, index) => (
+            <div key={index} className={`p-1.5 rounded-md text-xs ${msg.role === 'user' ? 'bg-sky-100 dark:bg-sky-900/30' : msg.role === 'assistant' ? 'bg-slate-100 dark:bg-slate-800/30' : 'bg-gray-100 dark:bg-gray-700/30'}`}>
+              <p className="text-[10px] font-semibold text-muted-foreground dark:text-slate-400 capitalize">{msg.role}</p>
+              <p className="text-xs text-card-foreground dark:text-slate-200 whitespace-pre-wrap">{msg.content}</p>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    return <p className="italic">Prompt context not available.</p>;
   };
 
   return (
@@ -243,7 +260,7 @@ const ModelEvaluationDetailModalV2: React.FC<ModelEvaluationDetailModalProps> = 
 
           <div className="lg:w-3/5 flex flex-col mt-6 lg:mt-0 overflow-hidden">
             <div className="flex-1 min-h-0 flex flex-col p-3 bg-muted/10 dark:bg-slate-800/20 rounded-lg overflow-hidden border border-border/50">
-              <h3 className="font-semibold text-muted-foreground text-sm mb-1.5 pb-1 border-b border-border/30 sticky top-0 bg-card z-10">
+              <h3 className="font-semibold text-muted-foreground text-sm mb-1.5 pb-1 border-b border-border/30 sticky top-0 z-10">
                 Criteria Evaluation ({assessments.length})
               </h3>
               <div className="flex-grow overflow-y-auto custom-scrollbar space-y-3 pr-1 pt-1">
@@ -273,4 +290,4 @@ const ModelEvaluationDetailModalV2: React.FC<ModelEvaluationDetailModalProps> = 
   );
 };
 
-export default ModelEvaluationDetailModalV2; 
+export default ModelEvaluationDetailModal; 

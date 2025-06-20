@@ -6,7 +6,8 @@ import {
     getResultByFileName,
     saveHomepageSummary,
     updateSummaryDataWithNewRun,
-    HomepageSummaryFileContent
+    HomepageSummaryFileContent,
+    saveConfigSummary
 } from '../../lib/storageService';
 import { EnhancedComparisonConfigInfo } from '../../app/utils/homepageDataUtils';
 import { ComparisonDataV2 as FetchedComparisonData } from '../../app/utils/types';
@@ -17,9 +18,9 @@ import {
 
 async function actionBackfillSummary(options: { verbose?: boolean }) {
     const { logger } = getConfig();
-    logger.info('Starting homepage summary backfill process...');
+    logger.info('Starting homepage summary backfill process (v2 with per-config summaries)...');
 
-    let comprehensiveSummary: EnhancedComparisonConfigInfo[] = [];
+    let allFeaturedConfigsForHomepage: EnhancedComparisonConfigInfo[] = [];
     let totalConfigsProcessed = 0;
     let totalRunsProcessed = 0;
     let totalRunsFailed = 0;
@@ -35,64 +36,78 @@ async function actionBackfillSummary(options: { verbose?: boolean }) {
 
         for (const configId of configIds) {
             const runs = await listRunsForConfig(configId);
-            if (runs.length === 0 && options.verbose) {
-                logger.info(`- No runs found for config ${configId}, skipping.`);
+            if (runs.length === 0) {
+                if (options.verbose) logger.info(`- No runs found for config ${configId}, skipping.`);
                 continue;
             }
             totalConfigsProcessed++;
             logger.info(`Processing ${runs.length} runs for config: ${configId}...`);
+            
+            let runsForThisConfig: EnhancedComparisonConfigInfo[] = [];
 
             for (const runInfo of runs) {
                 const runFileName = runInfo.fileName;
                 if (options.verbose) {
-                    logger.info(`  Processing run file: ${runFileName} for config ${configId}`);
+                    logger.info(`  Processing run file: ${runFileName}`);
                 }
                 try {
                     const resultData = await getResultByFileName(configId, runFileName) as FetchedComparisonData;
                     if (resultData) {
-                        // FIX: Always trust the timestamp parsed from the filename, as the data inside older files may be incorrect.
-                        // The runInfo object from listRunsForConfig already contains the correctly parsed safe timestamp.
                         if (runInfo.timestamp) {
                             resultData.timestamp = runInfo.timestamp;
                         }
-
-                        // Validate essential fields for updateSummaryDataWithNewRun
                         if (!resultData.configId || !resultData.runLabel || !resultData.timestamp) {
-                            logger.warn(`  Skipping run file ${runFileName} for config ${configId} due to missing essential fields (configId, runLabel, or timestamp) in its content.`);
+                            logger.warn(`  Skipping run file ${runFileName} due to missing essential fields (configId, runLabel, or timestamp).`);
                             totalRunsFailed++;
                             continue;
                         }
-                        comprehensiveSummary = updateSummaryDataWithNewRun(comprehensiveSummary, resultData, runFileName);
+                        // Iteratively build up the summary object for this specific config
+                        runsForThisConfig = updateSummaryDataWithNewRun(runsForThisConfig, resultData, runFileName);
                         totalRunsProcessed++;
                     } else {
-                        logger.warn(`  Could not fetch or parse result data for run file: ${runFileName} for config ${configId}`);
+                        logger.warn(`  Could not fetch or parse result data for run file: ${runFileName}`);
                         totalRunsFailed++;
                     }
                 } catch (error: any) {
-                    logger.error(`  Error processing run file ${runFileName} for config ${configId}: ${error.message}`);
+                    logger.error(`  Error processing run file ${runFileName}: ${error.message}`);
                     totalRunsFailed++;
+                }
+            }
+
+            // After processing all runs for a config, save its specific summary
+            if (runsForThisConfig.length > 0) {
+                const finalConfigSummary = runsForThisConfig[0];
+                logger.info(`Saving per-config summary for ${configId}...`);
+                await saveConfigSummary(configId, finalConfigSummary);
+
+                // If it's featured, add it to the list for the main homepage summary
+                if (finalConfigSummary.tags?.includes('_featured')) {
+                    allFeaturedConfigsForHomepage.push(finalConfigSummary);
+                    if(options.verbose) logger.info(` -> Config ${configId} is featured. Adding to homepage summary list.`);
                 }
             }
         }
 
-        if (comprehensiveSummary.length > 0) {
-            logger.info('Backfill data compiled. Calculating headline statistics and drift detection...');
+        // Now, build and save the main homepage summary from the collected featured configs
+        if (allFeaturedConfigsForHomepage.length > 0) {
+            logger.info(`Backfill data compiled for homepage. Found ${allFeaturedConfigsForHomepage.length} featured configs.`);
+            logger.info(`Calculating headline statistics and drift detection...`);
             
-            const headlineStats = calculateHeadlineStats(comprehensiveSummary);
-            const driftDetectionResult = calculatePotentialModelDrift(comprehensiveSummary);
+            const headlineStats = calculateHeadlineStats(allFeaturedConfigsForHomepage);
+            const driftDetectionResult = calculatePotentialModelDrift(allFeaturedConfigsForHomepage);
 
-            const finalSummaryObject: HomepageSummaryFileContent = {
-                configs: comprehensiveSummary,
+            const finalHomepageSummaryObject: HomepageSummaryFileContent = {
+                configs: allFeaturedConfigsForHomepage,
                 headlineStats: headlineStats,
                 driftDetectionResult: driftDetectionResult,
                 lastUpdated: new Date().toISOString(),
             };
 
             logger.info('Saving comprehensive homepage summary with new stats...');
-            await saveHomepageSummary(finalSummaryObject);
+            await saveHomepageSummary(finalHomepageSummaryObject);
             logger.info('Comprehensive homepage summary saved successfully.');
         } else {
-            logger.warn('No data was compiled for the summary. Summary file not saved.');
+            logger.warn('No featured configs found. Homepage summary file will be empty or not saved.');
         }
 
         logger.info('--- Backfill Summary ---');
@@ -111,6 +126,6 @@ async function actionBackfillSummary(options: { verbose?: boolean }) {
 }
 
 export const backfillSummaryCommand = new Command('backfill-summary')
-    .description('Rebuilds the homepage_summary.json by processing all existing evaluation results from storage.')
+    .description('Rebuilds all summary files. Creates a summary.json for each config and a homepage_summary.json for featured configs.')
     .option('-v, --verbose', 'Enable verbose logging for detailed processing steps.')
     .action(actionBackfillSummary); 

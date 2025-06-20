@@ -21,7 +21,7 @@ should:
   - "The response must mention the 'prudent man' rule."
   
   # ...must be converted into this object:
-  - text: "The response must mention the 'prudent man' rule."
+  - point: "The response must mention the 'prudent man' rule."
     citation: "Investment Advisers Act of 1940"
 ```
 

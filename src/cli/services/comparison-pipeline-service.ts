@@ -27,8 +27,13 @@ async function generateAllResponses(
             ? config.temperatures 
             : [config.temperature]; // Use single global temp or undefined if not set
 
-    const totalResponsesToGenerate = config.prompts.length * config.models.length * temperaturesToRun.length;
-    logger.info(`[PipelineService] Preparing to generate ${totalResponsesToGenerate} responses across ${temperaturesToRun.length} temperature(s). (config.temperature: ${config.temperature}, config.temperatures: ${config.temperatures})`);
+    const systemPromptsToRun: (string | null | undefined)[] =
+        (config.systems && config.systems.length > 0)
+            ? config.systems
+            : [config.system]; // Use single global system prompt or undefined
+
+    const totalResponsesToGenerate = config.prompts.length * config.models.length * temperaturesToRun.length * systemPromptsToRun.length;
+    logger.info(`[PipelineService] Preparing to generate ${totalResponsesToGenerate} responses across ${temperaturesToRun.length} temperature(s) and ${systemPromptsToRun.length} system prompt(s).`);
 
     config.prompts.forEach(promptConfig => {
         // Ensure messages is not undefined, as loadAndValidateConfig should have populated it.
@@ -49,65 +54,72 @@ async function generateAllResponses(
 
         config.models.forEach(modelString => {
             temperaturesToRun.forEach(tempValue => {
-                tasks.push(limit(async () => {
-                    const systemPromptToUse = promptConfig.system !== undefined ? promptConfig.system : config.systemPrompt;
-                    
-                    // Prioritize temp from the temperatures array, then prompt-specific, then global, then the hardcoded default.
-                    const temperatureForThisCall = tempValue ?? promptConfig.temperature ?? config.temperature ?? DEFAULT_TEMPERATURE;
+                systemPromptsToRun.forEach((systemPromptValue, sp_idx) => {
+                    tasks.push(limit(async () => {
+                        // When permuting system prompts, there should be no per-prompt override (enforced by validation).
+                        // If not permuting, a per-prompt override takes precedence over the single global system prompt.
+                        const systemPromptToUse = (config.systems && config.systems.length > 0)
+                            ? systemPromptValue
+                            : (promptConfig.system !== undefined ? promptConfig.system : config.system);
 
-                    // Do not include the system prompt in the effective ID, as it can vary per-prompt.
-                    // The ID should be consistent for a model/temperature pair across the entire run.
-                    let finalEffectiveId = modelString;
-                    if (temperatureForThisCall !== undefined) {
-                        finalEffectiveId = `${finalEffectiveId}[temp:${temperatureForThisCall}]`;
-                    }
-                    
-                    let finalAssistantResponseText = '';
-                    let fullConversationHistoryWithResponse: ConversationMessage[] = [];
-                    let hasError = false;
-                    let errorMessage: string | undefined;
+                        // Prioritize temp from the temperatures array, then prompt-specific, then global, then the hardcoded default.
+                        const temperatureForThisCall = tempValue ?? promptConfig.temperature ?? config.temperature ?? DEFAULT_TEMPERATURE;
+    
+                        // The ID should be consistent for a model/temperature/system_prompt_idx variant across the entire run.
+                        let finalEffectiveId = modelString;
+                        if (temperatureForThisCall !== undefined) {
+                            finalEffectiveId = `${finalEffectiveId}[temp:${temperatureForThisCall.toFixed(1)}]`;
+                        }
+                        if (config.systems && config.systems.length > 1) { // Only add suffix if there's more than one to avoid clutter
+                            finalEffectiveId = `${finalEffectiveId}[sp_idx:${sp_idx}]`;
+                        }
+                        
+                        let finalAssistantResponseText = '';
+                        let fullConversationHistoryWithResponse: ConversationMessage[] = [];
+                        let hasError = false;
+                        let errorMessage: string | undefined;
 
-                    // loadAndValidateConfig ensures promptConfig.messages is always populated.
-                    const messagesForLlm: ConversationMessage[] = [...promptConfig.messages!];
+                        // loadAndValidateConfig ensures promptConfig.messages is always populated.
+                        const messagesForLlm: ConversationMessage[] = [...promptConfig.messages!];
 
-                    // If a global systemPrompt is defined in the config,
-                    // and not overridden by a prompt-specific system message,
-                    // and there isn't already a system message in messagesForLlm, prepend it.
-                    if (systemPromptToUse && !messagesForLlm.find(m => m.role === 'system')) {
-                        messagesForLlm.unshift({ role: 'system', content: systemPromptToUse });
-                    }
+                        // If a system prompt is determined for this call,
+                        // and there isn't already a system message in messagesForLlm, prepend it.
+                        if (systemPromptToUse && !messagesForLlm.find(m => m.role === 'system')) {
+                            messagesForLlm.unshift({ role: 'system', content: systemPromptToUse });
+                        }
 
-                    try {
-                        finalAssistantResponseText = await getModelResponse({
-                            modelId: modelString,
-                            messages: messagesForLlm, // Pass the messages array
-                            // systemPrompt is now handled by being part of messagesForLlm if applicable
-                            temperature: temperatureForThisCall,
-                            useCache: useCache
+                        try {
+                            finalAssistantResponseText = await getModelResponse({
+                                modelId: modelString,
+                                messages: messagesForLlm, // Pass the messages array
+                                // systemPrompt is now handled by being part of messagesForLlm if applicable
+                                temperature: temperatureForThisCall,
+                                useCache: useCache
+                            });
+                            hasError = checkForErrors(finalAssistantResponseText);
+                            if (hasError) errorMessage = `Response contains error markers.`;
+
+                            fullConversationHistoryWithResponse = [...messagesForLlm, { role: 'assistant', content: finalAssistantResponseText }];
+
+                        } catch (error: any) {
+                            errorMessage = `Failed to get response for ${finalEffectiveId}: ${error.message || String(error)}`;
+                            finalAssistantResponseText = `<error>${errorMessage}</error>`;
+                            hasError = true;
+                            logger.error(`[PipelineService] ${errorMessage}`);
+                            fullConversationHistoryWithResponse = [...messagesForLlm, { role: 'assistant', content: finalAssistantResponseText }];
+                        }
+
+                        currentPromptData.modelResponses.set(finalEffectiveId, {
+                            finalAssistantResponseText,
+                            fullConversationHistory: fullConversationHistoryWithResponse,
+                            hasError,
+                            errorMessage,
+                            systemPromptUsed: systemPromptToUse ?? null
                         });
-                        hasError = checkForErrors(finalAssistantResponseText);
-                        if (hasError) errorMessage = `Response contains error markers.`;
-
-                        fullConversationHistoryWithResponse = [...messagesForLlm, { role: 'assistant', content: finalAssistantResponseText }];
-
-                    } catch (error: any) {
-                        errorMessage = `Failed to get response for ${finalEffectiveId}: ${error.message || String(error)}`;
-                        finalAssistantResponseText = `<error>${errorMessage}</error>`;
-                        hasError = true;
-                        logger.error(`[PipelineService] ${errorMessage}`);
-                        fullConversationHistoryWithResponse = [...messagesForLlm, { role: 'assistant', content: finalAssistantResponseText }];
-                    }
-
-                    currentPromptData.modelResponses.set(finalEffectiveId, {
-                        finalAssistantResponseText,
-                        fullConversationHistory: fullConversationHistoryWithResponse,
-                        hasError,
-                        errorMessage,
-                        systemPromptUsed: systemPromptToUse ?? null // This might need re-evaluation: system prompt is now part of messages
-                    });
-                    generatedCount++;
-                    logger.info(`[PipelineService] Generated ${generatedCount}/${totalResponsesToGenerate} responses.`);
-                }));
+                        generatedCount++;
+                        logger.info(`[PipelineService] Generated ${generatedCount}/${totalResponsesToGenerate} responses.`);
+                    }));
+                });
             });
         });
     });
@@ -127,7 +139,7 @@ async function aggregateAndSaveResults(
     commitSha?: string,
 ): Promise<{ data: FinalComparisonOutputV2, fileName: string | null }> {
     logger.info('[PipelineService] Aggregating results...');
-    logger.info(`[PipelineService] Received config.configId for saving: '${config.configId}'`);
+    logger.info(`[PipelineService] Received blueprint ID for saving: '${config.id}'`);
 
     const promptIds: string[] = [];
     const promptContexts: Record<string, string | ConversationMessage[]> = {}; 
@@ -135,6 +147,7 @@ async function aggregateAndSaveResults(
     const fullConversationHistories: Record<string, Record<string, ConversationMessage[]>> = {};
     const errors: Record<string, Record<string, string>> = {};
     const effectiveModelsSet = new Set<string>();
+    const modelSystemPrompts: Record<string, string | null> = {};
     let hasAnyIdeal = false;
 
     // Determine if any ideal response exists based on the config
@@ -168,6 +181,7 @@ async function aggregateAndSaveResults(
         for (const [effectiveModelId, responseData] of promptData.modelResponses.entries()) {
             effectiveModelsSet.add(effectiveModelId);
             allFinalAssistantResponses[promptId][effectiveModelId] = responseData.finalAssistantResponseText;
+            modelSystemPrompts[effectiveModelId] = responseData.systemPromptUsed;
             
             if (responseData.fullConversationHistory && fullConversationHistories[promptId]) {
                  fullConversationHistories[promptId][effectiveModelId] = responseData.fullConversationHistory;
@@ -189,15 +203,9 @@ async function aggregateAndSaveResults(
     const currentTimestamp = new Date().toISOString();
     const safeTimestamp = toSafeTimestamp(currentTimestamp);
 
-    // Upstream validation in loadAndValidateConfig (run-config.ts) ensures that
-    // (config.id OR config.configId) is a valid string,
-    // AND (config.title OR config.configTitle) is a valid string.
-    // `parseAndNormalizeBlueprint` handles aliasing, so we can rely on `id` and `title`.
-
     const resolvedConfigId: string = config.id!;
     const resolvedConfigTitle: string = config.title!;
 
-    // Upstream validation guarantees these properties exist and are valid strings.
     if (!resolvedConfigId) {
         logger.error(`Critical: Blueprint ID is missing. Config: ${JSON.stringify(config)}`);
         throw new Error("Blueprint ID is missing unexpectedly after validation.");
@@ -214,13 +222,14 @@ async function aggregateAndSaveResults(
         timestamp: safeTimestamp,
         description: config.description,
         sourceCommitSha: commitSha,
-        config: config, // This config still has promptText and messages, which is fine
+        config: config,
         evalMethodsUsed: evalMethodsUsed,
         effectiveModels: effectiveModels,
+        modelSystemPrompts: modelSystemPrompts,
         promptIds: promptIds.sort(),
-        promptContexts: promptContexts, // Changed from promptTexts
+        promptContexts: promptContexts,
         extractedKeyPoints: evaluationResults.extractedKeyPoints ?? undefined,
-        allFinalAssistantResponses: allFinalAssistantResponses, // Changed from allResponses
+        allFinalAssistantResponses: allFinalAssistantResponses,
         fullConversationHistories: (process.env.STORE_FULL_HISTORY !== 'false') ? fullConversationHistories : undefined,
         evaluationResults: {
             similarityMatrix: evaluationResults.similarityMatrix ?? undefined,
@@ -238,7 +247,6 @@ async function aggregateAndSaveResults(
         return { data: finalOutput, fileName: fileName };
     } catch (error: any) {
         logger.error(`[PipelineService] Failed to save the final comparison output to storage: ${error.message}`);
-        // Still return the data even if save fails, caller can decide what to do
         return { data: finalOutput, fileName: null };
     }
 }
@@ -272,11 +280,9 @@ export async function executeComparisonPipeline(
     
     // Step 2: Prepare for evaluation
     const evaluationInputs: EvaluationInput[] = [];
-    const uniqueModelIdsAcrossAllPrompts = new Set<string>();
 
     for (const promptData of allResponsesMap.values()) {
         const modelIdsForThisPrompt = Array.from(promptData.modelResponses.keys());
-        modelIdsForThisPrompt.forEach(id => uniqueModelIdsAcrossAllPrompts.add(id));
         
         evaluationInputs.push({
             promptData: promptData,
@@ -285,13 +291,10 @@ export async function executeComparisonPipeline(
         });
     }
 
-    const allEffectiveModelIds = getUniqueModelIds(allResponsesMap, config);
-    
     // Step 3: Run selected evaluation methods
-    // We can define evaluators here.
     const evaluators: Evaluator[] = [
         new EmbeddingEvaluator(logger),
-        new LLMCoverageEvaluator(logger, useCache), // Pass useCache to constructor
+        new LLMCoverageEvaluator(logger, useCache),
     ];
 
     const chosenEvaluators = evaluators.filter(e => evalMethods.includes(e.getMethodName()));
@@ -323,4 +326,4 @@ export async function executeComparisonPipeline(
     );
     logger.info(`[PipelineService] executeComparisonPipeline finished successfully. Results at: ${finalResult.fileName}`);
     return finalResult;
-} 
+}

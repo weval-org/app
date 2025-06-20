@@ -28,7 +28,7 @@ The `should` block accepts a list where each item can be in one of these formats
 3.  **Full `Point` Object**: This provides the most control, allowing you to specify a weight, a citation, and explicitly choose between text-based or function-based evaluation.
     ```yaml
     should:
-      - text: "This is a very important conceptual point that must be covered."
+      - point: "This is a very important conceptual point that must be covered."
         weight: 3.0 # 'weight' is an alias for the internal 'multiplier'
         citation: "Project requirements, section 2.1a"
       

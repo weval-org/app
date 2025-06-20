@@ -2,8 +2,8 @@ import BlueprintEditorClientPage from './BlueprintEditorClientPage';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Blueprint Editor - CivicEval',
-  description: 'Create and configure CivicEval blueprint YAML files with an easy-to-use, document-style editor.',
+  title: 'Blueprint Editor - we-val',
+  description: 'Create and configure we-val blueprint YAML files with an easy-to-use, document-style editor.',
 };
 
 export default function BlueprintEditorPage() {

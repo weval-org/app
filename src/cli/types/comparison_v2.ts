@@ -60,7 +60,9 @@ export interface ComparisonConfig {
     title?: string; // New, preferred title field
     description?: string;
     models: string[];
-    systemPrompt?: string | null;
+    system?: string | null; // New preferred field
+    systemPrompt?: string | null; // Legacy alias for 'system'
+    systems?: (string | null)[]; // Optional array of system prompts to run permutations
     concurrency?: number;
     temperature?: number; // Global temperature if 'temperatures' array is not provided
     temperatures?: number[]; // Optional array of temperatures to run for each model/prompt

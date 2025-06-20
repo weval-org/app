@@ -1,8 +1,10 @@
 import { executeComparisonPipeline } from './comparison-pipeline-service';
 import { saveResult as saveResultToStorage } from '../../lib/storageService';
-import { ComparisonConfig, EvaluationMethod } from '../types/comparison_v2';
+import { ComparisonConfig, ConversationMessage, EvaluationMethod } from '../types/comparison_v2';
 import { getConfig, configure } from '../config';
-import { getModelResponse } from '../services/llm-service';
+import { getModelResponse, GetModelResponseOptions } from '../services/llm-service';
+import * as llmService from './llm-service';
+import { LLMApiCallOptions } from '../../lib/llm-clients/types';
 
 // Mock dependencies
 jest.mock('../../lib/storageService', () => ({
@@ -11,8 +13,9 @@ jest.mock('../../lib/storageService', () => ({
 }));
 
 jest.mock('../services/llm-service', () => ({
+  ...jest.requireActual<typeof llmService>('./llm-service'),
   getModelResponse: jest.fn().mockResolvedValue('Mocked response'),
-  DEFAULT_TEMPERATURE: 0.5,
+  DEFAULT_TEMPERATURE: 0.0,
 }));
 
 jest.mock('@/cli/evaluators/embedding-evaluator', () => ({
@@ -87,7 +90,7 @@ describe('executeComparisonPipeline', () => {
     const runLabel = 'agg-run';
     const evalMethods: EvaluationMethod[] = []; // No evaluators needed for this test
 
-    mockedGetModelResponse.mockImplementation(async ({ modelId, messages }) => {
+    mockedGetModelResponse.mockImplementation(async ({ modelId, messages }: { modelId: string, messages: ConversationMessage[] }) => {
       const lastMessage = messages[messages.length - 1];
       return `Response from ${modelId} to "${lastMessage.content}"`;
     });
@@ -102,21 +105,21 @@ describe('executeComparisonPipeline', () => {
     expect(savedData.runLabel).toBe('agg-run');
     expect(savedData.promptIds.length).toBe(2);
     expect(savedData.effectiveModels.length).toBe(2);
-    expect(savedData.effectiveModels).toContain('model-a[temp:0.5]');
-    expect(savedData.effectiveModels).toContain('model-b[temp:0.5]');
+    expect(savedData.effectiveModels).toContain('model-a[temp:0.0]');
+    expect(savedData.effectiveModels).toContain('model-b[temp:0.0]');
 
     // Check responses for Prompt 1
     const p1Responses = savedData.allFinalAssistantResponses['p1'];
-    expect(p1Responses['model-a[temp:0.5]']).toBe('Response from model-a to "Prompt 1"');
-    expect(p1Responses['model-b[temp:0.5]']).toBe('Response from model-b to "Prompt 1"');
+    expect(p1Responses['model-a[temp:0.0]']).toBe('Response from model-a to "Prompt 1"');
+    expect(p1Responses['model-b[temp:0.0]']).toBe('Response from model-b to "Prompt 1"');
     
     // Check responses for Prompt 2
     const p2Responses = savedData.allFinalAssistantResponses['p2'];
-    expect(p2Responses['model-a[temp:0.5]']).toBe('Response from model-a to "Prompt 2"');
-    expect(p2Responses['model-b[temp:0.5]']).toBe('Response from model-b to "Prompt 2"');
+    expect(p2Responses['model-a[temp:0.0]']).toBe('Response from model-a to "Prompt 2"');
+    expect(p2Responses['model-b[temp:0.0]']).toBe('Response from model-b to "Prompt 2"');
 
     // Check conversation histories
-    const p1History = savedData.fullConversationHistories['p1']['model-a[temp:0.5]'];
+    const p1History = savedData.fullConversationHistories['p1']['model-a[temp:0.0]'];
     expect(p1History.length).toBe(2);
     expect(p1History[0]).toEqual({role: 'user', content: 'Prompt 1'});
     expect(p1History[1]).toEqual({role: 'assistant', content: 'Response from model-a to "Prompt 1"'});
@@ -134,7 +137,7 @@ describe('executeComparisonPipeline', () => {
     const evalMethods: EvaluationMethod[] = ['embedding'];
 
     // Mock getModelResponse to fail for 'bad-model'
-    mockedGetModelResponse.mockImplementation(async ({ modelId }) => {
+    mockedGetModelResponse.mockImplementation(async ({ modelId }: { modelId: string }) => {
       if (modelId === 'bad-model') {
         throw new Error('This model is broken');
       }
@@ -151,14 +154,14 @@ describe('executeComparisonPipeline', () => {
     const promptResponses = savedData.allFinalAssistantResponses['p1'];
     
     // Check that the good model has a successful response
-    expect(promptResponses['good-model[temp:0.5]']).toBe('Response from good-model');
+    expect(promptResponses['good-model[temp:0.0]']).toBe('Response from good-model');
 
     // Check that the bad model's response is an error message
-    expect(promptResponses['bad-model[temp:0.5]']).toContain('<error>Failed to get response for bad-model[temp:0.5]: This model is broken</error>');
+    expect(promptResponses['bad-model[temp:0.0]']).toContain('<error>Failed to get response for bad-model[temp:0.0]: This model is broken</error>');
     
     // Check that the error is recorded in the errors object
     expect(savedData.errors).toHaveProperty('p1');
-    expect(savedData.errors['p1']['bad-model[temp:0.5]']).toContain('Failed to get response for bad-model[temp:0.5]: This model is broken');
+    expect(savedData.errors['p1']['bad-model[temp:0.0]']).toContain('Failed to get response for bad-model[temp:0.0]: This model is broken');
   });
 
   it('should generate a result with a URL-safe timestamp in the filename and data', async () => {
@@ -204,5 +207,93 @@ describe('executeComparisonPipeline', () => {
 
     // 3. Ensure timestamps from filename and data are identical
     expect(timestampFromData).toEqual(timestampFromFileName);
+  });
+});
+
+describe('executeComparisonPipeline permutation logic', () => {
+  let getModelResponseSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // Spy on getModelResponse and provide a mock implementation
+    getModelResponseSpy = jest.spyOn(llmService, 'getModelResponse').mockImplementation(
+      (options: GetModelResponseOptions) => Promise.resolve(`Mocked response for ${options.modelId}`)
+    );
+  });
+
+  afterEach(() => {
+    getModelResponseSpy.mockRestore();
+  });
+
+  it('should generate permutations for temperatures and systems', async () => {
+    const config: ComparisonConfig = {
+      id: 'perm-test',
+      title: 'Permutation Test',
+      models: ['test-model'],
+      temperatures: [0.1, 0.9],
+      systems: ['system-1', 'system-2', null],
+      prompts: [{ id: 'p1', messages: [{role: 'user', content: 'hello'}] }],
+    };
+
+    const { logger } = getConfig();
+    await executeComparisonPipeline(config, 'test-run', [], logger);
+
+    // Expected calls = 1 prompt * 1 model * 2 temps * 3 systems = 6
+    expect(getModelResponseSpy).toHaveBeenCalledTimes(6);
+
+    // Check a few calls to ensure IDs and params are correct
+    expect(getModelResponseSpy).toHaveBeenCalledWith(expect.objectContaining({
+      modelId: 'test-model',
+      temperature: 0.1,
+      // The system prompt is now part of the messages array
+      messages: expect.arrayContaining([
+          expect.objectContaining({ role: 'system', content: 'system-1' })
+      ]),
+    }));
+     expect(getModelResponseSpy).toHaveBeenCalledWith(expect.objectContaining({
+      modelId: 'test-model',
+      temperature: 0.9,
+      messages: expect.arrayContaining([
+          expect.objectContaining({ role: 'system', content: 'system-2' })
+      ]),
+    }));
+     expect(getModelResponseSpy).toHaveBeenCalledWith(expect.objectContaining({
+      modelId: 'test-model',
+      temperature: 0.9,
+       messages: expect.not.arrayContaining([
+          expect.objectContaining({ role: 'system' })
+      ]),
+    }));
+  });
+   it('should handle a single temperature and single system prompt', async () => {
+    const config: ComparisonConfig = {
+      id: 'single-test',
+      title: 'Single Test',
+      models: ['test-model-1', 'test-model-2'],
+      temperature: 0.5,
+      system: 'global-system',
+      prompts: [{ id: 'p1', messages: [{role: 'user', content: 'hello'}] }],
+    };
+
+    const { logger } = getConfig();
+    await executeComparisonPipeline(config, 'test-run', [], logger);
+
+    // Expected calls = 1 prompt * 2 models * 1 temp * 1 system = 2
+    expect(getModelResponseSpy).toHaveBeenCalledTimes(2);
+
+    expect(getModelResponseSpy).toHaveBeenCalledWith(expect.objectContaining({
+      modelId: 'test-model-1',
+      temperature: 0.5,
+       messages: expect.arrayContaining([
+          expect.objectContaining({ role: 'system', content: 'global-system' })
+      ]),
+    }));
+     expect(getModelResponseSpy).toHaveBeenCalledWith(expect.objectContaining({
+      modelId: 'test-model-2',
+      temperature: 0.5,
+       messages: expect.arrayContaining([
+          expect.objectContaining({ role: 'system', content: 'global-system' })
+      ]),
+    }));
   });
 }); 

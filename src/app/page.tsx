@@ -2,7 +2,7 @@ import nextDynamic from 'next/dynamic';
 import AggregateStatsDisplay, { AggregateStatsData } from '@/app/components/AggregateStatsDisplay';
 import ModelDriftIndicator, { PotentialDriftInfo } from '@/app/components/ModelDriftIndicator';
 import HomePageBanner from "@/app/components/HomePageBanner";
-import CivicEvalLogo from '@/components/icons/CivicEvalLogo';
+import CIPLogo from '@/components/icons/CIPLogo';
 import {
   getComparisonRunInfo,
   EnhancedComparisonConfigInfo,
@@ -52,7 +52,7 @@ export const metadata: Metadata = {
   },
 };
 
-export const revalidate = 600;
+export const revalidate = 3600;
 
 function getLatestDateOfData(configs: EnhancedComparisonConfigInfo[]): string {
   let maxDate: Date | null = null;
@@ -84,13 +84,7 @@ export default async function HomePage() {
     getCachedHomepageDriftDetectionResult()
   ]);
 
-  const isDevelopment = process.env.NODE_ENV === 'development';
-  const initialConfigs = initialConfigsRaw.filter(config => {
-    if (isDevelopment) {
-      return true;
-    }
-    return config.tags?.includes('_featured');
-  });
+  const initialConfigs = initialConfigsRaw;
 
   const allRunInstances: DisplayableRunInstanceInfo[] = [];
   initialConfigs.forEach(config => {
@@ -212,35 +206,32 @@ export default async function HomePage() {
     <div className="min-h-screen bg-background text-foreground">
       <div className="fixed inset-0 -z-10 dark:bg-gradient-to-br dark:from-slate-900 dark:to-slate-800 bg-gradient-to-br from-slate-50 to-slate-100" />
       
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 sm:py-3 md:pt-4 space-y-8 md:space-y-10">
-        {/* <DonationBanner />  */}
-        
-        <header className="text-center pt-4">
-          <a href="/">
-            <CivicEvalLogo 
-              className="w-12 h-12 md:w-14 md:h-14 mx-auto mb-3 text-primary dark:text-sky-400" 
-              aria-label="CivicEval Logo"
-            /> 
-            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground dark:text-slate-50 mb-3">
-              CivicEval
-            </h1>
+      <header className="w-full bg-header py-4 shadow-sm border-b border-border/50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <a href="/" className="flex items-center space-x-4">
+            <CIPLogo className="w-12 h-12 text-foreground" />
+            <div>
+              <h1 className="text-3xl font-bold text-foreground">
+                we-val
+              </h1>
+              <p className="text-base text-muted-foreground leading-tight">
+                A Collective Intelligence Project
+              </p>
+            </div>
           </a>
-          <p className="text-lg sm:text-xl text-muted-foreground dark:text-slate-300 mb-4 max-w-3xl mx-auto">
-            Measuring AI's fitness for civic life
-          </p>
-        </header>
-      </div>
+        </div>
+      </header>
 
       <HomePageBanner />
       
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 sm:pb-2 md:pb-4 pt-8 md:pt-10 space-y-8 md:space-y-10">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 sm:pb-2 md:pb-4 pt-8 md:pt-10 space-y-8 md:space-y-10">
         {initialConfigs.length > 0 && headlineStats && (
           <section 
             aria-labelledby="platform-summary-heading"
             className="bg-card/50 dark:bg-slate-800/50 backdrop-blur-md p-6 rounded-2xl shadow-lg ring-1 ring-border/60 dark:ring-slate-700/60"
           >
             <h2 id="platform-summary-heading" className="text-2xl sm:text-2xl font-semibold tracking-tight text-foreground dark:text-slate-100 mb-6 md:mb-8 text-center">
-              Latest Platform Stats as of {getLatestDateOfData(initialConfigs)}
+              Latest Platform Stats
             </h2>
             <div className="space-y-8 md:space-y-10">
                 <AggregateStatsDisplay stats={headlineStats} />
@@ -275,7 +266,7 @@ export default async function HomePage() {
           </div>
         )}
         
-      </div>
+      </main>
 
       {/* Footer with full-width background */}
       <div className="w-full bg-slate-100 dark:bg-slate-800 py-8 md:py-12 mt-12 md:mt-16">

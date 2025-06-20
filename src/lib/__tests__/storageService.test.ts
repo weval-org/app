@@ -1,6 +1,17 @@
-import { updateSummaryDataWithNewRun } from '../storageService';
+import { 
+    updateSummaryDataWithNewRun,
+    getConfigSummary,
+    saveConfigSummary,
+    HomepageSummaryFileContent
+} from '../storageService';
 import { EnhancedComparisonConfigInfo } from '../../app/utils/homepageDataUtils';
 import { ComparisonDataV2 as FetchedComparisonData } from '../../app/utils/types';
+import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { Readable } from 'stream';
+import fs from 'fs/promises';
+import fsSync from 'fs';
+import path from 'path';
+import { RESULTS_DIR, MULTI_DIR } from '@/cli/constants';
 
 // Mock calculation utilities as their specific output isn't being tested here.
 jest.mock('../../app/utils/calculationUtils', () => ({
@@ -9,13 +20,46 @@ jest.mock('../../app/utils/calculationUtils', () => ({
   calculateStandardDeviation: jest.fn(() => 0.05),
 }));
 
-describe('updateSummaryDataWithNewRun', () => {
-  const baseMockResultData: FetchedComparisonData = {
+// Mock filesystem and S3 client
+jest.mock('fs/promises');
+const mockedFs = fs as jest.Mocked<typeof fs>;
+jest.mock('fs', () => ({
+    ...jest.requireActual('fs'),
+    existsSync: jest.fn(),
+}));
+const mockedFsSync = fsSync as jest.Mocked<typeof fsSync>;
+
+jest.mock('@aws-sdk/client-s3', () => {
+    const originalModule = jest.requireActual('@aws-sdk/client-s3');
+    return {
+        __esModule: true,
+        ...originalModule,
+        S3Client: jest.fn(),
+    };
+});
+
+const mockSummary: EnhancedComparisonConfigInfo = {
+  configId: 'test-config',
+  configTitle: 'Test Config',
+  id: 'test-config',
+  title: 'Test Config',
+  runs: [],
+  latestRunTimestamp: '2024-01-01T00-00-00-000Z'
+};
+
+const serializableMockSummary = {
+    ...mockSummary,
+    runs: []
+};
+
+const baseMockResultData: FetchedComparisonData = {
     configId: 'test-config',
     configTitle: 'Test Config',
     runLabel: 'test-run',
     timestamp: '', // This will be set per test
     config: {
+      id: 'test-config',
+      title: 'Test Config',
       configId: 'test-config',
       configTitle: 'Test Config',
       models: [],
@@ -30,96 +74,190 @@ describe('updateSummaryDataWithNewRun', () => {
     evaluationResults: {},
   };
 
-  it('should correctly sort runs by URL-safe timestamps', () => {
-    // Timestamps in safe format, but chronologically out of order
-    const safeTimestamp1 = '2024-01-01T10-00-00-000Z'; // oldest
-    const safeTimestamp2 = '2024-01-02T12-30-00-000Z'; // newest
-    const safeTimestamp3 = '2024-01-01T11-00-00-000Z'; // middle
+describe('storageService', () => {
+    let mockedFs: jest.Mocked<typeof import('fs/promises')>;
+    let mockedFsSync: jest.Mocked<typeof import('fs')>;
+    let mockSend: jest.Mock;
 
-    // An existing summary with two runs
-    const existingSummary: EnhancedComparisonConfigInfo[] = [
-      {
-        configId: 'test-config',
-        configTitle: 'Test Config',
-        id: 'test-config',
-        title: 'Test Config',
-        description: '',
-        runs: [
-          { runLabel: 'run1', timestamp: safeTimestamp1, fileName: `run1_${safeTimestamp1}_comparison.json` },
-          { runLabel: 'run3', timestamp: safeTimestamp3, fileName: `run3_${safeTimestamp3}_comparison.json` },
-        ],
-        latestRunTimestamp: safeTimestamp3,
-        tags: [],
-        overallAverageHybridScore: 0.8,
-        hybridScoreStdDev: 0.1,
-      },
-    ];
+    beforeEach(() => {
+        jest.resetModules(); // This is key to re-evaluating storageService with new env vars
 
-    // The new run to add is the chronologically newest one
-    const newResultData: FetchedComparisonData = {
-      ...baseMockResultData,
-      timestamp: safeTimestamp2,
-    };
-    const newRunFileName = `run2_${safeTimestamp2}_comparison.json`;
+        // Clear environment variables to ensure a clean slate for each test
+        delete process.env.STORAGE_PROVIDER;
+        delete process.env.APP_S3_BUCKET_NAME;
+        delete process.env.APP_S3_REGION;
 
-    // Run the function
-    const updatedSummary = updateSummaryDataWithNewRun(existingSummary, newResultData, newRunFileName);
+        // Re-require mocks to get fresh instances after reset
+        mockedFs = require('fs/promises');
+        mockedFsSync = require('fs');
+        const { S3Client } = require('@aws-sdk/client-s3');
+        mockSend = jest.fn();
+        (S3Client as jest.Mock).mockImplementation(() => ({
+            send: mockSend,
+        }));
+        
+        // Clear mock history
+        jest.clearAllMocks();
+    });
 
-    // Get the updated config
-    const updatedConfig = updatedSummary.find(c => c.configId === 'test-config');
-    expect(updatedConfig).toBeDefined();
-    expect(updatedConfig!.runs).toHaveLength(3);
+    describe('getConfigSummary', () => {
+        it('should read from local fs when provider is local', async () => {
+            process.env.STORAGE_PROVIDER = 'local';
+            const { getConfigSummary } = require('../storageService');
 
-    // Assert that the runs are now sorted chronologically descending (newest first)
-    expect(updatedConfig!.runs[0].timestamp).toBe(safeTimestamp2);
-    expect(updatedConfig!.runs[1].timestamp).toBe(safeTimestamp3);
-    expect(updatedConfig!.runs[2].timestamp).toBe(safeTimestamp1);
+            mockedFsSync.existsSync.mockReturnValue(true);
+            mockedFs.readFile.mockResolvedValue(JSON.stringify(serializableMockSummary));
+            
+            const summary = await getConfigSummary('test-config');
+            
+            expect(mockedFs.readFile).toHaveBeenCalledWith(path.join(RESULTS_DIR, MULTI_DIR, 'test-config', 'summary.json'), 'utf-8');
+            expect(summary).toEqual(expect.objectContaining({ configId: 'test-config' }));
+        });
 
-    // Assert that the config's latestRunTimestamp is updated
-    expect(updatedConfig!.latestRunTimestamp).toBe(safeTimestamp2);
-  });
+        it('should return null if local file does not exist', async () => {
+            process.env.STORAGE_PROVIDER = 'local';
+            const { getConfigSummary } = require('../storageService');
+            
+            mockedFsSync.existsSync.mockReturnValue(false);
+            const summary = await getConfigSummary('test-config');
+            expect(summary).toBeNull();
+        });
 
-  it('should handle a mix of safe and unsafe (legacy) timestamps gracefully during sorting', () => {
-    const legacyTimestamp = '2024-02-01T10:00:00.000Z'; // Newest, but unsafe format
-    const safeTimestamp = '2024-01-15T12-00-00-000Z';   // Oldest
+        it('should read from S3 when provider is s3', async () => {
+            process.env.STORAGE_PROVIDER = 's3';
+            process.env.APP_S3_BUCKET_NAME = 'test-bucket';
+            process.env.APP_S3_REGION = 'us-east-1'; // Set region to avoid warnings
+            const { getConfigSummary } = require('../storageService');
 
-     const existingSummary: EnhancedComparisonConfigInfo[] = [
-      {
-        configId: 'test-config',
-        configTitle: 'Test Config',
-        id: 'test-config',
-        title: 'Test Config',
-        description: '',
-        runs: [{ runLabel: 'run-safe', timestamp: safeTimestamp, fileName: `run-safe_${safeTimestamp}_comparison.json` }],
-        latestRunTimestamp: safeTimestamp,
-        tags: [],
-        overallAverageHybridScore: 0.8,
-        hybridScoreStdDev: 0.1,
-      },
-    ];
-    
-    const newResultData: FetchedComparisonData = {
-      ...baseMockResultData,
-      // This is the key part of the test: the incoming data might have an "unsafe" timestamp
-      // if it comes from an old file that the backfill command didn't fix the content of.
-      // The update function should handle it.
-      timestamp: legacyTimestamp, 
-    };
-    const newRunFileName = `run-legacy_${legacyTimestamp.replace(/[:.]/g, '-')}_comparison.json`;
+            const stream = new Readable();
+            stream.push(JSON.stringify(serializableMockSummary));
+            stream.push(null);
+            mockSend.mockResolvedValue({ Body: stream });
 
-    const updatedSummary = updateSummaryDataWithNewRun(existingSummary, newResultData, newRunFileName);
-    const updatedConfig = updatedSummary.find(c => c.configId === 'test-config');
+            const summary = await getConfigSummary('test-config');
+            
+            expect(mockSend).toHaveBeenCalled();
+            const sentCommand = mockSend.mock.calls[0][0] as GetObjectCommand;
+            expect(sentCommand.input.Bucket).toBe('test-bucket');
+            expect(sentCommand.input.Key).toBe('multi/test-config/summary.json');
+            expect(summary).toEqual(expect.objectContaining({ configId: 'test-config' }));
+        });
 
-    expect(updatedConfig).toBeDefined();
-    expect(updatedConfig!.runs).toHaveLength(2);
+        it('should return null if S3 object does not exist', async () => {
+            process.env.STORAGE_PROVIDER = 's3';
+            process.env.APP_S3_BUCKET_NAME = 'test-bucket';
+            process.env.APP_S3_REGION = 'us-east-1';
+            const { getConfigSummary } = require('../storageService');
 
-    // The function should correctly identify the legacy timestamp as the newest and place it first.
-    // NOTE: The timestamp stored in the run *is not changed*. The function just needs to parse it correctly for sorting.
-    expect(updatedConfig!.runs[0].timestamp).toBe(legacyTimestamp);
-    expect(updatedConfig!.runs[1].timestamp).toBe(safeTimestamp);
-    
-    // The latestRunTimestamp for the whole config should also be updated.
-    expect(updatedConfig!.latestRunTimestamp).toBe(legacyTimestamp);
-  });
+            const error = new Error('Not Found') as any;
+            error.name = 'NoSuchKey';
+            mockSend.mockRejectedValue(error);
 
+            const summary = await getConfigSummary('test-config');
+            expect(summary).toBeNull();
+        });
+    });
+
+    describe('saveConfigSummary', () => {
+        it('should write to local fs when provider is local', async () => {
+            process.env.STORAGE_PROVIDER = 'local';
+            const { saveConfigSummary } = require('../storageService');
+
+            await saveConfigSummary('test-config', mockSummary);
+            
+            expect(mockedFs.writeFile).toHaveBeenCalledWith(
+                path.join(RESULTS_DIR, MULTI_DIR, 'test-config', 'summary.json'),
+                JSON.stringify(serializableMockSummary, null, 2),
+                'utf-8'
+            );
+        });
+
+        it('should write to S3 when provider is s3', async () => {
+            process.env.STORAGE_PROVIDER = 's3';
+            process.env.APP_S3_BUCKET_NAME = 'test-bucket';
+            process.env.APP_S3_REGION = 'us-east-1';
+            const { saveConfigSummary } = require('../storageService');
+            
+            await saveConfigSummary('test-config', mockSummary);
+
+            expect(mockSend).toHaveBeenCalled();
+            const sentCommand = mockSend.mock.calls[0][0] as PutObjectCommand;
+            expect(sentCommand.input.Bucket).toBe('test-bucket');
+            expect(sentCommand.input.Key).toBe('multi/test-config/summary.json');
+            expect(sentCommand.input.Body).toBe(JSON.stringify(serializableMockSummary, null, 2));
+        });
+    });
+
+    describe('updateSummaryDataWithNewRun', () => {
+      it('should correctly sort runs by URL-safe timestamps', () => {
+        const { updateSummaryDataWithNewRun } = require('../storageService');
+        const safeTimestamp1 = '2024-01-01T10-00-00-000Z'; // oldest
+        const safeTimestamp2 = '2024-01-02T12-30-00-000Z'; // newest
+        const safeTimestamp3 = '2024-01-01T11-00-00-000Z'; // middle
+
+        const existingSummary: EnhancedComparisonConfigInfo[] = [
+          {
+            configId: 'test-config',
+            configTitle: 'Test Config',
+            id: 'test-config',
+            title: 'Test Config',
+            description: '',
+            runs: [
+              { runLabel: 'run1', timestamp: safeTimestamp1, fileName: `run1_${safeTimestamp1}_comparison.json`, perModelHybridScores: new Map() },
+              { runLabel: 'run3', timestamp: safeTimestamp3, fileName: `run3_${safeTimestamp3}_comparison.json`, perModelHybridScores: new Map() },
+            ],
+            latestRunTimestamp: safeTimestamp3,
+            tags: [],
+            overallAverageHybridScore: 0.8,
+            hybridScoreStdDev: 0.1,
+          },
+        ];
+
+        const newResultData: FetchedComparisonData = { ...baseMockResultData, timestamp: safeTimestamp2 };
+        const newRunFileName = `run2_${safeTimestamp2}_comparison.json`;
+
+        const updatedSummary = updateSummaryDataWithNewRun(existingSummary, newResultData, newRunFileName);
+        const updatedConfig = updatedSummary.find((c: EnhancedComparisonConfigInfo) => c.configId === 'test-config');
+
+        expect(updatedConfig).toBeDefined();
+        expect(updatedConfig!.runs).toHaveLength(3);
+        expect(updatedConfig!.runs[0].timestamp).toBe(safeTimestamp2);
+        expect(updatedConfig!.runs[1].timestamp).toBe(safeTimestamp3);
+        expect(updatedConfig!.runs[2].timestamp).toBe(safeTimestamp1);
+        expect(updatedConfig!.latestRunTimestamp).toBe(safeTimestamp2);
+      });
+
+      it('should handle a mix of safe and unsafe (legacy) timestamps gracefully during sorting', () => {
+        const { updateSummaryDataWithNewRun } = require('../storageService');
+        const legacyTimestamp = '2024-02-01T10:00:00.000Z';
+        const safeTimestamp = '2024-01-15T12-00-00-000Z';
+
+        const existingSummary: EnhancedComparisonConfigInfo[] = [
+          {
+            configId: 'test-config',
+            configTitle: 'Test Config',
+            id: 'test-config',
+            title: 'Test Config',
+            description: '',
+            runs: [{ runLabel: 'run-safe', timestamp: safeTimestamp, fileName: `run-safe_${safeTimestamp}_comparison.json`, perModelHybridScores: new Map() }],
+            latestRunTimestamp: safeTimestamp,
+            tags: [],
+            overallAverageHybridScore: 0.8,
+            hybridScoreStdDev: 0.1,
+          },
+        ];
+        
+        const newResultData: FetchedComparisonData = { ...baseMockResultData, timestamp: legacyTimestamp };
+        const newRunFileName = `run-legacy_${legacyTimestamp.replace(/[:.]/g, '-')}_comparison.json`;
+
+        const updatedSummary = updateSummaryDataWithNewRun(existingSummary, newResultData, newRunFileName);
+        const updatedConfig = updatedSummary.find((c: EnhancedComparisonConfigInfo) => c.configId === 'test-config');
+
+        expect(updatedConfig).toBeDefined();
+        expect(updatedConfig!.runs).toHaveLength(2);
+        expect(updatedConfig!.runs[0].timestamp).toBe(legacyTimestamp);
+        expect(updatedConfig!.runs[1].timestamp).toBe(safeTimestamp);
+        expect(updatedConfig!.latestRunTimestamp).toBe(legacyTimestamp);
+      });
+    });
 }); 

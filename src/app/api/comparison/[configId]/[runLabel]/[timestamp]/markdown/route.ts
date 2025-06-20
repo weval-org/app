@@ -37,13 +37,22 @@ export async function GET(
             return NextResponse.json({ error: `Comparison data file not found for ${configId}/${routeRunLabel}/${routeTimestamp} (file: ${specificRun.fileName})` }, { status: 404 });
         }
         
-        const markdownContent = await generateRunMarkdown(jsonData);
+        const { searchParams } = new URL(request.url);
+        const truncateLengthStr = searchParams.get('truncate');
+        const truncateLength = truncateLengthStr ? parseInt(truncateLengthStr, 10) : undefined;
+        
+        const markdownContent = await generateRunMarkdown(jsonData, { truncateLength });
+
+        const isTruncated = truncateLength !== undefined;
+        const fileName = isTruncated
+            ? `${configId}_${routeRunLabel}_${routeTimestamp}_truncated.md`
+            : `${configId}_${routeRunLabel}_${routeTimestamp}.md`;
 
         return new NextResponse(markdownContent, {
             status: 200,
             headers: {
                 'Content-Type': 'text/markdown; charset=utf-8',
-                'Content-Disposition': `attachment; filename="${configId}_${routeRunLabel}_${routeTimestamp}.md"`,
+                'Content-Disposition': `attachment; filename="${fileName}"`,
             },
         });
 

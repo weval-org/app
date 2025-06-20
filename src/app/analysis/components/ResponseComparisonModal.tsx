@@ -328,56 +328,79 @@ export function ResponseComparisonModal({
             </div>
           )}
 
-          {/* Side-by-side Responses Area */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4">
-            {/* Column for Model A Response */}
-            <div className="flex flex-col bg-muted/50 dark:bg-slate-900/60 ring-1 ring-border dark:ring-slate-700/70 rounded-lg shadow-md">
-              <div className="p-3 border-b border-border dark:border-slate-700 bg-card/80 dark:bg-slate-800/80 rounded-t-lg">
-                <h3 className="text-md font-semibold text-center text-foreground dark:text-slate-100">{baseModelA}</h3>
-                <p className="text-xs text-muted-foreground dark:text-slate-400 text-center mt-0.5">
-                  {systemPromptA ? (
-                    <span title={systemPromptA}>System: {systemPromptA.substring(0, 70)}{systemPromptA.length > 70 ? '...' : ''}</span>
-                  ) : (
-                    <span className="italic">Default System Prompt</span>
-                  )}
-                </p>
-              </div>
-              <div className="prose prose-sm dark:prose-invert max-w-none p-3.5 flex-grow overflow-y-auto text-card-foreground dark:text-slate-200 rounded-b-lg min-h-[200px]">
-                {responseA && responseA.trim() !== '' && ReactMarkdownComponent && remarkGfmPlugin ? (
-                  <ReactMarkdownComponent remarkPlugins={remarkGfmPlugin}>{responseA}</ReactMarkdownComponent>
-                ) : <p className="italic text-muted-foreground dark:text-slate-400">No response or response is empty.</p>}
-              </div>
-            </div>
-
-            {/* Column for Model B / Ideal Response */}
-            <div className="flex flex-col bg-muted/50 dark:bg-slate-900/60 ring-1 ring-border dark:ring-slate-700/70 rounded-lg shadow-md">
-              <div className="p-3 border-b border-border dark:border-slate-700 bg-card/80 dark:bg-slate-800/80 rounded-t-lg">
-                <h3 className="text-md font-semibold text-center text-foreground dark:text-slate-100">
-                  {isComparingVsIdeal ? 'Ideal Response Content' : baseModelB}
-                </h3>
-                {!isComparingVsIdeal && (
-                  <p className="text-xs text-muted-foreground dark:text-slate-400 text-center mt-0.5">
-                    {systemPromptB ? (
-                      <span title={systemPromptB}>System: {systemPromptB.substring(0, 70)}{systemPromptB.length > 70 ? '...' : ''}</span>
-                    ) : (
-                      <span className="italic">Default System Prompt</span>
-                    )}
-                  </p>
-                )}
-              </div>
-              <div className="prose prose-sm dark:prose-invert max-w-none p-3.5 flex-grow overflow-y-auto text-card-foreground dark:text-slate-200 rounded-b-lg min-h-[200px]">
-                {responseB && responseB.trim() !== '' && ReactMarkdownComponent && remarkGfmPlugin ? (
-                  <ReactMarkdownComponent remarkPlugins={remarkGfmPlugin}>{responseB}</ReactMarkdownComponent>
-                ) : <p className="italic text-muted-foreground dark:text-slate-400">{isComparingVsIdeal ? 'Ideal Response Text Missing' : 'No response or response is empty.'}</p>}
-              </div>
-            </div>
+          {/* Existing ResponsePanels */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <ResponsePanel 
+              title={baseModelA}
+              fullModelId={modelA}
+              response={responseA}
+              systemPrompt={systemPromptA}
+              ReactMarkdownComponent={ReactMarkdownComponent}
+              remarkGfmPlugin={remarkGfmPlugin}
+            />
+            <ResponsePanel 
+              title={isComparingVsIdeal ? 'Ideal Response' : baseModelB}
+              fullModelId={modelB}
+              response={responseB}
+              systemPrompt={systemPromptB}
+              isIdeal={isComparingVsIdeal}
+              ReactMarkdownComponent={ReactMarkdownComponent}
+              remarkGfmPlugin={remarkGfmPlugin}
+            />
           </div>
         </div>
         
-        <DialogFooter className="p-3 border-t border-border dark:border-slate-700 bg-card/60 dark:bg-slate-800/60 z-10 rounded-b-xl">
-          <Button variant="outline" onClick={onClose} className="text-primary border-primary hover:bg-primary/10 hover:text-primary-foreground dark:text-sky-300 dark:border-sky-700 dark:hover:bg-sky-700/30 dark:hover:text-sky-200 bg-transparent">Close</Button>
+        <DialogFooter className="p-2 border-t border-border dark:border-slate-700 bg-card/60 dark:bg-slate-800/60 sticky bottom-0 z-10 rounded-b-xl">
+          <Button variant="outline" onClick={onClose} className="text-primary border-primary/50 hover:bg-primary/10 hover:text-primary dark:text-sky-300 dark:border-sky-700 dark:hover:bg-sky-700/30 dark:hover:text-sky-200">Close</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Sub-component for displaying a single model's response
+function ResponsePanel({
+  title,
+  fullModelId,
+  response,
+  systemPrompt,
+  isIdeal = false,
+  ReactMarkdownComponent,
+  remarkGfmPlugin,
+}: {
+  title: string;
+  fullModelId: string;
+  response: string;
+  systemPrompt?: string | null;
+  isIdeal?: boolean;
+  ReactMarkdownComponent: ComponentType<any> | null;
+  remarkGfmPlugin: any[] | null;
+}) {
+  const { baseName: modelBaseName } = parseModelId(fullModelId);
+  const effectiveTitle = isIdeal ? title : modelBaseName;
+
+  return (
+    <div className="bg-card/70 dark:bg-slate-800/70 p-3 rounded-lg shadow-inner ring-1 ring-border dark:ring-slate-700/70 h-full flex flex-col">
+      <h3 className="text-base font-semibold mb-2 text-foreground dark:text-slate-100" title={fullModelId}>
+        {effectiveTitle}
+      </h3>
+      
+      {systemPrompt && (
+        <div className="mb-2 p-2 rounded-md bg-sky-100/50 dark:bg-sky-900/30 text-xs text-sky-800 dark:text-sky-200 ring-1 ring-sky-200 dark:ring-sky-800">
+          <p className="font-semibold text-sky-900 dark:text-sky-300">System Prompt:</p>
+          <p className="whitespace-pre-wrap">{systemPrompt}</p>
+        </div>
+      )}
+
+      <div className="prose prose-sm dark:prose-invert max-w-none flex-grow overflow-y-auto custom-scrollbar pr-1 text-card-foreground dark:text-slate-200">
+        {ReactMarkdownComponent && remarkGfmPlugin ? (
+          <ReactMarkdownComponent remarkPlugins={remarkGfmPlugin}>
+            {response}
+          </ReactMarkdownComponent>
+        ) : (
+          <pre className="whitespace-pre-wrap font-sans">{response}</pre>
+        )}
+      </div>
+    </div>
   );
 } 
