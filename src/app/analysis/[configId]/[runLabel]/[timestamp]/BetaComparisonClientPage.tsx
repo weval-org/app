@@ -783,7 +783,7 @@ export default function BetaComparisonClientPage() {
         {data?.config?.systems && data.config.systems.length > 1 && (
             <Card className="shadow-lg border-border dark:border-slate-700">
                 <CardHeader>
-                <CardTitle className="text-primary dark:text-sky-400">System Prompt Variants</CardTitle>
+                <CardTitle className="text-primary text-primary">System Prompt Variants</CardTitle>
                 <CardDescription>This run was executed against the following system prompt variations.</CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -844,7 +844,7 @@ export default function BetaComparisonClientPage() {
                     You are viewing models that had empty responses for some prompts. 
                     Aggregate scores for these models ({excludedModelsList.map(modelId => `"${getModelDisplayLabel(parseEffectiveModelId(modelId))}"`).join(', ')}) 
                     are calculated only from the prompts they responded to and may not be directly comparable to other models.
-                    <Button variant="link" className="p-0 h-auto ml-2 text-primary dark:text-sky-400 font-semibold" onClick={() => setForceIncludeExcludedModels(false)}>
+                    <Button variant="link" className="p-0 h-auto ml-2 text-primary text-primary font-semibold" onClick={() => setForceIncludeExcludedModels(false)}>
                         (Re-hide incomplete models)
                     </Button>
                 </AlertDescription>
@@ -854,7 +854,7 @@ export default function BetaComparisonClientPage() {
         {currentPromptId && (
              <Card className="shadow-lg border-border dark:border-slate-700">
                 <CardHeader>
-                    <CardTitle className="text-primary dark:text-sky-400">Current Prompt Context</CardTitle>
+                    <CardTitle className="text-primary text-primary">Current Prompt Context</CardTitle>
                 </CardHeader>
                 <CardContent className="text-sm">
                     {renderPromptDetails()}
@@ -882,9 +882,9 @@ export default function BetaComparisonClientPage() {
         {!evalMethodsUsed.includes('llm-coverage') && (
             <div className="my-6">
                 <Alert variant="default" className="border-sky-500/50 dark:border-sky-400/30 bg-sky-50/50 dark:bg-sky-900/10">
-                    <HelpCircle className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+                    <HelpCircle className="h-4 w-4 text-sky-600 text-primary" />
                     <AlertTitle className="text-sky-800 dark:text-sky-300">Coverage Analysis Not Available</AlertTitle>
-                    <AlertDescription className="text-sky-900 dark:text-sky-400/90">
+                    <AlertDescription className="text-sky-900 text-primary/90">
                         The 'llm-coverage' evaluation method was not included in this run. Therefore, the Macro Coverage Overview and other rubric-based analyses are not available. To enable this analysis, include 'llm-coverage' in the `--eval-method` flag when executing the run.
                     </AlertDescription>
                 </Alert>
@@ -970,7 +970,7 @@ export default function BetaComparisonClientPage() {
             <Card className="shadow-lg border-border dark:border-slate-700 mt-6">
                 <CardHeader>
                      <div className="flex justify-between items-center">
-                        <CardTitle className="text-primary dark:text-sky-400">Key Point Coverage Details</CardTitle>
+                        <CardTitle className="text-primary text-primary">Key Point Coverage Details</CardTitle>
                         <Button variant="ghost" size="sm" title="Help: Key Point Coverage Table" asChild>
                             <Link href="#key-point-coverage-help" scroll={false}><HelpCircle className="w-4 h-4 text-muted-foreground" /></Link>
                         </Button>
@@ -1065,7 +1065,7 @@ export default function BetaComparisonClientPage() {
             <Card className="shadow-lg border-border dark:border-slate-700 lg:col-span-2">
               <CardHeader>
                 <div className="flex justify-between items-center">
-                    <CardTitle className="text-primary dark:text-sky-400">Model Similarity Matrix</CardTitle>
+                    <CardTitle className="text-primary text-primary">Model Similarity Matrix</CardTitle>
                     <Button variant="ghost" size="sm" title="Help: Similarity Matrix">
                         <HelpCircle className="w-4 h-4 text-muted-foreground" />
                     </Button>
@@ -1088,7 +1088,7 @@ export default function BetaComparisonClientPage() {
             <Card className="shadow-lg border-border dark:border-slate-700 lg:col-span-2">
                 <CardHeader>
                     <div className="flex justify-between items-center">
-                        <CardTitle className="text-primary dark:text-sky-400">Model Similarity Graph</CardTitle>
+                        <CardTitle className="text-primary text-primary">Model Similarity Graph</CardTitle>
                          <Button variant="ghost" size="sm" title="Help: Similarity Graph">
                             <HelpCircle className="w-4 h-4 text-muted-foreground" />
                         </Button>
@@ -1112,7 +1112,7 @@ export default function BetaComparisonClientPage() {
           <Card className="shadow-lg border-border dark:border-slate-700">
               <CardHeader>
                   <div className="flex justify-between items-center">
-                      <CardTitle className="text-primary dark:text-sky-400">Model Similarity Dendrogram</CardTitle>
+                      <CardTitle className="text-primary text-primary">Model Similarity Dendrogram</CardTitle>
                       <Button variant="ghost" size="sm" title="Help: Dendrogram">
                           <HelpCircle className="w-4 h-4 text-muted-foreground" />
                       </Button>
@@ -1147,7 +1147,7 @@ export default function BetaComparisonClientPage() {
                 <Card className="shadow-lg border-border dark:border-slate-700">
                     <CardHeader>
                          <div className="flex justify-between items-center">
-                            <CardTitle className="text-primary dark:text-sky-400">Macro Coverage Overview</CardTitle>
+                            <CardTitle className="text-primary text-primary">Macro Coverage Overview</CardTitle>
                              <Button variant="ghost" size="sm" title="Help: Macro Coverage Table" asChild>
                                 <Link href="#macro-coverage-help" scroll={false}><HelpCircle className="w-4 h-4 text-muted-foreground" /></Link>
                             </Button>
@@ -1276,7 +1276,7 @@ export default function BetaComparisonClientPage() {
               <>
                 <Card className="shadow-lg border-border dark:border-slate-700">
                   <CardHeader>
-                    <CardTitle className="text-primary dark:text-sky-400">Model Similarity Graph</CardTitle>
+                    <CardTitle className="text-primary text-primary">Model Similarity Graph</CardTitle>
                     <CardDescription>
                       Force-directed graph showing relationships based on semantic similarity of model responses across all prompts.
                     </CardDescription>
@@ -1294,7 +1294,7 @@ export default function BetaComparisonClientPage() {
 
                 <Card className="shadow-lg border-border dark:border-slate-700">
                   <CardHeader>
-                    <CardTitle className="text-primary dark:text-sky-400">Model Similarity Dendrogram</CardTitle>
+                    <CardTitle className="text-primary text-primary">Model Similarity Dendrogram</CardTitle>
                     <CardDescription>
                       Hierarchical clustering of models based on response similarity. Models grouped closer are more similar.
                     </CardDescription>

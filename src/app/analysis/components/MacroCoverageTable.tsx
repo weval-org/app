@@ -3,12 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { getGradedCoverageColor } from '../utils/colorUtils';
-import { getModelDisplayLabel } from '../../utils/modelIdUtils';
-import { AllCoverageScores, AllFinalAssistantResponses } from '../types';
-import { useMacroCoverageData } from '../hooks/useMacroCoverageData';
+import { getGradedCoverageColor } from '@/app/analysis/utils/colorUtils';
+import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
+import { AllCoverageScores, AllFinalAssistantResponses } from '@/app/analysis/types';
+import { useMacroCoverageData } from '@/app/analysis/hooks/useMacroCoverageData';
 import { FocusView } from './FocusView';
+import { cn } from '@/lib/utils';
 
+const UsersIcon = dynamic(() => import("lucide-react").then((mod) => mod.UsersIcon));
 const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.AlertCircle));
 
 interface MacroCoverageTableProps {
@@ -21,6 +23,9 @@ interface MacroCoverageTableProps {
     runLabel: string;
     safeTimestampFromParams: string;
     onCellClick?: (promptId: string, modelId: string) => void;
+    onModelClick?: (modelId: string) => void;
+    onPromptClick?: (promptId: string) => void;
+    onModelHover?: (modelId: string | null) => void;
 }
 
 const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
@@ -33,6 +38,9 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
     runLabel,
     safeTimestampFromParams,
     onCellClick,
+    onModelClick,
+    onPromptClick,
+    onModelHover,
 }) => {
     const [focusedModelId, setFocusedModelId] = useState<string | null>(null);
     const [markdownModule, setMarkdownModule] = useState<{ ReactMarkdown: any, RemarkGfm: any } | null>(null);
@@ -62,10 +70,10 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
     if (!allCoverageScores) {
         return <p className="p-4 text-muted-foreground italic">Macro coverage data not available at all.</p>;
     }
-    if (promptIds.length === 0) {
+    if (sortedPromptIds.length === 0) {
         return <p className="p-4 text-muted-foreground italic">No prompts available.</p>;
     }
-    if (models.length === 0 && !focusedModelId) {
+    if (localSortedModels.length === 0 && !focusedModelId) {
         return <p className="p-4 text-muted-foreground italic">No models available.</p>;
     }
     
@@ -88,6 +96,15 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                 safeTimestampFromParams={safeTimestampFromParams}
                 onReturn={() => setFocusedModelId(null)}
                 markdownModule={markdownModule}
+                onClearFocus={() => setFocusedModelId(null)}
+                onSwitchFocus={(direction) => {
+                    const currentIndex = localSortedModels.indexOf(focusedModelId);
+                    if (currentIndex === -1) return;
+                    const nextIndex = direction === 'next' 
+                        ? (currentIndex + 1) % localSortedModels.length 
+                        : (currentIndex - 1 + localSortedModels.length) % localSortedModels.length;
+                    setFocusedModelId(localSortedModels[nextIndex]);
+                }}
             />
         );
     }
@@ -159,23 +176,39 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
     };
 
     const headerCellStyle = "border border-border dark:border-slate-700 px-2 py-2.5 text-center font-semibold align-bottom";
-    const modelNameHeaderStyle = `${headerCellStyle} text-foreground dark:text-slate-200 break-all w-36`;
-    const mIndexHeaderStyle = `${headerCellStyle} text-foreground dark:text-slate-200 break-words`;
+    const modelNameHeaderStyle = cn(headerCellStyle, "text-foreground dark:text-slate-200 break-all w-36");
+    const mIndexHeaderStyle = cn(headerCellStyle, "text-foreground dark:text-slate-200 break-words");
     const stickyHeaderBase = "sticky left-0 z-20 bg-muted dark:bg-slate-800";
-    const firstColStickyHeader = `${headerCellStyle} text-primary dark:text-sky-300 ${stickyHeaderBase} w-16`;
-    const secondColStickyHeader = `${headerCellStyle} text-primary dark:text-sky-300 ${stickyHeaderBase} left-0 w-96 text-left`;
+    const firstColStickyHeader = cn(headerCellStyle, "text-primary", stickyHeaderBase, "w-16");
+    const secondColStickyHeader = cn(headerCellStyle, "text-primary", stickyHeaderBase, "left-0 w-96 text-left");
 
     const modelAvgScoreHeaderBase = "border-x border-b border-border dark:border-slate-700 px-2 py-1.5 text-center text-[10px]";
-    const firstColModelAvgSticky = `${modelAvgScoreHeaderBase} font-semibold text-primary/80 dark:text-sky-300/80 sticky left-0 z-20 bg-muted/70 dark:bg-slate-800/70 w-16`;
-    const secondColModelAvgSticky = `${modelAvgScoreHeaderBase} font-semibold text-primary/80 dark:text-sky-300/80 sticky left-0 z-20 bg-muted/70 dark:bg-slate-800/70 w-96`;
+    const firstColModelAvgSticky = cn(modelAvgScoreHeaderBase, "font-semibold text-primary/80 dark:text-primary/80 sticky left-0 z-20 bg-muted/70 dark:bg-slate-800/70 w-16");
+    const secondColModelAvgSticky = cn(modelAvgScoreHeaderBase, "font-semibold text-primary/80 dark:text-primary/80 sticky left-0 z-20 bg-muted/70 dark:bg-slate-800/70 w-96");
+
+    const handleModelClick = (modelId: string) => {
+        if (onModelClick) {
+            onModelClick(modelId);
+        } else {
+            console.warn("onModelClick is not defined");
+        }
+    };
+
+    const handlePromptClick = (promptId: string) => {
+        if (onPromptClick) {
+            onPromptClick(promptId);
+        } else {
+            console.warn("onPromptClick is not defined");
+        }
+    };
 
     return (
         <div className="overflow-x-auto rounded-md ring-1 ring-border dark:ring-slate-700 shadow-md">
             <table className="border-collapse text-xs table-fixed">
                 <thead>
                     <tr className="bg-muted dark:bg-slate-800">
-                        <th className={`${firstColStickyHeader} border-t-transparent`}></th>
-                        <th className={`${secondColStickyHeader} border-t-transparent`}></th>
+                        <th className={cn(firstColStickyHeader, "border-t-transparent")}></th>
+                        <th className={cn(secondColStickyHeader, "border-t-transparent")}></th>
                         {localSortedModels.map(modelId => {
                             const parsed = parsedModelsMap[modelId];
                             const globalIndex = baseModelGlobalIndexMap[parsed.baseId];
@@ -183,7 +216,7 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                             return (
                                 <th 
                                     key={`m-index-header-${modelId}`}
-                                    className={`${mIndexHeaderStyle} ${visualGroupStyle}`}
+                                    className={cn(mIndexHeaderStyle, visualGroupStyle)}
                                     title={`Base Model Index for: ${parsed.baseId}`}
                                 >
                                     {globalIndex !== undefined ? `[M${globalIndex}]` : ''}
@@ -192,8 +225,8 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                         })}
                     </tr>
                     <tr className="bg-muted dark:bg-slate-800">
-                        <th className={`${firstColStickyHeader} border-t-0`}>Avg %</th>
-                        <th className={`${secondColStickyHeader} border-t-0`}>Prompt</th>
+                        <th className={cn(firstColStickyHeader, "border-t-0")}>Avg %</th>
+                        <th className={cn(secondColStickyHeader, "border-t-0")}>Prompt</th>
                         {localSortedModels.map(modelId => {
                             const parsed = parsedModelsMap[modelId];
                             const shortDisplayLabel = getModelDisplayLabel(parsed, { hideProvider: true });
@@ -201,7 +234,7 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                             return (
                                 <th 
                                   key={modelId} 
-                                  className={`${modelNameHeaderStyle} border-t-0 hover:bg-muted/70 dark:hover:bg-slate-700/60 transition-colors cursor-pointer`}
+                                  className={cn(modelNameHeaderStyle, "border-t-0 hover:bg-muted/70 dark:hover:bg-slate-700/60 transition-colors cursor-pointer")}
                                   title={`Click to focus on ${fullDisplayLabel}`}
                                   onClick={() => setFocusedModelId(modelId)}
                                 >
@@ -216,9 +249,15 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                         {localSortedModels.map(modelId => {
                             const modelAvgCoverage = calculateModelAverageCoverage(modelId);
                             return (
-                                 <th key={`${modelId}-avg-score`} className={`${modelAvgScoreHeaderBase} font-medium text-foreground dark:text-slate-200 w-36`}>
+                                 <th key={`${modelId}-avg-score`} className={cn(modelAvgScoreHeaderBase, "font-medium text-foreground dark:text-slate-200 w-36")}>
                                       {modelAvgCoverage !== null ? (
-                                          <span className={`inline-block px-1 py-0.5 rounded-md text-white dark:text-slate-50 font-semibold ${(modelAvgCoverage * 100) >= 75 ? 'bg-highlight-success/80' : (modelAvgCoverage * 100) >= 50 ? 'bg-highlight-warning/80' : (modelAvgCoverage * 100) > 0 ? 'bg-highlight-error/80' : 'bg-muted/80'}`}>
+                                          <span className={cn(
+                                                "inline-block px-1 py-0.5 rounded-md text-white dark:text-slate-50 font-semibold",
+                                                (modelAvgCoverage * 100) >= 75 ? 'bg-highlight-success/80' : 
+                                                (modelAvgCoverage * 100) >= 50 ? 'bg-highlight-warning/80' : 
+                                                (modelAvgCoverage * 100) > 0 ? 'bg-highlight-error/80' : 
+                                                'bg-muted/80'
+                                            )}>
                                             {(modelAvgCoverage * 100).toFixed(1)}%
                                         </span>
                                     ) : (
@@ -239,7 +278,12 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                             >
                                 <td className="border-x border-border dark:border-slate-700 px-1 py-2 text-center align-middle font-medium sticky left-0 z-10 bg-card/90 dark:bg-slate-800/90 hover:bg-muted/60 dark:hover:bg-slate-700/50 w-16">
                                     {avgScore !== null ? (
-                                        <span className={`inline-block px-1.5 py-0.5 rounded-md text-white dark:text-slate-50 text-[10px] font-semibold ${avgScore >= 75 ? 'bg-highlight-success/90' : avgScore >= 50 ? 'bg-highlight-warning/90' : 'bg-highlight-error/90'}`}>
+                                        <span className={cn(
+                                            "inline-block px-1.5 py-0.5 rounded-md text-white dark:text-slate-50 text-[10px] font-semibold",
+                                            avgScore >= 75 ? 'bg-highlight-success/90' :
+                                            avgScore >= 50 ? 'bg-highlight-warning/90' :
+                                            'bg-highlight-error/90'
+                                        )}>
                                             {avgScore.toFixed(0)}%
                                         </span>
                                     ) : (
@@ -249,7 +293,7 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                                 <td className="border-x border-border dark:border-slate-700 px-3 py-2 text-left align-middle sticky left-0 z-10 bg-card/90 dark:bg-slate-800/90 hover:bg-muted/60 dark:hover:bg-slate-700/50 w-96">
                                     <Link
                                         href={`/analysis/${encodeURIComponent(configId)}/${encodeURIComponent(runLabel)}/${encodeURIComponent(safeTimestampFromParams)}?prompt=${encodeURIComponent(promptId)}`}
-                                        className="block text-primary dark:text-sky-400 hover:text-primary/80 dark:hover:text-sky-300 hover:underline cursor-pointer text-xs"
+                                        className="block text-primary hover:text-primary/80 dark:hover:text-primary/80 hover:underline cursor-pointer text-xs"
                                         title={`View details for: ${getPromptText(promptId)}`}
                                     >
                                         <span className="block truncate text-xs text-muted-foreground dark:text-slate-500">
@@ -309,62 +353,23 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                                     ].filter(Boolean).join(" ");
 
                                     return (
-                                        <td
-                                            key={`${promptId}-${modelId}`}
-                                            className={cellClasses}
-                                            style={{ position: 'relative' }}
-                                            title={titleText || undefined}
+                                        <td 
+                                            key={modelId}
+                                            className={cn(
+                                                cellClasses,
+                                                isOutlier ? "bg-red-500/10 dark:bg-red-500/20" : "",
+                                                hasHighDisagreement ? "ring-2 ring-offset-1 ring-offset-background dark:ring-offset-slate-800 ring-yellow-500 dark:ring-yellow-400" : ""
+                                            )}
+                                            onMouseEnter={() => onModelHover && onModelHover(modelId)}
+                                            onMouseLeave={() => onModelHover && onModelHover(null)}
                                             onClick={() => {
                                                 if (onCellClick) {
                                                     onCellClick(promptId, modelId);
                                                 }
                                             }}
+                                            title={titleText || undefined}
                                         >
-                                            {isOutlier && (
-                                                <div
-                                                    title="Outlier marker"
-                                                    style={{
-                                                        position: 'absolute',
-                                                        top: 0,
-                                                        left: 0,
-                                                        width: 0,
-                                                        height: 0,
-                                                        borderStyle: 'solid',
-                                                        borderWidth: '5px 5px 0 0',
-                                                        borderColor: 'rgba(239, 68, 68, 0.85) transparent transparent transparent',
-                                                        zIndex: 10,
-                                                    }}
-                                                />
-                                            )}
-                                            {hasHighDisagreement && (
-                                                <div
-                                                    title={titleText}
-                                                    style={{
-                                                        position: 'absolute',
-                                                        bottom: 0,
-                                                        right: 0,
-                                                        width: 0,
-                                                        height: 0,
-                                                        borderStyle: 'solid',
-                                                        transform: 'rotate(270deg)',
-                                                        borderWidth: '10px 0 0 10px',
-                                                        borderColor: 'transparent transparent transparent rgba(251, 191, 36, 0.9)', // Amber 400
-                                                        zIndex: 10,
-                                                    }}
-                                                />
-                                            )}
-                                            <div className={`relative flex items-center px-2 py-1 h-full ${onCellClick ? "hover:bg-muted/70 dark:hover:bg-slate-700/60 transition-all duration-150" : ""}`}>
-                                                <div className="flex-grow">
-                                                    {renderSegments(promptId, modelId)}
-                                                </div>
-                                                {cellScoreNum !== null && (
-                                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                                        <span className="opacity-80 font-mono text-xs font-semibold text-white/90  rounded-sm px-1 py-0.5">
-                                                            {(cellScoreNum * 100).toFixed(0)}<span className="text-[9px] ">%</span>
-                                                        </span>
-                                                    </div>
-                                                )}
-                                            </div>
+                                            {renderSegments(promptId, modelId)}
                                         </td>
                                     );
                                 })}

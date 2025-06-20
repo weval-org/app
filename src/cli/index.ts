@@ -73,7 +73,7 @@ getConfig();
 const cli = new Command();
 
 cli
-  .name('civic-eval-cli')
+  .name('weval-cli')
   .description('CLI tools for Weval, a platform for qualitative and semantic evaluation of language models.')
   .version('0.8.0');
 

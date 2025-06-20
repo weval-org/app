@@ -14,11 +14,14 @@ import {
 import { PromptAnalysisResults, ComparisonDataV2, EvaluationResults } from '@/app/utils/types';
 import { IDEAL_MODEL_ID, findSimilarityExtremes as importedFindSimilarityExtremes } from '@/app/utils/comparisonUtils';
 import { getModelDisplayLabel, parseEffectiveModelId, IDEAL_MODEL_ID_BASE } from '../../utils/modelIdUtils';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
+import { Button } from '@/components/ui/button';
 
 const Sparkles = dynamic(() => import("lucide-react").then(mod => mod.Sparkles));
-const Info = dynamic(() => import("lucide-react").then(mod => mod.Info));
 const BarChartBig = dynamic(() => import("lucide-react").then(mod => mod.BarChartBig));
 const SlidersHorizontal = dynamic(() => import("lucide-react").then(mod => mod.SlidersHorizontal));
+const ChevronRight = dynamic(() => import("lucide-react").then(mod => mod.ChevronRight));
+const Info = dynamic(() => import("lucide-react").then(mod => mod.Info));
 
 interface StatisticRow {
   statistic: string;
@@ -154,7 +157,6 @@ const renderDatasetStatisticsInternal = (
     });
   }
 
-  // NEW: Avg. Prompt Coverage Range
   if (minPerPromptAvgCoverage !== null && maxPerPromptAvgCoverage !== null) {
     const spread = maxPerPromptAvgCoverage - minPerPromptAvgCoverage;
     const spreadColorClass = getSpreadColor(spread);
@@ -165,7 +167,6 @@ const renderDatasetStatisticsInternal = (
     });
   }
 
-  // NEW: StdDev of Avg. Prompt Coverage
   if (stdDevOfPromptAvgs_PercentScale !== null) {
     const colorClass = getStdDevColor(stdDevOfPromptAvgs_PercentScale, true);
     headlineStatsTableData.push({
@@ -345,113 +346,141 @@ const renderDatasetStatisticsInternal = (
     <Card className="bg-card/80 dark:bg-slate-800/50 backdrop-blur-md text-card-foreground rounded-xl shadow-lg ring-1 ring-border dark:ring-slate-700 overflow-hidden">
       <CardHeader className="border-b border-border dark:border-slate-700 py-4 px-6">
         <div className="flex items-center">
-            {Sparkles && <Sparkles className="w-6 h-6 mr-3 text-primary dark:text-sky-400" />}
-            <CardTitle className="text-primary dark:text-sky-400 text-xl">Key Dataset Statistics</CardTitle>
+            {Sparkles && <Sparkles className="w-6 h-6 mr-3 text-primary" />}
+            <CardTitle className="text-primary text-xl">Key Dataset Statistics</CardTitle>
         </div>
         <CardDescription className="text-muted-foreground dark:text-slate-400 pt-1 text-sm">A consolidated overview of performance and semantic consistency metrics.</CardDescription>
       </CardHeader>
       <CardContent className="pt-6 px-6 pb-6 space-y-8">
-        {/* Headline Stats Table */}
-        {headlineStatsTableData.length > 0 && (
-          <div>
-            <h3 className="text-lg font-semibold text-primary dark:text-sky-300 mb-3 flex items-center">
-                {Info && <Info className="w-5 h-5 mr-2.5 text-primary/80 dark:text-sky-400/80" />} Overall Dataset Summary
-            </h3>
-            <Table className="min-w-full divide-y divide-border dark:divide-slate-700 mb-8">
-              <TableHeader>
-                <TableRow className="hover:bg-muted/50 dark:hover:bg-slate-700/30">
-                  <TableHead className="px-4 py-3 text-left text-xs font-medium text-primary dark:text-sky-300 uppercase tracking-wider min-w-[200px]">Metric</TableHead>
-                  <TableHead className="px-4 py-3 text-left text-xs font-medium text-primary dark:text-sky-300 uppercase tracking-wider whitespace-nowrap min-w-[100px]">Value</TableHead>
-                  <TableHead className="px-4 py-3 text-left text-xs font-medium text-primary dark:text-sky-300 uppercase tracking-wider max-w-[500px]">Explanation</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody className="divide-y divide-border/70 dark:divide-slate-700/70">
-                {headlineStatsTableData.map((stat, index) => (
-                  <TableRow key={`headline-stat-${index}`} className="hover:bg-muted/30 dark:hover:bg-slate-750/50 transition-colors duration-150 ease-in-out">
-                    <TableCell className="px-4 py-3 text-sm text-foreground dark:text-slate-200 font-medium" title={stat.tooltip}>{stat.label}</TableCell>
-                    <TableCell 
-                        className="px-4 py-3 text-m text-foreground dark:text-slate-100 font-semibold whitespace-nowrap"
-                        dangerouslySetInnerHTML={{ __html: stat.value + (stat.unit || '') }}
-                    />
-                    <TableCell className="px-4 py-3 text-xs text-muted-foreground dark:text-slate-400">
-                        {stat.tooltip}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
+        <Collapsible defaultOpen={true}>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" className="w-full justify-start p-2 hover:bg-muted/50 dark:hover:bg-slate-800/60">
+              <ChevronRight className="w-4 h-4 mr-2 transition-transform duration-200 ease-in-out group-data-[state=open]:rotate-90" />
+              <h4 className="text-base font-semibold flex items-center">
+                {Info && <Info className="w-5 h-5 mr-2.5 text-primary/80" />} Overall Dataset Summary
+              </h4>
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="px-4 py-4 space-y-4 border-l-2 border-primary/20 ml-4">
+            {/* Headline Stats Table */}
+            {headlineStatsTableData.length > 0 && (
+              <div>
+                <Table className="min-w-full divide-y divide-border dark:divide-slate-700 mb-8">
+                  <TableHeader>
+                    <TableRow className="hover:bg-muted/50 dark:hover:bg-slate-700/30">
+                      <TableHead className="px-4 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider min-w-[200px]">Metric</TableHead>
+                      <TableHead className="px-4 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider whitespace-nowrap min-w-[100px]">Value</TableHead>
+                      <TableHead className="px-4 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider max-w-[500px]">Explanation</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody className="divide-y divide-border/70 dark:divide-slate-700/70">
+                    {headlineStatsTableData.map((stat, index) => (
+                      <TableRow key={`headline-stat-${index}`} className="hover:bg-muted/30 dark:hover:bg-slate-750/50 transition-colors duration-150 ease-in-out">
+                        <TableCell className="px-4 py-3 text-sm text-foreground dark:text-slate-200 font-medium" title={stat.tooltip}>{stat.label}</TableCell>
+                        <TableCell 
+                            className="px-4 py-3 text-m text-foreground dark:text-slate-100 font-semibold whitespace-nowrap"
+                            dangerouslySetInnerHTML={{ __html: stat.value + (stat.unit || '') }}
+                        />
+                        <TableCell className="px-4 py-3 text-xs text-muted-foreground dark:text-slate-400">
+                            {stat.tooltip}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CollapsibleContent>
+        </Collapsible>
 
-        {/* Model Statistics Table */}
-        {modelStatsTableData.length > 0 && (
-          <div>
-            <h3 className="text-lg font-semibold text-primary dark:text-sky-300 mb-3 flex items-center">
-                {BarChartBig && <BarChartBig className="w-5 h-5 mr-2.5 text-primary dark:text-sky-400" />} Model Performance & Relationships
-            </h3>
-            <Table className="min-w-full divide-y divide-border dark:divide-slate-700">
-              <TableHeader>
-                <TableRow className="hover:bg-muted/50 dark:hover:bg-slate-700/30">
-                  <TableHead className="px-4 py-3 text-left text-xs font-medium text-primary dark:text-sky-300 uppercase tracking-wider">Statistic</TableHead>
-                  <TableHead className="px-4 py-3 text-left text-xs font-medium text-primary dark:text-sky-300 uppercase tracking-wider">Associated Model(s)</TableHead>
-                  <TableHead className="px-4 py-3 text-left text-xs font-medium text-primary dark:text-sky-300 uppercase tracking-wider whitespace-nowrap">Value</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody className="divide-y divide-border/70 dark:divide-slate-700/70">
-                {modelStatsTableData.map((stat, index) => (
-                  <TableRow key={`model-stat-${index}`} className="hover:bg-muted/30 dark:hover:bg-slate-750/50 transition-colors duration-150 ease-in-out">
-                    <TableCell className="px-4 py-3 text-sm text-foreground dark:text-slate-200">{stat.statistic}</TableCell>
-                    <TableCell className="px-4 py-3 text-sm text-foreground dark:text-slate-100 font-semibold truncate max-w-xs" title={stat.models}>
-                      {stat.models || 'N/A'}
-                    </TableCell>
-                    <TableCell className="px-4 py-3 text-base text-foreground dark:text-slate-100 font-bold">
-                      {stat.value}{stat.unit}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            {/* Moved Hybrid Score Explanation Here */}
-            <div className="mt-6 text-xs text-muted-foreground dark:text-slate-300 bg-muted/70 dark:bg-slate-700/30 p-3 rounded-md ring-1 ring-border/50 dark:ring-slate-600/50">
-                <p className="font-semibold mb-1 text-primary dark:text-sky-300">Hybrid Score Explained:</p>
-                <p>The Hybrid Score is the geometric mean of a model's semantic similarity to the ideal response and its key point coverage score.
-                <span className="mt-1 font-mono text-primary/80 dark:text-sky-400/80 text-[0.7rem]"> Formula: sqrt(similarity_to_ideal * coverage_score)</span>
-                </p>
-                <p className="mt-1.5">It provides a balanced measure of how closely the response matches the ideal meaning and how much ideal content it includes. Higher is better (0-1 scale).</p>
-            </div>
-          </div>
-        )}
+        <Collapsible defaultOpen={false}>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" className="w-full justify-start p-2 hover:bg-muted/50 dark:hover:bg-slate-800/60">
+              <ChevronRight className="w-4 h-4 mr-2 transition-transform duration-200 ease-in-out group-data-[state=open]:rotate-90" />
+              <h4 className="text-base font-semibold flex items-center">
+                {BarChartBig && <BarChartBig className="w-5 h-5 mr-2.5 text-primary" />} Model Performance & Relationships
+              </h4>
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="px-4 py-4 space-y-4 border-l-2 border-primary/20 ml-4">
+            {/* Model Statistics Table */}
+            {modelStatsTableData.length > 0 && (
+              <div>
+                <Table className="min-w-full divide-y divide-border dark:divide-slate-700">
+                  <TableHeader>
+                    <TableRow className="hover:bg-muted/50 dark:hover:bg-slate-700/30">
+                      <TableHead className="px-4 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Statistic</TableHead>
+                      <TableHead className="px-4 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Associated Model(s)</TableHead>
+                      <TableHead className="px-4 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider whitespace-nowrap">Value</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody className="divide-y divide-border/70 dark:divide-slate-700/70">
+                    {modelStatsTableData.map((stat, index) => (
+                      <TableRow key={`model-stat-${index}`} className="hover:bg-muted/30 dark:hover:bg-slate-750/50 transition-colors duration-150 ease-in-out">
+                        <TableCell className="px-4 py-3 text-sm text-foreground dark:text-slate-200">{stat.statistic}</TableCell>
+                        <TableCell className="px-4 py-3 text-sm text-foreground dark:text-slate-100 font-semibold truncate max-w-xs" title={stat.models}>
+                          {stat.models || 'N/A'}
+                        </TableCell>
+                        <TableCell className="px-4 py-3 text-base text-foreground dark:text-slate-100 font-bold">
+                          {stat.value}{stat.unit}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                <div className="mt-6 text-xs text-muted-foreground dark:text-slate-300 bg-muted/70 dark:bg-slate-700/30 p-3 rounded-md ring-1 ring-border/50 dark:ring-slate-600/50">
+                    <p className="font-semibold mb-1 text-primary">Hybrid Score Explained:</p>
+                    <div className="prose prose-sm max-w-none text-muted-foreground">
+                      <p>The Hybrid Score combines semantic similarity (style, structure) with key point coverage (substance). A high score indicates a response that is both thematically similar to the ideal answer and covers the required key points.</p>
+                      <p>
+                        <span className="mt-1 font-mono text-primary/80 text-[0.7rem]"> Formula: sqrt(similarity_to_ideal * coverage_score)</span>
+                      </p>
+                    </div>
+                </div>
+              </div>
+            )}
+          </CollapsibleContent>
+        </Collapsible>
 
-        {/* Prompt Statistics Table */}
-        {promptStatsTableData.length > 0 && (
-          <div>
-            <h3 className="text-lg font-semibold text-primary dark:text-sky-300 mb-3 flex items-center">
-                 {SlidersHorizontal && <SlidersHorizontal className="w-5 h-5 mr-2.5 text-primary/80 dark:text-sky-400/80" />} Prompt-Specific Variations
-            </h3>
-            <Table className="min-w-full divide-y divide-border dark:divide-slate-700">
-              <TableHeader>
-                <TableRow className="hover:bg-muted/50 dark:hover:bg-slate-700/30">
-                  <TableHead className="px-4 py-3 text-left text-xs font-medium text-primary dark:text-sky-300 uppercase tracking-wider">Statistic</TableHead>
-                  <TableHead className="px-4 py-3 text-left text-xs font-medium text-primary dark:text-sky-300 uppercase tracking-wider">Associated Prompt ID</TableHead>
-                  <TableHead className="px-4 py-3 text-left text-xs font-medium text-primary dark:text-sky-300 uppercase tracking-wider whitespace-nowrap">Value</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody className="divide-y divide-border/70 dark:divide-slate-700/70">
-                {promptStatsTableData.map((stat, index) => (
-                  <TableRow key={`prompt-stat-${index}`} className="hover:bg-muted/30 dark:hover:bg-slate-750/50 transition-colors duration-150 ease-in-out">
-                    <TableCell className="px-4 py-3 text-sm text-foreground dark:text-slate-200">{stat.statistic}</TableCell>
-                    <TableCell className="px-4 py-3 text-sm text-foreground dark:text-slate-100 font-semibold truncate max-w-md" title={`${stat.promptId} - ${stat.promptText}`}>
-                      {stat.promptId && stat.promptText ? `ID: ${stat.promptId} - ${stat.promptText}` : (stat.promptId || 'N/A')}
-                    </TableCell>
-                    <TableCell className="px-4 py-3 text-sm text-muted-foreground dark:text-slate-400">
-                      ({stat.value})
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
+        {promptStatsTableData.length > 0 && <Collapsible defaultOpen={false}>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" className="w-full justify-start p-2 hover:bg-muted/50 dark:hover:bg-slate-800/60">
+              <ChevronRight className="w-4 h-4 mr-2 transition-transform duration-200 ease-in-out group-data-[state=open]:rotate-90" />
+              <h4 className="text-base font-semibold flex items-center">
+                {SlidersHorizontal && <SlidersHorizontal className="w-5 h-5 mr-2.5 text-primary/80" />} Prompt-Specific Variations
+              </h4>
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="px-4 py-4 space-y-4 border-l-2 border-primary/20 ml-4">
+            {/* Prompt Statistics Table */}
+            {promptStatsTableData.length > 0 && (
+              <div>
+                <Table className="min-w-full divide-y divide-border dark:divide-slate-700">
+                  <TableHeader>
+                    <TableRow className="hover:bg-muted/50 dark:hover:bg-slate-700/30">
+                      <TableHead className="px-4 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Statistic</TableHead>
+                      <TableHead className="px-4 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider">Associated Prompt ID</TableHead>
+                      <TableHead className="px-4 py-3 text-left text-xs font-medium text-primary uppercase tracking-wider whitespace-nowrap">Value</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody className="divide-y divide-border/70 dark:divide-slate-700/70">
+                    {promptStatsTableData.map((stat, index) => (
+                      <TableRow key={`prompt-stat-${index}`} className="hover:bg-muted/30 dark:hover:bg-slate-750/50 transition-colors duration-150 ease-in-out">
+                        <TableCell className="px-4 py-3 text-sm text-foreground dark:text-slate-200">{stat.statistic}</TableCell>
+                        <TableCell className="px-4 py-3 text-sm text-foreground dark:text-slate-100 font-semibold truncate max-w-md" title={`${stat.promptId} - ${stat.promptText}`}>
+                          {stat.promptId && stat.promptText ? `ID: ${stat.promptId} - ${stat.promptText}` : (stat.promptId || 'N/A')}
+                        </TableCell>
+                        <TableCell className="px-4 py-3 text-sm text-muted-foreground dark:text-slate-400">
+                          ({stat.value})
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CollapsibleContent>
+        </Collapsible>}
       </CardContent>
     </Card>
   );

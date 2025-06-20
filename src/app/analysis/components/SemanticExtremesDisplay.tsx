@@ -181,7 +181,7 @@ const SemanticExtremesDisplay: React.FC<SemanticExtremesDisplayProps> = ({
     return (
         <Card className="shadow-lg border-border dark:border-slate-700 mt-6">
             <CardHeader>
-                <CardTitle className="text-primary dark:text-sky-400">Semantic Similarity Extremes</CardTitle>
+                <CardTitle className="text-primary">Semantic Similarity Extremes</CardTitle>
                  <CardDescription className="text-muted-foreground dark:text-slate-400 pt-1 text-sm">
                     These cards highlight models with the highest and lowest semantic similarity scores compared to the ideal response. This measures stylistic and structural similarity, and is not a measure of response quality or correctness.
                 </CardDescription>

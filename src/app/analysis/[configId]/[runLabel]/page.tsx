@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
 import { fromSafeTimestamp } from '@/app/utils/timestampUtils';
@@ -148,7 +148,7 @@ export default function RunLabelInstancesPage() {
   ], [configId, runLabel, overallConfigTitle]);
 
   const headerActions = useMemo(() => (
-    <Link href={`/analysis/${configId}`} className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-md text-primary dark:text-sky-400 hover:bg-primary/10 dark:hover:bg-sky-500/20 transition-colors border border-primary/30 dark:border-sky-500/40 hover:border-primary/50 dark:hover:border-sky-500/60">
+    <Link href={`/analysis/${configId}`} className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-md text-primary text-primary hover:bg-primary/10 dark:hover:bg-sky-500/20 transition-colors border border-primary/30 dark:border-sky-500/40 hover:border-primary/50 dark:hover:border-sky-500/60">
       {ChevronRightIcon && (
         <ChevronRightIcon className="w-4 h-4 mr-1.5 transform rotate-180" />
       )}
@@ -161,7 +161,7 @@ export default function RunLabelInstancesPage() {
       <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground p-8">
          <div className="fixed inset-0 -z-10 dark:bg-gradient-to-br dark:from-slate-900 dark:to-slate-800 bg-gradient-to-br from-slate-50 to-slate-100" />
         <div className="flex items-center space-x-3 text-xl text-foreground dark:text-slate-200">
-          {Loader2Icon && <Loader2Icon className="animate-spin h-8 w-8 text-primary dark:text-sky-400" />}
+          {Loader2Icon && <Loader2Icon className="animate-spin h-8 w-8 text-primary text-primary" />}
           <span>Loading run instances for "<strong>{runLabel}</strong>" under blueprint "<strong>{configId}</strong>"...</span>
         </div>
       </div>
@@ -227,7 +227,7 @@ export default function RunLabelInstancesPage() {
                               <Link href={`/analysis/${instance.configId}/${instance.runLabel}/${instance.safeTimestamp}`} className="block hover:bg-muted/30 dark:hover:bg-slate-700/40 transition-colors p-4">
                                   <div className="flex justify-between items-start">
                                       <div>
-                                          <p className="text-base font-medium text-primary dark:text-sky-400">
+                                          <p className="text-base font-medium text-primary text-primary">
                                               Executed: {instance.displayDate}
                                           </p>
                                           <p className="text-xs text-muted-foreground dark:text-slate-500 mt-1">

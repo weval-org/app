@@ -54,7 +54,7 @@ const BrowseAllBlueprintsSection = ({ blueprints, title }: BrowseAllBlueprintsSe
         <div className="text-center py-10 bg-card/50 dark:bg-slate-800/40 rounded-lg shadow-md">
           {PackageSearch && <PackageSearch className="w-12 h-12 mx-auto mb-4 text-muted-foreground dark:text-slate-500" />}
           <p className="text-lg text-muted-foreground dark:text-slate-400">No evaluation blueprints found.</p>
-          <p className="text-sm text-muted-foreground dark:text-slate-500 mt-1">Contribute blueprints to the <a href={`${BLUEPRINT_CONFIG_REPO_URL}/tree/main/blueprints`} target="_blank" rel="noopener noreferrer" className="text-primary dark:text-sky-400 hover:underline">Weval Blueprints repository</a>.</p>
+          <p className="text-sm text-muted-foreground dark:text-slate-500 mt-1">Contribute blueprints to the <a href={`${BLUEPRINT_CONFIG_REPO_URL}/tree/main/blueprints`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Weval Blueprints repository</a>.</p>
         </div>
       ) : (
         <div className="space-y-5 md:space-y-6">
@@ -72,15 +72,15 @@ const BrowseAllBlueprintsSection = ({ blueprints, title }: BrowseAllBlueprintsSe
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
                     <div className="flex-grow min-w-0">
                         <div className="flex items-center mb-2">
-                            {FolderOpen && <FolderOpen className="w-6 h-6 mr-2.5 text-primary dark:text-sky-400 flex-shrink-0" />}
+                            {FolderOpen && <FolderOpen className="w-6 h-6 mr-2.5 text-primary flex-shrink-0" />}
                             {latestRunInstanceUrl ? (
                               <Link href={latestRunInstanceUrl} title={`View latest run: ${bp.title || bp.configTitle}`}>
-                                <h3 className="font-semibold text-lg md:text-xl text-primary dark:text-sky-400 truncate hover:underline">
+                                <h3 className="font-semibold text-lg md:text-xl text-primary truncate hover:underline">
                                     {bp.title || bp.configTitle}
                                 </h3>
                               </Link>
                             ) : (
-                                <h3 className="font-semibold text-lg md:text-xl text-primary dark:text-sky-400 truncate" title={bp.title || bp.configTitle}>
+                                <h3 className="font-semibold text-lg md:text-xl text-primary truncate" title={bp.title || bp.configTitle}>
                                     {bp.title || bp.configTitle}
                                 </h3>
                             )}
@@ -95,7 +95,7 @@ const BrowseAllBlueprintsSection = ({ blueprints, title }: BrowseAllBlueprintsSe
                             <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1.5">
                                 {Tag && <Tag className="w-3.5 h-3.5 text-muted-foreground dark:text-slate-500 flex-shrink-0" />} 
                                 {bp.tags.map((tag: string) => (
-                                <span key={tag} className="px-2.5 py-0.5 text-xs font-medium bg-primary/10 text-primary dark:bg-sky-500/20 dark:text-sky-300 rounded-full transition-colors group-hover:bg-primary/20 dark:group-hover:bg-sky-500/30">
+                                <span key={tag} className="px-2.5 py-0.5 text-xs font-medium bg-primary/10 text-primary rounded-full transition-colors group-hover:bg-primary/20">
                                     {tag}
                                 </span>
                                 ))}
@@ -196,7 +196,7 @@ const BrowseAllBlueprintsSection = ({ blueprints, title }: BrowseAllBlueprintsSe
                 {latestRunInstanceUrl && (
                   <Link 
                     href={latestRunInstanceUrl} 
-                    className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 border border-primary/70 dark:border-sky-500/70 text-sm font-medium rounded-md text-primary dark:text-sky-300 bg-primary/10 hover:bg-primary/20 dark:bg-sky-500/20 dark:hover:bg-sky-500/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary dark:focus:ring-sky-500 dark:ring-offset-slate-900 transition-all shadow-sm hover:shadow-md"
+                    className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 border border-primary/70 text-sm font-medium rounded-md text-primary bg-primary/10 hover:bg-primary/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary dark:ring-offset-slate-900 transition-all shadow-sm hover:shadow-md"
                   >
                     {ExternalLink && <ExternalLink className="w-4 h-4 mr-2 opacity-90" />}
                     View Latest Run Analysis

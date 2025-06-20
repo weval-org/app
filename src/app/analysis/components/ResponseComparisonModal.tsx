@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, ComponentType } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import dynamic from 'next/dynamic';
@@ -166,7 +166,7 @@ export function ResponseComparisonModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-5xl w-full h-[90vh] flex flex-col p-0 bg-card/80 dark:bg-slate-800/80 backdrop-blur-lg text-card-foreground ring-1 ring-border dark:ring-slate-700 shadow-lg rounded-xl">
         <DialogHeader className="p-4 border-b border-border dark:border-slate-700 bg-card/60 dark:bg-slate-800/60 sticky top-0 z-10 rounded-t-xl">
-          <DialogTitle className="text-primary dark:text-sky-400 text-xl">
+          <DialogTitle className="text-primary text-xl">
             Compare Responses: {baseModelA} vs {isComparingVsIdeal ? 'Ideal Response' : baseModelB}
           </DialogTitle>
           <DialogDescription className="text-s text-muted-foreground dark:text-slate-400 pt-1" title={displayPrompt}>

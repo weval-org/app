@@ -9,6 +9,7 @@ import dynamic from 'next/dynamic';
 import { EnhancedRunInfo } from '@/app/utils/homepageDataUtils';
 import { fromSafeTimestamp } from '@/app/utils/timestampUtils';
 import AnalysisPageHeader from '../components/AnalysisPageHeader';
+import { Badge } from '@/components/ui/badge';
 
 const ChevronRightIcon = dynamic(() => import('lucide-react').then(mod => mod.ChevronRight));
 const HistoryIcon = dynamic(() => import('lucide-react').then(mod => mod.History));
@@ -173,7 +174,7 @@ export default function ConfigRunsPage() {
       <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground p-8">
         <div className="fixed inset-0 -z-10 dark:bg-gradient-to-br dark:from-slate-900 dark:to-slate-800 bg-gradient-to-br from-slate-50 to-slate-100" />
         <div className="flex items-center space-x-3 text-xl text-foreground dark:text-slate-200">
-          {Loader2Icon && <Loader2Icon className="animate-spin h-8 w-8 text-primary dark:text-sky-400" />}
+          {Loader2Icon && <Loader2Icon className="animate-spin h-8 w-8 text-primary" />}
           <span>Loading unique versions for blueprint "<strong>{configId}</strong>"...</span>
         </div>
       </div>
@@ -240,8 +241,8 @@ export default function ConfigRunsPage() {
                       <CardHeader className="pb-3">
                         <div className="flex justify-between items-center">
                           <div className="flex items-center">
-                            {LayersIcon && <LayersIcon className="w-5 h-5 mr-2.5 text-primary dark:text-sky-400 flex-shrink-0" />}
-                            <CardTitle className="text-base font-medium text-primary dark:text-sky-400 truncate" title={run.versionId}>
+                            {LayersIcon && <LayersIcon className="w-5 h-5 mr-2.5 text-primary flex-shrink-0" />}
+                            <CardTitle className="text-base font-medium text-primary truncate" title={run.versionId}>
                               Version: {run.versionId}
                             </CardTitle>
                           </div>

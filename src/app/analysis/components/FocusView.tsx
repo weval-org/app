@@ -1,15 +1,17 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { getModelDisplayLabel, ParsedModelId } from '../../utils/modelIdUtils';
-import { AllCoverageScores, AllFinalAssistantResponses } from '../types';
+import { getModelDisplayLabel, ParsedModelId } from '@/app/utils/modelIdUtils';
+import { AllCoverageScores, AllFinalAssistantResponses } from '@/app/analysis/types';
 
+const XIcon = dynamic(() => import("lucide-react").then((mod) => mod.X));
 const ArrowLeft = dynamic(() => import("lucide-react").then((mod) => mod.ArrowLeft));
+const ArrowRight = dynamic(() => import("lucide-react").then((mod) => mod.ArrowRight));
 
 interface FocusViewProps {
     focusedModelId: string;
@@ -24,6 +26,8 @@ interface FocusViewProps {
     safeTimestampFromParams: string;
     onReturn: () => void;
     markdownModule: { ReactMarkdown: any, RemarkGfm: any } | null;
+    onClearFocus: () => void;
+    onSwitchFocus: (direction: 'prev' | 'next') => void;
 }
 
 export const FocusView: React.FC<FocusViewProps> = ({
@@ -39,6 +43,8 @@ export const FocusView: React.FC<FocusViewProps> = ({
     safeTimestampFromParams,
     onReturn,
     markdownModule,
+    onClearFocus,
+    onSwitchFocus,
 }) => {
     if (!markdownModule) {
         // or a loading spinner
@@ -47,16 +53,31 @@ export const FocusView: React.FC<FocusViewProps> = ({
     const { ReactMarkdown, RemarkGfm } = markdownModule;
     const focusedModelParsed = parsedModelsMap[focusedModelId];
 
+    if (!focusedModelParsed) return null;
+
     return (
         <div className="overflow-x-auto rounded-md ring-1 ring-border dark:ring-slate-700 shadow-md">
             <div className="p-4 bg-muted/50 dark:bg-slate-800/50 border-b border-border dark:border-slate-700 flex justify-between items-center">
                 <h3 className="text-lg font-semibold">
-                    Focus View: <span className="text-primary dark:text-sky-400">{getModelDisplayLabel(focusedModelParsed)}</span>
+                    Focus View: <span className="text-primary text-primary">{getModelDisplayLabel(focusedModelParsed)}</span>
                 </h3>
-                <Button variant="outline" size="sm" onClick={onReturn}>
-                    <ArrowLeft className="w-4 h-4 mr-2" />
-                    Return to Full Table
-                </Button>
+                <div className="flex items-center space-x-3">
+                    {onSwitchFocus && (
+                        <p className="text-xs">
+                            (<a onClick={() => onSwitchFocus('prev')} className="block text-primary hover:text-primary/80 hover:underline cursor-pointer">Prev</a> / 
+                            <a onClick={() => onSwitchFocus('next')} className="block text-primary hover:text-primary/80 hover:underline cursor-pointer">Next</a>)
+                        </p>
+                    )}
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={onClearFocus}
+                        className="text-primary hover:text-primary/80 hover:bg-primary/10"
+                    >
+                        <XIcon className="w-4 h-4 mr-1.5" />
+                        Clear Focus
+                    </Button>
+                </div>
             </div>
             <table className="border-collapse text-xs w-full">
                 <thead>
@@ -85,7 +106,7 @@ export const FocusView: React.FC<FocusViewProps> = ({
                                 <td className="border-x border-border dark:border-slate-700 p-2 text-left align-middle">
                                     <Link
                                         href={`/analysis/${encodeURIComponent(configId)}/${encodeURIComponent(runLabel)}/${encodeURIComponent(safeTimestampFromParams)}?prompt=${encodeURIComponent(promptId)}`}
-                                        className="block text-primary dark:text-sky-400 hover:text-primary/80 dark:hover:text-sky-300 hover:underline cursor-pointer"
+                                        className="block text-primary text-primary hover:text-primary/80 dark:hover:text-sky-300 hover:underline cursor-pointer"
                                         title={`View details for: ${getPromptText(promptId)}`}
                                     >
                                         <span className="block truncate text-xs text-muted-foreground dark:text-slate-500">{promptId}</span>

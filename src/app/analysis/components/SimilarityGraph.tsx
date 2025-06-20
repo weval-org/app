@@ -21,7 +21,6 @@ const SIMILARITY_EMPHASIS_FACTOR = 3; // New factor to emphasize similarity diff
 
 // Link Styling
 const LINK_BASE_OPACITY = 0.3; // Reset to a more visible base
-const LINK_OPACITY_SIMILARITY_FACTOR = 0.6; // Links become more opaque above this similarity value.
 const LINK_WIDTH_MULTIPLIER = 12; // Retained for now
 const LINK_WIDTH_BASE = 0.75; // Retained base width
 const LINK_LABEL_FONT_SIZE = '9px'; // Slightly smaller link labels

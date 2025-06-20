@@ -4,7 +4,7 @@ import { ImageResponse } from 'next/og';
 export const runtime = 'edge';
 
 // Image metadata
-export const alt = 'Weval - Measuring AI\'s fitness for civic life';
+export const alt = 'Weval - Measuring AI\'s fitness';
 export const size = {
   width: 1200,
   height: 630,
@@ -49,7 +49,7 @@ export default async function Image() {
           Weval
         </div>
         <div style={{ marginTop: 30, fontSize: 42, color: '#E0E0E0', lineHeight: 1.4, fontFamily: '"GeistRegular"' }}>
-          Measuring AI's fitness for civic life
+          Measuring AI's fitness
         </div>
         <div style={{ position: 'absolute', bottom: 30, fontSize: 24, color: '#A0A0A0', fontFamily: '"GeistRegular"' }}>
           weval.org

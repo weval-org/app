@@ -111,7 +111,7 @@ export default async function HomePage() {
             <div>
               <a href="/">
                 <h1 className="text-3xl font-bold text-foreground">
-                  weval
+                  <span style={{fontWeight: 600}}>w</span><span style={{fontWeight: 200}}>eval</span>
                 </h1>
               </a>
               <a href="https://cip.org" target="_blank" rel="noopener noreferrer" className="text-base text-muted-foreground leading-tight hover:underline">
@@ -149,13 +149,13 @@ export default async function HomePage() {
           </>
         ) : (
          <div className="bg-card/80 dark:bg-slate-800/50 backdrop-blur-md p-8 sm:p-12 rounded-xl shadow-xl ring-1 ring-border dark:ring-slate-700/80 text-center flex flex-col items-center mt-10">
-            {React.createElement(nextDynamic(() => import('lucide-react').then(mod => mod.LayoutGrid)) as any, {className:"w-16 h-16 mx-auto mb-6 text-primary dark:text-sky-400 opacity-80"})}
+            {React.createElement(nextDynamic(() => import('lucide-react').then(mod => mod.LayoutGrid)) as any, {className:"w-16 h-16 mx-auto mb-6 text-primary opacity-80"})}
             <h2 className="text-xl sm:text-2xl font-semibold text-card-foreground dark:text-slate-100 mb-3">
               No Evaluation Blueprints Found
             </h2>
             <p className="text-muted-foreground dark:text-slate-400 text-sm sm:text-base max-w-lg mx-auto mb-6">
               It looks like you haven't run any evaluation blueprints yet. Use the CLI to generate results, and they will appear here.
-              Explore example blueprints or contribute your own at the <a href={`${BLUEPRINT_CONFIG_REPO_URL}/tree/main/blueprints`} target="_blank" rel="noopener noreferrer" className="text-primary dark:text-sky-400 hover:underline">Weval Blueprints repository</a>.
+              Explore example blueprints or contribute your own at the <a href={`${BLUEPRINT_CONFIG_REPO_URL}/tree/main/blueprints`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Weval Blueprints repository</a>.
             </p>
             <div className="mt-4 text-xs text-muted-foreground/80 dark:text-slate-500/80 bg-muted dark:bg-slate-700/50 p-3 rounded-md w-full max-w-md">
                 <span className="font-semibold">Example command:</span>

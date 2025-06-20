@@ -248,6 +248,7 @@ async function loadAndValidateConfig(options: {
         const rawFileName = sourceName;
         const id = rawFileName
             .replace(/\.civic\.ya?ml$/, '')
+            .replace(/\.weval\.ya?ml$/, '')
             .replace(/\.ya?ml$/, '')
             .replace(/\.json$/, '');
         logger.info(`'id' not found in blueprint. Deriving from filename: '${rawFileName}' -> '${id}'`);

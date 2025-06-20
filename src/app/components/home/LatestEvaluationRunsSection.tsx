@@ -112,11 +112,15 @@ const LatestEvaluationRunsSection = ({ latestRuns }: { latestRuns: DisplayableRu
                 return (
                   <tr key={`${run.configId}-${run.runLabel}-${run.timestamp}`} className="hover:bg-muted/50 dark:hover:bg-slate-700/50 transition-colors group">
                     <td className="whitespace-nowrap px-4 py-3 text-sm">
-                      <Link href={analysisUrl} className="group/bptitle font-medium text-primary dark:text-sky-400 hover:underline group-hover:text-primary/80 dark:group-hover:text-sky-300" title={run.configTitle || run.configId}>
-                        <span className="truncate block max-w-xs">
-                          {run.configTitle || run.configId}
-                        </span>
-                      </Link>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center mb-1.5">
+                          {run.configTitle && (
+                            <Link href={analysisUrl} className="group/bptitle font-medium text-primary hover:underline group-hover:text-primary/80 dark:group-hover:text-primary/80" title={run.configTitle || run.configId}>
+                              <span className="truncate">{run.configTitle || run.configId}</span>
+                            </Link>
+                          )}
+                        </div>
+                      </div>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-sm">
                       <Link href={runLabelUrl} className="text-muted-foreground dark:text-slate-400 hover:underline group-hover:text-foreground dark:group-hover:text-slate-300" title={`View all instances for version: ${run.runLabel}`}>
@@ -141,11 +145,14 @@ const LatestEvaluationRunsSection = ({ latestRuns }: { latestRuns: DisplayableRu
                       {topModelDisplay}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-sm text-center">
-                      <Link href={analysisUrl} className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium rounded-md text-primary dark:text-sky-400 hover:bg-primary/10 dark:hover:bg-sky-500/20 transition-colors border border-primary/30 dark:border-sky-500/40 hover:border-primary/50 dark:hover:border-sky-500/60"
-                            title="View Full Analysis">
-                        View
-                        {ExternalLink && <ExternalLink className="w-3.5 h-3.5 ml-1.5 opacity-80 group-hover/link:opacity-100" />}
-                      </Link>
+                      <div className="mt-4 sm:mt-0 flex-shrink-0 flex sm:flex-col items-center sm:items-end justify-between gap-2">
+                        <Link
+                          href={analysisUrl}
+                          className="w-full sm:w-auto text-center px-3 py-1.5 text-xs font-medium rounded-md text-primary hover:bg-primary/10 transition-colors border border-primary/30 hover:border-primary/50"
+                        >
+                          View Analysis
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 );

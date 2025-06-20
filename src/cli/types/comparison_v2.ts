@@ -54,13 +54,13 @@ export interface NormalizedPoint {
 }
 
 export interface ComparisonConfig {
-    configId?: string; // Now optional
-    configTitle?: string; // Now optional
-    id?: string; // New, preferred ID field
-    title?: string; // New, preferred title field
+    configId?: string;
+    configTitle?: string;
+    id?: string;
+    title?: string;
     description?: string;
     models: string[];
-    system?: string | null; // New preferred field
+    system?: string | null;
     systemPrompt?: string | null; // Legacy alias for 'system'
     systems?: (string | null)[]; // Optional array of system prompts to run permutations
     concurrency?: number;

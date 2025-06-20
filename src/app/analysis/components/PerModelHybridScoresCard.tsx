@@ -68,8 +68,8 @@ const PerModelHybridScoresCard: React.FC<PerModelHybridScoresCardProps> = ({
     <Card className="bg-card/80 dark:bg-slate-800/50 backdrop-blur-md text-card-foreground dark:text-slate-100 rounded-xl shadow-lg ring-1 ring-border dark:ring-slate-700 overflow-hidden">
       <CardHeader className="border-b border-border dark:border-slate-700 py-4 px-6">
         <div className="flex items-center">
-          {BarChartHorizontalBig && <BarChartHorizontalBig className="w-5 h-5 mr-3 text-primary dark:text-sky-400" />}
-          <CardTitle className="text-primary dark:text-sky-400 text-xl">{title}</CardTitle>
+          {BarChartHorizontalBig && <BarChartHorizontalBig className="w-5 h-5 mr-3 text-primary" />}
+          <CardTitle className="text-primary text-xl">{title}</CardTitle>
         </div>
         {description && <CardDescription className="text-muted-foreground dark:text-slate-400 pt-1 text-sm">{description}</CardDescription>}
       </CardHeader>

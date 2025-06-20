@@ -6,12 +6,13 @@ import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
+const BarChartHorizontalBig = dynamic(() => import('lucide-react').then(mod => mod.BarChartHorizontalBig));
+
 const TrendingUp = dynamic(() => import('lucide-react').then(mod => mod.TrendingUp));
 const TrendingDown = dynamic(() => import('lucide-react').then(mod => mod.TrendingDown));
 const CheckCircle2 = dynamic(() => import('lucide-react').then(mod => mod.CheckCircle2));
 const AlertCircle = dynamic(() => import('lucide-react').then(mod => mod.AlertCircle));
 const Award = dynamic(() => import('lucide-react').then(mod => mod.Award));
-const BarChartHorizontalBig = dynamic(() => import('lucide-react').then(mod => mod.BarChartHorizontalBig));
 const InfoIcon = dynamic(() => import('lucide-react').then(mod => mod.Info));
 const Zap = dynamic(() => import('lucide-react').then(mod => mod.Zap));
 
@@ -36,7 +37,7 @@ export interface AggregateStatsData {
   rankedOverallModels: TopModelStatInfo[] | null;
 }
 
-type StatStatusType = 'best' | 'worst' | 'mostConsistent' | 'mostDifferentiating' | 'neutral';
+type StatStatusType = 'best' | 'worst' | 'mostConsistent' | 'mostDifferentiating' | 'neutral' | 'error';
 
 interface AggregateStatsDisplayProps {
   stats: AggregateStatsData | null;
@@ -59,10 +60,16 @@ const StatCard: React.FC<{
       iconColorClass = 'text-red-500 dark:text-red-400';
       break;
     case 'mostConsistent':
-      iconColorClass = 'text-sky-500 dark:text-sky-400';
+      iconColorClass = 'text-primary';
       break;
     case 'mostDifferentiating':
       iconColorClass = 'text-purple-500 dark:text-purple-400';
+      break;
+    case 'error':
+      iconColorClass = 'text-red-500 dark:text-red-400';
+      break;
+    default:
+      iconColorClass = 'text-primary';
       break;
   }
 
@@ -131,7 +138,7 @@ const OverallModelLeaderboard: React.FC<{
       <div className="bg-card p-4 rounded-lg border border-border/70 dark:border-slate-700/50 lg:col-span-4">
         <div className="flex items-start justify-between mb-1">
           <h3 className="text-sm font-medium text-muted-foreground leading-tight pr-2">{title}</h3>
-          <BarChartHorizontalBig className="w-5 h-5 flex-shrink-0 text-primary dark:text-sky-400" />
+          <BarChartHorizontalBig className="w-5 h-5 flex-shrink-0 text-primary" />
         </div>
         <p className="text-sm text-muted-foreground mt-auto">Not enough data to display leaderboard.</p>
       </div>
@@ -145,7 +152,7 @@ const OverallModelLeaderboard: React.FC<{
     <div className="bg-card p-4 rounded-lg border border-border/70 dark:border-slate-700/50 lg:col-span-4">
       <div className="flex items-start justify-between mb-3">
         <h3 className="text-sm font-medium text-muted-foreground leading-tight pr-2">{title}</h3>
-        <BarChartHorizontalBig className="w-5 h-5 flex-shrink-0 text-primary dark:text-sky-400" />
+        <BarChartHorizontalBig className="w-5 h-5 flex-shrink-0 text-primary" />
       </div>
       <ul className="space-y-2">
         {visibleModels.map((model, index) => (
@@ -156,7 +163,7 @@ const OverallModelLeaderboard: React.FC<{
               <span className="font-medium text-card-foreground" title={model.modelId}>{getModelDisplayLabel(model.modelId, { hideProvider: true })}</span>
             </div>
             <div className="text-right">
-              <span className="font-semibold text-primary dark:text-sky-300">{(model.overallAverageScore * 100).toFixed(1)}%</span>
+              <span className="font-semibold text-primary">{(model.overallAverageScore * 100).toFixed(1)}%</span>
               <span className="ml-1.5 text-muted-foreground/80 text-[11px]">(in {model.runsParticipatedIn} runs)</span>
             </div>
           </li>
@@ -168,7 +175,7 @@ const OverallModelLeaderboard: React.FC<{
             variant="link"
             size="sm"
             onClick={() => setVisibleCount(prev => Math.min(prev + incrementCount, models.length))}
-            className="text-muted-foreground hover:text-primary dark:hover:text-sky-400 h-auto p-1 text-xs"
+            className="text-muted-foreground hover:text-primary h-auto p-1 text-xs"
           >
             See More ({models.length - visibleCount} remaining)
           </Button>
@@ -226,10 +233,10 @@ const AggregateStatsDisplay: React.FC<AggregateStatsDisplayProps> = ({ stats }) 
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="lg:col-span-4 p-3 mb-3 text-xs text-muted-foreground bg-card border border-border/70 dark:border-slate-700/50 rounded-lg flex items-start">
-          {InfoIcon && <InfoIcon className="w-4 h-4 mr-2 mt-0.5 text-sky-500 flex-shrink-0" />}
+          {InfoIcon && <InfoIcon className="w-4 h-4 mr-2 mt-0.5 text-primary flex-shrink-0" />}
           <span>
             <strong>Note on Leaderboard:</strong> This leaderboard reflects models evaluated based on available resources. Only models that have participated in at least {MIN_RUNS_FOR_LEADERBOARD} evaluation runs are shown. Due to API costs, we cannot currently include all models or run evaluations at the scale we aspire to. 
-            Your support can help expand our coverage. <Link href="https://github.com/sponsors/weval" target="_blank" rel="noopener noreferrer" className="underline text-primary dark:text-sky-400 hover:text-primary/80 dark:hover:text-sky-300 font-medium">Contribute here</Link>.
+            Your support can help expand our coverage. <Link href="https://github.com/sponsors/weval" target="_blank" rel="noopener noreferrer" className="underline text-primary hover:text-primary/80 font-medium">Contribute here</Link>.
           </span>
         </div>
         <OverallModelLeaderboard

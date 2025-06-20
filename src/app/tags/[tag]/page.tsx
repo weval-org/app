@@ -1,47 +1,28 @@
 import Link from 'next/link';
 import { getComparisonRunInfo, EnhancedComparisonConfigInfo } from '@/app/utils/homepageDataUtils';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import dynamic from 'next/dynamic';
 import AnalysisPageHeader from '@/app/analysis/components/AnalysisPageHeader';
-import { fromSafeTimestamp } from '@/app/utils/timestampUtils';
-import { notFound } from 'next/navigation';
 import { normalizeTag } from '@/app/utils/tagUtils';
 import BrowseAllBlueprintsSection from '@/app/components/home/BrowseAllBlueprintsSection';
 import { processBlueprintSummaries, BlueprintSummaryInfo } from '@/app/utils/blueprintSummaryUtils';
 import type { Metadata } from 'next';
 
-// Use next/dynamic for lucide-react icons, similar to other server components in the project
 const Tag = dynamic(() => import('lucide-react').then(mod => mod.Tag));
-const FolderOpen = dynamic(() => import('lucide-react').then(mod => mod.FolderOpen));
 const AlertTriangle = dynamic(() => import('lucide-react').then(mod => mod.AlertTriangle));
-const ChevronRight = dynamic(() => import('lucide-react').then(mod => mod.ChevronRight));
-// Loader2 is not currently used in the successful render paths of this server component.
-// If needed later, it can be added similarly: const Loader2 = dynamic(() => import('lucide-react').then(mod => mod.Loader2));
 
-type PageProps = {
-  params: { tag: string };
-};
-
-// Helper function to determine score color, can be moved to utils if needed
-const getHybridScoreColor = (score: number | null | undefined): string => {
-  if (score === null || score === undefined || isNaN(score)) return 'text-muted-foreground dark:text-slate-400';
-  if (score >= 0.8) return 'text-emerald-600 dark:text-emerald-400';
-  if (score >= 0.6) return 'text-lime-600 dark:text-lime-400';
-  if (score >= 0.4) return 'text-amber-600 dark:text-amber-400';
-  return 'text-red-600 dark:text-red-400';
-};
-
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const tagName = decodeURIComponent(params.tag);
+export async function generateMetadata({ params }: { params: Promise<{ tag: string }> }): Promise<Metadata> {
+  const { tag } = await params;
+  const tagName = decodeURIComponent(tag);
   return {
     title: `Blueprints tagged "${tagName}" - Weval`,
     description: `Browse all evaluation blueprints on Weval tagged with "${tagName}".`,
   };
 }
 
-export default async function TaggedBlueprintsPage({ params }: PageProps) {
-  const tagName = decodeURIComponent(params.tag);
+export default async function TaggedBlueprintsPage({ params }: { params: Promise<{ tag: string }> }) {
+  const { tag } = await params;
+  const tagName = decodeURIComponent(tag);
   const allConfigs = await getComparisonRunInfo(); // This gets from homepage_summary.json
 
   let filteredConfigs: EnhancedComparisonConfigInfo[] = [];

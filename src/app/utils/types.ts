@@ -104,7 +104,6 @@ export interface ConfigPromptData {
     temperature?: number;
 }
 
-// New: PointFunctionDefinition for config if not already present
 export type PointFunctionArgs = any;
 export type PointFunctionDefinition = [string, PointFunctionArgs];
 export type PointDefinition = string | PointFunctionDefinition;
