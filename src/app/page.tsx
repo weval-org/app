@@ -106,7 +106,7 @@ export default async function HomePage() {
             <div>
               <a href="/">
                 <h1 className="text-3xl font-bold text-foreground">
-                  <span style={{fontWeight: 600}}>w</span><span style={{fontWeight: 200}}>eval</span>
+                  <span style={{fontWeight: 700}}>w</span><span style={{fontWeight: 200}}>eval</span>
                 </h1>
               </a>
               <a href="https://cip.org" target="_blank" rel="noopener noreferrer" className="text-base text-muted-foreground leading-tight hover:underline">

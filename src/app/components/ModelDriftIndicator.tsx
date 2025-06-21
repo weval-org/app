@@ -49,11 +49,11 @@ const ModelDriftIndicator: React.FC<ModelDriftIndicatorProps> = ({ driftInfo }) 
         <div>
           <h3 className="text-md font-semibold text-amber-800 dark:text-amber-200 mb-1">Potential Model Performance Shift Detected</h3>
           <p className="text-sm text-amber-700 dark:text-amber-300 mb-2">
-            The following model showed notable variance in Hybrid Scores across multiple executions of the exact same test parameters (identified by Run Label hash):
+            The model below showed a notable variance in Hybrid Scores across multiple executions of the same evaluation blueprint, run at least 24 hours apart.
           </p>
           <div className="text-xs bg-card/50 dark:bg-slate-700/30 p-3 rounded-md space-y-1">
-            <p><strong>Evaluation Config:</strong> <span className="font-medium">{driftInfo.configTitle} ({driftInfo.configId})</span></p>
-            <p><strong>Test Parameters (Run Label):</strong> <span className="font-medium">{driftInfo.runLabel}</span></p>
+            <p><strong>Evaluation:</strong> <span className="font-medium">{driftInfo.configTitle} ({driftInfo.configId})</span></p>
+            <p><strong>Blueprint Version Hash:</strong> <span className="font-medium">{driftInfo.runLabel}</span></p>
             <p><strong>Model ID:</strong> <span className="font-medium text-red-600 dark:text-red-400">{driftInfo.modelId}</span></p>
             <p>
               <strong>Hybrid Score Range:</strong> 
@@ -72,12 +72,20 @@ const ModelDriftIndicator: React.FC<ModelDriftIndicatorProps> = ({ driftInfo }) 
               href={`/analysis/${driftInfo.configId}/${encodeURIComponent(driftInfo.runLabel)}`}
               className="inline-flex items-center justify-center px-4 py-2 text-xs font-medium rounded-md text-amber-800 dark:text-amber-100 bg-amber-400/50 hover:bg-amber-400/80 dark:bg-amber-500/40 dark:hover:bg-amber-500/60 transition-colors border border-amber-500/50 dark:border-amber-500/70"
             >
-              View Runs & Investigate
+              Investigate Runs
             </Link>
           </div>
-          <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 italic">
-            This variance, observed between the oldest and newest runs in your dataset for these specific parameters, could indicate an unannounced change in the model's underlying behavior. While minor fluctuations can be normal, a larger shift warrants further investigation.
-          </p>
+          <div className="text-xs text-amber-600 dark:text-amber-400 mt-3 italic">
+            <p><strong>Why does this happen?</strong> This variance could be caused by several factors:</p>
+            <ul className="list-disc pl-4 mt-1 space-y-0.5">
+              <li>An unannounced update to the model by the provider (the most common cause of "drift").</li>
+              <li>Changes to the provider's safety filters, which can affect how the model responds.</li>
+              <li><strong>Note:</strong> To provide a reliable signal, Weval's drift detection is carefully controlled. It only considers runs where the models being tested had a <code className="text-xs">temperature</code> of 0, and it uses judge models that are also set to temperature 0 for scoring.</li>
+            </ul>
+            <p className="mt-2">
+              A significant shift warrants investigation to understand if a model's capabilities or safety behavior have changed.
+            </p>
+          </div>
         </div>
       </div>
     </div>

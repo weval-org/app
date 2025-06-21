@@ -28,6 +28,7 @@ interface RunInstanceInfo {
   } | null;
   numPrompts?: number;
   numModels?: number;
+  totalModelsAttempted?: number;
   allCoverageScores?: AllCoverageScores | null;
   models?: string[];
   promptIds?: string[];
@@ -113,6 +114,7 @@ export default function RunLabelInstancesPage() {
                 hybridScoreStats: run.hybridScoreStats,
                 numPrompts: run.numPrompts,
                 numModels: run.numModels,
+                totalModelsAttempted: run.totalModelsAttempted,
                 allCoverageScores: run.allCoverageScores,
                 models: run.models,
                 promptIds: promptIds,
@@ -258,7 +260,12 @@ export default function RunLabelInstancesPage() {
                                            {instance.numModels !== undefined && (
                                             <div className="flex flex-col items-end">
                                               <p className="text-xs text-muted-foreground dark:text-slate-400">Models</p>
-                                              <p className="text-xl font-semibold text-foreground dark:text-slate-200">{instance.numModels}</p>
+                                              <p className="text-xl font-semibold text-foreground dark:text-slate-200">
+                                                {instance.totalModelsAttempted && instance.totalModelsAttempted !== instance.numModels 
+                                                  ? `${instance.numModels} / ${instance.totalModelsAttempted}`
+                                                  : instance.numModels
+                                                }
+                                              </p>
                                             </div>
                                           )}
                                           {instance.numPrompts !== undefined && (

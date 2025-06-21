@@ -2,6 +2,8 @@
 
 This document provides a comprehensive guide to creating evaluation blueprints for the Weval suite. Blueprints are configuration files that define a set of prompts, models to test, and the criteria for evaluating the models' responses.
 
+All blueprints contributed to the public repository at [github.com/weval-org/configs](https://github.com/weval-org/configs) are dedicated to the public domain via Creative Commons Zero (CC0).
+
 While the system maintains support for a legacy JSON format, the recommended and most user-friendly format is **YAML**.
 
 ---
@@ -96,6 +98,7 @@ The following fields can be included in the header section (Structure 1) or the 
 | `models` | `string[]` | **(Optional)** An array of model identifiers to run the evaluation against. Model identifiers must be a single string in the format `provider:model` with no spaces (e.g., `openai:gpt-4o-mini`). The system will attempt to gracefully correct common formatting errors, but adhering to the standard format is recommended. If omitted, defaults to `["CORE"]`. |
 | `system` | `string` | **(Optional)** A global system prompt to be used for all prompts in the blueprint, unless overridden at the prompt level. Aliased as `systemPrompt`. |
 | `concurrency` | `number` | **(Optional)** The number of parallel requests to make to the LLM APIs. Defaults to 10. |
+| `temperature` | `number` | **(Optional)** A single temperature setting to run for each model. This is overridden if the `temperatures` array is present. |
 | `temperatures`| `number[]` | **(Optional)** An array of temperature settings to run for each model. This will create separate evaluations for each temperature. **Note:** Using this feature will append a suffix like `[temp:0.5]` to the model ID in the final output file, creating a unique identifier for each run variant. |
 | `evaluationConfig` | `object` | **(Optional)** Advanced configuration for evaluation methods. For example, you can specify judge models for `llm-coverage`. |
 
@@ -164,13 +167,15 @@ Each item in these arrays is a point definition, processed in the following orde
         : "SEC Rule on Fiduciary Duty"
     ```
 
-3.  **Idiomatic Function (Deterministic Check)**: A quick way to perform exact, programmatic checks. **All idiomatic function calls must be prefixed with a `$`** to distinguish them from citable points.
+3.  **Idiomatic Function (Deterministic Check)**: A quick way to perform exact, programmatic checks. **All idiomatic function calls must be prefixed with a `$`** to distinguish them from citable points. They can be defined as an object or a more concise array ("tuple").
     ```yaml
     should:
-      # Simple presence
+      # Object syntax (recommended)
       - $contains: "fiduciary duty"  # Case-sensitive check
       - $icontains: "fiduciary duty" # Case-insensitive
-      - $ends_with: "."
+
+      # Tuple syntax (for simple functions)
+      - ['$ends_with', '.']
 
       # List-based checks
       - $contains_any_of: ["fiduciary", "duty"]  # True if any are found

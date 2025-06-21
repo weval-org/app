@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useMemo, useCallback } from 'react';
+import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 
 // Type definitions (consistent with MacroCoverageTable)
 interface PointAssessment {
@@ -79,26 +80,14 @@ const CoverageHeatmapCanvas: React.FC<CoverageHeatmapCanvasProps> = ({
     }, [allCoverageScores, models]);
 
     const sortedModels = useMemo(() => {
-        return [...models].sort((a, b) => {
-            const avgA = calculateModelAverageCoverage(a);
-            const avgB = calculateModelAverageCoverage(b);
-            if (avgA === null && avgB === null) return 0;
-            if (avgA === null) return 1; // Sort nulls to the end
-            if (avgB === null) return -1;
-            return avgB - avgA; // Sort descending by score
-        });
-    }, [models, calculateModelAverageCoverage]);
+        return [...models]
+            .filter(m => m !== IDEAL_MODEL_ID)
+            .sort((a, b) => a.localeCompare(b));
+    }, [models]);
 
     const sortedPromptIds = useMemo(() => {
-        return [...promptIds].sort((a, b) => {
-            const avgA = calculatePromptAverageCoverage(a);
-            const avgB = calculatePromptAverageCoverage(b);
-            if (avgA === null && avgB === null) return 0;
-            if (avgA === null) return 1; // Sort nulls to the end
-            if (avgB === null) return -1;
-            return avgB - avgA; // Sort descending by score
-        });
-    }, [promptIds, calculatePromptAverageCoverage]);
+        return [...promptIds].sort((a, b) => a.localeCompare(b));
+    }, [promptIds]);
 
     useEffect(() => {
         if (!canvasRef.current || !allCoverageScores || sortedModels.length === 0 || sortedPromptIds.length === 0) {

@@ -10,6 +10,7 @@ import type { Metadata } from 'next';
 
 const Tag = dynamic(() => import('lucide-react').then(mod => mod.Tag));
 const AlertTriangle = dynamic(() => import('lucide-react').then(mod => mod.AlertTriangle));
+const XCircle = dynamic(() => import('lucide-react').then(mod => mod.XCircle));
 
 export async function generateMetadata({ params }: { params: Promise<{ tag: string }> }): Promise<Metadata> {
   const { tag } = await params;
@@ -65,14 +66,16 @@ export default async function TaggedBlueprintsPage({ params }: { params: Promise
   if (error) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground p-8">
-        <div className="fixed inset-0 -z-10 dark:bg-gradient-to-br dark:from-slate-900 dark:to-slate-800 bg-gradient-to-br from-slate-50 to-slate-100" />
-        <div className="bg-card/80 dark:bg-slate-800/50 backdrop-blur-md p-8 rounded-xl shadow-lg ring-1 ring-destructive/70 dark:ring-red-500/70 text-center max-w-lg w-full">
+        <div className="fixed inset-0 -z-10 dark:bg-gradient-to-br dark:from-background dark:to-muted/20 bg-gradient-to-br from-background to-muted/10" />
+        <div className="bg-card/80 dark:bg-card/50 backdrop-blur-md p-8 rounded-xl shadow-lg ring-1 ring-destructive/70 dark:ring-red-500/70 text-center max-w-lg w-full">
           {AlertTriangle && <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-destructive dark:text-red-400" />}
           <h2 className="text-2xl font-semibold mb-3 text-destructive dark:text-red-300">Error Loading Tag Results</h2>
-          <p className="text-card-foreground dark:text-slate-300 mb-4">Could not load evaluations for tag: <strong className="text-card-foreground dark:text-slate-100">{tagName}</strong></p>
-          <div className="text-sm text-muted-foreground dark:text-slate-400 bg-muted/70 dark:bg-slate-700/50 p-4 rounded-md ring-1 ring-border dark:ring-slate-600 mb-6">
-              <p className="font-semibold text-card-foreground dark:text-slate-300 mb-1">Error Details:</p>
-              {error}
+          <p className="text-card-foreground dark:text-muted-foreground mb-4">Could not load evaluations for tag: <strong className="text-card-foreground dark:text-foreground">{tagName}</strong></p>
+          <div className="text-sm text-muted-foreground dark:text-muted-foreground bg-muted/70 dark:bg-muted/50 p-4 rounded-md ring-1 ring-border dark:ring-border/80 mb-6">
+              <p className="font-semibold text-card-foreground dark:text-card-foreground mb-1">Error Details:</p>
+              <code className="block text-left text-xs bg-card p-2 rounded-md overflow-x-auto custom-scrollbar">
+                {error}
+              </code>
           </div>
           <Link href="/">
             <Button variant="default" className="mt-8 w-full sm:w-auto px-6 py-2.5">
@@ -86,7 +89,7 @@ export default async function TaggedBlueprintsPage({ params }: { params: Promise
   
   return (
     <div className="min-h-screen bg-background text-foreground p-4 md:p-8">
-      <div className="fixed inset-0 -z-10 dark:bg-gradient-to-br dark:from-slate-900 dark:to-slate-800 bg-gradient-to-br from-slate-50 to-slate-100" />
+      <div className="fixed inset-0 -z-10 dark:bg-gradient-to-br dark:from-background dark:to-muted/20 bg-gradient-to-br from-background to-muted/10" />
       <div className="max-w-[1800px] mx-auto">
         <AnalysisPageHeader
           breadcrumbs={breadcrumbItems}
@@ -99,10 +102,10 @@ export default async function TaggedBlueprintsPage({ params }: { params: Promise
 
         <main className="max-w-4xl mx-auto mt-6 md:mt-8">
           {filteredConfigs.length === 0 && (
-            <div className="text-center py-12 bg-card/50 dark:bg-slate-800/40 rounded-lg shadow-md">
-              {Tag && <Tag className="w-12 h-12 mx-auto mb-4 text-muted-foreground dark:text-slate-500" />}
-              <p className="text-lg text-muted-foreground dark:text-slate-400">
-                No evaluation blueprints found with the tag: <strong className="text-foreground dark:text-slate-200">{tagName}</strong>
+            <div className="text-center py-12 bg-card/50 dark:bg-card/40 rounded-lg shadow-md">
+              {Tag && <Tag className="w-12 h-12 mx-auto mb-4 text-muted-foreground dark:text-muted-foreground" />}
+              <p className="text-lg text-muted-foreground dark:text-muted-foreground">
+                No evaluation blueprints found with the tag: <strong className="text-foreground dark:text-foreground">{tagName}</strong>
               </p>
               <Link href="/" className="mt-6 inline-block">
                 <Button variant="outline">Back to Homepage</Button>

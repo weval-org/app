@@ -18,7 +18,7 @@ export default async function LatestPage() {
     
     return (
         <div className="min-h-screen bg-background text-foreground">
-            <div className="fixed inset-0 -z-10 dark:bg-gradient-to-br dark:from-slate-900 dark:to-slate-800 bg-gradient-to-br from-slate-50 to-slate-100" />
+            <div className="fixed inset-0 -z-10 dark:bg-gradient-to-br dark:from-background dark:to-muted/20 bg-gradient-to-br from-background to-slate-100" />
             
             <header className="w-full bg-header py-4 shadow-sm border-b border-border/50">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

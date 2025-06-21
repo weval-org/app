@@ -7,8 +7,10 @@ import { Button } from '@/components/ui/button';
 import nextDynamic from 'next/dynamic';
 import { PaginationControls } from './PaginationControls';
 import { fromSafeTimestamp } from '@/lib/timestampUtils';
+import { normalizeTag } from '@/app/utils/tagUtils';
 
 const ArrowLeft = nextDynamic(() => import('lucide-react').then(mod => mod.ArrowLeft));
+const TagIcon = nextDynamic(() => import('lucide-react').then(mod => mod.Tag));
 
 const ITEMS_PER_PAGE = 20;
 
@@ -59,9 +61,20 @@ export default async function AllBlueprintsPage(props: {
         return dateB - dateA;
     });
 
+    // Create a Set of all unique, non-featured tags
+    const allTags = new Set<string>();
+    blueprints.forEach(config => {
+        config.tags.forEach(tag => {
+            if (!tag.startsWith('_')) {
+                allTags.add(tag);
+            }
+        });
+    });
+    const sortedTags = Array.from(allTags).sort((a, b) => a.localeCompare(b));
+
     return (
         <div className="min-h-screen bg-background text-foreground">
-            <div className="fixed inset-0 -z-10 dark:bg-gradient-to-br dark:from-slate-900 dark:to-slate-800 bg-gradient-to-br from-slate-50 to-slate-100" />
+            <div className="fixed inset-0 -z-10 dark:bg-gradient-to-br dark:from-background dark:to-muted/20 bg-gradient-to-br from-background to-muted/10" />
             
             <header className="w-full bg-header py-4 shadow-sm border-b border-border/50">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -97,10 +110,10 @@ export default async function AllBlueprintsPage(props: {
                 <div className="space-y-4">
                     {blueprints.map(bp => (
                         <Link key={bp.id} href={`/analysis/${bp.id}`} className="block">
-                            <div className="bg-card/80 dark:bg-slate-800/60 p-5 rounded-lg border border-border dark:border-slate-700/60 shadow-sm hover:shadow-md hover:border-primary/30 dark:hover:border-primary/50 transition-all duration-200">
+                            <div className="bg-card/80 dark:bg-card/60 p-5 rounded-lg border border-border dark:border-border/60 shadow-sm hover:shadow-md hover:border-primary/30 dark:hover:border-primary/50 transition-all duration-200">
                                 <h3 className="font-semibold text-lg text-primary">{bp.title}</h3>
                                 <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{bp.description || 'No description available.'}</p>
-                                <div className="text-xs text-muted-foreground/80 dark:text-slate-400/80 mt-3 flex items-center justify-between">
+                                <div className="text-xs text-muted-foreground/80 dark:text-muted-foreground/80 mt-3 flex items-center justify-between">
                                     <span>
                                         <strong>{bp.totalRuns}</strong> {bp.totalRuns === 1 ? 'run' : 'runs'} recorded
                                     </span>
@@ -115,6 +128,27 @@ export default async function AllBlueprintsPage(props: {
 
                 {totalPages > 1 && (
                     <PaginationControls currentPage={currentPage} totalPages={totalPages} />
+                )}
+
+                {sortedTags.length > 0 && (
+                    <section id="tags-section" className="mt-12">
+                        <h2 className="text-2xl font-semibold tracking-tight text-foreground mb-6">Browse by Tag</h2>
+                        <div className="flex flex-wrap gap-2">
+                            {sortedTags.map(tag => (
+                                <Link href={`/tags/${normalizeTag(tag)}`} key={tag}>
+                                    <div className="bg-card/80 dark:bg-card/60 p-5 rounded-lg border border-border dark:border-border/60 shadow-sm hover:shadow-md hover:border-primary/30 dark:hover:border-primary/50 transition-all duration-200">
+                                        <div className="flex items-center gap-2">
+                                            {TagIcon && <TagIcon className="w-4 h-4 text-primary" />}
+                                            <h3 className="font-medium text-foreground">{tag}</h3>
+                                        </div>
+                                        <div className="text-xs text-muted-foreground/80 dark:text-muted-foreground/80 mt-3 flex items-center justify-between">
+                                            {/* Future: could add blueprint count per tag here */}
+                                        </div>
+                                    </div>
+                                </Link>
+                            ))}
+                        </div>
+                    </section>
                 )}
             </main>
         </div>

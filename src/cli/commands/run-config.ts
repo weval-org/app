@@ -570,12 +570,10 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions, commi
                     return { ...c, runs: [] };
                 });
                 
-                const configsForStatsCalculation = updatedConfigsArrayForHomepage.filter(
-                    c => c.tags?.includes('_featured') && !c.tags?.includes('test')
-                );
-
-                const newHeadlineStats = calculateHeadlineStats(configsForStatsCalculation);
-                const newDriftDetectionResult = calculatePotentialModelDrift(configsForStatsCalculation);
+                // The headline stats should be calculated on all configs, not just featured ones.
+                // The calculation functions will internally filter out any configs with the 'test' tag.
+                const newHeadlineStats = calculateHeadlineStats(updatedConfigsArrayForHomepage);
+                const newDriftDetectionResult = calculatePotentialModelDrift(updatedConfigsArrayForHomepage);
 
                 const newHomepageSummaryContent: HomepageSummaryFileContent = {
                     configs: homepageConfigs,
@@ -690,9 +688,13 @@ async function actionGitHub(options: { name: string } & RunOptions) {
 
         await runBlueprint(config, options, remoteConfig.commitSha, remoteConfig.fileName);
     } catch (error: any) {
-        loggerInstance.error(`Error during 'run-config github': ${error.message}`);
+        // Enhanced error logging
+        const chalk = (await import('chalk')).default;
+        console.error(chalk.red('\n✖ Critical Error in \'run-config github\':'), chalk.white(error.message));
         if (process.env.DEBUG && error.stack) {
-            loggerInstance.error(`Stack trace: ${error.stack}`);
+            console.error(chalk.gray('\nStack Trace:'), error.stack);
+        } else {
+            console.error(chalk.yellow('\nRun with DEBUG=true environment variable for a full stack trace.'));
         }
         process.exit(1);
     }

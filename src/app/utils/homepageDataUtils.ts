@@ -13,13 +13,16 @@ export interface EnhancedRunInfo {
   runLabel: string; 
   timestamp: string; 
   fileName: string; 
+  temperature?: number;
   numPrompts?: number;
   numModels?: number;
+  totalModelsAttempted?: number;
   hybridScoreStats?: { average: number | null; stddev: number | null };
   perModelHybridScores?: Map<string, { average: number | null; stddev: number | null }>;
   tags?: string[];
   allCoverageScores?: AllCoverageScores | null;
   models?: string[];
+  promptIds?: string[];
 }
 
 export interface EnhancedComparisonConfigInfo {

@@ -100,14 +100,12 @@ async function actionBackfillSummary(options: { verbose?: boolean }) {
                 return { ...config, runs: [] }; // Strip run data
             });
 
-            // 2. Create the array for calculating stats (featured only, no test).
-            const configsForStatsCalculation = allConfigsForHomepage.filter(
-                config => config.tags?.includes('_featured') && !config.tags?.includes('test')
-            );
-            logger.info(`Headline stats will be calculated based on ${configsForStatsCalculation.length} featured configs (excluding 'test' tag).`);
+            // 2. Calculate stats based on ALL configs.
+            // The calculation functions will internally filter out any configs with the 'test' tag.
+            logger.info(`Headline stats will be calculated based on all ${allConfigsForHomepage.length} configs (excluding 'test' tag).`);
 
-            const headlineStats = calculateHeadlineStats(configsForStatsCalculation);
-            const driftDetectionResult = calculatePotentialModelDrift(configsForStatsCalculation);
+            const headlineStats = calculateHeadlineStats(allConfigsForHomepage);
+            const driftDetectionResult = calculatePotentialModelDrift(allConfigsForHomepage);
 
             const finalHomepageSummaryObject: HomepageSummaryFileContent = {
                 configs: homepageConfigs, // The hybrid array

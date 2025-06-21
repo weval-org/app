@@ -701,17 +701,21 @@ export function updateSummaryDataWithNewRun(
     }
   }
 
+  // --- Create the new EnhancedRunInfo object for this run ---
   const newRunInfo: EnhancedRunInfo = {
-    runLabel: runLabelFromNewResult, // Base runLabel from the result file content
-    timestamp: timestampFromNewResult, // Timestamp from the result file content
-    fileName: runFileName, // The actual filename used in storage
-    numPrompts: newResultData.promptIds?.length,
-    numModels: newResultData.effectiveModels?.filter(m => m !== IDEAL_MODEL_ID).length,
+    runLabel: newResultData.runLabel,
+    timestamp: newResultData.timestamp,
+    fileName: runFileName,
+    temperature: newResultData.config.temperature,
+    numModels: newResultData.effectiveModels.length,
+    totalModelsAttempted: newResultData.config.models.length,
+    numPrompts: newResultData.promptIds.length,
     hybridScoreStats: newRunHybridStats,
     perModelHybridScores: perModelScoresForNewRun,
     // Pass through the "lite" coverage and model data for the heatmap
     allCoverageScores: liteCoverageScores,
-    models: newResultData.effectiveModels?.filter(m => m !== IDEAL_MODEL_ID),
+    models: newResultData.effectiveModels,
+    promptIds: newResultData.promptIds,
   };
 
   if (configIndex === -1) { // Config not found, add new entry

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
@@ -17,21 +17,14 @@ import MacroCoverageTable from '@/app/analysis/components/MacroCoverageTable'
 import DatasetStatistics from '@/app/analysis/components/DatasetStatistics'
 import KeyPointCoverageComparisonDisplay from '@/app/analysis/components/KeyPointCoverageComparisonDisplay'
 import SemanticExtremesDisplay from '@/app/analysis/components/SemanticExtremesDisplay'
+import CoverageTableLegend, { ActiveHighlight } from '@/app/analysis/components/CoverageTableLegend'
 import {
     ComparisonDataV2 as ImportedComparisonDataV2,
-    SelectedPairInfo as ImportedSelectedPairInfo,
-    ConversationMessage,
-    PointAssessment as ImportedPointAssessment,
     CoverageResult as ImportedCoverageResult,
-    ConfigData
 } from '@/app/utils/types';
 import {
     IDEAL_MODEL_ID,
-    calculateOverallCoverageExtremes as importedCalculateOverallCoverageExtremes,
-    calculateHybridScoreExtremes as importedCalculateHybridScoreExtremes,
-    calculateOverallAverageCoverage as importedCalculateOverallAverageCoverage,
-    calculateAverageHybridScoreForRun,
-    findIdealExtremes
+    calculateStandardDeviation,
 } from '@/app/utils/calculationUtils';
 
 import { useTheme } from 'next-themes';
@@ -44,9 +37,12 @@ import ModelEvaluationDetailModal from '@/app/analysis/components/ModelEvaluatio
 import DebugPanel from '@/app/analysis/components/DebugPanel';
 import CoverageHeatmapCanvas from '@/app/analysis/components/CoverageHeatmapCanvas';
 import { Badge } from '@/components/ui/badge';
-import { getModelDisplayLabel, parseEffectiveModelId, getCanonicalModels } from '@/app/utils/modelIdUtils';
+import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelIdUtils';
 import { BLUEPRINT_CONFIG_REPO_URL } from '@/lib/configConstants';
 import { useComparisonData } from '@/app/analysis/hooks/useComparisonData';
+import { useAnalysisStats } from '@/app/analysis/hooks/useAnalysisStats';
+import { useModelFiltering } from '@/app/analysis/hooks/useModelFiltering';
+import { usePageInteraction } from '@/app/analysis/hooks/usePageInteraction';
 import {
     Tabs,
     TabsContent,
@@ -63,21 +59,12 @@ const GitCommit = dynamic(() => import("lucide-react").then((mod) => mod.GitComm
 const AlertTriangle = dynamic(() => import("lucide-react").then((mod) => mod.AlertTriangle))
 
 const getHybridScoreColorClass = (score: number | null | undefined): string => {
-    if (score === null || score === undefined) return 'bg-muted/30 text-muted-foreground dark:text-slate-400';
-    if (score >= 0.75) return 'bg-highlight-success/80 text-white dark:text-slate-50';
-    if (score >= 0.50) return 'bg-highlight-warning/80 text-white dark:text-slate-50';
-    if (score > 0) return 'bg-highlight-error/80 text-white dark:text-slate-50';
-    return 'bg-muted/80 text-white dark:text-slate-50';
+    if (score === null || score === undefined) return 'bg-muted/30 text-muted-foreground dark:text-muted-foreground';
+    if (score >= 0.75) return 'bg-highlight-success/80 text-white dark:text-foreground';
+    if (score >= 0.50) return 'bg-highlight-warning/80 text-white dark:text-foreground';
+    if (score > 0) return 'bg-highlight-error/80 text-white dark:text-foreground';
+    return 'bg-muted/80 text-white dark:text-foreground';
 };
-
-interface ModelEvaluationDetailModalData {
-  modelId: string;
-  assessments: ImportedPointAssessment[];
-  promptContext: string | ConversationMessage[];
-  promptDescription?: string;
-  modelResponse: string;
-  systemPrompt: string | null;
-}
 
 export default function BetaComparisonClientPage() {
   const router = useRouter();
@@ -97,59 +84,24 @@ export default function BetaComparisonClientPage() {
     currentPromptId,
   });
 
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
-  const [selectedPairForModal, setSelectedPairForModal] = useState<ImportedSelectedPairInfo | null>(null);
   const [forceIncludeExcludedModels, setForceIncludeExcludedModels] = useState<boolean>(false);
   const [selectedTemperatures, setSelectedTemperatures] = useState<number[]>([]);
   const [selectedSysPromptIndexes, setSelectedSysPromptIndexes] = useState<number[]>([]);
   const [activeSysPromptIndex, setActiveSysPromptIndex] = useState(0);
+  const [activeHighlights, setActiveHighlights] = useState<Set<ActiveHighlight>>(new Set());
+  const [ReactMarkdown, setReactMarkdown] = useState<any>(null);
+  const [RemarkGfm, setRemarkGfm] = useState<any>(null);
+  const { resolvedTheme } = useTheme();
 
-  const displayedModels = useMemo(() => {
-    if (!data?.effectiveModels) return [];
-    // On the overall view, we should not filter by excludedModelsList here,
-    // because it's too aggressive for permutation runs. The warning banner handles informing the user.
-    if (!currentPromptId) {
-      return data.effectiveModels;
-    }
-    // On a single-prompt view, it's safe to filter.
-    if (forceIncludeExcludedModels) {
-        return data.effectiveModels;
-    }
-    return (data.effectiveModels || []).filter((m: string) => !excludedModelsList.includes(m));
-  }, [data?.effectiveModels, excludedModelsList, forceIncludeExcludedModels, currentPromptId]);
-
-  const modelsForMacroTable = useMemo(() => {
-    if (!data) return [];
-    
-    let models = displayedModels;
-
-    // Filter by the active system prompt tab if it's a permutation run
-    if (data.config.systems && data.config.systems.length > 1) {
-        models = models.filter(modelId => {
-            const { systemPromptIndex } = parseEffectiveModelId(modelId);
-            // Models without an index are not part of any permutation tab.
-            return systemPromptIndex === activeSysPromptIndex;
-        });
-    }
-
-    // Further filter by temperature if a selection has been made
-    if (selectedTemperatures.length > 0) {
-        models = models.filter(modelId => {
-            const { temperature } = parseEffectiveModelId(modelId);
-            return temperature === undefined || selectedTemperatures.includes(temperature);
-        });
-    }
-
-    return models;
-  }, [displayedModels, activeSysPromptIndex, selectedTemperatures, data]);
-
-  const modelsForAggregateView = useMemo(() => {
-    if (!data) return [];
-    // For aggregate views, we want a cleaner, canonical list of models.
-    // We pass the *original* effectiveModels list to the canonical function, not the one that may have exclusions.
-    return getCanonicalModels(data.effectiveModels, data.config);
-  }, [data]);
-
+  const { displayedModels, modelsForMacroTable, modelsForAggregateView } = useModelFiltering({
+    data,
+    currentPromptId,
+    forceIncludeExcludedModels,
+    excludedModelsList,
+    activeSysPromptIndex,
+    selectedTemperatures,
+  });
+  
   const { 
     overallIdealExtremes, 
     overallAvgCoverageStats, 
@@ -160,119 +112,122 @@ export default function BetaComparisonClientPage() {
     calculatedPerModelSemanticScores,
     perSystemVariantHybridScores,
     perTemperatureVariantHybridScores
-  } = useMemo(() => {
-    if (!data) {
-      return {
-        overallIdealExtremes: null,
-        overallAvgCoverageStats: null,
-        overallCoverageExtremes: null,
-        overallHybridExtremes: null,
-        overallRunHybridStats: { average: null, stddev: null },
-        calculatedPerModelHybridScores: new Map(),
-        calculatedPerModelSemanticScores: new Map(),
-        perSystemVariantHybridScores: {},
-        perTemperatureVariantHybridScores: {}
-      };
-    }
+  } = useAnalysisStats(data);
 
-    const { evaluationResults, effectiveModels, promptIds, config } = data;
-    const llmCoverageScores = evaluationResults?.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>> | undefined;
+  const {
+    responseComparisonModal,
+    closeResponseComparisonModal,
+    modelEvaluationModal,
+    openModelEvaluationDetailModal,
+    closeModelEvaluationDetailModal,
+    handleSimilarityCellClick,
+    handleCoverageCellClick,
+    handleSemanticExtremesClick,
+  } = usePageInteraction(data);
 
-    const overallIdealExtremes = evaluationResults?.similarityMatrix ? findIdealExtremes(evaluationResults.similarityMatrix, IDEAL_MODEL_ID) : null;
-    
-    const overallAvgCoverageStats = (llmCoverageScores && effectiveModels && promptIds) 
-      ? importedCalculateOverallAverageCoverage(llmCoverageScores, effectiveModels, promptIds) 
-      : null;
-
-    const overallCoverageExtremes = (llmCoverageScores && effectiveModels) 
-      ? importedCalculateOverallCoverageExtremes(llmCoverageScores, effectiveModels) 
-      : null;
-
-    const overallHybridExtremes = (evaluationResults?.perPromptSimilarities && llmCoverageScores && effectiveModels)
-      ? importedCalculateHybridScoreExtremes(evaluationResults.perPromptSimilarities, llmCoverageScores, effectiveModels, IDEAL_MODEL_ID)
-      : null;
-
-    const overallRunHybridStats = (evaluationResults?.perPromptSimilarities && llmCoverageScores && effectiveModels && promptIds)
-      ? calculateAverageHybridScoreForRun(evaluationResults.perPromptSimilarities, llmCoverageScores, effectiveModels, promptIds, IDEAL_MODEL_ID)
-      : { average: null, stddev: null };
-
-    let calculatedPerModelHybridScores = new Map<string, { average: number | null; stddev: number | null }>();
-    if (evaluationResults?.perModelHybridScores) {
-      let scoresToSet = evaluationResults.perModelHybridScores;
-      if (typeof scoresToSet === 'object' && !(scoresToSet instanceof Map)) {
-        scoresToSet = new Map(Object.entries(scoresToSet));
-      }
-      calculatedPerModelHybridScores = scoresToSet as Map<string, { average: number | null; stddev: number | null }>;
-    }
-    
-    let calculatedPerModelSemanticScores = new Map<string, { average: number | null; stddev: number | null }>();
-    if (evaluationResults?.perModelSemanticScores) {
-      let scoresToSet = evaluationResults.perModelSemanticScores;
-      if (typeof scoresToSet === 'object' && !(scoresToSet instanceof Map)) {
-        scoresToSet = new Map(Object.entries(scoresToSet));
-      }
-      calculatedPerModelSemanticScores = scoresToSet as Map<string, { average: number | null; stddev: number | null }>;
-    }
-
-    const perSystemVariantHybridScores: Record<number, number | null> = {};
-    if (config.systems && config.systems.length > 1 && evaluationResults?.perPromptSimilarities && llmCoverageScores && effectiveModels && promptIds) {
-        for (let i = 0; i < config.systems.length; i++) {
-            const modelsForVariant = effectiveModels.filter(modelId => {
-                const { systemPromptIndex } = parseEffectiveModelId(modelId);
-                return systemPromptIndex === i;
-            });
-
-            if (modelsForVariant.length > 0) {
-                const hybridStatsForVariant = calculateAverageHybridScoreForRun(
-                    evaluationResults.perPromptSimilarities, llmCoverageScores, modelsForVariant, promptIds, IDEAL_MODEL_ID
-                );
-                perSystemVariantHybridScores[i] = hybridStatsForVariant?.average ?? null;
-            } else {
-                perSystemVariantHybridScores[i] = null;
-            }
+  const handleActiveHighlightsChange = useCallback((newHighlights: Set<ActiveHighlight>) => {
+    setActiveHighlights(prevHighlights => {
+        if (prevHighlights.size === newHighlights.size && [...prevHighlights].every(h => newHighlights.has(h))) {
+            return prevHighlights;
         }
-    }
-    
-    const perTemperatureVariantHybridScores: Record<string, number | null> = {};
-    if (config.temperatures && config.temperatures.length > 1 && evaluationResults?.perPromptSimilarities && llmCoverageScores && effectiveModels && promptIds) {
-        for (const temp of config.temperatures) {
-            const modelsForTemp = effectiveModels.filter(modelId => {
-                const { temperature } = parseEffectiveModelId(modelId);
-                return temperature === temp;
-            });
+        return newHighlights;
+    });
+  }, []);
 
-            if (modelsForTemp.length > 0) {
-                const hybridStatsForTemp = calculateAverageHybridScoreForRun(
-                    evaluationResults.perPromptSimilarities, llmCoverageScores, modelsForTemp, promptIds, IDEAL_MODEL_ID
-                );
-                perTemperatureVariantHybridScores[temp.toFixed(1)] = hybridStatsForTemp?.average ?? null;
-            } else {
-                perTemperatureVariantHybridScores[temp.toFixed(1)] = null;
-            }
+  const permutationSensitivityMap = useMemo(() => {
+    const sensitivityMap = new Map<string, 'temp' | 'sys' | 'both'>();
+    if (!data || !data.effectiveModels || !data.evaluationResults?.llmCoverageScores) return sensitivityMap;
+
+    const { effectiveModels, promptIds, evaluationResults, config } = data;
+    const llmCoverageScores = evaluationResults.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>>;
+
+    const baseModelGroups = new Map<string, string[]>();
+    effectiveModels.forEach(modelId => {
+        const parsed = parseEffectiveModelId(modelId);
+        if (!baseModelGroups.has(parsed.baseId)) {
+            baseModelGroups.set(parsed.baseId, []);
         }
+        baseModelGroups.get(parsed.baseId)!.push(modelId);
+    });
+
+    const PERM_SENSITIVITY_THRESHOLD = 0.2;
+
+    for (const [baseId, modelIdsInGroup] of baseModelGroups.entries()) {
+        if (modelIdsInGroup.length < 2) continue;
+
+        const parsedModels = modelIdsInGroup.map(id => parseEffectiveModelId(id));
+        const hasTempVariants = new Set(parsedModels.map(p => p.temperature)).size > 1;
+        const hasSysVariants = new Set(parsedModels.map(p => p.systemPromptIndex)).size > 1;
+
+        if (!hasTempVariants && !hasSysVariants) continue;
+
+        promptIds.forEach(promptId => {
+            let sensitiveToTemp = false;
+            let sensitiveToSys = false;
+
+            if (hasTempVariants) {
+                const scoresBySysPrompt = new Map<number, number[]>();
+                modelIdsInGroup.forEach(modelId => {
+                    const parsed = parseEffectiveModelId(modelId);
+                    const result = llmCoverageScores[promptId]?.[modelId];
+                    if (result && !('error' in result) && typeof result.avgCoverageExtent === 'number' && !isNaN(result.avgCoverageExtent)) {
+                         if (parsed.systemPromptIndex !== undefined) {
+                            if (!scoresBySysPrompt.has(parsed.systemPromptIndex)) {
+                                scoresBySysPrompt.set(parsed.systemPromptIndex, []);
+                            }
+                            scoresBySysPrompt.get(parsed.systemPromptIndex)!.push(result.avgCoverageExtent);
+                         }
+                    }
+                });
+
+                for (const scores of scoresBySysPrompt.values()) {
+                    if (scores.length > 1) {
+                        const stdDev = calculateStandardDeviation(scores);
+                        if (stdDev !== null && stdDev > PERM_SENSITIVITY_THRESHOLD) {
+                            sensitiveToTemp = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (hasSysVariants) {
+                const scoresByTemp = new Map<number, number[]>();
+                 modelIdsInGroup.forEach(modelId => {
+                    const parsed = parseEffectiveModelId(modelId);
+                    const result = llmCoverageScores[promptId]?.[modelId];
+                    if (result && !('error' in result) && typeof result.avgCoverageExtent === 'number' && !isNaN(result.avgCoverageExtent)) {
+                         const temp = parsed.temperature ?? config.temperature ?? 0.0;
+                        if (!scoresByTemp.has(temp)) {
+                            scoresByTemp.set(temp, []);
+                        }
+                        scoresByTemp.get(temp)!.push(result.avgCoverageExtent);
+                    }
+                });
+
+                 for (const scores of scoresByTemp.values()) {
+                    if (scores.length > 1) {
+                        const stdDev = calculateStandardDeviation(scores);
+                        if (stdDev !== null && stdDev > PERM_SENSITIVITY_THRESHOLD) {
+                            sensitiveToSys = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            const key = `${promptId}:${baseId}`;
+            if (sensitiveToTemp && sensitiveToSys) {
+                sensitivityMap.set(key, 'both');
+            } else if (sensitiveToTemp) {
+                sensitivityMap.set(key, 'temp');
+            } else if (sensitiveToSys) {
+                sensitivityMap.set(key, 'sys');
+            }
+        });
     }
-    
-    return { 
-        overallIdealExtremes, 
-        overallAvgCoverageStats,
-        overallCoverageExtremes,
-        overallHybridExtremes,
-        overallRunHybridStats,
-        calculatedPerModelHybridScores,
-        calculatedPerModelSemanticScores,
-        perSystemVariantHybridScores,
-        perTemperatureVariantHybridScores
-    };
+    return sensitivityMap;
   }, [data]);
-  
-  const [modelEvaluationDetailModalData, setModelEvaluationDetailModalData] = useState<ModelEvaluationDetailModalData | null>(null);
-  const [isModelEvaluationDetailModalOpen, setIsModelEvaluationDetailModalOpen] = useState<boolean>(false);
-
-  // State for dynamically imported markdown components
-  const [ReactMarkdown, setReactMarkdown] = useState<any>(null);
-  const [RemarkGfm, setRemarkGfm] = useState<any>(null);
-
-  const { resolvedTheme } = useTheme();
 
   const headerWidgetContent = useMemo(() => {
     if (currentPromptId || !data?.evaluationResults?.llmCoverageScores || !data.promptIds || displayedModels.filter(m => m !== IDEAL_MODEL_ID).length === 0) {
@@ -285,7 +240,7 @@ export default function BetaComparisonClientPage() {
         models={displayedModels.filter(m => m !== IDEAL_MODEL_ID)}
         width={100}
         height={50}
-        className="rounded-md border border-border dark:border-slate-700 shadow-sm"
+        className="rounded-md border border-border dark:border-border shadow-sm"
       />
     );
   }, [currentPromptId, data, displayedModels]);
@@ -352,45 +307,11 @@ export default function BetaComparisonClientPage() {
     return items;
   }, [data, configIdFromUrl, runLabel, timestampFromUrl, currentPromptId, currentPromptDisplayText]);
 
-  const isLoadingFirstTime = loading && !data;
-
   const safeMatrixForCurrentView = useMemo(() => {
     if (!data?.evaluationResults?.similarityMatrix) return null;
     if (!currentPromptId) return data.evaluationResults.similarityMatrix;
     return data.evaluationResults?.perPromptSimilarities?.[currentPromptId] || null;
   }, [currentPromptId, data]);
-
-  const handleCloseModelEvaluationDetailModal = () => {
-    setIsModelEvaluationDetailModalOpen(false);
-    setModelEvaluationDetailModalData(null);
-  };
-  
-  const handleModelHeaderClickInKPCoverageTable = (clickedModelId: string) => {
-    if (!data || !currentPromptId || !data.promptContexts || !data.allFinalAssistantResponses) return;
-
-    const currentModelResponse = data.allFinalAssistantResponses[currentPromptId]?.[clickedModelId];
-    const promptContextForModal = data.promptContexts[currentPromptId];
-    const promptConfig = data.config.prompts.find(p => p.id === currentPromptId);
-
-    const modelCoverageResult = data.evaluationResults?.llmCoverageScores?.[currentPromptId]?.[clickedModelId] as ImportedCoverageResult | undefined;
-    const relevantAssessments = (modelCoverageResult && !('error' in modelCoverageResult)) ? (modelCoverageResult.pointAssessments || []) : [];
-
-    if (!currentModelResponse) {
-      console.warn("Could not open detail modal from KPCoverageTable header: Model response not found for", currentPromptId, clickedModelId);
-      // Optionally, set an error state or show a toast notification
-      return;
-    }
-
-    setModelEvaluationDetailModalData({
-      modelId: clickedModelId,
-      assessments: relevantAssessments, // Pass all assessments for this model-prompt pair
-      promptContext: promptContextForModal,
-      promptDescription: promptConfig?.description,
-      modelResponse: currentModelResponse,
-      systemPrompt: data.modelSystemPrompts?.[clickedModelId] || null
-    });
-    setIsModelEvaluationDetailModalOpen(true);
-  };
 
   const renderPromptDetails = () => {
     if (!currentPromptId || !data || !data.promptContexts) {
@@ -401,27 +322,27 @@ export default function BetaComparisonClientPage() {
 
     const renderContent = () => {
         if (typeof context === 'string') {
-          return <div className="text-card-foreground dark:text-slate-300 whitespace-pre-wrap">{context}</div>;
+          return <div className="text-card-foreground dark:text-card-foreground whitespace-pre-wrap">{context}</div>;
         }
 
         if (Array.isArray(context)) {
           if (context.length === 1 && context[0].role === 'user') {
-            return <div className="text-card-foreground dark:text-slate-300 whitespace-pre-wrap">{context[0].content}</div>;
+            return <div className="text-card-foreground dark:text-card-foreground whitespace-pre-wrap">{context[0].content}</div>;
           }
           if (context.length > 0) {
             return (
-              <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar p-1 rounded bg-muted/30 dark:bg-slate-700/20">
+              <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar p-1 rounded bg-muted/30 dark:bg-muted/20">
                 {context.map((msg, index) => (
-                  <div key={index} className={`p-2 rounded-md ${msg.role === 'user' ? 'bg-sky-100 dark:bg-sky-900/50' : 'bg-slate-100 dark:bg-slate-800/50'}`}>
-                    <p className="text-xs font-semibold text-muted-foreground dark:text-slate-400 capitalize">{msg.role}</p>
-                    <p className="text-sm text-card-foreground dark:text-slate-200 whitespace-pre-wrap">{msg.content}</p>
+                  <div key={index} className={`p-2 rounded-md ${msg.role === 'user' ? 'bg-sky-100 dark:bg-sky-900/50' : 'bg-muted dark:bg-muted/50'}`}>
+                    <p className="text-xs font-semibold text-muted-foreground dark:text-muted-foreground capitalize">{msg.role}</p>
+                    <p className="text-sm text-card-foreground dark:text-card-foreground whitespace-pre-wrap">{msg.content}</p>
                   </div>
                 ))}
               </div>
             );
           }
         }
-        return <div className="text-card-foreground dark:text-slate-300 whitespace-pre-wrap">{currentPromptDisplayText}</div>;
+        return <div className="text-card-foreground dark:text-card-foreground whitespace-pre-wrap">{currentPromptDisplayText}</div>;
     }
 
     return (
@@ -450,151 +371,22 @@ export default function BetaComparisonClientPage() {
 
     return (
       <div className="mb-6">
-        <label htmlFor="prompt-selector" className="block text-sm font-medium text-muted-foreground dark:text-slate-400 mb-1">Select Prompt:</label>
+        <label htmlFor="prompt-selector" className="block text-sm font-medium text-muted-foreground dark:text-muted-foreground mb-1">Select Prompt:</label>
         <select
           id="prompt-selector"
           value={currentPromptId || '__ALL__'}
           onChange={handleSelectChange}
-          className="block w-full p-2 border border-border dark:border-slate-700 rounded-md shadow-sm focus:ring-primary focus:border-primary bg-card dark:bg-slate-800 text-card-foreground dark:text-slate-100 text-sm"
+          className="block w-full p-2 border border-border dark:border-border rounded-md shadow-sm focus:ring-primary focus:border-primary bg-card dark:bg-card text-card-foreground dark:text-card-foreground text-sm"
         >
-          <option value="__ALL__" className="bg-background text-foreground dark:bg-slate-700 dark:text-slate-50">All Prompts (Overall Analysis)</option>
+          <option value="__ALL__" className="bg-background text-foreground dark:bg-background dark:text-foreground">All Prompts (Overall Analysis)</option>
           {data.promptIds.map(promptId => (
-            <option key={promptId} value={promptId} title={getPromptContextDisplayString(promptId)} className="bg-background text-foreground dark:bg-slate-700 dark:text-slate-50">
+            <option key={promptId} value={promptId} title={getPromptContextDisplayString(promptId)} className="bg-background text-foreground dark:bg-background dark:text-foreground">
               {promptId} - {getPromptContextDisplayString(promptId)}
             </option>
           ))}
         </select>
       </div>
     );
-  };
-
-  const handleCellClick = (modelA: string, modelB: string, similarity: number) => {
-    if (!data || !currentPromptId || !data.allFinalAssistantResponses || !data.promptContexts) return;
-
-    const contextForPrompt = data.promptContexts[currentPromptId];
-    const coverageScoresForPrompt = data.evaluationResults?.llmCoverageScores?.[currentPromptId] as Record<string, ImportedCoverageResult> | undefined;
-    
-    let coverageA: ImportedCoverageResult | null = null;
-    let coverageB: ImportedCoverageResult | null = null;
-
-    if (coverageScoresForPrompt) {
-        coverageA = coverageScoresForPrompt[modelA] ?? null;
-        coverageB = coverageScoresForPrompt[modelB] ?? null;
-    }
-    
-    const pointAssessmentsA = (coverageA && !('error' in coverageA)) ? coverageA.pointAssessments : null;
-    const pointAssessmentsB = (coverageB && !('error' in coverageB)) ? coverageB.pointAssessments : null;
-
-    setSelectedPairForModal({
-      modelA,
-      modelB,
-      promptId: currentPromptId,
-      promptContext: contextForPrompt,
-      responseA: data.allFinalAssistantResponses[currentPromptId]?.[modelA] || 'Response not found',
-      responseB: data.allFinalAssistantResponses[currentPromptId]?.[modelB] || 'Response not found',
-      systemPromptA: data.modelSystemPrompts?.[modelA] || null,
-      systemPromptB: data.modelSystemPrompts?.[modelB] || null,
-      semanticSimilarity: similarity,
-      llmCoverageScoreA: coverageA,
-      llmCoverageScoreB: coverageB,
-      extractedKeyPoints: data.extractedKeyPoints?.[currentPromptId] || null,
-      pointAssessmentsA: pointAssessmentsA || undefined, 
-      pointAssessmentsB: pointAssessmentsB || undefined, 
-    });
-    setIsModalOpen(true);
-  };
-
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setSelectedPairForModal(null);
-  };
-
-  const handleCoverageCellClick = (clickedModelId: string, assessment: ImportedPointAssessment | null) => {
-    if (!data || !currentPromptId || !data.promptContexts || !data.allFinalAssistantResponses || !assessment) {
-        return;
-    }
-
-    const llmCoverageScoresTyped = data.evaluationResults?.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>> | undefined;
-    const modelResult = llmCoverageScoresTyped?.[currentPromptId]?.[clickedModelId];
-    const promptConfig = data.config.prompts.find(p => p.id === currentPromptId);
-
-    if (!modelResult || 'error' in modelResult || !modelResult.pointAssessments) {
-        console.warn(`No valid assessments found for ${clickedModelId} on prompt ${currentPromptId}`);
-        return;
-    }
-    
-    const modalData: ModelEvaluationDetailModalData = {
-        modelId: clickedModelId,
-        assessments: modelResult.pointAssessments,
-        promptContext: data.promptContexts[currentPromptId],
-        promptDescription: promptConfig?.description,
-        modelResponse: data.allFinalAssistantResponses[currentPromptId]?.[clickedModelId] || '',
-        systemPrompt: data.modelSystemPrompts?.[clickedModelId] || data.config.systemPrompt || null,
-    };
-
-    setModelEvaluationDetailModalData(modalData);
-    setIsModelEvaluationDetailModalOpen(true);
-  };
-  
-  const handleMacroCellClick = (promptId: string, modelId: string) => {
-    if (!data || !data.evaluationResults?.llmCoverageScores) {
-        console.error("Cannot open model evaluation modal: core evaluation data is missing.");
-        return;
-    }
-
-    const llmCoverageScoresTyped = data.evaluationResults.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>>;
-    const modelResult = llmCoverageScoresTyped[promptId]?.[modelId];
-    const promptConfig = data.config.prompts.find(p => p.id === promptId);
-
-    if (!modelResult || 'error' in modelResult || !modelResult.pointAssessments) {
-        console.warn(`No valid assessments found for ${modelId} on prompt ${promptId}`);
-        return;
-    }
-
-    const promptContext = data.promptContexts?.[promptId] 
-        || data.config?.prompts?.find(p => p.id === promptId)?.messages;
-    
-    const modelResponse = data.allFinalAssistantResponses?.[promptId]?.[modelId];
-
-    if (!promptContext) {
-        console.error(`Could not find prompt context for promptId: ${promptId}. Cannot open modal.`);
-        return;
-    }
-
-    const modalData: ModelEvaluationDetailModalData = {
-        modelId: modelId,
-        assessments: modelResult.pointAssessments,
-        promptContext: promptContext,
-        promptDescription: promptConfig?.description,
-        modelResponse: modelResponse ?? "Response text not found in result data. The data file may be missing the 'allFinalAssistantResponses' field.",
-        systemPrompt: data.modelSystemPrompts?.[modelId] || data.config.systemPrompt || null,
-    };
-
-    setModelEvaluationDetailModalData(modalData);
-    setIsModelEvaluationDetailModalOpen(true);
-  };
-
-  const handleModelClickForSemanticExtremes = (modelId: string) => {
-      // This is a simplified version just to open the modal with the first prompt's data
-      // A more sophisticated implementation might find a representative prompt or let user choose
-      if (!data || !data.promptIds || data.promptIds.length === 0) return;
-      
-      const firstPromptId = data.promptIds[0];
-      const llmCoverageScoresTyped = data.evaluationResults?.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>> | undefined;
-      const modelResult = llmCoverageScoresTyped?.[firstPromptId]?.[modelId];
-      const promptConfig = data.config.prompts.find(p => p.id === firstPromptId);
-      
-      const modalData: ModelEvaluationDetailModalData = {
-          modelId: modelId,
-          assessments: (modelResult && !('error' in modelResult)) ? modelResult.pointAssessments || [] : [],
-          promptContext: data.promptContexts?.[firstPromptId] || `Context for ${firstPromptId} not found.`,
-          promptDescription: promptConfig?.description,
-          modelResponse: data.allFinalAssistantResponses?.[firstPromptId]?.[modelId] || 'Response not available.',
-          systemPrompt: data.modelSystemPrompts?.[modelId] || data.config.systemPrompt || null,
-      };
-
-      setModelEvaluationDetailModalData(modalData);
-      setIsModelEvaluationDetailModalOpen(true);
   };
 
   const promptTextsForMacroTable = useMemo(() => {
@@ -608,42 +400,8 @@ export default function BetaComparisonClientPage() {
   }, [data?.promptContexts, getPromptContextDisplayString]);
 
   useEffect(() => {
-    if (loading) {
-        console.log('[DEBUG] Component is loading...');
-        return;
-    }
-    if (error) {
-        console.log('[DEBUG] Component has error:', error);
-        return;
-    }
-    if (!data) {
-        console.log('[DEBUG] No data available.');
-        return;
-    }
-
-    console.group(`[DEBUG] Data Flow for run: ${configIdFromUrl}/${runLabel}`);
-    
-    console.log('[1] Data from useComparisonData hook:', {
-        configId: data.configId,
-        runLabel: data.runLabel,
-        effectiveModelsCount: data.effectiveModels.length,
-        promptIdsCount: data.promptIds.length,
-        hasSystems: !!data.config.systems,
-        systemsCount: data.config.systems?.length,
-    });
-    console.log('[2] Excluded models list from hook:', excludedModelsList);
-    
-    console.log('[3] `displayedModels` (after view-specific filter):', displayedModels);
-    
-    console.log('[4] `modelsForMacroTable` (after tab/temp filters):', {
-        activeSysPromptIndex,
-        selectedTemperatures,
-        models: modelsForMacroTable
-    });
-
-    console.groupEnd();
-
-}, [data, loading, error, excludedModelsList, displayedModels, modelsForMacroTable, activeSysPromptIndex, selectedTemperatures, configIdFromUrl, runLabel]);
+    document.title = pageTitle;
+  }, [pageTitle]);
 
   if (loading) {
     return (
@@ -746,8 +504,11 @@ export default function BetaComparisonClientPage() {
 
         {renderPromptSelector()}
 
-        {data?.config?.systems && data.config.systems.length > 1 && (
-            <Card className="shadow-lg border-border dark:border-slate-700">
+        {data?.config?.systems && (
+          data.config.systems.length > 1 ||
+          data.config.systems[0] !== null
+        ) && (
+            <Card className="shadow-lg border-border dark:border-border">
                 <CardHeader>
                 <CardTitle className="text-primary text-primary">System Prompt Variants</CardTitle>
                 <CardDescription>This run was executed against the following system prompt variations.</CardDescription>
@@ -755,9 +516,9 @@ export default function BetaComparisonClientPage() {
                 <CardContent>
                 <ul className="space-y-3">
                     {data.config.systems.map((systemPrompt, index) => (
-                    <li key={index} className="flex items-start gap-3 p-2 rounded-md bg-muted/50 dark:bg-slate-800/30">
+                    <li key={index} className="flex items-start gap-3 p-2 rounded-md bg-muted/50 dark:bg-muted/30">
                         <Badge variant="secondary" className="mt-1">{`sp_idx:${index}`}</Badge>
-                        <div className="text-sm text-card-foreground dark:text-slate-200">
+                        <div className="text-sm text-card-foreground dark:text-card-foreground">
                         {systemPrompt === null ? (
                             <em className="text-muted-foreground">[No System Prompt]</em>
                         ) : (
@@ -818,7 +579,7 @@ export default function BetaComparisonClientPage() {
         )}
 
         {currentPromptId && (
-             <Card className="shadow-lg border-border dark:border-slate-700">
+             <Card className="shadow-lg border-border dark:border-border">
                 <CardHeader>
                     <CardTitle className="text-primary text-primary">Current Prompt Context</CardTitle>
                 </CardHeader>
@@ -832,15 +593,15 @@ export default function BetaComparisonClientPage() {
             <DatasetStatistics
                 promptStats={data.evaluationResults?.promptStatistics}
                 overallSimilarityMatrix={data.evaluationResults?.similarityMatrix ?? undefined}
-                overallIdealExtremes={overallIdealExtremes === null ? undefined : overallIdealExtremes}
-                overallCoverageExtremes={overallCoverageExtremes === null ? undefined : overallCoverageExtremes}
-                overallAvgCoverageStats={overallAvgCoverageStats === null ? undefined : overallAvgCoverageStats}
+                overallIdealExtremes={overallIdealExtremes || undefined}
+                overallCoverageExtremes={overallCoverageExtremes || undefined}
+                overallAvgCoverageStats={overallAvgCoverageStats || undefined}
                 modelsStrings={displayedModels}
-                overallHybridExtremes={overallHybridExtremes === null ? undefined : overallHybridExtremes}
+                overallHybridExtremes={overallHybridExtremes || undefined}
                 promptTexts={promptTextsForMacroTable}
                 allPromptIds={promptIds}
-                overallAverageHybridScore={overallRunHybridStats?.average === null ? undefined : overallRunHybridStats?.average}
-                overallHybridScoreStdDev={overallRunHybridStats?.stddev === null ? undefined : overallRunHybridStats?.stddev}
+                overallAverageHybridScore={overallRunHybridStats?.average}
+                overallHybridScoreStdDev={overallRunHybridStats?.stddev}
                 allLlmCoverageScores={data.evaluationResults?.llmCoverageScores}
             />
         )}
@@ -864,34 +625,7 @@ export default function BetaComparisonClientPage() {
                 promptResponses={allFinalAssistantResponses[currentPromptId]}
                 idealModelId={IDEAL_MODEL_ID}
                 promptId={currentPromptId}
-                onModelClick={(modelId: string) => {
-                    if (!allFinalAssistantResponses?.[currentPromptId] || !promptContexts?.[currentPromptId] || !data?.evaluationResults?.perPromptSimilarities?.[currentPromptId]) return;
-
-                    const coverageScoresForPrompt = data.evaluationResults.llmCoverageScores?.[currentPromptId] as Record<string, ImportedCoverageResult> | undefined;
-                    const coverageScore = coverageScoresForPrompt ? coverageScoresForPrompt[modelId] : null;
-                    const pointAssessments = (coverageScore && !('error' in coverageScore)) ? coverageScore.pointAssessments : null;
-                    
-                    const semanticSim = data.evaluationResults.perPromptSimilarities?.[currentPromptId]?.[modelId]?.[IDEAL_MODEL_ID];
-                    const contextForModal = promptContexts[currentPromptId];
-
-                    setSelectedPairForModal({
-                        modelA: modelId,
-                        modelB: IDEAL_MODEL_ID,
-                        promptId: currentPromptId,
-                        promptContext: contextForModal,
-                        responseA: allFinalAssistantResponses[currentPromptId][modelId] || '',
-                        responseB: allFinalAssistantResponses[currentPromptId][IDEAL_MODEL_ID] || '',
-                        systemPromptA: data.modelSystemPrompts?.[modelId] || null,
-                        systemPromptB: data.modelSystemPrompts?.[IDEAL_MODEL_ID] || null,
-                        semanticSimilarity: semanticSim,
-                        llmCoverageScoreA: coverageScore,
-                        llmCoverageScoreB: null, 
-                        extractedKeyPoints: data.extractedKeyPoints?.[currentPromptId] || null,
-                        pointAssessmentsA: pointAssessments || undefined,
-                        pointAssessmentsB: undefined,
-                    });
-                    setIsModalOpen(true);
-                }}
+                onModelClick={(modelId: string) => openModelEvaluationDetailModal({ promptId: currentPromptId, modelId })}
             />
         )}
 
@@ -902,38 +636,12 @@ export default function BetaComparisonClientPage() {
                 promptResponses={allFinalAssistantResponses[currentPromptId]}
                 idealModelId={IDEAL_MODEL_ID}
                 promptId={currentPromptId}
-                onModelClick={(modelId: string) => {
-                    if (!allFinalAssistantResponses?.[currentPromptId] || !promptContexts?.[currentPromptId]) return;
-
-                    const coverageScoresForPrompt = data.evaluationResults?.llmCoverageScores?.[currentPromptId] as Record<string, ImportedCoverageResult> | undefined;
-                    const coverageScore = coverageScoresForPrompt ? coverageScoresForPrompt[modelId] : null;
-                    const pointAssessments = (coverageScore && !('error' in coverageScore)) ? coverageScore.pointAssessments : null;
-                    const contextForModal = promptContexts[currentPromptId];
-                    const semanticSim = data.evaluationResults?.perPromptSimilarities?.[currentPromptId]?.[modelId]?.[IDEAL_MODEL_ID];
-
-                    setSelectedPairForModal({
-                        modelA: modelId,
-                        modelB: IDEAL_MODEL_ID,
-                        promptId: currentPromptId,
-                        promptContext: contextForModal,
-                        responseA: allFinalAssistantResponses[currentPromptId][modelId] || '',
-                        responseB: allFinalAssistantResponses[currentPromptId][IDEAL_MODEL_ID] || '',
-                        systemPromptA: data.modelSystemPrompts?.[modelId] || null,
-                        systemPromptB: data.modelSystemPrompts?.[IDEAL_MODEL_ID] || null,
-                        semanticSimilarity: semanticSim,
-                        llmCoverageScoreA: coverageScore,
-                        llmCoverageScoreB: null,
-                        extractedKeyPoints: data.extractedKeyPoints?.[currentPromptId] || null,
-                        pointAssessmentsA: pointAssessments || undefined,
-                        pointAssessmentsB: undefined,
-                    });
-                    setIsModalOpen(true);
-                }}
+                onModelClick={(modelId: string) => handleSemanticExtremesClick(modelId)}
             />
         )}
 
         {currentPromptId && evalMethodsUsed.includes('llm-coverage') && data.evaluationResults?.llmCoverageScores?.[currentPromptId] && (
-            <Card className="shadow-lg border-border dark:border-slate-700 mt-6">
+            <Card className="shadow-lg border-border dark:border-border mt-6">
                 <CardHeader>
                      <div className="flex justify-between items-center">
                         <CardTitle className="text-primary text-primary">Key Point Coverage Details</CardTitle>
@@ -941,13 +649,12 @@ export default function BetaComparisonClientPage() {
                             <Link href="#key-point-coverage-help" scroll={false}><HelpCircle className="w-4 h-4 text-muted-foreground" /></Link>
                         </Button>
                     </div>
-                     <CardDescription className="text-muted-foreground dark:text-slate-400 pt-1 text-sm">
-                        Detailed breakdown of how each model response covers the evaluation criteria for prompt: <strong className="text-card-foreground dark:text-slate-200 font-normal">{currentPromptDisplayText}</strong>.
+                     <CardDescription className="text-muted-foreground dark:text-muted-foreground pt-1 text-sm">
+                        Detailed breakdown of how each model response covers the evaluation criteria for prompt: <strong className="text-card-foreground dark:text-card-foreground font-normal">{currentPromptDisplayText}</strong>.
                     </CardDescription>
 
-                    {/* Variant Filters moved here for better usability */}
                     {!currentPromptId && (data?.config.temperatures || data?.config.systems) && (
-                        <div className="pt-4 mt-4 border-t border-border/50 dark:border-slate-700/50">
+                        <div className="pt-4 mt-4 border-t border-border/50 dark:border-border/50">
                             <div className="flex flex-wrap items-end gap-x-6 gap-y-4">
                                 {data.config.temperatures && data.config.temperatures.length > 1 && (
                                     <div>
@@ -1018,18 +725,17 @@ export default function BetaComparisonClientPage() {
                     <KeyPointCoverageTable 
                         coverageScores={data.evaluationResults.llmCoverageScores[currentPromptId] as Record<string, ImportedCoverageResult>}
                         models={displayedModels.filter(m => m !== IDEAL_MODEL_ID)}
-                        onCellClick={handleCoverageCellClick}
-                        onModelHeaderClick={handleModelHeaderClickInKPCoverageTable}
+                        onCellClick={(modelId, assessment) => handleCoverageCellClick(modelId, assessment, currentPromptId)}
+                        onModelHeaderClick={(modelId) => openModelEvaluationDetailModal({ promptId: currentPromptId, modelId })}
                     />
                 </CardContent>
             </Card>
         )}
 
-      {/* Conditional rendering for Similarity views based on currentPromptId */}
       {currentPromptId && (
         <div className="mt-6 space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="shadow-lg border-border dark:border-slate-700 lg:col-span-2">
+            <Card className="shadow-lg border-border dark:border-border lg:col-span-2">
               <CardHeader>
                 <div className="flex justify-between items-center">
                     <CardTitle className="text-primary text-primary">Model Similarity Matrix</CardTitle>
@@ -1037,8 +743,8 @@ export default function BetaComparisonClientPage() {
                         <HelpCircle className="w-4 h-4 text-muted-foreground" />
                     </Button>
                 </div>
-                <CardDescription className="text-muted-foreground dark:text-slate-400 pt-1 text-sm">
-                    Pairwise semantic similarity for prompt: <strong className='text-card-foreground dark:text-slate-200 font-normal'>{currentPromptDisplayText}</strong>. Darker means more similar.
+                <CardDescription className="text-muted-foreground dark:text-muted-foreground pt-1 text-sm">
+                    Pairwise semantic similarity for prompt: <strong className='text-card-foreground dark:text-card-foreground font-normal'>{currentPromptDisplayText}</strong>. Darker means more similar.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1046,13 +752,13 @@ export default function BetaComparisonClientPage() {
                     <SimilarityHeatmap 
                         similarityMatrix={safeMatrixForCurrentView} 
                         models={displayedModels}
-                        onCellClick={handleCellClick}
+                        onCellClick={(modelA, modelB, similarity) => handleSimilarityCellClick(modelA, modelB, similarity, currentPromptId)}
                     />
-                ) : <p className="text-center text-muted-foreground dark:text-slate-400 py-4">Not enough data or models to display heatmap for this view.</p>}
+                ) : <p className="text-center text-muted-foreground dark:text-muted-foreground py-4">Not enough data or models to display heatmap for this view.</p>}
               </CardContent>
             </Card>
 
-            <Card className="shadow-lg border-border dark:border-slate-700 lg:col-span-2">
+            <Card className="shadow-lg border-border dark:border-border lg:col-span-2">
                 <CardHeader>
                     <div className="flex justify-between items-center">
                         <CardTitle className="text-primary text-primary">Model Similarity Graph</CardTitle>
@@ -1060,8 +766,8 @@ export default function BetaComparisonClientPage() {
                             <HelpCircle className="w-4 h-4 text-muted-foreground" />
                         </Button>
                     </div>
-                    <CardDescription className="text-muted-foreground dark:text-slate-400 pt-1 text-sm">
-                        Force-directed graph based on semantic similarity for prompt: <strong className='text-card-foreground dark:text-slate-200 font-normal'>{currentPromptDisplayText}</strong>. Closer nodes are more similar.
+                    <CardDescription className="text-muted-foreground dark:text-muted-foreground pt-1 text-sm">
+                        Force-directed graph based on semantic similarity for prompt: <strong className='text-card-foreground dark:text-card-foreground font-normal'>{currentPromptDisplayText}</strong>. Closer nodes are more similar.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="h-[400px]">
@@ -1071,12 +777,12 @@ export default function BetaComparisonClientPage() {
                             models={displayedModels}
                             resolvedTheme={resolvedTheme}
                         />
-                    ) : <p className="text-center text-muted-foreground dark:text-slate-400 py-4">Not enough data or models to display graph for this view.</p>}
+                    ) : <p className="text-center text-muted-foreground dark:text-muted-foreground py-4">Not enough data or models to display graph for this view.</p>}
                 </CardContent>
             </Card>
           </div>
 
-          <Card className="shadow-lg border-border dark:border-slate-700">
+          <Card className="shadow-lg border-border dark:border-border">
               <CardHeader>
                   <div className="flex justify-between items-center">
                       <CardTitle className="text-primary text-primary">Model Similarity Dendrogram</CardTitle>
@@ -1084,8 +790,8 @@ export default function BetaComparisonClientPage() {
                           <HelpCircle className="w-4 h-4 text-muted-foreground" />
                       </Button>
                   </div>
-                  <CardDescription className="text-muted-foreground dark:text-slate-400 pt-1 text-sm">
-                      Models clustered by semantic similarity for prompt: <strong className='text-card-foreground dark:text-slate-200 font-normal'>{currentPromptDisplayText}</strong>. Shorter branches mean more similar.
+                  <CardDescription className="text-muted-foreground dark:text-muted-foreground pt-1 text-sm">
+                      Models clustered by semantic similarity for prompt: <strong className='text-card-foreground dark:text-card-foreground font-normal'>{currentPromptDisplayText}</strong>. Shorter branches mean more similar.
                   </CardDescription>
               </CardHeader>
               <CardContent className="h-[450px] overflow-x-auto custom-scrollbar">
@@ -1094,7 +800,7 @@ export default function BetaComparisonClientPage() {
                           similarityMatrix={safeMatrixForCurrentView} 
                           models={displayedModels}
                       />
-                  ) : <p className="text-center text-muted-foreground dark:text-slate-400 py-4">Not enough data or models to display dendrogram.</p>}
+                  ) : <p className="text-center text-muted-foreground dark:text-muted-foreground py-4">Not enough data or models to display dendrogram.</p>}
               </CardContent>
           </Card>
         </div>
@@ -1111,7 +817,7 @@ export default function BetaComparisonClientPage() {
             )}
 
             {!currentPromptId && (
-                <Card className="shadow-lg border-border dark:border-slate-700">
+                <Card className="shadow-lg border-border dark:border-border">
                     <CardHeader>
                          <div className="flex justify-between items-center">
                             <CardTitle className="text-primary text-primary">Macro Coverage Overview</CardTitle>
@@ -1119,12 +825,13 @@ export default function BetaComparisonClientPage() {
                                 <Link href="#macro-coverage-help" scroll={false}><HelpCircle className="w-4 h-4 text-muted-foreground" /></Link>
                             </Button>
                         </div>
-                        <CardDescription className="text-muted-foreground dark:text-slate-400 pt-1 text-sm">
+                        <CardDescription className="text-muted-foreground dark:text-muted-foreground pt-1 text-sm">
                             {data.config.systems && data.config.systems.length > 1 
                                 ? "Average key point coverage, broken down by system prompt variant. Select a tab to view its results."
                                 : "Average key point coverage extent for each model across all prompts."
                             }
                         </CardDescription>
+                        <CoverageTableLegend activeHighlights={activeHighlights} className="pt-4 mt-4 border-t border-border/50 dark:border-border/50" />
                     </CardHeader>
                     <CardContent className="pt-0">
                         {data.config.systems && data.config.systems.length > 1 ? (
@@ -1163,7 +870,6 @@ export default function BetaComparisonClientPage() {
                                     </TabsList>
                                 </div>
                                 <div className="pt-6">
-                                    {/* Temperature Filter UI */}
                                     {data.config.temperatures && data.config.temperatures.length > 1 && (
                                         <div className="py-4 border-t border-b mb-4">
                                             <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
@@ -1217,8 +923,10 @@ export default function BetaComparisonClientPage() {
                                         configId={configIdFromUrl}
                                         runLabel={runLabel}
                                         safeTimestampFromParams={timestampFromUrl}
-                                        onCellClick={handleMacroCellClick} 
+                                        onCellClick={(promptId, modelId) => openModelEvaluationDetailModal({ promptId, modelId })} 
+                                        onActiveHighlightsChange={handleActiveHighlightsChange}
                                         systemPromptIndex={activeSysPromptIndex}
+                                        permutationSensitivityMap={permutationSensitivityMap}
                                     />
                                 </div>
                             </Tabs>
@@ -1232,7 +940,9 @@ export default function BetaComparisonClientPage() {
                                 configId={configIdFromUrl}
                                 runLabel={runLabel}
                                 safeTimestampFromParams={timestampFromUrl}
-                                onCellClick={handleMacroCellClick} 
+                                onCellClick={(promptId, modelId) => openModelEvaluationDetailModal({ promptId, modelId })} 
+                                onActiveHighlightsChange={handleActiveHighlightsChange}
+                                permutationSensitivityMap={permutationSensitivityMap}
                             />
                         )}
                     </CardContent>
@@ -1241,7 +951,7 @@ export default function BetaComparisonClientPage() {
 
             {!currentPromptId && data?.evaluationResults?.similarityMatrix && modelsForAggregateView && modelsForAggregateView.length > 1 && (
               <>
-                <Card className="shadow-lg border-border dark:border-slate-700">
+                <Card className="shadow-lg border-border dark:border-border">
                   <CardHeader>
                     <CardTitle className="text-primary text-primary">Model Similarity Graph</CardTitle>
                     <CardDescription>
@@ -1259,7 +969,7 @@ export default function BetaComparisonClientPage() {
                   </CardContent>
                 </Card>
 
-                <Card className="shadow-lg border-border dark:border-slate-700">
+                <Card className="shadow-lg border-border dark:border-border">
                   <CardHeader>
                     <CardTitle className="text-primary text-primary">Model Similarity Dendrogram</CardTitle>
                     <CardDescription>
@@ -1286,18 +996,18 @@ export default function BetaComparisonClientPage() {
             timestamp={timestampFromUrl}
         />
 
-      {selectedPairForModal && (
+      {responseComparisonModal && (
         <ResponseComparisonModal 
-          isOpen={isModalOpen} 
-          onClose={handleCloseModal} 
-          {...selectedPairForModal}
+          isOpen={true} 
+          onClose={closeResponseComparisonModal} 
+          {...responseComparisonModal}
         />
       )}
-      {modelEvaluationDetailModalData && (
+      {modelEvaluationModal && (
         <ModelEvaluationDetailModal
-          isOpen={isModelEvaluationDetailModalOpen}
-          onClose={handleCloseModelEvaluationDetailModal}
-          data={modelEvaluationDetailModalData}
+          isOpen={true}
+          onClose={closeModelEvaluationDetailModal}
+          data={modelEvaluationModal}
         />
       )}
     </div>

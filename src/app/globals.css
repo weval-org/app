@@ -4,101 +4,124 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%; /* Light background - White */
-    --foreground: 222.2 84% 4.9%; /* Dark text for light background */
-    --muted: 210 40% 96.1%; /* Light muted - Light gray */
-    --muted-foreground: 215.4 16.3% 46.9%; /* Darker muted text */
-    --popover: 0 0% 100%; /* Light popover - White */
-    --popover-foreground: 222.2 84% 4.9%; /* Dark text for popover */
-    --card: 0 0% 100%; /* Light card - White */
-    --card-foreground: 222.2 84% 4.9%; /* Dark text for card */
-    --border: 214.3 31.8% 91.4%; /* Light border - Light gray */
-    --input: 214.3 31.8% 91.4%; /* Light input border - Light gray */
-    --primary: 210 100% 45.1%; /* ORIGINAL BLUE: #0073e6 */
-    --primary-foreground: 0 0% 100%; /* ORIGINAL WHITE: #ffffff */
-    --secondary: 210 40% 96.1%; /* Light secondary - Light gray */
-    --secondary-foreground: 222.2 47.4% 11.2%; /* Dark text for secondary */
-    --accent: 210 40% 96.1%; /* Light accent - Light gray */
-    --accent-foreground: 222.2 47.4% 11.2%; /* Dark text for accent */
-    --destructive: 329 76.1% 40.8%; /* Dark Pink #b51963 */
-    --destructive-foreground: 0 0% 100%; /* White #ffffff */
-    --ring: 215 20.2% 65.1%; /* ORIGINAL Ring color for focus states on light bg */
+    --background: 42 63% 94%;
+    --foreground: 330 3% 19%;
+    --muted: 0 0% 95%; /* Derived from surface */
+    --muted-foreground: 330 3% 49%; /* Derived from foreground */
+    --popover: 0 0% 100%; /* Same as surface */
+    --popover-foreground: 330 3% 19%; /* Same as foreground */
+    --card: 0 0% 100%; /* Same as surface */
+    --card-foreground: 330 3% 19%; /* Same as foreground */
+    --border: 0 0% 85%; /* Derived from surface */
+    --input: 0 0% 85%; /* Derived from surface */
+    --primary: 229 39% 52%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 95%; /* Same as muted */
+    --secondary-foreground: 330 3% 19%; /* Same as foreground */
+    --accent: 52 69.2% 87.3%;
+    --accent-foreground: 330 3% 19%; /* Same as foreground */
+    --destructive: 8 86% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --ring: 229 39% 52%; /* Same as primary */
     --radius: 0.5rem;
+    
+    /* Custom variables */
+    --header: 47 60% 97%;
+    --surface: 0 0% 100%;
+    --highlight-warning: 46 100% 63.1%;
 
-    /* NEW Complementary Accent for CTAs */
-    --accent-cta: 36 93% 65%; /* Rich Amber - Made lighter */
-    --accent-cta-foreground: 24 95% 15%; /* Dark Brown for text on Amber */
+    /* Default chart/highlight colors (can be customized) */
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --highlight-info: 200 90% 45%;
+    --highlight-success: 167 59% 22%;
+    --highlight-success-foreground: 0 0% 100%;
+    --highlight-error: 8 86% 60%; /* Same as destructive */
 
-    /* Custom semantic colors for charts/highlights - Light Theme */
-    --chart-1: 220 70% 50%; /* ORIGINAL Blue */
-    --chart-2: 160 60% 45%; /* ORIGINAL Green */
-    --chart-3: 30 80% 55%;  /* Orange */
-    --chart-4: 280 65% 60%; /* ORIGINAL Purple */
-    --chart-5: 340 75% 55%; /* Pink */
-
-    --highlight-info: 200 90% 45%; /* ORIGINAL Sky blue for info messages */
-    --highlight-success: 167 59% 22%; /* Dark Green #185849 */
-    --highlight-success-foreground: 0 0% 100%; /* White #ffffff for success text */
-    --highlight-warning: 40 90% 50%;  /* Amber/Orange for warnings */
-    --highlight-error: 329 76.1% 40.8%;    /* Dark Pink #b51963 */
+    /* Custom Slate Palette */
+    --slate-50: 0 0% 98%;
+    --slate-100: 0 0% 96.5%;
+    --slate-200: 0 0% 91%;
+    --slate-300: 0 0% 83.5%;
+    --slate-400: 0 0% 65%;
+    --slate-500: 0 0% 47%;
+    --slate-600: 0 0% 34%;
+    --slate-700: 0 0% 26.5%;
+    --slate-800: 0 0% 17.5%;
+    --slate-900: 0 0% 11%;
+    --slate-950: 0 0% 5%;
 
     /* Coverage Grade Colors - Light Theme */
-    --coverage-unmet: 0 75% 60%;         /* Bright Red */
-    --coverage-fully-met: 120 65% 50%;    /* Bright Green */
-    --coverage-no-extent: 40 80% 55%;   /* Bright Amber */
-    --coverage-grade-0: 0 75% 60%;      /* Grade 0 (0.0-0.09) */
-    --coverage-grade-1: 12 75% 60%;     /* Grade 1 (0.1-0.19) */
-    --coverage-grade-2: 24 75% 60%;     /* Grade 2 (0.2-0.29) */
-    --coverage-grade-3: 36 75% 60%;     /* Grade 3 (0.3-0.39) */
-    --coverage-grade-4: 48 75% 58%;     /* Grade 4 (0.4-0.49) */
-    --coverage-grade-5: 60 70% 55%;     /* Grade 5 (0.5-0.59) - Yellow */
-    --coverage-grade-6: 75 65% 55%;     /* Grade 6 (0.6-0.69) */
-    --coverage-grade-7: 90 65% 55%;     /* Grade 7 (0.7-0.79) - Lime Green */
-    --coverage-grade-8: 100 65% 50%;    /* Grade 8 (0.8-0.89) */
-    --coverage-grade-9: 110 65% 50%;    /* Grade 9 (0.9-0.99) */
-
-    --border-contrast: rgba(0, 0, 0, 0.1); /* Subtle dark border for light theme segments */
+    --coverage-unmet: 0 75% 60%;
+    --coverage-fully-met: 120 65% 50%;
+    --coverage-no-extent: 40 80% 55%;
+    --coverage-grade-0: 0 75% 60%;
+    --coverage-grade-1: 12 75% 60%;
+    --coverage-grade-2: 24 75% 60%;
+    --coverage-grade-3: 36 75% 60%;
+    --coverage-grade-4: 48 75% 58%;
+    --coverage-grade-5: 60 70% 55%;
+    --coverage-grade-6: 75 65% 55%;
+    --coverage-grade-7: 90 65% 55%;
+    --coverage-grade-8: 100 65% 50%;
+    --coverage-grade-9: 110 65% 50%;
+    --border-contrast: rgba(0, 0, 0, 0.1);
   }
 
   .dark {
-    --background: 222.2 84% 4.9%; /* Dark background - Almost black */
-    --foreground: 210 40% 98%; /* Light text for dark background */
-    --muted: 217.2 32.6% 17.5%; /* Dark muted - Dark gray */
-    --muted-foreground: 215 20.2% 65.1%; /* Lighter muted text */
-    --popover: 222.2 84% 4.9%; /* Dark popover */
-    --popover-foreground: 210 40% 98%; /* Light text for popover */
-    --card: 222.2 84% 4.9%; /* Dark card */
-    --card-foreground: 210 40% 98%; /* Light text for card */
-    --border: 217.2 32.6% 17.5%; /* Dark border - Dark gray */
-    --input: 217.2 32.6% 17.5%; /* Dark input border - Dark gray */
-    --primary: 210 100% 45.1%; /* ORIGINAL BLUE: #0073e6 */
-    --primary-foreground: 0 0% 100%; /* ORIGINAL WHITE: #ffffff */
-    --secondary: 217.2 32.6% 17.5%; /* Dark secondary - Dark gray */
-    --secondary-foreground: 210 40% 98%; /* Light text for secondary */
-    --accent: 217.2 32.6% 17.5%; /* Dark accent */
-    --accent-foreground: 210 40% 98%; /* Light text for accent */
-    --destructive: 329 76.1% 40.8%; /* Dark Pink #b51963 */
-    --destructive-foreground: 0 0% 100%; /* White #ffffff */
-    --ring: 217.2 32.6% 17.5%; /* ORIGINAL Ring color for focus states on dark bg */
+    --background: 330 3% 19%; /* Inverted from light foreground */
+    --foreground: 42 63% 94%; /* Inverted from light background */
+    --muted: 330 3% 24%; /* Derived from dark background */
+    --muted-foreground: 42 63% 84%; /* Derived from dark foreground */
+    --popover: 330 3% 24%; /* Same as dark surface */
+    --popover-foreground: 42 63% 94%; /* Same as dark foreground */
+    --card: 330 3% 24%; /* Same as dark surface */
+    --card-foreground: 42 63% 94%; /* Same as dark foreground */
+    --border: 330 3% 29%; /* Derived from dark background */
+    --input: 330 3% 29%; /* Derived from dark background */
+    --primary: 166 75% 73%;
+    --primary-foreground: 340 100% 72.4%;
+    --secondary: 330 3% 24%; /* Same as dark muted */
+    --secondary-foreground: 42 63% 94%; /* Same as dark foreground */
+    --accent: 52 69.2% 87.3%; /* Same as light accent */
+    --accent-foreground: 42 63% 94%; /* Same as dark foreground */
+    --destructive: 8 86% 60%; /* Same as light destructive */
+    --destructive-foreground: 0 0% 100%;
+    --ring: 166 75% 30%; /* Derived from dark primary */
 
-    /* NEW Complementary Accent for CTAs - Dark Theme */
-    --accent-cta: 36 93% 60%; /* Lighter Amber for dark mode */
-    --accent-cta-foreground: 24 95% 15%; /* Dark Brown for text on Amber */
+    /* Custom variables */
+    --header: 330 3% 22%; /* Derived from dark background */
+    --surface: 330 3% 24%; /* Derived from dark background */
+    --highlight-warning: 46 100% 63.1%; /* Same as light warning */
 
-    /* Custom semantic colors for charts/highlights - Dark Theme */
-    --chart-1: 217 91% 60%;  /* ORIGINAL Sky blue (from shadcn example) */
-    --chart-2: 142 71% 45%;  /* ORIGINAL Green */
-    --chart-3: 38 92% 50%;   /* Orange */
-    --chart-4: 270 80% 65%;  /* ORIGINAL Violet */
-    --chart-5: 348 83% 60%;  /* Rose */
+    /* Default chart/highlight colors (can be customized) */
+    --chart-1: 217 91% 60%;
+    --chart-2: 142 71% 45%;
+    --chart-3: 38 92% 50%;
+    --chart-4: 270 80% 65%;
+    --chart-5: 348 83% 60%;
+    --highlight-info: 205 90% 55%;
+    --highlight-success: 167 60% 45%;
+    --highlight-success-foreground: 167 60% 10%;
+    --highlight-error: 8 86% 60%; /* Same as destructive */
 
-    --highlight-info: 205 90% 55%; /* ORIGINAL Brighter Sky blue for info */
-    --highlight-success: 167 60% 45%; /* Brighter Green for dark mode */
-    --highlight-success-foreground: 167 60% 10%; /* Dark Green text for success button */
-    --highlight-warning: 45 90% 55%;  /* Brighter Amber/Orange for warnings */
-    --highlight-error: 329 76.1% 40.8%;    /* Dark Pink #b51963 */
+    /* Custom Slate Palette */
+    --slate-50: 330 3% 98%;
+    --slate-100: 330 3% 96.5%;
+    --slate-200: 330 3% 91%;
+    --slate-300: 330 3% 83.5%;
+    --slate-400: 330 3% 65%;
+    --slate-500: 330 3% 47%;
+    --slate-600: 330 3% 34%;
+    --slate-700: 330 3% 26.5%;
+    --slate-800: 330 3% 17.5%;
+    --slate-900: 330 3% 11%;
+    --slate-950: 330 3% 5%;
 
-    /* Coverage Grade Colors - Dark Theme (based on original colorUtils) */
+    /* Coverage Grade Colors - Dark Theme */
     --coverage-unmet: 0 70% 50%;
     --coverage-fully-met: 120 60% 40%;
     --coverage-no-extent: 40 70% 50%;
@@ -112,14 +135,13 @@
     --coverage-grade-7: 90 60% 45%;
     --coverage-grade-8: 100 60% 40%;
     --coverage-grade-9: 110 60% 40%;
-
-    --border-contrast: rgba(255, 255, 255, 0.15); /* Subtle light border for dark theme segments */
+    --border-contrast: rgba(255, 255, 255, 0.15);
   }
 }
 
 body {
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
-  min-height: 100vh;
+  /* font-family: var(--font-geist-sans), system-ui, sans-serif; */
+  font-family: ui-sans-serif,system-ui,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji";
 }
 
 /* Removed .site-header and .content-wrapper as they are not currently used */

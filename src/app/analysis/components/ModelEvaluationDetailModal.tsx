@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelIdUtils';
 import { ConversationMessage, IndividualJudgement } from '../../../app/utils/types';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const AlertTriangle = dynamic(() => import('lucide-react').then(mod => mod.AlertTriangle));
 const MessageSquare = dynamic(() => import('lucide-react').then(mod => mod.MessageSquare));
@@ -17,6 +19,8 @@ const Server = dynamic(() => import('lucide-react').then(mod => mod.Server));
 
 const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
 const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
+
+export type { PointAssessment, ModelEvaluationVariant, ModelEvaluationDetailModalData };
 
 interface PointAssessment {
     keyPointText: string;
@@ -31,17 +35,26 @@ interface PointAssessment {
     isInverted?: boolean;
 }
 
+interface ModelEvaluationVariant {
+    modelId: string;
+    assessments: PointAssessment[];
+    modelResponse: string;
+    systemPrompt: string | null;
+}
+
+interface ModelEvaluationDetailModalData {
+  baseModelId: string; // The model without permutation params, for display
+  promptContext: string | ConversationMessage[];
+  promptDescription?: string;
+  // Map from system prompt index to the evaluation data for that variant
+  variantEvaluations: Map<number, ModelEvaluationVariant>;
+  initialVariantIndex: number; // which tab to open first
+}
+
 interface ModelEvaluationDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
-  data: {
-    modelId: string;
-    assessments: PointAssessment[];
-    promptContext: string | ConversationMessage[];
-    promptDescription?: string;
-    modelResponse: string;
-    systemPrompt: string | null;
-  };
+  data: ModelEvaluationDetailModalData;
 }
 
 const getScoreColor = (score?: number): string => {
@@ -65,11 +78,11 @@ const PromptContextDisplay: React.FC<{ promptContext: string | ConversationMessa
     }
     if (Array.isArray(promptContext) && promptContext.length > 0) {
       return (
-        <div className="space-y-1 max-h-40 overflow-y-auto custom-scrollbar pr-1">
+        <div className="space-y-1 mt-2 max-h-40 overflow-y-auto custom-scrollbar pr-1">
           {promptContext.map((msg, index) => (
             <div key={index} className={`p-1.5 rounded-md text-xs ${msg.role === 'user' ? 'bg-sky-100 dark:bg-sky-900/30' : msg.role === 'assistant' ? 'bg-slate-100 dark:bg-slate-800/30' : 'bg-gray-100 dark:bg-gray-700/30'}`}>
-              <p className="text-[10px] font-semibold text-muted-foreground dark:text-slate-400 capitalize">{msg.role}</p>
-              <p className="text-xs text-card-foreground dark:text-slate-200 whitespace-pre-wrap">{msg.content}</p>
+              <p className="text-[12px] font-semibold text-muted-foreground dark:text-slate-400 capitalize">{msg.role}</p>
+              <p className="text-sm text-card-foreground dark:text-slate-200 whitespace-pre-wrap">{msg.content}</p>
             </div>
           ))}
         </div>
@@ -191,60 +204,15 @@ const AssessmentItem: React.FC<{
     );
 };
 
-const ModelEvaluationDetailModal: React.FC<ModelEvaluationDetailModalProps> = ({ isOpen, onClose, data }) => {
-  if (!isOpen) return null;
+const EvaluationView: React.FC<{
+    variant: ModelEvaluationVariant,
+    expandedLogs: Record<number, boolean>,
+    toggleLogExpansion: (index: number) => void;
+}> = ({ variant, expandedLogs, toggleLogExpansion }) => {
+    const { modelResponse, assessments } = variant;
 
-  const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
-  const [ReactMarkdownComponent, setReactMarkdownComponent] = useState<ComponentType<any> | null>(null);
-
-  const { modelId, assessments, promptContext, modelResponse, systemPrompt } = data;
-  const displayModelName = getModelDisplayLabel(modelId);
-
-  const toggleLogExpansion = (index: number) => {
-    setExpandedLogs(prev => ({ ...prev, [index]: !prev[index] }));
-  };
-
-  const renderPromptContent = () => {
-    if (typeof promptContext === 'string') {
-      return <div className="whitespace-pre-wrap">{promptContext}</div>;
-    }
-    if (Array.isArray(promptContext) && promptContext.length > 0) {
-      return (
-        <div className="space-y-1 max-h-40 overflow-y-auto custom-scrollbar pr-1">
-          {promptContext.map((msg, index) => (
-            <div key={index} className={`p-1.5 rounded-md text-xs ${msg.role === 'user' ? 'bg-sky-100 dark:bg-sky-900/30' : msg.role === 'assistant' ? 'bg-slate-100 dark:bg-slate-800/30' : 'bg-gray-100 dark:bg-gray-700/30'}`}>
-              <p className="text-[10px] font-semibold text-muted-foreground dark:text-slate-400 capitalize">{msg.role}</p>
-              <p className="text-xs text-card-foreground dark:text-slate-200 whitespace-pre-wrap">{msg.content}</p>
-            </div>
-          ))}
-        </div>
-      );
-    }
-    return <p className="italic">Prompt context not available.</p>;
-  };
-
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-[95vw] max-w-[95vw] h-[95vh] flex flex-col p-0 overflow-hidden">
-        <DialogHeader className="p-6 pb-4 border-b border-border">
-          <DialogTitle className="text-xl font-semibold text-foreground">
-            Evaluation Details for: <span className="text-primary">{displayModelName}</span>
-          </DialogTitle>
-          <div className="text-sm text-muted-foreground max-h-32 overflow-y-auto custom-scrollbar pr-2 space-y-2">
-            {data.promptDescription && (
-                <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground border-l-4 border-primary/20 pl-4 py-1 text-xs">
-                    <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{data.promptDescription}</ReactMarkdown>
-                </div>
-            )}
-            <div>
-              <p className="font-semibold text-xs uppercase tracking-wider text-muted-foreground/80">Prompt:</p>
-              <PromptContextDisplay promptContext={promptContext} />
-            </div>
-          </div>
-        </DialogHeader>
-
+    return (
         <div className="flex-1 px-3 text-sm flex flex-col lg:flex-row lg:space-x-3 overflow-hidden min-h-0"> 
-          
           <div className="lg:w-2/5 flex flex-col overflow-hidden">
             <div className="flex-1 min-h-0 flex flex-col p-3 bg-muted/10 dark:bg-slate-800/20 rounded-lg overflow-hidden border border-border/50">
               <p className="font-semibold text-muted-foreground text-sm mb-1.5 pb-1 border-b border-border/30">Model Response</p>
@@ -281,6 +249,91 @@ const ModelEvaluationDetailModal: React.FC<ModelEvaluationDetailModalProps> = ({
             </div>
           </div>
         </div>
+    );
+};
+
+const ModelEvaluationDetailModal: React.FC<ModelEvaluationDetailModalProps> = ({ isOpen, onClose, data }) => {
+  if (!isOpen) return null;
+
+  const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
+
+  const { baseModelId, promptContext, promptDescription, variantEvaluations, initialVariantIndex } = data;
+  const displayModelName = getModelDisplayLabel(baseModelId);
+  
+  const variantKeys = Array.from(variantEvaluations.keys()).sort((a,b) => a-b);
+  const hasMultipleVariants = variantKeys.length > 1;
+
+  const toggleLogExpansion = (index: number) => {
+    setExpandedLogs(prev => ({ ...prev, [index]: !prev[index] }));
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="w-[95vw] max-w-[95vw] h-[95vh] flex flex-col p-0 overflow-hidden">
+        <DialogHeader className="p-6 pb-4 border-b border-border">
+          <DialogTitle className="text-xl font-semibold text-foreground">
+            Evaluation Details for: <span className="text-primary">{displayModelName}</span>
+          </DialogTitle>
+          <div className="text-sm text-muted-foreground max-h-32 overflow-y-auto custom-scrollbar pr-2 space-y-2">
+            {promptDescription && (
+                <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground border-l-4 border-primary/20 pl-4 py-1 text-xs">
+                    <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{promptDescription}</ReactMarkdown>
+                </div>
+            )}
+            <div>
+              <p className="font-semibold text-xs uppercase tracking-wider text-muted-foreground/80">Prompt:</p>
+              <PromptContextDisplay promptContext={promptContext} />
+            </div>
+          </div>
+        </DialogHeader>
+
+        {hasMultipleVariants ? (
+            <Tabs defaultValue={String(initialVariantIndex)} className="flex-1 flex flex-col min-h-0">
+                <div className="px-6 py-2 border-b">
+                    <TabsList>
+                        {variantKeys.map(index => {
+                            const variant = variantEvaluations.get(index);
+                             const systemPromptText = variant?.systemPrompt || "[No System Prompt]";
+                            return (
+                                <TooltipProvider key={index} delayDuration={100}>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <TabsTrigger value={String(index)}>
+                                                Variant (sp_idx:{index})
+                                            </TabsTrigger>
+                                        </TooltipTrigger>
+                                        <TooltipContent className="max-w-md">
+                                            <p className="text-xs font-semibold mb-1">System Prompt:</p>
+                                            <p className="text-xs whitespace-pre-wrap">{systemPromptText}</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            )
+                        })}
+                    </TabsList>
+                </div>
+                 {variantKeys.map(index => {
+                    const variantData = variantEvaluations.get(index);
+                    if (!variantData) return null;
+                    return (
+                        <TabsContent key={index} value={String(index)} className="flex-1 flex flex-col min-h-0 mt-0 data-[state=inactive]:hidden">
+                            <EvaluationView 
+                                variant={variantData} 
+                                expandedLogs={expandedLogs}
+                                toggleLogExpansion={toggleLogExpansion}
+                            />
+                        </TabsContent>
+                    )
+                })}
+            </Tabs>
+        ) : (
+            <EvaluationView 
+                variant={variantEvaluations.get(initialVariantIndex)!}
+                expandedLogs={expandedLogs}
+                toggleLogExpansion={toggleLogExpansion}
+            />
+        )}
+
 
         <DialogFooter className="p-4 border-t border-border bg-muted/30 dark:bg-slate-900/50">
           <Button onClick={onClose} variant="outline">Close</Button>

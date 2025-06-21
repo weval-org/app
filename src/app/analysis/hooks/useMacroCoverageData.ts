@@ -46,14 +46,37 @@ export const useMacroCoverageData = (
         const parsedModelsMap: Record<string, ParsedModelId> = {};
         models.forEach(id => { parsedModelsMap[id] = parseEffectiveModelId(id); });
 
-        const localSortedModels = [...models].sort((a, b) => {
-            const avgA = calculateModelAverageCoverage(a);
-            const avgB = calculateModelAverageCoverage(b);
-            if (avgA === null && avgB === null) return 0;
-            if (avgA === null) return 1;
-            if (avgB === null) return -1;
-            return avgB - avgA;
+        const localSortedModels = [...models].sort((a, b) => a.localeCompare(b));
+
+        const modelScores = models.map(modelId => ({
+            modelId,
+            score: calculateModelAverageCoverage(modelId),
+        }));
+
+        modelScores.sort((a, b) => {
+            if (a.score === null) return 1;
+            if (b.score === null) return -1;
+            return b.score - a.score;
         });
+
+        const modelIdToRank: Record<string, number> = {};
+        if (modelScores.length > 0 && modelScores[0].score !== null) {
+            let rank = 1;
+            modelIdToRank[modelScores[0].modelId] = rank;
+            for (let i = 1; i < modelScores.length; i++) {
+                const currentModelScore = modelScores[i];
+                const prevModelScore = modelScores[i - 1];
+
+                if (currentModelScore.score === null) {
+                    continue;
+                }
+                
+                if (prevModelScore.score !== null && currentModelScore.score < prevModelScore.score) {
+                    rank = i + 1;
+                }
+                modelIdToRank[currentModelScore.modelId] = rank;
+            }
+        }
 
         const baseModelGlobalIndexMap: Record<string, number> = {};
         const uniqueBaseIdsInOrder: string[] = [];
@@ -93,18 +116,12 @@ export const useMacroCoverageData = (
             localSortedModels,
             parsedModelsMap,
             baseModelGlobalIndexMap,
-            baseIdToVisualGroupStyleMap
+            baseIdToVisualGroupStyleMap,
+            modelIdToRank,
         };
     }, [models, calculateModelAverageCoverage]);
 
-    const sortedPromptIds = React.useMemo(() => [...promptIds].sort((a, b) => {
-        const avgScoreA = calculatePromptAverage(a);
-        const avgScoreB = calculatePromptAverage(b);
-        if (avgScoreA === null && avgScoreB === null) return 0;
-        if (avgScoreA === null) return 1;
-        if (avgScoreB === null) return -1;
-        return avgScoreB - avgScoreA;
-    }), [promptIds, calculatePromptAverage]);
+    const sortedPromptIds = React.useMemo(() => [...promptIds].sort((a,b) => a.localeCompare(b)), [promptIds]);
 
     const { promptStats } = React.useMemo(() => {
         const newPromptStats = new Map<string, { avg: number | null, stdDev: number | null }>();

@@ -344,7 +344,7 @@ const renderDatasetStatisticsInternal = (
   if (headlineStatsTableData.length === 0 && modelStatsTableData.length === 0 && promptStatsTableData.length === 0) return null;
 
   return (
-    <Card className="bg-card/80 dark:bg-slate-800/50 backdrop-blur-md text-card-foreground rounded-xl shadow-lg ring-1 ring-border dark:ring-slate-700 overflow-hidden">
+    <Card className="bg-card backdrop-blur-md text-card-foreground rounded-xl shadow-lg ring-1 ring-border dark:ring-slate-700 overflow-hidden">
       <CardHeader className="border-b border-border dark:border-slate-700 py-4 px-6">
         <div className="flex items-center">
             {Sparkles && <Sparkles className="w-6 h-6 mr-3 text-primary" />}
@@ -432,10 +432,7 @@ const renderDatasetStatisticsInternal = (
                 <div className="mt-6 text-xs text-muted-foreground dark:text-slate-300 bg-muted/70 dark:bg-slate-700/30 p-3 rounded-md ring-1 ring-border/50 dark:ring-slate-600/50">
                     <p className="font-semibold mb-1 text-primary">Hybrid Score Explained:</p>
                     <div className="prose prose-sm max-w-none text-muted-foreground">
-                      <p>The Hybrid Score combines semantic similarity (style, structure) with key point coverage (substance). A high score indicates a response that is both thematically similar to the ideal answer and covers the required key points.</p>
-                      <p>
-                        <span className="mt-1 font-mono text-primary/80 text-[0.7rem]"> Formula: sqrt(similarity_to_ideal * coverage_score)</span>
-                      </p>
+                      <p>The Hybrid Score combines semantic similarity (style, structure) with key point coverage (substance). A high score indicates a response that is both thematically similar to the ideal answer and covers the required key points. <span className="mt-1 font-mono text-primary/80 text-[0.7rem]"> Formula: sqrt(similarity_to_ideal * coverage_score)</span></p>
                     </div>
                 </div>
               </div>

@@ -35,7 +35,6 @@ export function calculateHeadlineStats(
 
   let bestPerformingConfig: HeadlineStatInfo | null = null;
   let worstPerformingConfig: HeadlineStatInfo | null = null;
-  let mostConsistentConfig: HeadlineStatInfo | null = null;
   let leastConsistentConfig: HeadlineStatInfo | null = null;
 
   filteredConfigs.forEach(config => {
@@ -58,37 +57,65 @@ export function calculateHeadlineStats(
     }
   });
 
-  // For consistency, only consider configs that have been run enough times
-  // to make standard deviation a meaningful metric.
-  const MIN_RUNS_FOR_CONSISTENCY_CHECK = 4;
-  const configsForConsistencyCheck = filteredConfigs.filter(
-    config => config.runs && config.runs.length >= MIN_RUNS_FOR_CONSISTENCY_CHECK
+  // For MOST DIFFERENTIATING, we calculate the standard deviation of the *average scores per model* for each config.
+  // A high std dev here means the config is effective at separating models by performance.
+  // This replaces the previous logic that used config.hybridScoreStdDev (which measured variance between runs).
+  const configsForDifferentiationCheck = filteredConfigs.filter(
+    config => config.runs && config.runs.length > 0,
   );
 
-  if (configsForConsistencyCheck.length > 0) {
-    console.log(`[calculateHeadlineStats] Found ${configsForConsistencyCheck.length} configs with ${MIN_RUNS_FOR_CONSISTENCY_CHECK} or more runs to check for consistency.`);
-    configsForConsistencyCheck.forEach(config => {
-      const configTitle = config.title || config.configTitle || config.id || config.configId;
-      if (config.hybridScoreStdDev !== null && config.hybridScoreStdDev !== undefined) {
-        if (!mostConsistentConfig || config.hybridScoreStdDev < mostConsistentConfig.value) {
-          mostConsistentConfig = {
-            configId: config.id || config.configId,
-            configTitle: configTitle,
-            value: config.hybridScoreStdDev,
-          };
-        }
-        if (!leastConsistentConfig || config.hybridScoreStdDev > leastConsistentConfig.value) {
+  configsForDifferentiationCheck.forEach(config => {
+    const modelScoresForConfig = new Map<string, { totalScore: number; count: number }>();
+
+    config.runs.forEach(run => {
+      if (run.perModelHybridScores) {
+        const scoresMap =
+          run.perModelHybridScores instanceof Map
+            ? run.perModelHybridScores
+            : new Map(
+                Object.entries(run.perModelHybridScores) as [
+                  string,
+                  { average: number | null; stddev: number | null },
+                ][],
+              );
+
+        scoresMap.forEach((scoreData, modelId) => {
+          if (modelId === IDEAL_MODEL_ID) return;
+          if (scoreData && scoreData.average !== null && scoreData.average !== undefined) {
+            const parsed = parseEffectiveModelId(modelId);
+            const baseModelId = parsed.baseId; // Group by base model ID
+
+            const current = modelScoresForConfig.get(baseModelId) || { totalScore: 0, count: 0 };
+            current.totalScore += scoreData.average;
+            current.count++;
+            modelScoresForConfig.set(baseModelId, current);
+          }
+        });
+      }
+    });
+
+    const averageModelScores: number[] = [];
+    modelScoresForConfig.forEach(data => {
+      if (data.count > 0) {
+        averageModelScores.push(data.totalScore / data.count);
+      }
+    });
+
+    // We need at least 2 models to calculate a meaningful standard deviation
+    if (averageModelScores.length >= 2) {
+      const differentiationScore = calculateStandardDeviation(averageModelScores);
+      if (differentiationScore !== null) {
+        const configTitle = config.title || config.configTitle || config.id || config.configId;
+        if (!leastConsistentConfig || differentiationScore > leastConsistentConfig.value) {
           leastConsistentConfig = {
             configId: config.id || config.configId,
             configTitle: configTitle,
-            value: config.hybridScoreStdDev,
+            value: differentiationScore,
           };
         }
       }
-    });
-  } else {
-    console.log('[calculateHeadlineStats] Not enough configs with multiple runs to determine consistency stats.');
-  }
+    }
+  });
 
   const allModelScores = new Map<string, { totalScore: number; count: number; runs: Set<string> }>();
 
@@ -127,7 +154,6 @@ export function calculateHeadlineStats(
   return {
     bestPerformingConfig,
     worstPerformingConfig,
-    mostConsistentConfig,
     leastConsistentConfig,
     rankedOverallModels: rankedOverallModels.length > 0 ? rankedOverallModels : null,
   };
@@ -150,100 +176,134 @@ export function calculatePotentialModelDrift(
     return null;
   }
 
+  const DEBUG = process.env.DEBUG_DRIFT_CALC === 'true';
   let mostSignificantDrift: PotentialDriftInfo | null = null;
+  if (DEBUG) console.log(`[DriftCalc] Starting drift calculation for ${filteredConfigsForDrift.length} configs.`);
 
   filteredConfigsForDrift.forEach(config => {
     const runsByLabel = new Map<string, EnhancedRunInfo[]>();
     config.runs.forEach(run => {
-      if (run.runLabel && run.timestamp && run.hybridScoreStats?.average !== null && run.hybridScoreStats?.average !== undefined) {
+      // Only consider runs with temperature 0 for drift detection to avoid flagging intentional variance.
+      if (run.temperature !== undefined && run.temperature !== 0) {
+        return;
+      }
+      
+      if (run.runLabel && run.timestamp && run.perModelHybridScores) { // Check for perModelHybridScores
         const existing = runsByLabel.get(run.runLabel) || [];
         existing.push(run);
         runsByLabel.set(run.runLabel, existing);
       }
     });
 
-    runsByLabel.forEach(runsArray => {
+    runsByLabel.forEach((runsArray, runLabel) => {
       if (runsArray.length < 2) return;
+      
+      if (DEBUG) console.log(`\n[DriftCalc] Found ${runsArray.length} runs for label '${runLabel}' in config '${config.configId}'.`);
 
-      // Sort by actual date, not safe timestamp string
       const sortedRuns = runsArray.sort((a, b) => 
         new Date(fromSafeTimestamp(a.timestamp)).getTime() - new Date(fromSafeTimestamp(b.timestamp)).getTime()
       );
       
-      // Iterate through all models present in these runs
-      const modelsInRuns = new Set<string>();
-      sortedRuns.forEach(run => {
-        if (run.perModelHybridScores) {
-          const scoresMap = run.perModelHybridScores instanceof Map
+      const oldestTimestamp = sortedRuns[0].timestamp;
+      const newestTimestamp = sortedRuns[sortedRuns.length - 1].timestamp;
+      const timeDiff = new Date(fromSafeTimestamp(newestTimestamp)).getTime() - new Date(fromSafeTimestamp(oldestTimestamp)).getTime();
+      
+      if (DEBUG) console.log(`[DriftCalc] -> Oldest run: ${oldestTimestamp}, Newest run: ${newestTimestamp}. Time diff: ${timeDiff}ms.`);
+
+      if (timeDiff < MIN_TIME_DIFFERENCE_FOR_DRIFT_MS) {
+        if (DEBUG) console.log(`[DriftCalc] -> Skipping: time difference is less than threshold (${MIN_TIME_DIFFERENCE_FOR_DRIFT_MS}ms).`);
+        return; // Not enough time between the oldest and newest run
+      }
+
+      // Find the intersection of models that completed successfully in ALL runs for this label
+      let commonModels: Set<string> | null = null;
+      for (const run of sortedRuns) {
+        const modelsInRun = new Set<string>();
+        const scoresMap = run.perModelHybridScores instanceof Map
             ? run.perModelHybridScores
-            : new Map(Object.entries(run.perModelHybridScores) as [string, { average: number | null; stddev: number | null }][]);
-          scoresMap.forEach((_, modelId) => {
-            if (modelId !== IDEAL_MODEL_ID) {
-                 // Use base model ID for drift detection to consolidate variants (temp/sys)
-                modelsInRuns.add(parseEffectiveModelId(modelId).baseId);
-            }
-          });
-        }
-      });
+            : new Map(Object.entries(run.perModelHybridScores || {}) as [string, { average: number | null; stddev: number | null }][]);
 
-
-      modelsInRuns.forEach(baseModelId => {
-        // For each base model, find its scores in the sorted runs
-        const modelScoresOverTime: Array<{ timestamp: string; score: number }> = [];
-        sortedRuns.forEach(run => {
-            let scoreForThisRun: number | null = null;
-            if (run.perModelHybridScores) {
-                 const scoresMap = run.perModelHybridScores instanceof Map
-                    ? run.perModelHybridScores
-                    : new Map(Object.entries(run.perModelHybridScores) as [string, { average: number | null; stddev: number | null }][]);
-                
-                scoresMap.forEach((scoreData, fullModelId) => {
-                    if (scoreData && parseEffectiveModelId(fullModelId).baseId === baseModelId && scoreData.average !== null && scoreData.average !== undefined) {
-                        scoreForThisRun = scoreData.average; // Take the first one that matches baseModelId
-                    }
-                });
-            }
-            if (scoreForThisRun !== null) {
-                modelScoresOverTime.push({ timestamp: run.timestamp, score: scoreForThisRun });
-            }
+        scoresMap.forEach((scoreData, modelId) => {
+          if (modelId !== IDEAL_MODEL_ID && scoreData.average !== null && scoreData.average !== undefined) {
+            modelsInRun.add(parseEffectiveModelId(modelId).baseId);
+          }
         });
 
-        if (modelScoresOverTime.length < 2) return; // Need at least two points for this model
+        if (commonModels === null) {
+          commonModels = modelsInRun;
+        } else {
+          const commonModelsArray: string[] = [...commonModels];
+          commonModels = new Set(commonModelsArray.filter((x: string) => modelsInRun.has(x)));
+        }
+      }
+
+      if (!commonModels || commonModels.size < 1) {
+        if (DEBUG) console.log(`[DriftCalc] -> Skipping: no common models found across all runs for label '${runLabel}'.`);
+        return; // No models are common to all runs, so we can't compare.
+      }
+      
+      if (DEBUG) console.log(`[DriftCalc] -> Found ${commonModels.size} common models: [${Array.from(commonModels).join(', ')}]. Checking each for drift...`);
+      
+      // For each common model, check its performance variance
+      commonModels.forEach(baseModelId => {
+        const modelScoresOverTime: Array<{ timestamp: string; score: number }> = [];
+        
+        sortedRuns.forEach(run => {
+          const scoresMap = run.perModelHybridScores instanceof Map
+            ? run.perModelHybridScores
+            : new Map(Object.entries(run.perModelHybridScores || {}) as [string, { average: number | null; stddev: number | null }][]);
+          
+          scoresMap.forEach((scoreData, fullModelId) => {
+            if (parseEffectiveModelId(fullModelId).baseId === baseModelId && scoreData.average !== null && scoreData.average !== undefined) {
+              modelScoresOverTime.push({ timestamp: run.timestamp, score: scoreData.average });
+            }
+          });
+        });
+
+        if (modelScoresOverTime.length < 2) return;
 
         const oldestRun = modelScoresOverTime[0];
         const newestRun = modelScoresOverTime[modelScoresOverTime.length - 1];
 
-        const timeDiff = new Date(fromSafeTimestamp(newestRun.timestamp)).getTime() - new Date(fromSafeTimestamp(oldestRun.timestamp)).getTime();
+        const scoreDiff = newestRun.score - oldestRun.score;
+        const absScoreDiff = Math.abs(scoreDiff);
+        const relativeChange = oldestRun.score > 0 ? Math.abs(scoreDiff / oldestRun.score) : (newestRun.score !== 0 ? Infinity : 0);
 
-        if (timeDiff >= MIN_TIME_DIFFERENCE_FOR_DRIFT_MS) {
-          const scoreDiff = newestRun.score - oldestRun.score;
-          const absScoreDiff = Math.abs(scoreDiff);
-          const relativeChange = oldestRun.score !== 0 ? Math.abs(scoreDiff / oldestRun.score) : (newestRun.score !== 0 ? Infinity : 0) ;
+        if (DEBUG) console.log(`[DriftCalc] ->>> Model '${baseModelId}': Abs Score Diff: ${absScoreDiff.toFixed(4)}, Rel Change: ${(relativeChange * 100).toFixed(2)}%`);
 
-          if (absScoreDiff >= MIN_ABSOLUTE_SCORE_DIFFERENCE && relativeChange >= SIGNIFICANT_SCORE_CHANGE_THRESHOLD) {
-            const currentDriftScoreRange = Math.max(...modelScoresOverTime.map(s => s.score)) - Math.min(...modelScoresOverTime.map(s => s.score));
-            
-            // Check if this drift is more significant than previously found ones
-            // Significance can be defined by the absolute range of scores
-            if (!mostSignificantDrift || currentDriftScoreRange > mostSignificantDrift.scoreRange) {
-              mostSignificantDrift = {
-                configId: config.id || config.configId,
-                configTitle: config.title || config.configTitle || config.id || config.configId,
-                runLabel: sortedRuns[0].runLabel, // All runs in sortedRuns have the same label
-                modelId: baseModelId, 
-                minScore: Math.min(...modelScoresOverTime.map(s => s.score)),
-                maxScore: Math.max(...modelScoresOverTime.map(s => s.score)),
-                scoreRange: currentDriftScoreRange,
-                runsCount: modelScoresOverTime.length,
-                oldestTimestamp: fromSafeTimestamp(modelScoresOverTime[0].timestamp), // Original ISO string
-                newestTimestamp: fromSafeTimestamp(modelScoresOverTime[modelScoresOverTime.length - 1].timestamp), // Original ISO string
-              };
-            }
+        if (absScoreDiff >= MIN_ABSOLUTE_SCORE_DIFFERENCE && relativeChange >= SIGNIFICANT_SCORE_CHANGE_THRESHOLD) {
+          const scoreRange = Math.max(...modelScoresOverTime.map(s => s.score)) - Math.min(...modelScoresOverTime.map(s => s.score));
+          
+          if (DEBUG) console.log(`[DriftCalc] ->>> SIGNIFICANT DRIFT DETECTED for '${baseModelId}'. Score range: ${scoreRange.toFixed(4)}`);
+
+          if (!mostSignificantDrift || scoreRange > mostSignificantDrift.scoreRange) {
+            if (DEBUG) console.log(`[DriftCalc] ->>>> New MOST significant drift. Model: '${baseModelId}', Range: ${scoreRange.toFixed(4)}.`);
+            mostSignificantDrift = {
+              configId: config.id || config.configId,
+              configTitle: config.title || config.configTitle || config.id || config.configId,
+              runLabel: sortedRuns[0].runLabel,
+              modelId: baseModelId, 
+              minScore: Math.min(...modelScoresOverTime.map(s => s.score)),
+              maxScore: Math.max(...modelScoresOverTime.map(s => s.score)),
+              scoreRange: scoreRange,
+              runsCount: modelScoresOverTime.length,
+              oldestTimestamp: fromSafeTimestamp(modelScoresOverTime[0].timestamp),
+              newestTimestamp: fromSafeTimestamp(modelScoresOverTime[modelScoresOverTime.length - 1].timestamp),
+            };
           }
         }
       });
     });
   });
+
+  if (DEBUG) {
+    if (!mostSignificantDrift) {
+        console.log(`\n[DriftCalc] Completed. No significant drift found across all configs.`);
+    } else {
+        const drift = mostSignificantDrift as PotentialDriftInfo;
+        console.log(`\n[DriftCalc] Completed. Most significant drift found for model '${drift.modelId}' in config '${drift.configId}'.`);
+    }
+  }
 
   return mostSignificantDrift;
 } 

@@ -26,24 +26,26 @@ export function parseEffectiveModelId(effectiveModelId: string): ParsedModelId {
   let systemPromptHash: string | undefined;
   let systemPromptIndex: number | undefined;
 
-  // Regex to capture [temp:value] at the end of the string
-  const tempRegex = /\[temp:(\d+(?:\.\d+)?)\]$/;
+  // Match and remove suffixes regardless of their order.
+
+  // Temperature
+  const tempRegex = /\[temp:(\d+(?:\.\d+)?)\]/;
   const tempMatch = remainingId.match(tempRegex);
   if (tempMatch) {
     temperature = parseFloat(tempMatch[1]);
     remainingId = remainingId.replace(tempRegex, '');
   }
 
-  // Regex to capture [sp_idx:value] at the end of the (potentially shortened) string
-  const spIdxRegex = /\[sp_idx:(\d+)\]$/;
+  // System Prompt Index
+  const spIdxRegex = /\[sp_idx:(\d+)\]/;
   const spIdxMatch = remainingId.match(spIdxRegex);
   if (spIdxMatch) {
     systemPromptIndex = parseInt(spIdxMatch[1], 10);
     remainingId = remainingId.replace(spIdxRegex, '');
   }
 
-  // Regex to capture [sys:value] at the end of the (potentially shortened) string
-  const sysRegex = /\[sys:([a-zA-Z0-9]+)\]$/;
+  // System Prompt Hash
+  const sysRegex = /\[sys:([a-zA-Z0-9]+)\]/;
   const sysMatch = remainingId.match(sysRegex);
   if (sysMatch) {
     systemPromptHash = sysMatch[0]; // Store the full [sys:hash]
@@ -67,25 +69,38 @@ export function parseEffectiveModelId(effectiveModelId: string): ParsedModelId {
 // Helper function to format the display name for UI
 export function getModelDisplayLabel(
     parsedIdOrFullId: ParsedModelId | string,
-    options?: { hideProvider?: boolean }
+    options?: { hideProvider?: boolean; hideModelMaker?: boolean }
 ): string {
     const parsed = typeof parsedIdOrFullId === 'string' ? parseEffectiveModelId(parsedIdOrFullId) : parsedIdOrFullId;
     
-    let baseDisplayName = parsed.baseId;
-    if (options?.hideProvider) {
-        const colonIndex = parsed.baseId.indexOf(':');
-        if (colonIndex !== -1) {
-            baseDisplayName = parsed.baseId.substring(colonIndex + 1);
+    let baseId = parsed.baseId;
+    let provider = '';
+    const colonIndex = baseId.indexOf(':');
+
+    if (colonIndex !== -1) {
+        provider = baseId.substring(0, colonIndex);
+        baseId = baseId.substring(colonIndex + 1);
+    }
+
+    if (options?.hideModelMaker) {
+        const slashIndex = baseId.indexOf('/');
+        if (slashIndex !== -1) {
+            baseId = baseId.substring(slashIndex + 1);
         }
     }
     
+    let baseDisplayName = baseId;
+    if (!options?.hideProvider && provider) {
+        baseDisplayName = `${provider}:${baseId}`;
+    }
+
     let label = baseDisplayName;
 
     const suffixes = [];
     if (parsed.systemPromptHash) {
         suffixes.push(`${parsed.systemPromptHash}`);
     }
-    if (parsed.temperature !== undefined) {
+    if (parsed.temperature !== undefined && parsed.temperature !== 0) {
         suffixes.push(`T:${parsed.temperature}`);
     }
 

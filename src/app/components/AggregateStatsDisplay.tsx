@@ -15,6 +15,7 @@ const AlertCircle = dynamic(() => import('lucide-react').then(mod => mod.AlertCi
 const Award = dynamic(() => import('lucide-react').then(mod => mod.Award));
 const InfoIcon = dynamic(() => import('lucide-react').then(mod => mod.Info));
 const Zap = dynamic(() => import('lucide-react').then(mod => mod.Zap));
+const FlaskConical = dynamic(() => import('lucide-react').then(mod => mod.FlaskConical));
 
 export interface HeadlineStatInfo {
   configId: string;
@@ -32,7 +33,6 @@ export interface TopModelStatInfo {
 export interface AggregateStatsData {
   bestPerformingConfig: HeadlineStatInfo | null;
   worstPerformingConfig: HeadlineStatInfo | null;
-  mostConsistentConfig: HeadlineStatInfo | null;
   leastConsistentConfig: HeadlineStatInfo | null;
   rankedOverallModels: TopModelStatInfo[] | null;
 }
@@ -74,28 +74,34 @@ const StatCard: React.FC<{
   }
 
   const cardContent = (
-    <>
-      <div className="flex items-start justify-between mb-1">
-        <h3 className="text-sm font-medium text-muted-foreground leading-tight pr-2">{title}</h3>
-        {Icon && <Icon className={`w-5 h-5 flex-shrink-0 ${iconColorClass}`} />}
+    <div className="flex flex-col justify-between flex-grow">
+      <div>
+        <div className="flex items-start justify-between mb-1">
+          <h3 className="text-sm font-medium text-muted-foreground leading-tight pr-2">{title}</h3>
+          {Icon && <Icon className={`w-5 h-5 flex-shrink-0 ${iconColorClass}`} />}
+        </div>
+        {data ? (
+          <>
+            <p className="text-lg font-semibold text-card-foreground truncate" title={data.configTitle}>{data.configTitle}</p>
+            <p className="text-xs text-muted-foreground">
+              {data.description || (unit ? 'Score' : '')}: <span className="font-medium">{data.value.toFixed(3)}</span> {unit}
+            </p>
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground mt-auto">Not available</p>
+        )}
       </div>
-      {data ? (
-        <>
-          <p className="text-lg font-semibold text-card-foreground truncate" title={data.configTitle}>{data.configTitle}</p>
-          <p className="text-xs text-muted-foreground">
-            {data.description || (unit ? 'Score' : '')}: <span className="font-medium">{data.value.toFixed(3)}</span> {unit}
-          </p>
-        </>
-      ) : (
-        <p className="text-sm text-muted-foreground mt-auto">Not available</p>
+      {blurb && (
+        <p className="text-[11px] text-muted-foreground/80 pt-2 border-t border-border/50">
+          {blurb}
+        </p>
       )}
-    </>
+    </div>
   );
 
   return (
     <div 
-      className="bg-card p-4 rounded-lg border border-border/70 dark:border-slate-700/50 flex flex-col justify-between min-h-[110px] hover:shadow-md transition-shadow"
-      title={blurb}
+      className="bg-card p-4 rounded-lg border border-border/70 dark:border-slate-700/50 flex flex-col min-h-[140px] hover:shadow-md transition-shadow"
     >
       {data && data.configId ? (
         <Link href={`/analysis/${data.configId}`} className="flex flex-col justify-between flex-grow">
@@ -201,48 +207,48 @@ const AggregateStatsDisplay: React.FC<AggregateStatsDisplayProps> = ({ stats }) 
 
   return (
     <div className="my-2 pt-2">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <StatCard 
           title="Best Performing Eval"
           data={stats.bestPerformingConfig ? { ...stats.bestPerformingConfig, description: "Avg. Hybrid Score" } : null} 
           icon={TrendingUp}
           statusType="best"
-          blurb="The evaluation blueprint with the highest average score across all its runs."
+          blurb="The evaluation with the highest average hybrid score across all its runs, showing broad competency across models."
         />
         <StatCard 
           title="Worst Performing Eval"
           data={stats.worstPerformingConfig ? { ...stats.worstPerformingConfig, description: "Avg. Hybrid Score" } : null} 
           icon={TrendingDown}
           statusType="worst"
-          blurb="The evaluation blueprint with the lowest average score across all its runs."
-        />
-        <StatCard 
-          title="Most Consistent Eval" 
-          data={stats.mostConsistentConfig ? { ...stats.mostConsistentConfig, description: "Score StdDev (Lower is better)" } : null} 
-          icon={CheckCircle2}
-          statusType="mostConsistent"
-          blurb="The blueprint with the lowest standard deviation in scores, indicating stable performance."
+          blurb="The evaluation with the lowest average hybrid score across all its runs, showing less competency across models."
         />
         <StatCard 
           title="Most Differentiating Eval" 
           data={stats.leastConsistentConfig ? { ...stats.leastConsistentConfig, description: "Score StdDev (Higher is better for differentiation)" } : null} 
           icon={Zap}
           statusType="mostDifferentiating"
-          blurb="The blueprint that shows the widest range of scores, making it best for telling models apart."
+          blurb="The evaluation that shows the widest range of scores, making it best for telling models apart."
         />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="lg:col-span-4 p-3 mb-3 text-xs text-muted-foreground bg-card border border-border/70 dark:border-slate-700/50 rounded-lg flex items-start">
-          {InfoIcon && <InfoIcon className="w-4 h-4 mr-2 mt-0.5 text-primary flex-shrink-0" />}
-          <span>
-            <strong>Note on Leaderboard:</strong> This leaderboard reflects models evaluated based on available resources. Only models that have participated in at least {MIN_RUNS_FOR_LEADERBOARD} evaluation runs are shown. Due to API costs, we cannot currently include all models or run evaluations at the scale we aspire to. 
-            Your support can help expand our coverage. <Link href="https://github.com/sponsors/weval" target="_blank" rel="noopener noreferrer" className="underline text-primary hover:text-primary/80 font-medium">Contribute here</Link>.
-          </span>
-        </div>
         <OverallModelLeaderboard
           models={filteredRankedModels || null}
           title="Overall Model Leaderboard (Avg. Hybrid Score)"
         />
+        <div className="p-3 text-xs text-muted-foreground bg-card border border-border/70 dark:border-slate-700/50 rounded-lg md:col-span-2 lg:col-span-4">
+          <p className="flex items-start">
+            {InfoIcon && <InfoIcon className="w-4 h-4 mr-2 text-primary flex-shrink-0" />}
+            <span>
+              <strong>Note on Leaderboard:</strong> Only models that have participated in at least {MIN_RUNS_FOR_LEADERBOARD} evaluation runs are shown. This leaderboard serves ONLY as a commentary on the types of competencies expressed in the blueprints on <strong style={{ textDecoration: 'underline' }}>this deployment</strong> of Weval. It is not a comprehensive or representative sample of all models or skills.
+            </span>
+          </p>
+          <p className="mt-2 flex items-start">
+            {FlaskConical && <FlaskConical className="w-4 h-4 mr-2 text-primary flex-shrink-0" />}
+            <span>
+              The Hybrid Score combines semantic similarity (style, structure) with key point coverage (substance). A high score indicates a response that is both thematically similar to the ideal answer and covers the required key points. <span className="mt-1 font-mono text-primary/80 text-[0.7rem]"> Formula: sqrt(similarity_to_ideal * coverage_score)</span>
+            </span>
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -1,3 +1,7 @@
+TL;DR: Weval is built for developers, AI researchers, and domain experts who need to test AI models on nuanced, qualitative tasks that go beyond standard benchmarks.
+
+---
+
 Current AI evaluations measure what's easy, not what's important. Benchmarks that rely on multiple-choice questions or simple pass/fail tests can't capture the nuance of real-world tasks. They can tell you if code runs, but not if it's well-written. They can test for textbook knowledge, but not for applied wisdom or safety.
 
 **Weval** is our answer. It's an open, collaborative platform to build evaluations that test what truly matters. We empower a global community to create rich, qualitative benchmarks for any domain—from the safety of a medical chatbot to the quality of a legal summary. Just as Wikipedia democratized knowledge, Weval aims to democratize scrutiny, ensuring that AI works for, and represents, everyone.
@@ -29,21 +33,9 @@ Weval is best understood as a system for targeted, user-contributed audits in an
 
 The AI landscape is rich with benchmarks, and it is important to understand how Weval's role is distinct from and complementary to other established methods.
 
-*   **It is NOT a general capability benchmark (e.g., MMLU, Hellaswag, ARC).** These benchmarks are the "SATs for LLMs" and are essential for measuring raw cognitive ability, reasoning, and knowledge across academic domains. Weval does not focus on this, but rather on applied social and civic behavior.
+*   **It is NOT a general capability benchmark (e.g., MMLU, Hellaswag, ARC).** These benchmarks are the "SATs for LLMs" and are essential for measuring raw cognitive ability, reasoning, and knowledge across academic domains. Weval does not focus on this, but rather on applied, domain-specific behavior.
 
 *   **It is NOT a broad-stroke safety benchmark (e.g., ToxiGen, BBQ).** These benchmarks are fundamental for identifying and mitigating generic harms like toxicity, hate speech, and common stereotypes at scale. Weval complements this by performing deeper dives into more specific, value-laden topics that require nuanced understanding beyond a general safety filter.
-
-## Blueprints
-
-Our [initial set of blueprints](https://github.com/weval/configs/tree/main/blueprints) showcase the platform's flexibility, testing models on a wide spectrum of topics. While many focus on areas critical for public trust and safety, the system is designed for any domain. Key themes from our initial set include:
-
-*   **Information Integrity & Adversarial Robustness:** We test a model's resilience to misinformation. This includes its ability to identify and debunk fabricated claims ([`udhr-misattribution-absurd-framing`](https://github.com/weval/configs/blob/main/blueprints/udhr-misattribution-absurd-framing.json)), refuse to validate fake news URLs ([`url-classification-fallacies`](https://github.com/weval/configs/blob/main/blueprints/url-classification-fallacies.json)), avoid generating falsehoods ([`hallucination-probe`](https://github.com/weval/configs/blob/main/blueprints/hallucination-probe.json)), and resist being led by loaded questions ([`mrna-leading-question-classification`](https://github.com/weval/configs/blob/main/blueprints/mrna-leading-question-classification.json)).
-*   **International Law & Human Rights:** We measure a model's understanding of foundational international legal and ethical frameworks. This includes core treaties like the Universal Declaration of Human Rights (`udhr-evaluation`), the Geneva Conventions (`geneva-conventions-full-evaluation`), and regional charters like the Banjul Charter (`banjul-charter`).
-*   **National & Regional Governance:** We evaluate knowledge of specific, jurisdiction-dependent legal and civic frameworks. This includes national laws like the UK Equality Act (`uk-equality-act`) and the Indian Constitution (`indian-constitution-evaluation`).
-*   **Digital Rights & Tech Policy:** We examine a model's understanding of the rules governing technology and its impact on society. This includes crucial new legislation like the EU AI Act (`eu-ai-act-202401689`) and specific issues like the algorithmic management of platform workers (`platform-workers-sea-algo-manage`).
-*   **Cultural & Geographic Nuance:** We probe for default biases by testing whether a model recognizes the global context of its users. The `locale-assumption-probe-v1` example blueprint checks for US-centric assumptions.
-*   **Evidence-Based Crisis Response:** We assess a model's ability to respond safely and effectively to users in acute crisis, based on established clinical and expert guidelines. The `mental-health-crisis-prompt-examples` blueprint, for example, evaluates whether the model provides responsible, non-judgmental support and referral information, rather than platitudes or potentially harmful advice.
-*   **Responsible AI Behavior:** We assess whether the model interacts with users in a manner consistent with established principles for safe AI deployment. For instance, the `llm-self-anthropomorphism-evasion-v1` blueprint checks if the model avoids making false claims of sentience or personal feelings.
 
 ## Methods of measurement
 
@@ -55,122 +47,123 @@ Weval allows candidate model responses to be measured in the following ways:
 *   **Consistency Check**: How does a single model's behavior change when you adjust parameters like temperature or the system prompt?
 *   **Performance Over Time**: Has a model's performance on my specific tasks drifted after a new version was released?
 
-It achieves this through a combination of automated, LLM-judged (rubric-based) qualitative analysis, quantitative semantic similarity scoring, and more programmatic means like regular-expression matching.
+It achieves this through a combination of automated, LLM-judged (rubric-based) qualitative analysis, quantitative semantic similarity scoring, and more programmatic means like regular-expression matching. For a detailed breakdown of the statistical methods and their underlying assumptions, please see our [Evaluation Methodology document](docs/METHODOLOGY.md).
+
+## Blueprints
+
+Our [initial set of blueprints](https://github.com/weval-org/configs/tree/main/blueprints) showcase the platform's flexibility, testing models on a wide spectrum of topics. While many focus on areas critical for public trust and safety, the system is designed for any domain. Key themes from our initial set include Personality Traits, Hallucination, Adversarial Robustness, International Law & Human Rights, National & Regional Governance, Digital Rights & Tech Policy, Cultural & Geographic Nuance, and Responsible AI Behavior. These are just some of the many diverse domains a platform like Weval is capable at evaluating.
 
 ## Contributing & Custom Use
 
-The Weval framework is open-source ([MIT licensed](LICENSE)), and all evaluation blueprints contributed to the public repository are dedicated to the public domain. This makes them easy for you to scrutinize, adapt, and contribute to.
+The Weval framework is open-source ([MIT licensed](LICENSE)), and all evaluation blueprints contributed to the public repository are dedicated to the public domain via Creative Commons Zero (CC0). This makes them easy for you to scrutinize, adapt, and contribute to.
 
 You have two main ways to use Weval:
 
-1.  **Contribute to the Public Commons**: To contribute a blueprint to be run on [weval.org](https://weval.org), please follow the guidance in the [configs repository](https://github.com/weval/configs) and submit a pull request.
+1.  **Contribute to the Public Commons**: We welcome contributions from everyone, especially domain experts who are not programmers. To contribute a blueprint to be run on [weval.org](https://weval.org), please follow the guidance in the [configs repository](https://github.com/weval-org/configs) and submit a pull request. The easiest way to propose a new evaluation is to start by [opening a GitHub Issue](https://github.com/weval-org/configs/issues/new/choose) using a template to describe your idea.
 2.  **Run Your Own Instance**: You are free to run your own version of Weval for any purpose allowable under the MIT license, public or private. Use the public blueprints as inspiration, or build your own evaluation suite from scratch for your specific niche.
 
-## Deployed Architecture Overview
+## Getting Started
 
-Beyond local execution, Weval is designed to operate as an automated, deployed service:
+### Prerequisites
 
-*   **Centralized Blueprints**: Evaluation configurations ("Blueprints") are managed in a dedicated public GitHub repository (`weval/configs`, in the `blueprints` subdirectory). These can be `.yml`, `.yaml`, or `.json` files.
-*   **Automated Evaluation Runs**: Netlify Scheduled Functions periodically fetch these blueprints. If a blueprint is new or its last evaluation is outdated (e.g., older than a week), a new evaluation is triggered.
-*   **Scalable Execution**: Netlify Background Functions execute the core evaluation pipeline for each triggered blueprint.
-*   **Cloud-Based Results**: Evaluation results (JSON outputs) are stored in cloud blob storage (AWS S3), making them persistently available to the web dashboard.
-*   **Continuous Monitoring**: The web dashboard reads from this cloud storage, providing an always up-to-date view of model performance.
+- Node.js 18+
+- pnpm
+- API keys for desired language models (e.g., OpenRouter, OpenAI)
 
-This setup allows for collaborative and transparent management of evaluation suites and continuous, automated benchmarking of language models.
+### Installation
 
-## The Archetypal Workflow
+```bash
+# Clone the main application repository
+git clone https://github.com/weval-org/app.git
+cd app
 
-This toolkit supports both locally run manual evaluations (ideal for developing and testing blueprints) and a fully automated, deployed version where nothing needs to be explicitly run.
+# Install dependencies
+pnpm install
 
-**1. Automated Deployed Workflow (Primary for Production System)**
+# Set up environment variables
+cp .env.example .env
+# Edit .env with your API keys (see "Model Configuration" below)
+```
 
-This is the main operational mode for the Weval platform.
-1.  **Contribute Blueprints**: Users propose new or updated evaluation blueprints by submitting pull requests to the `blueprints` directory in the [weval/configs](https://github.com/weval/configs) GitHub repository. Each blueprint can be a YAML (`.yml`, `.yaml`) or JSON (`.json`) file.
-2.  **Automated Fetch & Schedule**: A scheduled Netlify Function (`fetch-and-schedule-evals`) runs periodically (e.g., daily):
-    *   It fetches all blueprint files from the `blueprints` directory in the `weval/configs` repository.
-    *   For each blueprint, it calculates a content hash.
-    *   It checks cloud blob storage (AWS S3) for existing results matching this content hash.
-    *   If no result exists, or the existing result is older than a defined period (e.g., one week), it triggers a new evaluation.
-3.  **Execute Evaluation**: The scheduled function invokes a Netlify Background Function (`execute-evaluation`), passing the blueprint data. This background function:
-    *   Runs the core `executeComparisonPipeline`.
-    *   Model responses are generated (caching is enabled).
-    *   Specified evaluation methods (e.g., `embedding`, `llm-coverage`) are performed.
-    *   The complete results object is saved to AWS S3, keyed by `id` and a `runLabel` that includes the content hash and a timestamp.
-4.  **Visualize & Analyze**:
-    *   The Next.js web dashboard (running on Netlify) reads data directly from AWS S3.
-    *   The homepage lists available evaluation blueprints by their `title`.
-    *   Users can navigate through a hierarchical structure:
-        - From the homepage, clicking a blueprint title leads to `/analysis/[id]`, showing all unique run labels for that blueprint.
-        - Clicking a specific run label leads to `/analysis/[id]/[runLabel]`, showing all timestamped instances of that run.
-        - Clicking "View Full Analysis" for a specific instance (either from the homepage's "Latest Evaluation Runs" or the run label page) navigates to `/analysis/[id]/[runLabel]/[timestamp]` to explore the rich, interactive visualizations for that specific execution.
+### Quick Start (Local Development)
 
-**2. Local Blueprint Workflow (`run_config` - For Development & Manual Runs)**
+This example demonstrates the `run-config` command for local use.
 
-This method allows for detailed, reproducible evaluations driven by a single configuration file locally. It's highly recommended for developing new blueprints before contributing them to the `weval/configs` repository.
+1.  **Create a Blueprint File**: Save a blueprint (like the one detailed under "Blueprint File Structure" below) to a local directory, e.g., `/evaluation_blueprints/my_test.yml`.
+2.  **Run the Command**: Execute the `run-config` command from your terminal.
+    ```bash
+    pnpm cli run_config local --config evaluation_blueprints/my_test.yml --run-label "initial-test"
+    ```
+3.  **Start the Web Dashboard**:
+    ```bash
+    pnpm dev
+    ```
+4.  **Visualize Your Results**: Open your browser. The dashboard will display results from the `/.results/` directory.
 
-1.  **Create Blueprint File**: Define your entire test run in a YAML or JSON file (see structure below).
-    *   Store these in a local directory like `/evaluation_blueprints`.
-2.  **Run Config Command**: Execute `pnpm cli run_config --config path/to/your_blueprint.yml --run-label <your_run_label>`.
-    *   The `--run-label` (e.g., "run-2024-07-18-initial") uniquely identifies this specific execution of the blueprint.
-    *   You can specify evaluation methods (e.g., `--eval-method="embedding,llm-coverage"`).
-    *   This command handles response generation, embedding, and chosen evaluations.
-    *   **Output Location**:
-        *   If `STORAGE_PROVIDER` environment variable is set to `s3` (and S3 credentials are configured), output is saved to AWS S3.
-        *   Otherwise (default local development), output is a `[runLabel]_[timestamp]_comparison.json` file, stored in `/.results/multi/[id]`.
-3.  **Visualize & Analyze (Local)**:
-    *   Start the web dashboard (`pnpm dev`).
-    *   If results were saved locally, the dashboard will read from the local filesystem. If saved to S3 (and `STORAGE_PROVIDER=s3` is set for `pnpm dev`), it will read from S3.
-    *   Navigate through the analysis pages starting from the homepage, or directly access specific views like `/analysis/[id]`, `/analysis/[id]/[runLabel]`, or `/analysis/[id]/[runLabel]/[timestamp]`.
+## The Weval Workflow
 
-## CLI Commands
+This toolkit supports two primary workflows: a local, manual workflow for development and an automated, deployed workflow for continuous monitoring.
 
-This suite provides tools for generating embeddings and comparing the semantic similarity of model responses.
+**1. Local Development Workflow (`run_config`)**
 
----
+This is the recommended method for creating and testing new blueprints.
 
-#### Configuration-Driven Run (`run-config`)
+1.  **Create Blueprint**: Define your tests in a local YAML or JSON file.
+2.  **Execute**: Run `pnpm cli run_config ...`. This generates responses and evaluations, saving them to a local `_comparison.json` file in the `/.results/` directory.
+3.  **Analyze**: Start the web dashboard (`pnpm dev`) to view the local results.
 
-**(Strongly Recommended for local development and testing blueprints)**
+**2. Automated Deployed Workflow**
 
-Runs the entire response generation, embedding, and comparison process based on a blueprint. You can run a local file or a blueprint from the [weval/configs repository](https://github.com/weval/configs/tree/main/blueprints) by name.
+This is the main operational mode for the public Weval platform.
+
+1.  **Contribute Blueprints**: Users submit blueprints via pull request to the `weval/configs` GitHub repository.
+2.  **Automated Scheduling**: A scheduled Netlify function periodically checks for new or outdated blueprints and triggers evaluations.
+3.  **Cloud Execution**: A Netlify background function runs the evaluation pipeline, saving the results to a cloud storage bucket (AWS S3).
+4.  **Public Visualization**: The public web dashboard reads data from the cloud, providing an always-up-to-date view of model performance.
+
+## CLI Commands Reference
+
+### `run-config`
+
+Runs the entire evaluation pipeline based on a single blueprint file.
 
 **1. Run with a local blueprint file:**
+
 ```bash
 pnpm cli run-config local --config path/to/your_blueprint.yml --run-label <your_run_label>
 ```
-Options:
-- `--config <path>`: (Required) Path to the local blueprint file (`.yml`, `.yaml`, or `.json`).
-- `--run-label <runLabelValue>`: Optional. A user-defined label for this specific execution run. A content hash will always be generated and appended.
-- `--eval-method <methods>`: Optional. Comma-separated evaluation methods. Defaults to `embedding`. (`embedding`, `llm-coverage`, `all`).
-- `--cache`: Optional. Enables caching for model responses.
-- `--collections-repo-path <path>`: Optional. Path to a local checkout of a collections repository (e.g., `weval/configs`) to resolve model collection placeholders.
+
+-   `--config <path>`: **(Required)** Path to the local blueprint file (`.yml`, `.yaml`, or `.json`).
+-   `--run-label <runLabelValue>`: A user-defined label for the run. A content hash is always appended.
+-   `--eval-method <methods>`: Comma-separated methods. Defaults to `embedding`. (`embedding`, `llm-coverage`, `all`).
+-   `--cache`: Enables caching for model responses.
+-   `--collections-repo-path <path>`: Path to a local `weval/configs` repo to resolve model collections.
 
 **2. Run with a blueprint from GitHub by name:**
+
 ```bash
 pnpm cli run-config github --name udhr-misattribution-absurd-framing --run-label <my_remote_run>
 ```
 
-Options:
-- `--name <name>`: (Required) Name of the blueprint in the `weval/configs` GitHub repo (without the file extension).
-- `--run-label <runLabelValue>`: Optional. A user-defined label for this specific execution run. A content hash will always be generated and appended.
-- `--eval-method <methods>`: Optional. Comma-separated evaluation methods. Defaults to `embedding`. (`embedding`, `llm-coverage`, `all`).
-- `--cache`: Optional. Enables caching for model responses.
-- `--collections-repo-path <path>`: Optional. Path to a local checkout of a collections repository to resolve model collection placeholders. Note: GitHub-based collection resolution is used by default for remote blueprints.
+-   `--name <name>`: **(Required)** Name of the blueprint in the `weval/configs` repo (without extension).
 
-**Blueprint File Structure (YAML recommended):**
+### `backfill-prompt-contexts`
 
-Our new YAML format uses a "multi-document" structure, separating the main configuration from the list of prompts with a `---` divider. This allows for a clean, un-indented list of prompts, making it easy for non-technical users to contribute.
+A utility to update older result files to the current multi-turn conversation format.
 
-For simple blueprints that only contain a list of prompts (and no global configuration), you can omit the header and the `---` separator entirely, providing just the list of prompts. In this case, the blueprint's `id` and `title` will be derived from its filename.
+```bash
+pnpm cli backfill-prompt-contexts
+```
 
-The system also supports several aliases for convenience:
-*   `prompt` for `promptText`
-*   `ideal` for `idealResponse`
-*   `should` (or `expect`/`expects`/`expectations`) for `points`
-*   `weight` for `multiplier`
-*   `arg` for `fnArgs`
-*   `system` for `systemPrompt`
+-   `--dry-run`: Log what would be changed without saving.
 
+## Blueprint File Structure
+
+Blueprints can be YAML (`.yml`, `.yaml`) or JSON (`.json`) files. They use a "multi-document" YAML structure, separating the main configuration from the list of prompts with a `---` divider for clarity.
+
+For simple blueprints with no global config, you can omit the header and `---` entirely.
+
+**Example Blueprint (`.yml`):**
 ```yaml
 # Main configuration for the blueprint
 id: comprehensive-llm-test-v1
@@ -180,15 +173,8 @@ tags: [general-knowledge, creative-writing, philosophy, stoicism]
 models:
   - CORE # Our core set of typically tested models
   - mistral:mistral-large-latest # Custom model
-  - openrouter:meta-llama/llama-3-70b-instruct # Custom model
 system: "You are a helpful assistant. Provide clear and concise answers."
-concurrency: 5
 temperatures: [0.0, 0.5, 0.8]
-evaluationConfig:
-  llm-coverage:
-    # Ability to define which models to use for LLM judging (rubrics)
-    judgeModels: [openrouter:google/gemini-pro-1.5, openai:gpt-4-turbo]
-    judgeMode: consensus
 
 ---
 
@@ -196,12 +182,10 @@ evaluationConfig:
 
 - id: philosophy-wisdom
   prompt: "What are the core tenets of Stoic philosophy and how can they be applied in modern life?"
-  ideal: "Stoicism, founded in Athens by Zeno of Citium in the early 3rd century BC, emphasizes virtue, reason, and living in accordance with nature. Key tenets include: 1. Virtue is the only good (wisdom, justice, courage, temperance). 2. Focus on what you can control (your thoughts, judgments, actions) and accept what you cannot. 3. Live in accordance with nature/reason. 4. The practice of negative visualization (imagining potential misfortunes) to appreciate what you have and prepare for adversity. In modern life, these can be applied by practicing mindfulness, focusing on internal responses to external events, maintaining emotional resilience, and acting with integrity."
+  ideal: "Stoicism, founded in Athens by Zeno of Citium... etc."
   should:
     - "Virtue is the only good (wisdom, justice, courage, temperance)."
     - "Focus on what you can control and accept what you cannot."
-    - "Live in accordance with nature/reason."
-    - "Practice negative visualization."
 
 - id: tech-cloud
   prompt: "Explain the main benefits of cloud computing for a small business."
@@ -209,272 +193,70 @@ evaluationConfig:
 
 - id: creative-story
   prompt: "Write a short story opening (100 words) about a detective discovering a mysterious antique map."
-
 ```
 
-**Rubric / `should` block syntax:**
+For full details on rubric syntax (`should` and `should_not` blocks), system prompt usage, and convenience aliases, please see the [Blueprint Format Documentation](docs/BLUEPRINT_FORMAT.md) and the [Points Documentation](docs/POINTS_DOCUMENTATION.md).
 
-The `should` block (or `points` in legacy JSON) defines specific criteria for rubric-based evaluation. The `should_not` block follows the exact same syntax, but it inverts the result of the check (i.e., a boolean `true` becomes `false`, and a numeric score `n` becomes `1-n`). This is useful for penalizing undesirable content.
+## Web Dashboard & Visualizations
 
-Each item in these lists can be:
+The Next.js dashboard reads data from the configured storage provider (local or cloud).
 
-1.  A **simple string**: A conceptual "fuzzy" check evaluated by an LLM judge.
-    ```yaml
-    should:
-      - "The response should mention the concept of fiscal responsibility."
-    ```
-2.  A **"Point: Citation" pair**: The recommended way to associate a conceptual point with a source.
-    ```yaml
-    should:
-      - "Covers the principle of 'prudent man' rule.": "Investment Advisers Act of 1940"
-    ```
-3.  An **idiomatic function call**: The recommended way to perform deterministic checks. The key must be prefixed with a `$` and be the function name, and the value is the argument.
-    ```yaml
-    should:
-      - $contains: "fiduciary duty"  # Case-sensitive check
-      - $icontains: "fiduciary duty" # Case-insensitive
-      - $ends_with: "." # Checks if the response ends with a period.
-      - $contains_any_of: ["fiduciary", "duty"] # Returns true if any keyword is found
-      - $contains_all_of: ["fiduciary", "duty"] # Returns a graded score (e.g., 0.5 if 1 of 2 is found)
-      - $match: "^The ruling states that" # Regex check
-      - $imatch: "^the ruling" # Case-insensitive regex
-      - $match_all_of: ["^The ruling", "states that$"] # Graded score for multiple regex matches
-      - $imatch_all_of: ["^the ruling", "states that$"] # Case-insensitive version of match_all_of
-      - $contains_at_least_n_of: [2, ["apples", "oranges", "pears"]] # Graded score based on meeting a minimum count. Singular alias: contain_at_least_n_of
-      - $word_count_between: [50, 100]
-      - $js: "r.length > 100 && r.includes('foo')" # Advanced: Executes a JS expression. 'r' is the response text.
+-   **Similarity Matrix/Heatmap**: Shows pairwise semantic similarity scores. Darker/hotter colors indicate higher similarity.
+-   **Force-Directed Graph**: Represents models as nodes pulled together by semantic similarity, revealing clusters of similar-behaving models.
+-   **Dendrogram**: A tree diagram showing hierarchical clustering based on similarity.
 
-    should_not:
-      - $contains_any_of: ["I feel", "I believe", "As an AI"]
-      - $contains: "guaranteed returns"
-    ```
-4.  A **full object with named keys**: For maximum control over weighting and documentation. This is the legacy format but is still fully supported. You can use `point` to define the conceptual check.
-    ```yaml
-    should:
-      - point: "Covers the principle of 'prudent man' rule."
-        weight: 3.0 # This point is 3x as important as others
-        citation: "Investment Advisers Act of 1940, Section 206"
-      - fn: contains
-        arg: "fiduciary duty"
-        weight: 1.5
-    ```
+## Deployed Architecture Overview
 
-For more details on how these expectations are processed, see the [POINTS_DOCUMENTATION.md](docs/POINTS_DOCUMENTATION.md).
+Beyond local execution, Weval is designed to operate as an automated, deployed service:
 
-**Key Identifiers:**
-- `id` / `configId`
-- `title` / `configTitle`
-- `runLabel`
+```mermaid
+graph LR;
+    %% Define styles for better visual appeal
+    classDef github fill:#24292e,stroke:#58a6ff,stroke-width:1px,color:#fff;
+    classDef netlify fill:#00c7b7,stroke:#008a7e,stroke-width:1px,color:#000;
+    classDef aws fill:#232f3e,stroke:#ff9900,stroke-width:2px,color:#fff;
+    classDef webapp fill:#333,stroke:#00c7b7,stroke-width:1px,color:#fff;
 
-**Output (from `run_config`):**
-- If `STORAGE_PROVIDER=s3` is configured, stores a JSON object in cloud blob storage (e.g., AWS S3) under a key like `multi/[id_or_configId]/[final_runLabel]_[timestamp]_comparison.json`.
-- Otherwise (default local), generates a `[final_runLabel]_[timestamp]_comparison.json` file in `/.results/multi/[id_or_configId]/`.
-- This result contains full details, including `id` (or `configId`), `title` (or `configTitle`), the final `runLabel`,
-  `promptContexts` (containing either the original `promptText` string or the `ConversationMessage[]` array for each prompt),
-  `allFinalAssistantResponses` (mapping promptId -> modelId -> final assistant text),
-  `fullConversationHistories` (mapping promptId -> modelId -> `ConversationMessage[]` including the full exchange),
-  similarities, and evaluation scores.
-- If multiple `temperatures` are specified, model identifiers in the output will be suffixed (e.g., `openai:gpt-4o-mini[temp:0.7]`).
+    A["fa:fa-github GitHub Repo<br/>(Blueprints)"]:::github;
+    
+    subgraph Netlify Platform
+        B["fa:fa-clock Scheduled Function"]:::netlify;
+        C["fa:fa-cogs Background Function"]:::netlify;
+        B -- Triggers --> C;
+    end
 
----
+    D["fa:fa-aws S3 Bucket<br/>(Results)"]:::aws;
+    E["fa:fa-chart-bar Next.js Dashboard"]:::webapp;
 
-#### Backfill Prompt Contexts (`backfill-prompt-contexts`)
-
-This utility command scans existing evaluation result files and updates them to the new multi-turn conversation format.
-It converts legacy `promptTexts` fields to the new `promptContexts` field (as an array of `ConversationMessage`).
-It also converts legacy `allResponses` fields to `allFinalAssistantResponses` and generates `fullConversationHistories`.
-
-```bash
-pnpm cli backfill-prompt-contexts
+    A -- Fetched by --> B;
+    C -- Saves to --> D;
+    D -- Read by --> E;
 ```
 
-Options:
-- `--dry-run`: Log what would be changed without actually saving any files. Highly recommended to run this first.
-- `--verbose` or `-v`: Enable more detailed logging output during the backfill process.
+## Model Configuration
 
----
+The application can access models from multiple providers, specified by a prefix in the model ID string (e.g., `"openai:gpt-4o-mini"`).
 
-## System Prompts
+**Environment Variables:**
+Update your `.env` file for local development.
 
-ConversationMessage Type:
-```typescript
-interface ConversationMessage {
-  role: 'user' | 'assistant' | 'system';
-  content: string;
+-   **LLM API Keys:**
+    -   `OPENROUTER_API_KEY`: **Essential** for all LLM interactions.
+    -   `OPENAI_API_KEY`: Required **specifically for generating text embeddings**.
+-   **Storage Configuration:**
+    -   `STORAGE_PROVIDER`: Set to `s3` to use AWS S3. Defaults to `local`.
+    -   `APP_S3_BUCKET_NAME`, `APP_S3_REGION`, `APP_AWS_ACCESS_KEY_ID`, `APP_AWS_SECRET_ACCESS_KEY`: Required if using S3.
+
+## Citing this Work
+
+If you use Weval in your research, please cite it as follows:
+
+```bibtex
+@misc{weval_2024,
+  author       = {Collective Intelligence Project},
+  title        = {Weval: An Open Platform for AI Evaluation},
+  year         = {2024},
+  publisher    = {GitHub},
+  journal      = {GitHub repository},
+  howpublished = {\\url{https://github.com/weval-org/app}}
 }
-```
-
-When defining prompts:
-- Prefer the `messages` array (`ConversationMessage[]`) for all new prompts. This allows for multi-turn conversations.
-- If only `promptText` (a string) is provided, it will be automatically converted to `messages: [{ role: 'user', content: promptText }]`.
-- A prompt cannot have both `promptText` and `messages` defined.
-- The `messages` array must not be empty, the first message cannot be from the 'assistant', and the last message must be from the 'user' (so the LLM generates the next turn).
-- For `llm-coverage` and similarity to `idealResponse`, the `idealResponse` field in the prompt configuration should represent the ideal *final* assistant response in the conversation flow.
-
-## Web Dashboard
-
-The dashboard (Next.js application) reads data via backend utilities that fetch from either local storage or cloud blob storage (AWS S3), depending on the environment.
-
-1.  Start the app: `pnpm dev`
-2.  Navigate to the analysis section by browsing from the homepage. You can access:
-    *   Blueprint overview: `/analysis/[id]`
-    *   Run label specific instances: `/analysis/[id]/[runLabel]`
-    *   Detailed analysis for a specific run instance: `/analysis/[id]/[runLabel]/[timestamp]`
-
-Dashboard features:
-- Clear display of `title`, `runLabel` (including its content hash), `description`, and `tags`.
-- Interactive filtering of blueprints by `tags` on the homepage.
-- Overall and per-prompt views for analysis.
-- Similarity Matrix/Heatmap.
-- Force-Directed Graph of model similarity (Note: if multiple temperatures are run, the graph by default shows one variant per base model, typically the lowest temperature, to maintain clarity. The Ideal Response model is also excluded from this specific graph).
-- Dendrogram for hierarchical clustering.
-- Detailed tooltips with similarity scores.
-- Response Comparison modal showing raw text and system prompts used (or Ideal Response text).
-- **Dedicated Ideal Response display and statistics when available.**
-- **Information card highlighting potential model performance shifts** if significant variance is detected between time-separated runs of identical parameters.
-- **Aggregate statistics cards** showing overall best/worst performing evaluation blueprints, most/least consistent blueprints, and overall top/worst performing models based on average hybrid scores.
-
-## Understanding Visualizations
-
-The visualizations help interpret the semantic similarity data:
-
-- **Similarity Matrix/Heatmap**: Shows pairwise similarity scores between models (including `IDEAL_BENCHMARK` if present). Darker/hotter colors indicate higher semantic similarity for that model pair on the selected prompt(s).
-- **Force-Directed Graph**: Represents models as nodes. Models with higher average semantic similarity are pulled closer together, revealing clusters of similar-behaving models. Distances reflect overall semantic similarity across the analyzed prompts.
-- **Dendrogram**: Shows the hierarchical clustering based on similarity. Models joined by branches lower down the diagram are more similar. The horizontal distance represents the similarity level at which clusters are merged.
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 18+
-- pnpm
-- API keys for desired language models (OpenAI, Anthropic, etc.)
-- **For S3 storage (deployed system or local S3 testing):** AWS account and S3 bucket.
-
-### Installation
-
-```bash
-# Clone the main application repository
-git clone https://github.com/weval/app.git # Or your repo name
-cd llm-semantic-comparison # Or your repository name
-
-# Install dependencies
-pnpm install
-
-# Set up environment variables
-cp .env.example .env
-# Edit .env with your API keys and S3 configuration (see below)
-```
-
-### Environment Variables
-
-Update your `.env` file (for local development) and configure these in your deployment environment (e.g., Netlify):
-
-- **LLM API Keys:**
-    - `OPENROUTER_API_KEY`: Your API key for OpenRouter. This is **essential** for all LLM interactions (response generation, LLM-based evaluations).
-    - `OPENAI_API_KEY`: Required **specifically for generating text embeddings**.
-- **Storage Configuration:**
-    - `STORAGE_PROVIDER`: (Optional) Set to `s3` to use AWS S3 for results storage. Defaults to `local` for development (`NODE_ENV=development`), `s3` otherwise.
-    - `APP_S3_BUCKET_NAME`: Your AWS S3 bucket name (if using S3).
-    - `APP_S3_REGION`: The AWS region of your S3 bucket (if using S3).
-    - `APP_AWS_ACCESS_KEY_ID`: Your AWS IAM access key ID (if using S3 and explicit credentials).
-    - `APP_AWS_SECRET_ACCESS_KEY`: Your AWS IAM secret access key (if using S3 and explicit credentials).
-- **Netlify Deployment (for automated functions):**
-    - Netlify automatically provides `process.env.URL`.
-    - `NETLIFY_API_TOKEN` and `SITE_ID` were previously considered for function invocation but are not strictly needed with the current direct POST method between functions. However, keep them in mind if more advanced Netlify API interactions are added later.
-- **Branding & Theming (Optional):**
-    - `NEXT_PUBLIC_THEME_COLOR_PRIMARY_HSL`: The main brand accent color (e.g., for buttons, links). Format: "H S% L%"
-    - `NEXT_PUBLIC_THEME_COLOR_FOREGROUND_HSL`: The primary text color. Format: "H S% L%"
-    - `NEXT_PUBLIC_THEME_COLOR_BACKGROUND_HSL`: The main page background. Format: "H S% L%"
-    - `NEXT_PUBLIC_THEME_COLOR_HEADER_HSL`: The background color for the main site header. Format: "H S% L%"
-    - `NEXT_PUBLIC_THEME_COLOR_SURFACE_HSL`: Background for elevated elements like cards and popovers. Format: "H S% L%"
-    - `NEXT_PUBLIC_THEME_COLOR_DESTRUCTIVE_HSL`: For errors and destructive actions. Format: "H S% L%"
-    - `NEXT_PUBLIC_THEME_COLOR_ACCENT_HSL`: A secondary accent color. Format: "H S% L%"
-    - `NEXT_PUBLIC_THEME_COLOR_WARNING_HSL`: An accent for warning messages. Format: "H S% L%"
-    - `NEXT_PUBLIC_THEME_COLOR_FOREGROUND_ON_PRIMARY_HSL`: Text color for elements with a primary background. Format: "H S% L%"
-
-### Quick Start (Local Development & Config Testing)
-
-This example demonstrates the `run_config` command for local use.
-
-**1. Create a Rich Blueprint File**
-
-```yaml
-# Main configuration for the blueprint
-id: comprehensive-llm-test-v1
-title: "Comprehensive LLM Functionality Test (Version 1)"
-description: "Tests multiple LLMs on a mix of philosophy, tech explanation, and creative writing prompts. Includes ideal responses and system prompt overrides."
-tags: [general-knowledge, creative-writing, philosophy, stoicism]
-models:
-  - openai:gpt-4o-mini
-  - anthropic:claude-3-haiku-20240307
-  - google:gemini-1.5-flash-latest
-  - mistral:mistral-large-latest
-  - openrouter:meta-llama/llama-3-70b-instruct
-system: "You are a helpful assistant. Provide clear and concise answers."
-concurrency: 5
-temperatures: [0.0, 0.5, 0.8]
-evaluationConfig:
-  llm-coverage:
-    judgeModels: [openrouter:google/gemini-pro-1.5, openai:gpt-4-turbo]
-    judgeMode: consensus
-
----
-
-# Prompts follow, one per YAML document.
-
-- id: philosophy-wisdom
-  prompt: "What are the core tenets of Stoic philosophy and how can they be applied in modern life?"
-  ideal: "Stoicism, founded in Athens by Zeno of Citium in the early 3rd century BC, emphasizes virtue, reason, and living in accordance with nature. Key tenets include: 1. Virtue is the only good (wisdom, justice, courage, temperance). 2. Focus on what you can control (your thoughts, judgments, actions) and accept what you cannot. 3. Live in accordance with nature/reason. 4. The practice of negative visualization (imagining potential misfortunes) to appreciate what you have and prepare for adversity. In modern life, these can be applied by practicing mindfulness, focusing on internal responses to external events, maintaining emotional resilience, and acting with integrity."
-  should:
-    - "Virtue is the only good (wisdom, justice, courage, temperance)."
-    - "Focus on what you can control and accept what you cannot."
-    - "Live in accordance with nature/reason."
-    - "Practice negative visualization."
-
-- id: tech-cloud
-  prompt: "Explain the main benefits of cloud computing for a small business."
-  system: "Explain in simple terms, avoiding overly technical jargon."
-
-- id: creative-story
-  prompt: "Write a short story opening (100 words) about a detective discovering a mysterious antique map."
-
-```
-
-**2. Run the Config-Based Command**
-
-```bash
-# To save results locally (default for NODE_ENV=development)
-pnpm cli run_config --config evaluation_blueprints/comprehensive_test.yml --run-label "initial-baseline-run" --eval-method="embedding,llm-coverage"
-
-# To save results to S3 (ensure .env has S3 vars and STORAGE_PROVIDER=s3 if not in production)
-# STORAGE_PROVIDER=s3 pnpm cli run_config --config evaluation_blueprints/comprehensive_test.yml --run-label "s3-baseline-run" --eval-method="embedding,llm-coverage"
-```
-
-**3. Start the Web Dashboard**
-
-```bash
-pnpm dev
-```
-
-**4. Visualize Your Results**
-Open your browser. The dashboard will display results from the configured storage provider.
-
-## Model Configuration and Environment Variables
-
-The application can access models from multiple providers. This is controlled by a prefix in the model ID string specified in your configuration files.
-
-**Model ID Format:**
-When specifying models in your JSON configuration, you **must** use the format:
-`"<provider>:<model_identifier>"`
-
-Here are the supported providers and examples of their model identifiers:
-
--   **OpenAI**: Uses the `openai:` prefix. The identifier is the model name.
-    -   `"openai:gpt-4o-mini"`
-    -   `"openai:gpt-4-turbo"`
--   **Anthropic**: Uses the `anthropic:` prefix. The identifier is the model name.
-    -   `"anthropic:claude-3-haiku-20240307"`
-    -   `"anthropic:claude-3-opus-20240229"`
--   **Google**: Uses the `google:` prefix. The identifier is the model name.
-    -   `"google:gemini-1.5-flash-latest"`

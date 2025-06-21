@@ -10,7 +10,8 @@ import { ComparisonConfig } from '@/cli/types/comparison_v2'; // Assuming this p
 export function generateConfigContentHash(config: ComparisonConfig): string {
     const dataToHash = {
         models: [...config.models].sort(),
-        systemPrompt: config.systemPrompt,
+        system: config.system,
+        systems: config.systems ? [...config.systems].sort() : undefined,
         prompts: config.prompts
             .map(p => ({
                 id: p.id,

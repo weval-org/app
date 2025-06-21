@@ -17,9 +17,22 @@ describe('modelIdUtils', () => {
       expect(getModelDisplayLabel(modelId)).toBe('openrouter:test-model (T:0.7)');
     });
 
-    it('should include both sysPrompt and temp if present', () => {
-      const modelId = 'openrouter:test-model[sys:1a2b3c][temp:0.5]';
-      // Note: parseEffectiveModelId parses from right to left for suffixes
+    it('should not include temperature suffix if temperature is 0', () => {
+      const modelIdWithTempZero = 'openrouter:test-model[temp:0]';
+      expect(getModelDisplayLabel(modelIdWithTempZero)).toBe('openrouter:test-model');
+
+      const modelIdWithTempZeroAndSysPrompt = 'openrouter:test-model[sys:1a2b3c][temp:0]';
+      expect(getModelDisplayLabel(modelIdWithTempZeroAndSysPrompt)).toBe('openrouter:test-model ([sys:1a2b3c])');
+
+      const modelIdWithTempFloatZero = 'openrouter:test-model[temp:0.0]';
+      expect(getModelDisplayLabel(modelIdWithTempFloatZero)).toBe('openrouter:test-model');
+    });
+
+    it('should include both sysPrompt and temp if present, regardless of order', () => {
+      let modelId = 'openrouter:test-model[sys:1a2b3c][temp:0.5]';
+      expect(getModelDisplayLabel(modelId)).toBe('openrouter:test-model ([sys:1a2b3c], T:0.5)');
+
+      modelId = 'openrouter:test-model[temp:0.5][sys:1a2b3c]';
       expect(getModelDisplayLabel(modelId)).toBe('openrouter:test-model ([sys:1a2b3c], T:0.5)');
     });
 
@@ -29,7 +42,7 @@ describe('modelIdUtils', () => {
       const modelIdWithTempBeforeSys = 'openrouter:test-model[temp:0.9][sys:xyz789]';
       // Expected: baseId will be 'openrouter:test-model[temp:0.9]', sysHash will be '[sys:xyz789]', temp will be undefined.
       // Label then becomes baseId + (sysHash)
-      expect(getModelDisplayLabel(modelIdWithTempBeforeSys)).toBe('openrouter:test-model[temp:0.9] ([sys:xyz789])');
+      expect(getModelDisplayLabel(modelIdWithTempBeforeSys)).toBe('openrouter:test-model ([sys:xyz789], T:0.9)');
     });
 
     it('should hide provider if option is true', () => {
@@ -66,6 +79,26 @@ describe('modelIdUtils', () => {
     it('should accept ParsedModelId object with hideProvider option', () => {
       const parsed = parseEffectiveModelId('openrouter:another-model[temp:0.2]');
       expect(getModelDisplayLabel(parsed, { hideProvider: true })).toBe('another-model (T:0.2)');
+    });
+
+    it('should hide model maker if option is true', () => {
+      const modelId = 'openrouter:google/gemini-pro';
+      expect(getModelDisplayLabel(modelId, { hideModelMaker: true })).toBe('openrouter:gemini-pro');
+    });
+
+    it('should hide provider and model maker if both options are true', () => {
+      const modelId = 'openrouter:google/gemini-pro[temp:0.9]';
+      expect(getModelDisplayLabel(modelId, { hideProvider: true, hideModelMaker: true })).toBe('gemini-pro (T:0.9)');
+    });
+
+    it('should not change display if hideModelMaker is true but no model maker exists', () => {
+      const modelId = 'openrouter:gemini-pro';
+      expect(getModelDisplayLabel(modelId, { hideModelMaker: true })).toBe('openrouter:gemini-pro');
+    });
+
+    it('should handle hideModelMaker correctly when no provider is present', () => {
+      const modelId = 'google/gemini-pro';
+      expect(getModelDisplayLabel(modelId, { hideModelMaker: true })).toBe('gemini-pro');
     });
   });
 }); 

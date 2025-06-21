@@ -15,29 +15,41 @@ The `should` block accepts a list where each item can be in one of these formats
     ```
     *   **What it means**: "The response should semantically contain the concept described in this string."
 
-2.  **Idiomatic Function Call**: This is a clean, readable way to define a programmatic, deterministic check. You use the function's name as the key.
+2.  **Idiomatic Function Call (Object Syntax)**: This is a clean, readable way to define a programmatic, deterministic check. You use the function's name, **prefixed with a `$`**, as the key.
     ```yaml
     should:
-      - contain: "mandatory keyword"
-      - not_contain: "forbidden word"
-      - match: "^The response must start with this"
-      - not_match: "this pattern must not appear"
+      # The key MUST start with a '$'
+      - $contains: "mandatory keyword"
+      - $icontains: "case-insensitive keyword" 
+      - $match: "^The response must start with this"
     ```
-    *   **What it means**: "The response should pass a check against the built-in function (e.g., `contain`)."
+    *   **What it means**: "The response should pass a check against the built-in function (e.g., `contains`)."
+    *   **Note**: For convenience, some function names are normalized. For example, the parser will treat `$contain` as `$contains`.
 
-3.  **Full `Point` Object**: This provides the most control, allowing you to specify a weight, a citation, and explicitly choose between text-based or function-based evaluation.
+3.  **Idiomatic Function Call (Tuple Syntax)**: For simple functions that take one or two arguments, you can also use a more compact YAML array (a "tuple").
     ```yaml
     should:
+      # The first element MUST be a function name starting with '$'
+      - ['$ends_with', '.']
+      - ['$word_count_between', 50, 100]
+    ```
+    *   **What it means**: This is functionally identical to the object syntax above but can be more concise.
+
+4.  **Full `Point` Object**: This provides the most control, allowing you to specify a weight, a citation, and explicitly choose between text-based or function-based evaluation. This is the most verbose, legacy-compatible format.
+    ```yaml
+    should:
+      # An LLM-judged conceptual point with a weight and citation
       - point: "This is a very important conceptual point that must be covered."
         weight: 3.0 # 'weight' is an alias for the internal 'multiplier'
         citation: "Project requirements, section 2.1a"
       
-      - fn: "match"
+      # A function-based check using the full object syntax
+      - fn: "match" # Note: no '$' prefix when using the 'fn' key
         arg: "^The response must start with this phrase" # 'arg' is an alias for 'fnArgs'
         weight: 0.5
         citation: "Style guide rule #5"
     ```
-    *   **What it means**: This allows fine-grained control. The `text` field signals an LLM-judged evaluation, while the `fn` field signals a direct function call. The `weight` (`multiplier`) weights this point's score when calculating the final average, and `citation` is for documentation.
+    *   **What it means**: This allows fine-grained control. The `point` field (or its alias `text`) signals an LLM-judged evaluation, while the `fn` field signals a direct function call. The `weight` (`multiplier`) affects this point's score in the final average, and `citation` is for documentation.
 
 ---
 
