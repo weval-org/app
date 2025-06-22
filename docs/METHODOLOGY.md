@@ -29,8 +29,8 @@ The platform's analysis is primarily built upon two quantitative methods.
 This method quantifies the semantic closeness between model responses and a potential "ideal" answer.
 
 *   **Process**: Every model's textual response is converted into a high-dimensional vector using a text embedding model (e.g., OpenAI's `text-embedding-ada-002`).
-*   **Mathematics**: The similarity between any two response vectors, \(\mathbf{A}\) and \(\mathbf{B}\), is calculated using **Cosine Similarity**:
-    \[ \text{Similarity}(\mathbf{A}, \mathbf{B}) = \frac{\mathbf{A} \cdot \mathbf{B}}{\|\mathbf{A}\| \|\mathbf{B}\|} \]
+*   **Mathematics**: The similarity between any two response vectors, $\mathbf{A}$ and $\mathbf{B}$, is calculated using **Cosine Similarity**:
+    $$ \text{Similarity}(\mathbf{A}, \mathbf{B}) = \frac{\mathbf{A} \cdot \mathbf{B}}{\|\mathbf{A}\| \|\mathbf{B}\|} $$
     This yields a score between 0 and 1, where 1 indicates identical semantic meaning. This process produces a pairwise similarity matrix for each prompt.
 
 ### 4.2. Rubric-Based Coverage (`llm-coverage` method)
@@ -60,9 +60,9 @@ The judge's categorical classification is mapped to a quantitative score.
     *   `CLASS_PARTIALLY_PRESENT` -> **0.50**
     *   `CLASS_MAJORLY_PRESENT` -> **0.75**
     *   `CLASS_FULLY_PRESENT` -> **1.0**
-*   **Score Inversion (`should_not`)**: For criteria that penalize undesirable content, the score is inverted. For an original score \(S_{\text{orig}}\), the final score is \(S_{\text{final}} = 1 - S_{\text{orig}}\).
-*   **Weighted Aggregation**: A blueprint can assign a `multiplier` (weight) to each point. The final rubric score for a model on a prompt (`avgCoverageExtent`) is the weighted average of all point scores. For \(N\) points with score \(S_i\) and weight \(w_i\):
-    \[ \text{avgCoverageExtent} = \frac{\sum_{i=1}^{N} S_i \cdot w_i}{\sum_{i=1}^{N} w_i} \]
+*   **Score Inversion (`should_not`)**: For criteria that penalize undesirable content, the score is inverted. For an original score $S_{\text{orig}}$, the final score is $S_{\text{final}} = 1 - S_{\text{orig}}$.
+*   **Weighted Aggregation**: A blueprint can assign a `multiplier` (weight) to each point. The final rubric score for a model on a prompt (`avgCoverageExtent`) is the weighted average of all point scores. For $N$ points with score $S_i$ and weight $w_i$:
+    $$ \text{avgCoverageExtent} = \frac{\sum_{i=1}^{N} S_i \cdot w_i}{\sum_{i=1}^{N} w_i} $$
 
 #### Judge Reliability Mechanisms
 
@@ -79,14 +79,15 @@ The Hybrid Score is a composite metric designed to provide a single, balanced me
 
 *   **Purpose**: It combines adherence to specific, user-defined criteria (coverage) with overall response quality (similarity to an ideal answer).
 *   **Formula**: To combine these two values, Weval uses a **weighted arithmetic mean**. This approach is chosen for its clarity and interpretability. It explicitly states the relative importance of each component. The formula is:
-    \[ S_{\text{hybrid}} = (\beta \cdot S_{\text{sim}}) + ((1-\beta) \cdot S_{\text{cov}}) \]
+    $$ S_{\text{hybrid}} = (\beta \cdot S_{\text{sim}}) + ((1-\beta) \cdot S_{\text{cov}}) $$
     Where:
-    *   \(S_{\text{sim}}\) is the semantic similarity score.
-    *   \(S_{\text{cov}}\) is the rubric coverage score.
-    *   \(\beta\) is the weighting factor for similarity.
+    *   $S_{\text{sim}}$ is the semantic similarity score.
+    *   $S_{\text{cov}}$ is the rubric coverage score.
+    *   $\beta$ is the weighting factor for similarity.
 
-    Weval uses a default weighting of **\(\beta = 0.35\) (35% for similarity) and \(1-\beta=0.65\) (65% for coverage)**. This reflects the platform's emphasis on rubric-based evaluation as the primary measure of performance, while still valuing the holistic quality captured by semantic similarity.
+    Weval uses a default weighting of **$\beta = 0.35$ (35% for similarity) and $1-\beta=0.65$ (65% for coverage)**. This reflects the platform's emphasis on rubric-based evaluation as the primary measure of performance, while still valuing the holistic quality captured by semantic similarity.
 
+*   **(Legacy) Geometric Mean**: Previously, the platform used a geometric mean ($\sqrt{S_{\text{sim}} \cdot S_{\text{cov}}}$). While statistically sound for averaging normalized ratios, it was replaced because the weighted arithmetic mean makes the platform's priorities more explicit and easier for users to understand.
 
 ### 5.2. Model Performance Drift Detection
 
@@ -94,8 +95,8 @@ This is a statistical check to flag potential changes in a model's performance o
 
 *   **Conditions**: The analysis compares runs of the same blueprint (`runLabel`) with `temperature: 0` that are separated by at least 23 hours.
 *   **Statistical Triggers**: A significant drift is flagged only if **both** of the following conditions are met between the oldest and newest runs:
-    1.  The **absolute score change** is \(\ge 0.05\).
-    2.  The **relative score change** is \(\ge 10\%\).
+    1.  The **absolute score change** is $\ge 0.05$.
+    2.  The **relative score change** is $\ge 10\%$.
 *   **Metric**: The system highlights the model that meets these criteria and has the largest score range (max score - min score) across its runs.
 
 ## 6. Risks, Assumptions, and Affordances
