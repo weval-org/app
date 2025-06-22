@@ -1,6 +1,6 @@
 import { matches } from '../matches';
 import { PointFunctionContext } from '../types';
-import { ComparisonConfig, PromptConfig as CliPromptConfig } from '@/cli/types/comparison_v2';
+import { ComparisonConfig, PromptConfig as CliPromptConfig } from '@/cli/types/cli_types';
 
 const mockContext: PointFunctionContext = {
     config: {} as ComparisonConfig,

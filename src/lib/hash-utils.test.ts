@@ -1,5 +1,5 @@
 import { generateConfigContentHash } from './hash-utils';
-import { ComparisonConfig } from '@/cli/types/comparison_v2';
+import { ComparisonConfig } from '@/cli/types/cli_types';
 
 describe('generateConfigContentHash', () => {
 

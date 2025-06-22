@@ -31,10 +31,13 @@ describe('calculationUtils', () => {
     });
 
     describe('calculateHybridScore', () => {
-        it('should return geometric mean when both scores are valid', () => {
-            expect(calculateHybridScore(0.8, 0.7)).toBeCloseTo(Math.sqrt(0.56), 4);
+        it('should return weighted arithmetic mean when both scores are valid', () => {
+            // 0.35 * 0.8 + 0.65 * 0.7 = 0.28 + 0.455 = 0.735
+            expect(calculateHybridScore(0.8, 0.7)).toBeCloseTo(0.735, 4);
+            // 0.35 * 1 + 0.65 * 1 = 1
             expect(calculateHybridScore(1, 1)).toBe(1);
-            expect(calculateHybridScore(0, 0.5)).toBe(0);
+            // 0.35 * 0 + 0.65 * 0.5 = 0.325
+            expect(calculateHybridScore(0, 0.5)).toBe(0.325);
         });
 
         it('should return the similarity score when only it is valid', () => {
@@ -54,8 +57,10 @@ describe('calculationUtils', () => {
         });
 
         it('should clamp negative scores to 0', () => {
-            expect(calculateHybridScore(-0.5, 0.8)).toBe(Math.sqrt(0 * 0.8));
-            expect(calculateHybridScore(0.8, -0.5)).toBe(Math.sqrt(0.8 * 0));
+            // 0.35 * 0 + 0.65 * 0.8 = 0.52
+            expect(calculateHybridScore(-0.5, 0.8)).toBe(0.52);
+            // 0.35 * 0.8 + 0.65 * 0 = 0.28
+            expect(calculateHybridScore(0.8, -0.5)).toBeCloseTo(0.28);
             expect(calculateHybridScore(-0.5, undefined)).toBe(0);
             expect(calculateHybridScore(undefined, -0.5)).toBe(0);
         });
@@ -79,12 +84,16 @@ describe('calculationUtils', () => {
     describe('calculatePerModelHybridScoresForRun', () => {
         it('should calculate hybrid scores correctly when both score types are present', () => {
             const result = calculatePerModelHybridScoresForRun(perPromptSimilarities_base, llmCoverageScores_base, effectiveModels_base, promptIds_base, idealModelId);
-            // modelA: sqrt(0.8*0.7)=0.7483, sqrt(0.9*0.8)=0.8485. Avg = 0.7984
-            // modelB: sqrt(0.6*0.5)=0.5477, sqrt(0.5*0.4)=0.4472. Avg = 0.4975
-            expect(result.get('modelA')?.average).toBeCloseTo(0.7984, 4);
-            expect(result.get('modelA')?.stddev).toBeCloseTo(0.0708, 4);
-            expect(result.get('modelB')?.average).toBeCloseTo(0.4975, 4);
-            expect(result.get('modelB')?.stddev).toBeCloseTo(0.0711, 4);
+            // modelA p1: 0.35*0.8 + 0.65*0.7 = 0.735
+            // modelA p2: 0.35*0.9 + 0.65*0.8 = 0.835
+            // Avg A: (0.735 + 0.835) / 2 = 0.785
+            // modelB p1: 0.35*0.6 + 0.65*0.5 = 0.535
+            // modelB p2: 0.35*0.5 + 0.65*0.4 = 0.435
+            // Avg B: (0.535 + 0.435) / 2 = 0.485
+            expect(result.get('modelA')?.average).toBeCloseTo(0.785, 4);
+            expect(result.get('modelA')?.stddev).toBeCloseTo(0.0707, 4);
+            expect(result.get('modelB')?.average).toBeCloseTo(0.485, 4);
+            expect(result.get('modelB')?.stddev).toBeCloseTo(0.0707, 4);
             expect(result.has(idealModelId)).toBe(false);
         });
 
@@ -123,11 +132,11 @@ describe('calculationUtils', () => {
             };
             const result = calculatePerModelHybridScoresForRun(perPromptSimilarities_base, llmCoverageScores_missingB, effectiveModels_base, promptIds_base, idealModelId);
             // modelA: same as full test
-            expect(result.get('modelA')?.average).toBeCloseTo(0.7984, 4);
+            expect(result.get('modelA')?.average).toBeCloseTo(0.785, 4);
             // modelB prompt1: has sim (0.6) but no cov -> hybrid = 0.6
-            // modelB prompt2: has both -> sqrt(0.5*0.4) = 0.4472
-            // Avg for B: (0.6 + 0.4472) / 2 = 0.5236
-            expect(result.get('modelB')?.average).toBeCloseTo(0.5236, 4);
+            // modelB prompt2: has both -> 0.35*0.5 + 0.65*0.4 = 0.435
+            // Avg for B: (0.6 + 0.435) / 2 = 0.5175
+            expect(result.get('modelB')?.average).toBeCloseTo(0.5175, 4);
         });
 
         it('should handle coverage data with error for a model-prompt pair', () => {
@@ -137,18 +146,18 @@ describe('calculationUtils', () => {
             };
             const result = calculatePerModelHybridScoresForRun(perPromptSimilarities_base, llmCoverageScores_error, effectiveModels_base, promptIds_base, idealModelId);
             // modelB prompt1: has sim (0.6), no cov -> hybrid = 0.6
-            // modelB prompt2: has both -> sqrt(0.5*0.4) = 0.4472
-            // Avg for B: (0.6 + 0.4472) / 2 = 0.5236
-            expect(result.get('modelB')?.average).toBeCloseTo(0.5236, 4);
+            // modelB prompt2: has both -> 0.35*0.5 + 0.65*0.4 = 0.435
+            // Avg for B: (0.6 + 0.435) / 2 = 0.5175
+            expect(result.get('modelB')?.average).toBeCloseTo(0.5175, 4);
         });
     });
 
     describe('calculateAverageHybridScoreForRun', () => {
         it('should calculate average hybrid score correctly when both score types are present', () => {
             const result = calculateAverageHybridScoreForRun(perPromptSimilarities_base, llmCoverageScores_base, effectiveModels_base, promptIds_base, idealModelId);
-            // Scores: 0.7483, 0.8485, 0.5477, 0.4472. Avg = 0.6479
-            expect(result.average).toBeCloseTo(0.6479, 4);
-            expect(result.stddev).toBeCloseTo(0.1832, 4);
+            // Scores: 0.735, 0.835, 0.535, 0.435. Avg = 0.635
+            expect(result.average).toBeCloseTo(0.635, 4);
+            expect(result.stddev).toBeCloseTo(0.1826, 4);
         });
 
         it('should use only similarity score if coverage scores are missing', () => {
@@ -242,12 +251,16 @@ describe('calculationUtils', () => {
         };
         it('should find the best and worst hybrid score models', () => {
             const extremes = calculateHybridScoreExtremes(similarities, coverageScores, models, IDEAL_MODEL_ID);
-            // modelA hybrid: sqrt(0.8*0.7)=0.748, sqrt(0.9*0.8)=0.848. Avg = 0.798
-            // modelB hybrid: sqrt(0.4*0.6)=0.490, sqrt(0.3*0.5)=0.387. Avg = 0.4385
+            // modelA p1: 0.35*0.8 + 0.65*0.7 = 0.735
+            // modelA p2: 0.35*0.9 + 0.65*0.8 = 0.835
+            // Avg A: 0.785
+            // modelB p1: 0.35*0.4 + 0.65*0.6 = 0.53
+            // modelB p2: 0.35*0.3 + 0.65*0.5 = 0.43
+            // Avg B: 0.48
             expect(extremes.bestHybrid?.modelId).toBe('modelA');
-            expect(extremes.bestHybrid?.avgScore).toBeCloseTo(0.798);
+            expect(extremes.bestHybrid?.avgScore).toBeCloseTo(0.785, 4);
             expect(extremes.worstHybrid?.modelId).toBe('modelB');
-            expect(extremes.worstHybrid?.avgScore).toBeCloseTo(0.4385);
+            expect(extremes.worstHybrid?.avgScore).toBeCloseTo(0.48, 4);
         });
     });
 

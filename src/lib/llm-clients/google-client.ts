@@ -1,6 +1,6 @@
 import { LLMClient, LLMApiCallOptions, LLMApiCallResponse, LLMStreamApiCallOptions, StreamChunk } from './types';
 import crypto from 'crypto';
-import { ConversationMessage } from '@/cli/types/comparison_v2';
+import { ConversationMessage } from '@/types/shared';
 
 const GOOGLE_API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 

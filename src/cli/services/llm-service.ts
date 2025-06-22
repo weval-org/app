@@ -1,6 +1,6 @@
-import { dispatchStreamApiCall, dispatchMakeApiCall } from '../../lib/llm-clients/client-dispatcher';
-import { LLMStreamApiCallOptions, LLMApiCallOptions, StreamChunk } from '../../lib/llm-clients/types';
-import { ConversationMessage } from '../types/comparison_v2';
+import { dispatchMakeApiCall } from '../../lib/llm-clients/client-dispatcher';
+import { LLMApiCallOptions } from '../../lib/llm-clients/types';
+import { ConversationMessage } from '@/types/shared';
 import { getConfig } from '../config';
 import { getCache, generateCacheKey } from '../../lib/cache-service';
 

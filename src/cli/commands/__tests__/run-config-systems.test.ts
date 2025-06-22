@@ -1,9 +1,5 @@
 import { jest } from '@jest/globals';
-import {
-  validatePrompts,
-} from '../run-config';
-import { ComparisonConfig } from '@/cli/types/comparison_v2';
-import * as yaml from 'js-yaml';
+import { ComparisonConfig } from '@/cli/types/cli_types';
 import { parseAndNormalizeBlueprint } from '@/lib/blueprint-parser';
 
 

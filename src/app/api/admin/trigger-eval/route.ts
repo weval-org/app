@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
-import { ComparisonConfig } from '@/cli/types/comparison_v2';
+import { ComparisonConfig } from '@/cli/types/cli_types';
 import { resolveModelsInConfig, SimpleLogger } from '@/lib/blueprint-service';
 
 // Simple logger for this API route
@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
   logger.info('Received trigger request.');
   try {
     const body = await request.json();
-    let config = body.config as ComparisonConfig; // Changed to let
+    let config = body.config as ComparisonConfig;
 
     if (!config || typeof config !== 'object' || !config.id) {
       logger.error('Invalid or incomplete configuration data.', body);

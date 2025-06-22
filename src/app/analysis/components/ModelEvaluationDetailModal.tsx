@@ -6,7 +6,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelIdUtils';
-import { ConversationMessage, IndividualJudgement } from '../../../app/utils/types';
+import { IndividualJudgement } from '@/app/utils/types';
+import { ConversationMessage } from '@/types/shared';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 

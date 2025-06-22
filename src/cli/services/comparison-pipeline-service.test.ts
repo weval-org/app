@@ -1,6 +1,7 @@
 import { executeComparisonPipeline } from './comparison-pipeline-service';
 import { saveResult as saveResultToStorage } from '../../lib/storageService';
-import { ComparisonConfig, ConversationMessage, EvaluationMethod } from '../types/comparison_v2';
+import { ComparisonConfig, EvaluationMethod } from '@/cli/types/cli_types';
+import { ConversationMessage } from '@/types/shared';
 import { getConfig, configure } from '../config';
 import { getModelResponse, GetModelResponseOptions } from '../services/llm-service';
 import * as llmService from './llm-service';

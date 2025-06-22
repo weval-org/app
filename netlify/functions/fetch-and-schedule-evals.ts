@@ -1,6 +1,6 @@
 import type { Handler, HandlerEvent, HandlerContext } from "@netlify/functions";
 import axios from 'axios';
-import { ComparisonConfig } from "@/cli/types/comparison_v2";
+import { ComparisonConfig } from "@/cli/types/cli_types";
 import { generateConfigContentHash } from "@/lib/hash-utils";
 import { listRunsForConfig } from "@/lib/storageService";
 import { resolveModelsInConfig, SimpleLogger } from "@/lib/blueprint-service";

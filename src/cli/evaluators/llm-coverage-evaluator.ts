@@ -3,22 +3,30 @@ import {
     EvaluationInput,
     FinalComparisonOutputV2,
     Evaluator,
+    LLMCoverageScores,
     EvaluationMethod,
-    IDEAL_MODEL_ID,
+    NormalizedPoint,
     PromptConfig,
+    PointDefinition
+} from '../types/cli_types';
+import {
+    ConversationMessage,
+    IndividualJudgement,
     PointAssessment,
     CoverageResult,
-    PointDefinition,
-    ConversationMessage,
-    NormalizedPoint,
-    IndividualJudgement,
-} from '../types/comparison_v2';
+} from '@/types/shared';
 import { extractKeyPoints } from '../services/llm-evaluation-service';
 import { dispatchMakeApiCall } from '../../lib/llm-clients/client-dispatcher';
 import { LLMApiCallOptions } from '../../lib/llm-clients/types';
-import { pointFunctions } from '@/point-functions';
+import * as pointFunctions from '@/point-functions';
 import { PointFunctionContext, PointFunctionReturn } from '@/point-functions/types';
 import { getCache, generateCacheKey } from '../../lib/cache-service';
+import { backOff } from 'exponential-backoff';
+import xml2js from 'xml2js';
+import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
+import { PointFunctionDefinition } from '@/app/utils/types';
+import { getModelResponse, DEFAULT_TEMPERATURE } from '../services/llm-service';
+import { evaluateFunctionPoints, aggregateCoverageScores } from './coverage-logic';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
@@ -381,307 +389,109 @@ The criterion is an assertion being made about the <TEXT>. It might be allude to
     }
 
     async evaluate(inputs: EvaluationInput[]): Promise<Partial<FinalComparisonOutputV2['evaluationResults'] & Pick<FinalComparisonOutputV2, 'extractedKeyPoints'>>> {
-        this.logger.info(`[LLMCoverageEvaluator] Starting evaluation (Pointwise method).`);
-        const pLimitFunction = (await import('p-limit')).default;
-
-        const promptProcessingConcurrency = 10;
-        const promptProcessingLimit = pLimitFunction(promptProcessingConcurrency);
-        this.logger.info(`[LLMCoverageEvaluator] Concurrency for processing prompts: ${promptProcessingConcurrency}`);
-
-        const keyPointProcessingConcurrency = 5; 
-        this.logger.info(`[LLMCoverageEvaluator] Concurrency for pointwise criterion evaluation: ${keyPointProcessingConcurrency}`);
-
-        const llmCoverageScores: Record<string, Record<string, CoverageResult | { error: string }>> = {};
-        const extractedKeyPointsGlobal: Record<string, string[]> = {};
-
-        const evaluationTasks: Promise<void>[] = [];
+        this.logger.info(`[LLMCoverageEvaluator] Starting evaluation for ${inputs.length} prompts.`);
+        const llmCoverageScores: FinalComparisonOutputV2['evaluationResults']['llmCoverageScores'] = {};
+        const extractedKeyPoints: FinalComparisonOutputV2['extractedKeyPoints'] = {};
 
         for (const input of inputs) {
-            evaluationTasks.push(promptProcessingLimit(async () => {
-                const { promptData, config, effectiveModelIds } = input;
-                const promptConfig = config.prompts.find(p => p.id === promptData.promptId) as PromptConfig | undefined;
-                const judgeModels = config.evaluationConfig?.['llm-coverage']?.judgeModels;
-                const judgeMode = config.evaluationConfig?.['llm-coverage']?.judgeMode;
+            const { promptData, config } = input;
+            const promptConfig = config.prompts.find(p => p.id === promptData.promptId);
 
-                if (!promptConfig || (!promptConfig.points && !promptConfig.idealResponse && !promptConfig.should_not)) {
-                    this.logger.info(`[LLMCoverageEvaluator] Skipping prompt ${promptData.promptId}: No points, should_not, or ideal response provided.`);
-                    return;
-                }
+            if (!promptConfig) {
+                this.logger.warn(`[LLMCoverageEvaluator] Could not find prompt config for ID: ${promptData.promptId}. Skipping.`);
+                continue;
+            }
 
-                this.logger.info(`[LLMCoverageEvaluator] START Processing prompt: ${promptData.promptId}`);
-                llmCoverageScores[promptData.promptId] = {};
+            llmCoverageScores[promptData.promptId] = {};
+            
+            // Normalize points from both 'should' and 'should_not' blocks
+            const regularPoints = this.normalizePoints(promptConfig.points || [], promptData.promptId, false);
+            const invertedPoints = this.normalizePoints(promptConfig.should_not || [], promptData.promptId, true);
+            let combinedNormalizedPoints = [...regularPoints, ...invertedPoints];
 
-                let pointsToEvaluate: PointDefinition[] = [];
-                const pointsFromShould = promptConfig.points || [];
-                const pointsFromShouldNot = promptConfig.should_not || [];
+            // Handle automatic key point extraction if no points are manually defined
+            if (combinedNormalizedPoints.length === 0 && promptData.idealResponseText) {
+                const promptContextStr = this.getPromptContextString(promptData);
+                const keyPointExtractionResult = await extractKeyPoints(
+                    promptData.idealResponseText!,
+                    promptContextStr,
+                    this.logger,
+                    config.evaluationConfig?.['llm-coverage']?.judgeModels,
+                    this.useCache,
+                );
 
-                if (pointsFromShould.length > 0 || pointsFromShouldNot.length > 0) {
-                    // We have explicitly defined points, so we use them
-                    pointsToEvaluate = [...pointsFromShould, ...pointsFromShouldNot];
-                     this.logger.info(`[LLMCoverageEvaluator] Using ${pointsFromShould.length} 'points' and ${pointsFromShouldNot.length} 'should_not' for prompt ${promptData.promptId}.`);
-                } else if (promptData.idealResponseText) {
-                    const promptContextStr = this.getPromptContextString(promptData);
-                    const keyPointExtractionResult = await extractKeyPoints(
-                        promptData.idealResponseText!,
-                        promptContextStr,
-                        this.logger,
-                        judgeModels,
-                        this.useCache,
-                    );
-
-                    if ('error' in keyPointExtractionResult || !keyPointExtractionResult.key_points || keyPointExtractionResult.key_points.length === 0) {
-                        const errorMsg = 'error' in keyPointExtractionResult ? keyPointExtractionResult.error : 'No criterions extracted';
-                        this.logger.warn(`[LLMCoverageEvaluator] Could not extract criterions for prompt ${promptData.promptId}: ${errorMsg}`);
-                        promptData.modelResponses.forEach((_, modelId) => {
-                            if (modelId !== IDEAL_MODEL_ID) {
-                                llmCoverageScores[promptData.promptId][modelId] = { error: `criterion extraction failed: ${errorMsg}` };
-                            }
-                        });
-                        return;
-                    }
-                    pointsToEvaluate = keyPointExtractionResult.key_points;
-                    extractedKeyPointsGlobal[promptData.promptId] = keyPointExtractionResult.key_points;
-                    this.logger.info(`[LLMCoverageEvaluator] Extracted ${pointsToEvaluate.length} criterions for prompt ${promptData.promptId}.`);
-                } else {
-                     this.logger.warn(`[LLMCoverageEvaluator] No ideal response text found for prompt ${promptData.promptId}, and no explicit criterions. Cannot proceed with criterion extraction.`);
-                     promptData.modelResponses.forEach((_, modelId) => {
-                        if (modelId !== IDEAL_MODEL_ID) {
-                            llmCoverageScores[promptData.promptId][modelId] = { error: `No ideal response text for criterion extraction and no explicit criterions given.` };
-                        }
-                    });
-                    return;
+                if ('error' in keyPointExtractionResult) {
+                    this.logger.error(`[LLMCoverageEvaluator] Failed to extract key points for prompt ${promptData.promptId}: ${keyPointExtractionResult.error}`);
+                    continue; // Skip this prompt if extraction fails
                 }
                 
-                if (!pointsToEvaluate || pointsToEvaluate.length === 0) {
-                    this.logger.warn(`[LLMCoverageEvaluator] No points available (neither explicit nor extracted) for prompt ${promptData.promptId}. Skipping coverage check.`);
-                     promptData.modelResponses.forEach((_, modelId) => {
-                        if (modelId !== IDEAL_MODEL_ID) {
-                            llmCoverageScores[promptData.promptId][modelId] = { error: `No points available for evaluation` };
-                        }
-                    });
-                    return;
-                }
+                extractedKeyPoints[promptData.promptId] = keyPointExtractionResult.key_points;
+                // Normalize the freshly extracted points
+                combinedNormalizedPoints = this.normalizePoints(keyPointExtractionResult.key_points, promptData.promptId, false);
+            }
 
-                let normalizedPoints: NormalizedPoint[];
+            for (const [modelId, responseData] of promptData.modelResponses.entries()) {
+                if (modelId === IDEAL_MODEL_ID) continue;
+
                 try {
-                    const regularPoints = this.normalizePoints(promptConfig.points || [], promptData.promptId, false);
-                    const invertedPoints = this.normalizePoints(promptConfig.should_not || [], promptData.promptId, true);
-                    normalizedPoints = [...regularPoints, ...invertedPoints];
+                    const functionPoints = combinedNormalizedPoints.filter(p => p.isFunction);
+                    const textPoints = combinedNormalizedPoints.filter(p => !p.isFunction);
+                    
+                    const context: PointFunctionContext = { config, prompt: promptConfig, modelId, logger: this.logger };
 
-                    if (normalizedPoints.length === 0 && promptData.idealResponseText) {
-                         // Fallback to extraction if points/should_not are empty arrays
-                        this.logger.info(`[LLMCoverageEvaluator] 'points' and 'should_not' are empty, falling back to key point extraction from idealResponse.`);
-                        const promptContextStr = this.getPromptContextString(promptData);
-                        const keyPointExtractionResult = await extractKeyPoints(
-                            promptData.idealResponseText!,
-                            promptContextStr,
-                            this.logger,
-                            judgeModels,
-                            this.useCache,
-                        );
+                    // 1. Evaluate function points using our new helper
+                    const functionAssessments = await evaluateFunctionPoints(functionPoints, responseData.finalAssistantResponseText, context);
 
-                        if (!('error' in keyPointExtractionResult) && keyPointExtractionResult.key_points && keyPointExtractionResult.key_points.length > 0) {
-                            pointsToEvaluate = keyPointExtractionResult.key_points;
-                            extractedKeyPointsGlobal[promptData.promptId] = keyPointExtractionResult.key_points;
-                            this.logger.info(`[LLMCoverageEvaluator] Extracted ${pointsToEvaluate.length} key points for prompt ${promptData.promptId}.`);
-                             normalizedPoints = this.normalizePoints(pointsToEvaluate, promptData.promptId, false);
-                        } else {
-                            const errorMsg = 'error' in keyPointExtractionResult ? keyPointExtractionResult.error : 'No key points extracted';
-                             this.logger.warn(`[LLMCoverageEvaluator] Could not extract key points for prompt ${promptData.promptId}: ${errorMsg}`);
+                    // 2. Evaluate text points (LLM-judged)
+                    const textAssessments: PointAssessment[] = [];
+                    if (textPoints.length > 0) {
+                        const promptContextString = this.getPromptContextString(promptData);
+                        for (const point of textPoints) {
+                            const judgeResult = await this.evaluateSinglePoint(
+                                responseData.finalAssistantResponseText,
+                                point.textToEvaluate!,
+                                promptContextString,
+                                config.evaluationConfig?.['llm-coverage']?.judgeModels,
+                                config.evaluationConfig?.['llm-coverage']?.judgeMode
+                            );
+
+                            let finalScore = 'error' in judgeResult ? undefined : judgeResult.coverage_extent;
+                            if (finalScore !== undefined && point.isInverted) {
+                                finalScore = 1.0 - finalScore;
+                            }
+                            
+                            textAssessments.push({
+                                keyPointText: point.displayText,
+                                coverageExtent: finalScore,
+                                reflection: 'error' in judgeResult ? undefined : `${point.isInverted ? '[INVERTED] ' : ''}${judgeResult.reflection}`,
+                                error: 'error' in judgeResult ? judgeResult.error : undefined,
+                                individualJudgements: 'individualJudgements' in judgeResult ? judgeResult.individualJudgements : undefined,
+                                judgeModelId: 'judgeModelId' in judgeResult ? judgeResult.judgeModelId : undefined,
+                                multiplier: point.multiplier,
+                                citation: point.citation,
+                                isInverted: point.isInverted,
+                            });
                         }
                     }
 
-                } catch(err: any) {
-                    this.logger.error(`[LLMCoverageEvaluator] Point normalization failed for prompt ${promptData.promptId}: ${err.message}`);
-                    promptData.modelResponses.forEach((_, modelId) => {
-                        if (modelId !== IDEAL_MODEL_ID) {
-                            llmCoverageScores[promptData.promptId][modelId] = { error: `Point normalization failed: ${err.message}` };
-                        }
-                    });
-                    return;
-                }
+                    // 3. Combine and aggregate scores using our new helper
+                    const allAssessments = [...functionAssessments, ...textAssessments];
+                    const finalAverage = aggregateCoverageScores(allAssessments);
 
-                const keyPointProcessingLimitInstance = pLimitFunction(keyPointProcessingConcurrency);
-
-                for (const [modelId, responseData] of promptData.modelResponses.entries()) {
-                    if (modelId === IDEAL_MODEL_ID) continue;
-                    this.logger.info(`[LLMCoverageEvaluator] -- START Model: ${modelId} for prompt ${promptData.promptId}`);
-
-                    if (responseData.hasError || !responseData.finalAssistantResponseText || responseData.finalAssistantResponseText.trim() === '') {
-                        this.logger.warn(`[LLMCoverageEvaluator] -- Skipping coverage for ${modelId} on prompt ${promptData.promptId} due to response error/empty.`);
-                        llmCoverageScores[promptData.promptId][modelId] = { error: responseData.errorMessage || 'Response generation error or empty response' };
-                        continue;
-                    }
-
-                    const promptContextStrEval = this.getPromptContextString(promptData);
-
-                    this.logger.info(`[LLMCoverageEvaluator-Pointwise] -- Evaluating ${normalizedPoints.length} points for ${modelId} on ${promptData.promptId}...`);
-                    const pointAssessmentTasks: Promise<PointAssessment>[] = []; 
-                    
-                    normalizedPoints.forEach((point, index) => {
-                        pointAssessmentTasks.push(keyPointProcessingLimitInstance(async () => {
-                            let assessment: PointAssessment;
-                            if (!point.isFunction) {
-                                // Handle string criterion (current LLM-based evaluation)
-                                this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- Calling evaluateSinglePoint for string KP ${index + 1}/${normalizedPoints.length} for ${modelId} on ${promptData.promptId}`);
-                                const singleEvalResult = await this.evaluateSinglePoint(responseData.finalAssistantResponseText!, point.textToEvaluate!, promptContextStrEval, judgeModels, judgeMode);
-                                
-                                if (!('error' in singleEvalResult)) {
-                                    this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- DONE evaluateSinglePoint for string KP ${index + 1}/${normalizedPoints.length} for ${modelId} on ${promptData.promptId}. Score: ${singleEvalResult.coverage_extent}`);
-                                    assessment = { 
-                                        keyPointText: point.displayText,
-                                        coverageExtent: singleEvalResult.coverage_extent,
-                                        reflection: singleEvalResult.reflection,
-                                        multiplier: point.multiplier,
-                                        citation: point.citation,
-                                        judgeModelId: singleEvalResult.judgeModelId,
-                                        judgeLog: singleEvalResult.judgeLog,
-                                        individualJudgements: singleEvalResult.individualJudgements,
-                                    };
-                                } else {
-                                    this.logger.warn(`[LLMCoverageEvaluator-Pointwise] --- ERROR evaluateSinglePoint for string KP ${index + 1}/${normalizedPoints.length} for ${modelId} on ${promptData.promptId}: ${singleEvalResult.error}`);
-                                    assessment = { 
-                                        keyPointText: point.displayText,
-                                        error: singleEvalResult.error,
-                                        coverageExtent: 0, 
-                                        reflection: `Evaluation error for string point: ${singleEvalResult.error}`,
-                                        multiplier: point.multiplier,
-                                        citation: point.citation,
-                                        judgeLog: singleEvalResult.judgeLog,
-                                    };
-                                }
-                            } else {
-                                // Handle PointFunctionDefinition
-                                const pointFnRepresentation = point.displayText;
-                                this.logger.info(`[LLMCoverageEvaluator-Function] --- Evaluating ${pointFnRepresentation} for ${modelId} on ${promptData.promptId}`);
-
-                                const pointFunction = pointFunctions[point.functionName!];
-                                if (!pointFunction) {
-                                    this.logger.warn(`[LLMCoverageEvaluator-Function] --- Function '${point.functionName}' not found.`);
-                                    assessment = {
-                                        keyPointText: point.displayText,
-                                        error: `Point function '${point.functionName}' not found.`,
-                                        coverageExtent: 0,
-                                        reflection: `Error: Point function '${point.functionName}' not found.`,
-                                        multiplier: point.multiplier,
-                                        citation: point.citation,
-                                    };
-                                } else {
-                                    try {
-                                        const context: PointFunctionContext = {
-                                            config,
-                                            prompt: promptConfig,
-                                            modelId,
-                                        };
-                                        const result: PointFunctionReturn = await pointFunction(responseData.finalAssistantResponseText!, point.functionArgs, context);
-                                        let score: number | undefined;
-                                        let reflectionText: string;
-                                        let errorText: string | undefined;
-
-                                        if (typeof result === 'object' && result !== null && 'error' in result) {
-                                            errorText = result.error;
-                                            score = 0;
-                                            reflectionText = `Function '${point.functionName}' returned error: ${errorText}`;
-                                            this.logger.warn(`[LLMCoverageEvaluator-Function] --- ${reflectionText}`);
-                                        } else if (typeof result === 'boolean') {
-                                            score = result ? 1 : 0;
-                                            reflectionText = `Function '${point.functionName}' evaluated to ${result}. Score: ${score}`;
-                                            this.logger.info(`[LLMCoverageEvaluator-Function] --- ${reflectionText}`);
-                                        } else if (typeof result === 'number') {
-                                            if (result >= 0 && result <= 1) {
-                                                score = result;
-                                                reflectionText = `Function '${point.functionName}' returned score: ${score}`;
-                                                this.logger.info(`[LLMCoverageEvaluator-Function] --- ${reflectionText}`);
-                                            } else {
-                                                score = 0;
-                                                errorText = `Function '${point.functionName}' returned out-of-range score: ${result}`;
-                                                reflectionText = `Error: ${errorText}`;
-                                                this.logger.warn(`[LLMCoverageEvaluator-Function] --- ${reflectionText}`);
-                                            }
-                                        } else {
-                                            score = 0;
-                                            errorText = `Function '${point.functionName}' returned invalid result type: ${typeof result}`;
-                                            reflectionText = `Error: ${errorText}`;
-                                            this.logger.warn(`[LLMCoverageEvaluator-Function] --- ${reflectionText}`);
-                                        }
-
-                                        assessment = {
-                                            keyPointText: point.displayText,
-                                            coverageExtent: score,
-                                            reflection: reflectionText,
-                                            error: errorText,
-                                            multiplier: point.multiplier,
-                                            citation: point.citation,
-                                        };
-
-                                    } catch (e: any) {
-                                        this.logger.error(`[LLMCoverageEvaluator-Function] --- Error executing function '${point.functionName}': ${e.message}`);
-                                        assessment = {
-                                            keyPointText: point.displayText,
-                                            error: `Error executing point function '${point.functionName}': ${e.message}`,
-                                            coverageExtent: 0,
-                                            reflection: `Critical error executing point function: ${e.message}`,
-                                            multiplier: point.multiplier,
-                                            citation: point.citation,
-                                        };
-                                    }
-                                }
-                            }
-
-                            // Invert the score if it came from 'should_not'
-                            if (point.isInverted && assessment.coverageExtent !== undefined && !assessment.error) {
-                                const originalScore = assessment.coverageExtent;
-                                assessment.coverageExtent = 1 - originalScore;
-                                assessment.reflection = `[INVERTED] ${assessment.reflection || ''}`.trim();
-                                assessment.isInverted = true;
-                                this.logger.info(`[LLMCoverageEvaluator] --- Inverted score for '${assessment.keyPointText}'. Original: ${originalScore}, New: ${assessment.coverageExtent}`);
-                            }
-                            return assessment;
-                        }));
-                    });
-    
-                    this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- Finished queuing ${pointAssessmentTasks.length} tasks for ${modelId} on ${promptData.promptId}. Starting await Promise.all.`);
-                    const allPointAssessmentsResults = await Promise.all(pointAssessmentTasks);
-                    this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- Promise.all completed for ${modelId} on ${promptData.promptId}. Processing ${allPointAssessmentsResults.length} results.`);
-                    
-                    const validAssessments: PointAssessment[] = [];
-                    let totalWeightedScore = 0;
-                    let totalMultiplier = 0;
-
-                    allPointAssessmentsResults.forEach(res => {
-                        validAssessments.push(res); 
-                        if (typeof res.coverageExtent === 'number' && !res.error) {
-                            const multiplier = res.multiplier ?? 1;
-                            totalWeightedScore += res.coverageExtent * multiplier;
-                            totalMultiplier += multiplier;
-                        }
-                    });
-    
-                    const avgCoverageExtent = totalMultiplier > 0 ? (totalWeightedScore / totalMultiplier) : undefined;
-    
                     llmCoverageScores[promptData.promptId][modelId] = {
-                        keyPointsCount: normalizedPoints.length,
-                        avgCoverageExtent: avgCoverageExtent !== undefined ? parseFloat(avgCoverageExtent.toFixed(2)) : undefined,
-                        pointAssessments: validAssessments
+                        keyPointsCount: allAssessments.length,
+                        avgCoverageExtent: allAssessments.length > 0 ? parseFloat(finalAverage.toFixed(2)) : undefined,
+                        pointAssessments: allAssessments,
                     };
-                    this.logger.info(`[LLMCoverageEvaluator-Pointwise] -- DONE Model: ${modelId} for prompt ${promptData.promptId}. Avg Point Extent: ${avgCoverageExtent?.toFixed(2) ?? 'N/A'}`);
-                    
-                    this.logger.info(`[LLMCoverageEvaluator] -- END Model: ${modelId} for prompt ${promptData.promptId}`);
-                }
-                this.logger.info(`[LLMCoverageEvaluator] END Processing prompt: ${promptData.promptId}`);
 
-                if (promptConfig.idealResponse && !promptConfig.points && pointsToEvaluate.every(p => typeof p === 'string')) {
-                     extractedKeyPointsGlobal[promptData.promptId] = pointsToEvaluate as string[];
+                } catch (error: any) {
+                    this.logger.error(`[LLMCoverageEvaluator] Error processing model ${modelId} for prompt ${promptData.promptId}: ${error.message}`);
+                    llmCoverageScores[promptData.promptId][modelId] = { error: error.message };
                 }
-            }));
+            }
         }
 
-        await Promise.all(evaluationTasks);
-        this.logger.info('[LLMCoverageEvaluator] All prompt evaluations complete.');
-
-        return {
-            llmCoverageScores,
-            extractedKeyPoints: extractedKeyPointsGlobal
-        };
+        return { llmCoverageScores, extractedKeyPoints };
     }
+
 } 

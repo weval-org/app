@@ -75,11 +75,18 @@ The platform synthesizes raw scores into higher-level, interpretable metrics.
 
 ### 5.1. The Hybrid Score
 
-The Hybrid Score is a composite metric designed to provide a single, balanced measure of a model's performance.
+The Hybrid Score is a composite metric designed to provide a single, balanced measure of a model's performance when a blueprint provides an `ideal` response to compare against.
 
-*   **Purpose**: It combines adherence to specific criteria (coverage) with overall response quality (similarity to an ideal answer).
-*   **Formula**: It is the unweighted arithmetic mean of the semantic similarity to the ideal response (\(S_{\text{sim}}\)) and the average rubric coverage score (\(S_{\text{cov}}\)):
-    \[ S_{\text{hybrid}} = \frac{S_{\text{sim}} + S_{\text{cov}}}{2} \]
+*   **Purpose**: It combines adherence to specific, user-defined criteria (coverage) with overall response quality (similarity to an ideal answer).
+*   **Formula**: To combine these two values, Weval uses a **weighted arithmetic mean**. This approach is chosen for its clarity and interpretability. It explicitly states the relative importance of each component. The formula is:
+    \[ S_{\text{hybrid}} = (\beta \cdot S_{\text{sim}}) + ((1-\beta) \cdot S_{\text{cov}}) \]
+    Where:
+    *   \(S_{\text{sim}}\) is the semantic similarity score.
+    *   \(S_{\text{cov}}\) is the rubric coverage score.
+    *   \(\beta\) is the weighting factor for similarity.
+
+    Weval uses a default weighting of **\(\beta = 0.35\) (35% for similarity) and \(1-\beta=0.65\) (65% for coverage)**. This reflects the platform's emphasis on rubric-based evaluation as the primary measure of performance, while still valuing the holistic quality captured by semantic similarity.
+
 
 ### 5.2. Model Performance Drift Detection
 
@@ -99,7 +106,7 @@ Weval's methodology is designed to be robust, but like any quantitative system, 
 
 The validity of Weval's metrics rests on these core assumptions:
 
-*   **Assumption of Equal Weighting in Hybrid Score**: The Hybrid Score gives equal (1:1) weight to semantic similarity and rubric coverage. This may not be appropriate for all use cases, where one dimension might be significantly more important than the other.
+*   **Assumption of Appropriate Weighting in Hybrid Score**: The Hybrid Score's weighted average (35% similarity, 65% coverage) assumes that this is a reasonable and balanced reflection of importance for most general use cases. While this explicit weighting is more transparent than an unweighted mean, the specific ratio may not be optimal for every evaluation's unique goals.
 *   **Assumption of Linearity in Score Mapping**: The 5-point categorical scale from the LLM judge is mapped to a linear, equidistant numerical scale. This assumes the qualitative gap between "Absent" and "Slightly Present" is the same as between "Majorly Present" and "Fully Present," which may not be perceptually true.
 *   **Assumption of Criterion Independence**: The rubric score (`avgCoverageExtent`) is a weighted average that treats each criterion as an independent variable. It does not account for potential correlations between criteria (e.g., "clarity" and "conciseness").
 

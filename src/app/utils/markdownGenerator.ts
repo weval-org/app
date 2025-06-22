@@ -1,9 +1,11 @@
 import {
     ComparisonDataV2,
-    ConversationMessage,
     CoverageResult,
     PointAssessment,
 } from '@/app/utils/types';
+import {
+    ConversationMessage
+} from '@/types/shared';
 import {
     IDEAL_MODEL_ID,
     calculateAverageSimilarity,

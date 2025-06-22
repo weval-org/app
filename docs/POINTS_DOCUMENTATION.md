@@ -15,25 +15,46 @@ The `should` block accepts a list where each item can be in one of these formats
     ```
     *   **What it means**: "The response should semantically contain the concept described in this string."
 
-2.  **Idiomatic Function Call (Object Syntax)**: This is a clean, readable way to define a programmatic, deterministic check. You use the function's name, **prefixed with a `$`**, as the key.
+2.  **Point with Citation (Shorthand)**: For the common case of adding a citation to a conceptual point, you can use a direct key-value pair. This supports multi-line strings for complex criteria using YAML block syntax.
     ```yaml
     should:
-      # The key MUST start with a '$'
-      - $contains: "mandatory keyword"
-      - $icontains: "case-insensitive keyword" 
-      - $match: "^The response must start with this"
+      - "Covers the principle of 'prudent man' rule.": "Investment Advisers Act of 1940"
+      - ? |
+          The response must detail the three core duties of a fiduciary:
+          1. The Duty of Care
+          2. The Duty of Loyalty
+        : "SEC Rule on Fiduciary Duty"
+    ```
+    *   **What it means**: This is functionally identical to defining a `text` point with a `citation`, but is more concise.
+
+3.  **Idiomatic Function Call (Deterministic Check)**: A quick way to perform exact, programmatic checks. **All idiomatic function calls must be prefixed with a `$`** to distinguish them from citable points. They can be defined as an object or a more concise array ("tuple").
+    ```yaml
+    should:
+      # Object syntax (recommended)
+      - $contains: "fiduciary duty"  # Case-sensitive check
+      - $icontains: "fiduciary duty" # Case-insensitive
+
+      # Tuple syntax (for simple functions)
+      - ['$ends_with', '.']
+
+      # List-based checks
+      - $contains_any_of: ["fiduciary", "duty"]  # True if any are found
+      - $contains_all_of: ["fiduciary", "duty"]  # Graded score (0.5 if 1 of 2 is found)
+      - $contains_at_least_n_of: [2, ["apples", "oranges", "pears"]]
+
+      # Regex checks
+      - $match: "^The ruling states" # Case-sensitive regex
+      - $imatch: "^the ruling"       # Case-insensitive regex
+      - $match_all_of: ["^The ruling", "states that$"] # Graded regex
+      - $imatch_all_of: ["^the ruling", "states that$"] # Case-insensitive graded regex
+
+      # Other checks
+      - $word_count_between: [50, 100]
+      - $is_json: true
+      - $js: "r.length > 100" # Advanced JS expression
     ```
     *   **What it means**: "The response should pass a check against the built-in function (e.g., `contains`)."
     *   **Note**: For convenience, some function names are normalized. For example, the parser will treat `$contain` as `$contains`.
-
-3.  **Idiomatic Function Call (Tuple Syntax)**: For simple functions that take one or two arguments, you can also use a more compact YAML array (a "tuple").
-    ```yaml
-    should:
-      # The first element MUST be a function name starting with '$'
-      - ['$ends_with', '.']
-      - ['$word_count_between', 50, 100]
-    ```
-    *   **What it means**: This is functionally identical to the object syntax above but can be more concise.
 
 4.  **Full `Point` Object**: This provides the most control, allowing you to specify a weight, a citation, and explicitly choose between text-based or function-based evaluation. This is the most verbose, legacy-compatible format.
     ```yaml
@@ -91,29 +112,29 @@ The `LLMCoverageEvaluator` iterates through each `Point` object for a given mode
 This path is for `text`-based points and is the most complex.
 
 1.  **Function Call**: The evaluator calls the `evaluateSinglePoint` method.
-2.  **Prompt Construction**: This method constructs a highly detailed prompt for a "judge" LLM. The prompt includes the original prompt context, the model's full response, and—most importantly—the single key point (`text`) it needs to assess.
+2.  **Prompt Construction**: This method constructs a highly detailed prompt for a "judge" LLM. The prompt includes the model's full response and—most importantly—the single key point (`text`) it needs to assess.
 
     ```typescript
     // Snippet from the prompt in src/cli/evaluators/llm-coverage-evaluator.ts
     const pointwisePrompt = \`
-    Given the following <MODEL_RESPONSE> which was generated in response to the <ORIGINAL_PROMPT>:
+    Given the following <TEXT>:
     //...
-    Now, carefully assess ONLY the following <KEY_POINT>:
+    Carefully assess how well the following <CRITERION> is expressed in the text:
     
-    <KEY_POINT>
+    <CRITERION>
     \${keyPointText}
-    </KEY_POINT>
+    </CRITERION>
     
-    //... Scoring guidelines ...
+    //... Classification guidelines (CLASS_ABSENT, CLASS_FULLY_PRESENT, etc.) ...
     
     Your output MUST strictly follow this XML format:
-    <reflection>Your 1-2 sentence reflection and reasoning for the score...</reflection>
-    <coverage_extent>A numerical score from 0.0 to 1.0...</coverage_extent>
+    <reflection>Your 1-2 sentence reflection and reasoning for the classification...</reflection>
+    <classification>ONE of the 5 class names (e.g., CLASS_FULLY_PRESENT)</classification>
     \`;
     ```
 
 3.  **LLM Judge**: It sends this prompt to a powerful judge model. The code includes a list of models to try and has retry logic for robustness.
-4.  **Parsing the Result**: The judge LLM returns an XML string. The code parses the `<coverage_extent>` (a score from 0.0 to 1.0) and the `<reflection>` (the LLM's reasoning for the score). This becomes a `PointAssessment`.
+4.  **Parsing and Scoring**: The judge LLM returns an XML string containing a `<classification>` tag (e.g., `CLASS_PARTIALLY_PRESENT`). The system parses this classification and maps it to a numerical score based on a predefined scale (e.g., `CLASS_ABSENT` -> 0.0, `CLASS_PARTIALLY_PRESENT` -> 0.5, `CLASS_FULLY_PRESENT` -> 1.0). This score and the `<reflection>` text become a `PointAssessment`.
 
 **Path B: Function-Based "Exact" Evaluation (if `fn` IS present)**
 

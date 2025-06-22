@@ -3,12 +3,10 @@ import {
     ComparisonDataV2,
     SelectedPairInfo,
     PointAssessment,
-    CoverageResult,
-    ConversationMessage,
+    CoverageResult
 } from '@/app/utils/types';
 import { ModelEvaluationDetailModalData } from '@/app/analysis/components/ModelEvaluationDetailModal';
 import { parseEffectiveModelId } from '@/app/utils/modelIdUtils';
-import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 
 interface OpenModalOptions {
     promptId: string;

@@ -6,8 +6,8 @@ import {
     getResultByFileName,
     saveResult, // Corrected import name
 } from '../../lib/storageService';
-import { ComparisonDataV2, ConversationMessage } from '../../app/utils/types';
-import { FinalComparisonOutputV2 } from '../types/comparison_v2';
+import { FinalComparisonOutputV2 } from '../types/cli_types';
+import { ConversationMessage } from '@/types/shared';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 

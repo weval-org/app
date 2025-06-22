@@ -16,10 +16,11 @@ export function calculateStandardDeviation(numbers: number[]): number | null {
 
 /**
  * Calculates a hybrid score from a similarity score and a coverage score.
- * - If both scores are valid numbers, it returns their geometric mean.
+ * - If both scores are valid numbers, it returns their weighted arithmetic mean.
  * - If only one score is a valid number, it returns that score.
  * - If neither score is valid, it returns null.
  * Scores are clamped to be non-negative.
+ * The default weighting is 35% for similarity and 65% for coverage.
  *
  * @param simScore - The similarity score (0-1).
  * @param covScore - The coverage score (0-1).
@@ -28,12 +29,14 @@ export function calculateStandardDeviation(numbers: number[]): number | null {
 export function calculateHybridScore(simScore: number | null | undefined, covScore: number | null | undefined): number | null {
     const isValidSim = typeof simScore === 'number' && !isNaN(simScore);
     const isValidCov = typeof covScore === 'number' && !isNaN(covScore);
+    const SIMILARITY_WEIGHT = 0.35;
+    const COVERAGE_WEIGHT = 0.65;
 
     if (isValidSim && isValidCov) {
-        // Both scores are available, use geometric mean
+        // Both scores are available, use weighted arithmetic mean
         const safeSim = Math.max(0, simScore as number);
         const safeCov = Math.max(0, covScore as number);
-        return Math.sqrt(safeSim * safeCov);
+        return (SIMILARITY_WEIGHT * safeSim) + (COVERAGE_WEIGHT * safeCov);
     } else if (isValidSim) {
         // Only similarity score is available
         return Math.max(0, simScore as number);

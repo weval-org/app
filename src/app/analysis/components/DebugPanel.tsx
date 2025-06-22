@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import DownloadResultsButton from '@/app/analysis/components/DownloadResultsButton';
 import { ComparisonDataV2 } from '@/app/utils/types';
 import { fromSafeTimestamp } from '@/lib/timestampUtils';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const TerminalIcon = dynamic(() => import("lucide-react").then((mod) => mod.Terminal));
 

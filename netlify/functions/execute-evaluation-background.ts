@@ -1,8 +1,7 @@
 import type { Handler, HandlerEvent, HandlerContext } from "@netlify/functions";
-import { getConfig } from "../../src/cli/config"; // Adjusted path
 import { executeComparisonPipeline } from "../../src/cli/services/comparison-pipeline-service"; // Adjusted path
 import { generateConfigContentHash } from "../../src/lib/hash-utils"; // Adjusted path
-import { ComparisonConfig, EvaluationMethod } from "../../src/cli/types/comparison_v2"; // Adjusted path
+import { ComparisonConfig, EvaluationMethod } from "../../src/cli/types/cli_types"; // Adjusted path
 import { 
     getHomepageSummary, 
     saveHomepageSummary, 

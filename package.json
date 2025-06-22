@@ -29,7 +29,8 @@
     "test_cross_encoder": "tsx src/cli/index.ts test_cross_encoder",
     "prepare": "pnpm exec husky || true",
     "pre-commit": "lint-staged",
-    "update-snapshots": "jest --updateSnapshot"
+    "update-snapshots": "jest --updateSnapshot",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.820.0",
@@ -61,6 +62,7 @@
     "clsx": "^2.1.1",
     "colord": "^2.9.3",
     "d3": "^7.9.0",
+    "exponential-backoff": "^3.1.2",
     "framer-motion": "^11.0.0",
     "inquirer": "^12.4.3",
     "js-yaml": "^4.1.0",
@@ -98,6 +100,7 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@jest/globals": "^30.0.2",
     "@netlify/functions": "^4.0.0",
     "@next/bundle-analyzer": "^15.3.3",
     "@tailwindcss/typography": "^0.5.15",

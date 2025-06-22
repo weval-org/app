@@ -132,11 +132,6 @@ export default async function HomePage() {
                 <AggregateStatsDisplay stats={headlineStats} />
                 {driftDetectionResult && <ModelDriftIndicator driftInfo={driftDetectionResult} />}
             </div>
-            <div className="text-center mt-6">
-                <Link href="/latest" className="text-sm font-medium text-primary hover:underline dark:text-sky-400 dark:hover:text-sky-300">
-                    View the 50 most recent platform runs &rarr;
-                </Link>
-            </div>
           </section>
         )}
 

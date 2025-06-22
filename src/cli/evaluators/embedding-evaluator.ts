@@ -1,5 +1,5 @@
 import { getConfig } from '../config';
-import { EvaluationInput, FinalComparisonOutputV2, Evaluator, EvaluationMethod, IDEAL_MODEL_ID } from '../types/comparison_v2';
+import { EvaluationInput, FinalComparisonOutputV2, Evaluator, EvaluationMethod, IDEAL_MODEL_ID } from '../types/cli_types';
 import { getEmbedding } from '../services/embedding-service'; // Correct path to existing service
 import { cosineSimilarity as calculateSimilarity } from '@/lib/math';
 

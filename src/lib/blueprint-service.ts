@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { BLUEPRINT_CONFIG_REPO_SLUG } from './configConstants';
+import { ComparisonConfig } from '@/cli/types/cli_types'
 
 // Define a simple logger interface for compatibility
 export interface SimpleLogger {
@@ -135,10 +136,7 @@ export async function fetchModelCollection(
     }
     return null;
   }
-}
-
-// Helper function to resolve models in a ComparisonConfig object
-import { ComparisonConfig } from '../cli/types/comparison_v2'; // Adjust path as needed
+};
 
 export async function resolveModelsInConfig(
   config: ComparisonConfig,

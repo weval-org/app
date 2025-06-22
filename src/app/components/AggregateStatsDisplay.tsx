@@ -245,7 +245,7 @@ const AggregateStatsDisplay: React.FC<AggregateStatsDisplayProps> = ({ stats }) 
           <p className="mt-2 flex items-start">
             {FlaskConical && <FlaskConical className="w-4 h-4 mr-2 text-primary flex-shrink-0" />}
             <span>
-              The Hybrid Score combines semantic similarity (style, structure) with key point coverage (substance). A high score indicates a response that is both thematically similar to the ideal answer and covers the required key points. <span className="mt-1 font-mono text-primary/80 text-[0.7rem]"> Formula: sqrt(similarity_to_ideal * coverage_score)</span>
+              The Hybrid Score is a weighted average combining semantic similarity (35% weight) and key point coverage (65% weight). This emphasizes rubric adherence while still valuing overall response quality. <span className="mt-1 font-mono text-primary/80 text-[0.7rem]">Formula: (0.35 * sim_score) + (0.65 * cov_score)</span>
             </span>
           </p>
         </div>

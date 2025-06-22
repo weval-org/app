@@ -1,5 +1,4 @@
 import { LLMApiCallOptions, LLMStreamApiCallOptions, StreamChunk, LLMApiCallResponse } from './types';
-import { ConversationMessage } from '../../cli/types/comparison_v2';
 import crypto from 'crypto';
 
 const OPENAI_API_BASE_URL = 'https://api.openai.com/v1';

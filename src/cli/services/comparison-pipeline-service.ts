@@ -1,5 +1,6 @@
 import { getConfig } from '../config';
-import { ComparisonConfig, EvaluationMethod, PromptResponseData, EvaluationInput, FinalComparisonOutputV2, Evaluator, IDEAL_MODEL_ID, ConversationMessage } from '../types/comparison_v2';
+import { ComparisonConfig, EvaluationMethod, PromptResponseData, EvaluationInput, FinalComparisonOutputV2, Evaluator, IDEAL_MODEL_ID } from '../types/cli_types';
+import { ConversationMessage } from '@/types/shared';
 import { getModelResponse, DEFAULT_TEMPERATURE } from './llm-service';
 import { checkForErrors } from '../utils/response-utils';
 import { EmbeddingEvaluator } from '@/cli/evaluators/embedding-evaluator';

@@ -1,5 +1,6 @@
 import * as yaml from 'js-yaml';
-import { ComparisonConfig, PointDefinition, PromptConfig, ConversationMessage } from '@/cli/types/comparison_v2';
+import { ComparisonConfig, PointDefinition, PromptConfig } from '@/cli/types/cli_types';
+import { ConversationMessage } from '@/types/shared';
 import { createHash } from 'crypto';
 import stableStringify from 'json-stable-stringify';
 

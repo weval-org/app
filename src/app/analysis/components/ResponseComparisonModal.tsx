@@ -5,8 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import dynamic from 'next/dynamic';
-import { getGradedCoverageColor } from '../utils/colorUtils';
-import { ConversationMessage } from '../../utils/types';
+import { ConversationMessage } from '@/types/shared';
 
 interface SelectedPairInfo {
     modelA: string;

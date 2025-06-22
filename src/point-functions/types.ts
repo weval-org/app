@@ -1,14 +1,18 @@
-import { ComparisonConfig, PromptConfig as CliPromptConfig } from '@/cli/types/comparison_v2';
+import { ComparisonConfig, PromptConfig } from '@/cli/types/cli_types';
+import { getConfig } from '@/cli/config';
+
+type Logger = ReturnType<typeof getConfig>['logger'];
 
 export interface PointFunctionContext {
     config: ComparisonConfig;
-    prompt: CliPromptConfig;
+    prompt: PromptConfig;
     modelId: string;
+    logger?: Logger;
 }
 
 export type PointFunctionArgs = any;
 
-export type PointFunctionReturn = number | boolean | { error: string };
+export type PointFunctionReturn = boolean | number | { error: string };
 
 export type PointFunction = (
     llmResponseText: string,

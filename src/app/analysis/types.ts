@@ -1,4 +1,7 @@
+import { PointAssessment, CoverageResult } from '@/types/shared';
+
 // Type definitions (can be shared or imported if defined centrally)
+/*
 export interface PointAssessment {
     keyPointText: string;
     coverageExtent?: number;
@@ -17,6 +20,7 @@ export type CoverageResult = {
     avgCoverageExtent?: number;
     pointAssessments?: PointAssessment[];
 } | { error: string } | null;
+*/
 
 export type AllCoverageScores = Record<string, Record<string, CoverageResult>>; // promptId -> modelId -> CoverageResult
 export type AllFinalAssistantResponses = Record<string, Record<string, string>>; // promptId -> modelId -> response string 

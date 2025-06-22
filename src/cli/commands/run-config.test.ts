@@ -4,7 +4,7 @@ import {
   validateRoleAlternation,
   resolveModelCollections,
 } from './run-config';
-import { ComparisonConfig } from '../types/comparison_v2';
+import { ComparisonConfig } from '../types/cli_types';
 import fs from 'fs/promises';
 
 // Mock the fs/promises module

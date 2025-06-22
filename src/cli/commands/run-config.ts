@@ -9,7 +9,7 @@ import * as yaml from 'js-yaml';
 import {
     EvaluationMethod,
     ComparisonConfig,
-} from '../types/comparison_v2';
+} from '../types/cli_types';
 import { ComparisonDataV2 as FetchedComparisonData } from '../../app/utils/types';
 import {
     getHomepageSummary,

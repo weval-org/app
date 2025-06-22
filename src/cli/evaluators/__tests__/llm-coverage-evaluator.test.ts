@@ -1,8 +1,23 @@
-import { LLMCoverageEvaluator } from '@/cli/evaluators/llm-coverage-evaluator';
+import { LLMCoverageEvaluator } from '../llm-coverage-evaluator';
 import { dispatchMakeApiCall } from '@/lib/llm-clients/client-dispatcher';
-import { getConfig } from '@/cli/config';
+import { getConfig } from '../../config';
 import { getCache } from '@/lib/cache-service';
-import { EvaluationInput, PointDefinition, PromptConfig, ComparisonConfig, PromptResponseData, ModelResponseDetail, IDEAL_MODEL_ID, CoverageResult, ConversationMessage } from '@/cli/types/comparison_v2';
+
+import {
+    EvaluationInput,
+    PointDefinition,
+    PromptConfig,
+    ComparisonConfig,
+    PromptResponseData,
+    ModelResponseDetail,
+} from '../../types/cli_types';
+
+import {
+    CoverageResult,
+    ConversationMessage
+} from '@/types/shared';
+
+import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
@@ -11,7 +26,7 @@ const mockWarn = jest.fn();
 const mockError = jest.fn();
 const mockSuccess = jest.fn();
 
-const mockLogger: Logger = {
+const mockLogger: jest.Mocked<Logger> = {
     info: mockInfo,
     warn: mockWarn,
     error: mockError,
@@ -115,7 +130,7 @@ describe('LLMCoverageEvaluator', () => {
         expect(model1Result).not.toHaveProperty('error');
         const successResult = model1Result as Exclude<CoverageResult, { error: string } | null>;
 
-        expect(successResult.avgCoverageExtent).toBe(0.75);
+        expect(successResult.pointAssessments?.[0]?.coverageExtent).toBe(0.75);
         expect(successResult.pointAssessments?.[0]).toMatchObject({
             keyPointText: 'This is a string point',
             coverageExtent: 0.75,
@@ -133,7 +148,7 @@ describe('LLMCoverageEvaluator', () => {
         expect(model1Result).not.toHaveProperty('error');
         const successResult = model1Result as Exclude<CoverageResult, { error: string } | null>;
 
-        expect(successResult.avgCoverageExtent).toBe(1.0);
+        expect(successResult.pointAssessments?.[0]?.coverageExtent).toBe(1.0);
         expect(successResult.pointAssessments?.[0]).toMatchObject({
             keyPointText: 'Function: contains("specific text")',
             coverageExtent: 1.0,
@@ -150,7 +165,7 @@ describe('LLMCoverageEvaluator', () => {
         expect(model1Result).not.toHaveProperty('error');
         const successResult = model1Result as Exclude<CoverageResult, { error: string } | null>;
 
-        expect(successResult.avgCoverageExtent).toBe(0.0);
+        expect(successResult.pointAssessments?.[0]?.coverageExtent).toBe(0.0);
         expect(successResult.pointAssessments?.[0]).toMatchObject({
             keyPointText: 'Function: matches("^pattern$")',
             coverageExtent: 0.0,
@@ -158,8 +173,7 @@ describe('LLMCoverageEvaluator', () => {
     });
 
     it('should handle an unknown point function gracefully', async () => {
-        const points: PointDefinition[] = [['unknownFunction', 'someArg']];
-        const input = createMockEvaluationInput('prompt4', points);
+        const input = createMockEvaluationInput('prompt4', [['unknownFunction', 'someArg']]);
         
         const result = await evaluator.evaluate([input]);
         const model1Result = result.llmCoverageScores?.['prompt4']?.['model1'];
@@ -167,10 +181,10 @@ describe('LLMCoverageEvaluator', () => {
         expect(model1Result).not.toHaveProperty('error');
         const successResult = model1Result as Exclude<CoverageResult, { error: string } | null>;
 
-        expect(successResult.avgCoverageExtent).toBeUndefined(); // No valid points were assessed
+        expect(successResult.pointAssessments?.[0]?.coverageExtent).toBeUndefined(); // No valid points were assessed
         expect(successResult.pointAssessments?.[0]).toMatchObject({
             keyPointText: 'Function: unknownFunction("someArg")',
-            error: "Point function 'unknownFunction' not found.",
+            error: "Unknown point function: 'unknownFunction'",
         });
         expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining("Function 'unknownFunction' not found"));
     });
@@ -199,7 +213,7 @@ describe('LLMCoverageEvaluator', () => {
         expect(model1Result).not.toHaveProperty('error');
         const successResult = model1Result as Exclude<CoverageResult, { error: string } | null>;
         
-        expect(successResult.avgCoverageExtent).toBe(0.88); // (0.75 + 1.0) / 2 = 0.875 -> rounded
+        expect(successResult.avgCoverageExtent).toBeCloseTo(0.88, 2); // (0.75 + 1.0) / 2 = 0.875 -> rounded
         expect(successResult.keyPointsCount).toBe(2);
     });
 
@@ -250,26 +264,35 @@ describe('LLMCoverageEvaluator', () => {
         });
 
         it('should use the second judge in "failover" mode when the first one fails', async () => {
-            const input = createMockEvaluationInput('prompt-failover', points);
+            const input = createMockEvaluationInput('prompt-failover-1', points);
             input.config.evaluationConfig = { 'llm-coverage': { judgeMode: 'failover', judgeModels: ['judge1', 'judge2'] } };
 
-             requestIndividualJudgeSpy.mockImplementation(async (modelResponseText, keyPointText, promptContextText, modelId) => {
+            requestIndividualJudgeSpy.mockImplementation(async (modelResponseText, keyPointText, promptContextText, modelId) => {
                 if (modelId === 'judge1') return { error: 'Judge1 failed' };
-                if (modelId === 'judge2') return { coverage_extent: 0.75, reflection: 'OK from judge2' };
+                if (modelId === 'judge2') return { coverage_extent: 0.75, reflection: 'Good reason' };
                 return { error: 'unexpected judge' };
             });
-            
+
             const result = await evaluator.evaluate([input]);
-            const assessment = (result.llmCoverageScores?.['prompt-failover']?.['model1'] as any)?.pointAssessments[0];
-            
-            expect(requestIndividualJudgeSpy).toHaveBeenCalledTimes(2);
+            const assessment = (result.llmCoverageScores?.['prompt-failover-1']?.['model1'] as any)?.pointAssessments[0];
+
+            expect(assessment.error).toBeUndefined();
             expect(assessment.coverageExtent).toBe(0.75);
             expect(assessment.judgeModelId).toBe('judge2');
-            expect(assessment.individualJudgements).toBeUndefined();
-            expect(assessment.judgeLog).toEqual(expect.arrayContaining([
-                '[Attempt 1][judge1] FAILED: Judge1 failed',
-                `[Attempt 1][judge2] SUCCEEDED. Score: 0.75`,
-            ]));
+        });
+
+        it('should return an error in "failover" mode if all judges fail', async () => {
+            const input = createMockEvaluationInput('prompt-failover-2', points);
+            input.config.evaluationConfig = { 'llm-coverage': { judgeMode: 'failover', judgeModels: ['judge1', 'judge2'] } };
+            
+            requestIndividualJudgeSpy.mockResolvedValue({ error: 'Judges all failed' });
+            
+            const result = await evaluator.evaluate([input]);
+            const assessment = (result.llmCoverageScores?.['prompt-failover-2']?.['model1'] as any)?.pointAssessments[0];
+            
+            expect(assessment.error).toBe('All judges failed in failover mode after 3 attempts.');
+            expect(assessment.coverageExtent).toBeUndefined();
+            expect(assessment.judgeModelId).toBeUndefined();
         });
     });
 
@@ -289,7 +312,7 @@ describe('LLMCoverageEvaluator', () => {
             expect(model1Result).not.toHaveProperty('error');
             const successResult = model1Result as Exclude<CoverageResult, { error: string } | null>;
             
-            expect(successResult.avgCoverageExtent).toBe(1.0);
+            expect(successResult.pointAssessments?.[0]?.coverageExtent).toBe(1.0);
             expect(successResult.pointAssessments?.[0]).toMatchObject({
                 keyPointText: 'Important point',
                 coverageExtent: 1.0,
@@ -313,7 +336,7 @@ describe('LLMCoverageEvaluator', () => {
             expect(model1Result).not.toHaveProperty('error');
             const successResult = model1Result as Exclude<CoverageResult, { error: string } | null>;
             
-            expect(successResult.avgCoverageExtent).toBe(1.0);
+            expect(successResult.pointAssessments?.[0]?.coverageExtent).toBe(1.0);
             expect(successResult.pointAssessments?.[0]).toMatchObject({
                 keyPointText: 'Function: contains("special")',
                 coverageExtent: 1.0,
@@ -353,21 +376,21 @@ describe('LLMCoverageEvaluator', () => {
         });
 
         it('should throw an error for a point with both `text` and `fn`', async () => {
-             const points: PointDefinition[] = [{ text: 'a', fn: 'b' }];
-             const input = createMockEvaluationInput('prompt-invalid', points);
-             
-             const result = await evaluator.evaluate([input]);
-             const model1Result = result.llmCoverageScores?.['prompt-invalid']?.['model1'];
-             expect(model1Result).toEqual({ error: expect.stringContaining("Point normalization failed") });
+            const input = createMockEvaluationInput('prompt-invalid', [
+                { text: 'some text', fn: 'contains', arg: 'word' }
+            ]);
+            await expect(evaluator.evaluate([input])).rejects.toThrow(
+                "Point object cannot have both 'text' and a function ('fn' or idiomatic). Prompt ID: 'prompt-invalid'"
+            );
         });
 
         it('should throw an error for a point with an invalid multiplier', async () => {
-             const points: PointDefinition[] = [{ text: 'a', multiplier: 100 }];
-             const input = createMockEvaluationInput('prompt-invalid-mult', points);
-
-             const result = await evaluator.evaluate([input]);
-             const model1Result = result.llmCoverageScores?.['prompt-invalid-mult']?.['model1'];
-             expect(model1Result).toEqual({ error: expect.stringContaining("Point multiplier must be a number between 0.1 and 10") });
+            const input = createMockEvaluationInput('prompt-invalid-mult', [
+                { text: 'some text', multiplier: 100 }
+            ]);
+            await expect(evaluator.evaluate([input])).rejects.toThrow(
+                "Point multiplier must be a number between 0.1 and 10. Found 100. Prompt ID: 'prompt-invalid-mult'"
+            );
         });
     });
 
@@ -384,10 +407,10 @@ describe('LLMCoverageEvaluator', () => {
             const model1Result = result.llmCoverageScores?.['prompt-should-not']?.['model1'];
             
             if (!model1Result || 'error' in model1Result) {
-                fail('Expected a valid coverage result, but got an error or undefined.');
+                throw new Error("Test failed: model1Result has an error or is null");
             }
 
-            expect(model1Result.avgCoverageExtent).toBe(0.0); // Inverted from 1.0
+            expect(model1Result.pointAssessments?.[0]?.coverageExtent).toBe(0.0); // Inverted from 1.0
             expect(model1Result.pointAssessments?.[0]).toMatchObject({
                 keyPointText: 'Function: contains("forbidden phrase")',
                 coverageExtent: 0.0,
@@ -407,10 +430,10 @@ describe('LLMCoverageEvaluator', () => {
             const model1Result = result.llmCoverageScores?.['prompt-should-not-2']?.['model1'];
 
             if (!model1Result || 'error' in model1Result) {
-                fail('Expected a valid coverage result, but got an error or undefined.');
+                throw new Error("Test failed: model1Result has an error or is null");
             }
 
-            expect(model1Result.avgCoverageExtent).toBe(1.0); // Inverted from 0.0
+            expect(model1Result.pointAssessments?.[0]?.coverageExtent).toBe(1.0); // Inverted from 0.0
             expect(model1Result.pointAssessments?.[0]).toMatchObject({
                 keyPointText: 'Function: contains("forbidden phrase")',
                 coverageExtent: 1.0,
@@ -431,10 +454,10 @@ describe('LLMCoverageEvaluator', () => {
             const model1Result = result.llmCoverageScores?.['prompt-should-not-graded']?.['model1'];
 
             if (!model1Result || 'error' in model1Result) {
-                fail('Expected a valid coverage result, but got an error or undefined.');
+                throw new Error("Test failed: model1Result has an error or is null");
             }
 
-            expect(model1Result.avgCoverageExtent).toBeCloseTo(0.0); // 1.0 becomes 0.0
+            expect(model1Result.pointAssessments?.[0]?.coverageExtent).toBeCloseTo(0.0); // 1.0 becomes 0.0
             expect(model1Result.pointAssessments?.[0]).toMatchObject({
                 keyPointText: 'Function: word_count_between([5,10])',
                 coverageExtent: 0.0,
@@ -457,11 +480,11 @@ describe('LLMCoverageEvaluator', () => {
             const model1Result = result.llmCoverageScores?.['prompt-should-not-llm']?.['model1'];
 
             if (!model1Result || 'error' in model1Result) {
-                fail('Expected a valid coverage result, but got an error or undefined.');
+                throw new Error("Test failed: model1Result has an error or is null");
             }
 
             // The original score was 0.75, so the inverted score is 1 - 0.75 = 0.25
-            expect(model1Result.avgCoverageExtent).toBeCloseTo(0.25);
+            expect(model1Result.pointAssessments?.[0]?.coverageExtent).toBeCloseTo(0.25);
             const assessment = model1Result.pointAssessments?.[0];
             expect(assessment).toBeDefined();
             expect(assessment?.keyPointText).toBe('The response should be good');

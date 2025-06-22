@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { ComparisonConfig } from '@/cli/types/comparison_v2'; // Assuming this path is correct for ComparisonConfig
+import { ComparisonConfig } from '@/cli/types/cli_types';
 
 /**
  * Generates a consistent content hash for a given comparison configuration.

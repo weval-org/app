@@ -1,4 +1,4 @@
-import { ConversationMessage } from '../../cli/types/comparison_v2'; // Corrected import path
+import { ConversationMessage } from '@/types/shared';
 
 /**
  * Common options for making a non-streaming API call to an LLM.
