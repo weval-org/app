@@ -4,7 +4,13 @@
 
 This document provides a detailed technical overview of the data processing pipeline, statistical methods, and scoring mechanisms used in the Weval platform. Its purpose is to ensure full transparency, enabling users and researchers to understand how our metrics are derived, and to be aware of the underlying assumptions and limitations of the approach. All evaluation blueprints contributed to the public repository at [github.com/weval-org/configs](https://github.com/weval-org/configs) are dedicated to the public domain via Creative Commons Zero (CC0).
 
-## 2. The Evaluation Pipeline
+## 2. Architecture and Data Flow
+
+The Weval platform is a multi-stage pipeline that transforms a high-level evaluation "blueprint" into a rich set of quantitative and qualitative results. It is designed to be highly modular, supporting different evaluation methods and storage backends.
+
+For a detailed visual representation of the entire process, including the execution loops and data transformations, please see our [**Architecture and Data Flow diagram**](ARCHITECTURE.md).
+
+## 3. The Evaluation Pipeline
 
 The platform operates on a multi-stage pipeline that proceeds from a user-defined "blueprint" to a rich, quantitative analysis.
 
@@ -14,11 +20,11 @@ The platform operates on a multi-stage pipeline that proceeds from a user-define
 4.  **Results Aggregation & Storage**: The outputs are combined into a single JSON result file containing raw responses, similarity matrices, coverage scores, and metadata.
 5.  **Statistical Summarization**: After a run, summary files are updated with pre-calculated statistics (e.g., average scores, standard deviations, drift detection) to power the web dashboard.
 
-## 3. Core Evaluation Metrics
+## 4. Core Evaluation Metrics
 
 The platform's analysis is primarily built upon two quantitative methods.
 
-### 3.1. Semantic Similarity (`embedding` method)
+### 4.1. Semantic Similarity (`embedding` method)
 
 This method quantifies the semantic closeness between model responses and a potential "ideal" answer.
 
@@ -27,7 +33,7 @@ This method quantifies the semantic closeness between model responses and a pote
     \[ \text{Similarity}(\mathbf{A}, \mathbf{B}) = \frac{\mathbf{A} \cdot \mathbf{B}}{\|\mathbf{A}\| \|\mathbf{B}\|} \]
     This yields a score between 0 and 1, where 1 indicates identical semantic meaning. This process produces a pairwise similarity matrix for each prompt.
 
-### 3.2. Rubric-Based Coverage (`llm-coverage` method)
+### 4.2. Rubric-Based Coverage (`llm-coverage` method)
 
 This method uses a powerful "judge" LLM to score a model's response against a structured, qualitative rubric defined in the blueprint. This is Weval's primary method for measuring nuanced performance against specific criteria.
 
@@ -63,11 +69,11 @@ The judge's categorical classification is mapped to a quantitative score.
 *   **Consensus Mode (Default)**: To improve robustness, Weval queries multiple judge models concurrently and averages the scores from all successful responses. This mitigates the impact of a single model's random error or specific bias.
 *   **Failover Mode**: The system can be configured to query judges sequentially, using the first valid response it receives.
 
-## 4. Aggregate Statistical Measures
+## 5. Aggregate Statistical Measures
 
 The platform synthesizes raw scores into higher-level, interpretable metrics.
 
-### 4.1. The Hybrid Score
+### 5.1. The Hybrid Score
 
 The Hybrid Score is a composite metric designed to provide a single, balanced measure of a model's performance.
 
@@ -75,7 +81,7 @@ The Hybrid Score is a composite metric designed to provide a single, balanced me
 *   **Formula**: It is the unweighted arithmetic mean of the semantic similarity to the ideal response (\(S_{\text{sim}}\)) and the average rubric coverage score (\(S_{\text{cov}}\)):
     \[ S_{\text{hybrid}} = \frac{S_{\text{sim}} + S_{\text{cov}}}{2} \]
 
-### 4.2. Model Performance Drift Detection
+### 5.2. Model Performance Drift Detection
 
 This is a statistical check to flag potential changes in a model's performance over time on an identical test.
 
@@ -85,11 +91,11 @@ This is a statistical check to flag potential changes in a model's performance o
     2.  The **relative score change** is \(\ge 10\%\).
 *   **Metric**: The system highlights the model that meets these criteria and has the largest score range (max score - min score) across its runs.
 
-## 5. Risks, Assumptions, and Affordances
+## 6. Risks, Assumptions, and Affordances
 
 Weval's methodology is designed to be robust, but like any quantitative system, it operates on a set of assumptions and has inherent limitations. Users should consider the following when interpreting the results.
 
-### 5.1. Foundational Assumptions
+### 6.1. Foundational Assumptions
 
 The validity of Weval's metrics rests on these core assumptions:
 
@@ -97,14 +103,14 @@ The validity of Weval's metrics rests on these core assumptions:
 *   **Assumption of Linearity in Score Mapping**: The 5-point categorical scale from the LLM judge is mapped to a linear, equidistant numerical scale. This assumes the qualitative gap between "Absent" and "Slightly Present" is the same as between "Majorly Present" and "Fully Present," which may not be perceptually true.
 *   **Assumption of Criterion Independence**: The rubric score (`avgCoverageExtent`) is a weighted average that treats each criterion as an independent variable. It does not account for potential correlations between criteria (e.g., "clarity" and "conciseness").
 
-### 5.2. Known Risks and Limitations for Interpretation
+### 6.2. Known Risks and Limitations for Interpretation
 
 *   **Risk of Masking Nuance**: The Hybrid Score, by design, collapses two distinct performance axes into one number. This can obscure critical insights. A model could score well by excelling on one axis while failing on the other. **It should be used as a high-level indicator, not a substitute for examining the individual score components.**
 *   **Risk of Arbitrary Thresholds in Drift Detection**: The thresholds for flagging performance drift (0.05 absolute, 10% relative) are heuristics, not empirically derived from the statistical properties of the platform's data. They are designed to be reasonably conservative but may not be optimal, and the "drift" signal should be treated as a flag for further investigation, not a definitive conclusion.
 *   **Risk of Shared Judge Bias**: The `consensus` mode for LLM-judged rubrics reduces noise from any single judge but **does not protect against shared systematic biases**. If all models in the judge pool share the same underlying bias (e.g., political, positional), the consensus score will simply represent the average of that bias.
 *   **Risk of Misinterpreting Aggregate Rankings**: High-level platform statistics like "Top Ranked Models" average scores across vastly different and non-commensurate tasks (e.g., legal analysis vs. poetry). This rewards generalist models and can be statistically misleading. **These aggregate views should be interpreted with extreme caution and skepticism.**
 
-### 5.3. Affordances and Recommended Use
+### 6.3. Affordances and Recommended Use
 
 *   **Drill Down**: Always supplement high-level metrics like the Hybrid Score by examining the underlying rubric assessments and semantic similarity scores. The richest insights are in the details.
 *   **Context is Key**: A model's performance score is only meaningful within the context of the specific blueprint it was tested on. Avoid generalizing performance from one domain to another.
