@@ -15,7 +15,7 @@ graph TD;
     classDef final fill:#d4edda,stroke:#78c885,stroke-width:2px;
 
     %% --- 1. Blueprint Definition & Parsing ---
-    subgraph "1. Input & Parsing"
+    subgraph "1: Input & Parsing"
         A[/"fa:fa-file-code Blueprint.yml"/]:::input;
         B["weval run-config"]:::process;
         C["Parse & Normalize Blueprint"]:::process;
@@ -23,7 +23,7 @@ graph TD;
     end
 
     %% --- 2. Execution & Evaluation ---
-    subgraph "2. Execution & Evaluation"
+    subgraph "2: Execution & Evaluation"
         subgraph "Permutation Loops"
             direction LR
             LoopSys["For each<br>System Prompt"]:::loop;
@@ -80,13 +80,13 @@ graph TD;
             end
         end
 
-        V["Store Individual Result<br>(Similarity + Coverage)"]:::data;
+        V["Store Individual Result (Similarity + Coverage)"]:::data;
         J --> V;
         U --> V;
     end
 
     %% --- 3. Final Aggregation & Storage ---
-    subgraph "3. Final Aggregation & Storage (after all loops)"
+    subgraph "3: Final Aggregation & Storage (after all loops)"
         W["Calculate Hybrid Scores<br>For each completed run"]:::eval;
         X[/"<div style='font-weight:bold'>Result.json File</div><br/>- Contains ALL permutation results"/]:::final;
         Y["Update Summary Statistics<br>(Drift, Rankings, etc.)"]:::process;
