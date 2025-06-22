@@ -29,6 +29,7 @@
     --header: 47 60% 97%;
     --surface: 0 0% 100%;
     --highlight-warning: 46 100% 63.1%;
+    --highlight-warning-foreground: 330 3% 19%;
 
     /* Default chart/highlight colors (can be customized) */
     --chart-1: 220 70% 50%;
@@ -40,6 +41,7 @@
     --highlight-success: 167 59% 22%;
     --highlight-success-foreground: 0 0% 100%;
     --highlight-error: 8 86% 60%; /* Same as destructive */
+    --highlight-error-foreground: 0 0% 100%;
 
     /* Custom Slate Palette */
     --slate-50: 0 0% 98%;
@@ -96,6 +98,7 @@
     --header: 330 3% 22%; /* Derived from dark background */
     --surface: 330 3% 24%; /* Derived from dark background */
     --highlight-warning: 46 100% 63.1%; /* Same as light warning */
+    --highlight-warning-foreground: 330 3% 19%;
 
     /* Default chart/highlight colors (can be customized) */
     --chart-1: 217 91% 60%;
@@ -107,6 +110,7 @@
     --highlight-success: 167 60% 45%;
     --highlight-success-foreground: 167 60% 10%;
     --highlight-error: 8 86% 60%; /* Same as destructive */
+    --highlight-error-foreground: 0 0% 100%;
 
     /* Custom Slate Palette */
     --slate-50: 330 3% 98%;

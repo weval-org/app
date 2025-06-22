@@ -367,15 +367,23 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                         <th className={secondColModelAvgSticky}></th>
                         {localSortedModels.map(modelId => {
                             const modelAvgCoverage = calculateModelAverageCoverage(modelId);
+                            let colorClasses = 'bg-muted/80 text-muted-foreground';
+                            if (modelAvgCoverage !== null) {
+                                const score = modelAvgCoverage * 100;
+                                if (score >= 75) {
+                                    colorClasses = 'bg-highlight-success/80 text-highlight-success-foreground';
+                                } else if (score >= 50) {
+                                    colorClasses = 'bg-highlight-warning/80 text-highlight-warning-foreground';
+                                } else if (score > 0) {
+                                    colorClasses = 'bg-highlight-error/80 text-highlight-error-foreground';
+                                }
+                            }
                             return (
                                  <th key={`${modelId}-avg-score`} className={cn(modelAvgScoreHeaderBase, "font-medium text-foreground dark:text-slate-200 w-36")}>
                                       {modelAvgCoverage !== null ? (
                                           <span className={cn(
-                                                "inline-block px-1 py-0.5 rounded-md text-white dark:text-slate-50 font-semibold font-mono",
-                                                (modelAvgCoverage * 100) >= 75 ? 'bg-highlight-success/80' : 
-                                                (modelAvgCoverage * 100) >= 50 ? 'bg-highlight-warning/80' : 
-                                                (modelAvgCoverage * 100) > 0 ? 'bg-highlight-error/80' : 
-                                                'bg-muted/80'
+                                                "inline-block px-1 py-0.5 rounded-md font-semibold font-mono",
+                                                colorClasses,
                                             )}>
                                             {(modelAvgCoverage * 100).toFixed(1)}%
                                         </span>
@@ -390,6 +398,16 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                 <tbody className="divide-y divide-border dark:divide-slate-700">
                     {sortedPromptIds.map((promptId) => {
                         const avgScore = calculatePromptAverage(promptId);
+                        let colorClasses = 'bg-muted/80 text-muted-foreground';
+                        if (avgScore !== null) {
+                            if (avgScore >= 75) {
+                                colorClasses = 'bg-highlight-success/90 text-highlight-success-foreground';
+                            } else if (avgScore >= 50) {
+                                colorClasses = 'bg-highlight-warning/90 text-highlight-warning-foreground';
+                            } else {
+                                colorClasses = 'bg-highlight-error/90 text-highlight-error-foreground';
+                            }
+                        }
                         return (
                             <tr
                                 key={promptId}
@@ -398,10 +416,8 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                                 <td className="border-x border-border dark:border-slate-700 px-1 py-2 text-center align-middle font-medium sticky left-0 z-10 bg-card/90 hover:bg-muted/60 dark:hover:bg-slate-700/50 w-16">
                                     {avgScore !== null ? (
                                         <span className={cn(
-                                            "inline-block px-1.5 py-0.5 rounded-md text-white dark:text-slate-50 text-[10px] font-semibold font-mono",
-                                            avgScore >= 75 ? 'bg-highlight-success/90' :
-                                            avgScore >= 50 ? 'bg-highlight-warning/90' :
-                                            'bg-highlight-error/90'
+                                            "inline-block px-1.5 py-0.5 rounded-md text-[10px] font-semibold font-mono",
+                                            colorClasses
                                         )}>
                                             {avgScore.toFixed(1)}%
                                         </span>

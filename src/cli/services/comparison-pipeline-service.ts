@@ -96,7 +96,10 @@ async function generateAllResponses(
                                 useCache: useCache
                             });
                             hasError = checkForErrors(finalAssistantResponseText);
-                            if (hasError) errorMessage = `Response contains error markers.`;
+                            if (hasError) {
+                                const errorMatch = finalAssistantResponseText.match(/<error>([\s\S]*)<\/error>/);
+                                errorMessage = errorMatch ? errorMatch[1].trim() : `Response contains error markers.`;
+                            }
 
                             fullConversationHistoryWithResponse = [...messagesForLlm, { role: 'assistant', content: finalAssistantResponseText }];
 

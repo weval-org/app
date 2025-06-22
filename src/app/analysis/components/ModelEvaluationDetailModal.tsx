@@ -209,7 +209,7 @@ const EvaluationView: React.FC<{
     expandedLogs: Record<number, boolean>,
     toggleLogExpansion: (index: number) => void;
 }> = ({ variant, expandedLogs, toggleLogExpansion }) => {
-    const { modelResponse, assessments } = variant;
+    const { modelResponse, assessments, systemPrompt } = variant;
 
     return (
         <div className="flex-1 px-3 text-sm flex flex-col lg:flex-row lg:space-x-3 overflow-hidden min-h-0"> 
@@ -317,6 +317,18 @@ const ModelEvaluationDetailModal: React.FC<ModelEvaluationDetailModalProps> = ({
                     if (!variantData) return null;
                     return (
                         <TabsContent key={index} value={String(index)} className="flex-1 flex flex-col min-h-0 mt-0 data-[state=inactive]:hidden">
+                            <div className="px-6 pt-4 pb-2">
+                                {variantData.systemPrompt ? (
+                                    <div className="p-2 rounded-md bg-sky-100/50 dark:bg-sky-900/30 text-xs text-sky-800 dark:text-sky-200 ring-1 ring-sky-200 dark:ring-sky-800">
+                                        <p className="font-semibold text-sky-900 dark:text-sky-300">System Prompt:</p>
+                                        <p className="whitespace-pre-wrap">{variantData.systemPrompt}</p>
+                                    </div>
+                                ) : (
+                                    <div className="p-2 rounded-md bg-slate-100/50 dark:bg-slate-900/30 text-xs text-slate-500 dark:text-slate-400 ring-1 ring-slate-200 dark:ring-slate-800">
+                                        <p className="italic">[No System Prompt was used for this variant]</p>
+                                    </div>
+                                )}
+                            </div>
                             <EvaluationView 
                                 variant={variantData} 
                                 expandedLogs={expandedLogs}
@@ -327,11 +339,25 @@ const ModelEvaluationDetailModal: React.FC<ModelEvaluationDetailModalProps> = ({
                 })}
             </Tabs>
         ) : (
-            <EvaluationView 
-                variant={variantEvaluations.get(initialVariantIndex)!}
-                expandedLogs={expandedLogs}
-                toggleLogExpansion={toggleLogExpansion}
-            />
+            <div className="flex-1 flex flex-col min-h-0">
+                <div className="px-6 pt-4 pb-2">
+                    {variantEvaluations.get(initialVariantIndex)!.systemPrompt ? (
+                        <div className="p-2 rounded-md bg-sky-100/50 dark:bg-sky-900/30 text-xs text-sky-800 dark:text-sky-200 ring-1 ring-sky-200 dark:ring-sky-800">
+                            <p className="font-semibold text-sky-900 dark:text-sky-300">System Prompt:</p>
+                            <p className="whitespace-pre-wrap">{variantEvaluations.get(initialVariantIndex)!.systemPrompt}</p>
+                        </div>
+                    ) : (
+                        <div className="p-2 rounded-md bg-slate-100/50 dark:bg-slate-900/30 text-xs text-slate-500 dark:text-slate-400 ring-1 ring-slate-200 dark:ring-slate-800">
+                            <p className="italic">[No System Prompt was used for this variant]</p>
+                        </div>
+                    )}
+                </div>
+                <EvaluationView 
+                    variant={variantEvaluations.get(initialVariantIndex)!}
+                    expandedLogs={expandedLogs}
+                    toggleLogExpansion={toggleLogExpansion}
+                />
+            </div>
         )}
 
 

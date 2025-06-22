@@ -78,8 +78,14 @@ export default {
           DEFAULT: 'hsl(var(--highlight-success))',
           foreground: 'hsl(var(--highlight-success-foreground))'
         },
-        'highlight-warning': 'hsl(var(--highlight-warning))',
-        'highlight-error': 'hsl(var(--highlight-error))',
+        'highlight-warning': {
+          DEFAULT: 'hsl(var(--highlight-warning))',
+          foreground: 'hsl(var(--highlight-warning-foreground))'
+        },
+        'highlight-error': {
+          DEFAULT: 'hsl(var(--highlight-error))',
+          foreground: 'hsl(var(--highlight-error-foreground))'
+        },
         'coverage-unmet': 'hsl(var(--coverage-unmet))',
         'coverage-fully-met': 'hsl(var(--coverage-fully-met))',
         'coverage-no-extent': 'hsl(var(--coverage-no-extent))',

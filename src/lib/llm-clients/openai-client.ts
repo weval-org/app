@@ -30,7 +30,7 @@ class OpenAIClient {
     }
 
     public async makeApiCall(options: LLMApiCallOptions): Promise<LLMApiCallResponse> {
-        const { modelName, prompt, systemPrompt, temperature = 0.3, maxTokens = 1500, cache = true } = options;
+        const { modelName, messages: optionMessages, systemPrompt, temperature = 0.3, maxTokens = 1500, cache = true, prompt } = options;
         
         const fetch = (await import('node-fetch')).default;
 
@@ -42,10 +42,20 @@ class OpenAIClient {
         }
 
         const messages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [];
-        if (systemPrompt) {
-            messages.push({ role: 'system', content: systemPrompt });
+
+        // Favor messages array if it exists
+        if (optionMessages && optionMessages.length > 0) {
+            messages.push(...optionMessages.map(m => ({ role: m.role, content: m.content || '' })));
+            if (systemPrompt && !messages.find(m => m.role === 'system')) {
+                 messages.unshift({ role: 'system', content: systemPrompt });
+            }
+        } else {
+            // Fallback to legacy prompt string behavior
+            if (systemPrompt) {
+                messages.push({ role: 'system', content: systemPrompt });
+            }
+            messages.push({ role: 'user', content: prompt || '' });
         }
-        messages.push({ role: 'user', content: prompt || '' });
 
         const body = JSON.stringify({
             model: modelName,

@@ -509,7 +509,7 @@ The criterion is an assertion being made about the <TEXT>. It might be allude to
 
                     if (responseData.hasError || !responseData.finalAssistantResponseText || responseData.finalAssistantResponseText.trim() === '') {
                         this.logger.warn(`[LLMCoverageEvaluator] -- Skipping coverage for ${modelId} on prompt ${promptData.promptId} due to response error/empty.`);
-                        llmCoverageScores[promptData.promptId][modelId] = { error: 'Response generation error or empty response' };
+                        llmCoverageScores[promptData.promptId][modelId] = { error: responseData.errorMessage || 'Response generation error or empty response' };
                         continue;
                     }
 

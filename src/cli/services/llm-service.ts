@@ -1,5 +1,5 @@
-import { dispatchStreamApiCall } from '../../lib/llm-clients/client-dispatcher';
-import { LLMStreamApiCallOptions, StreamChunk } from '../../lib/llm-clients/types';
+import { dispatchStreamApiCall, dispatchMakeApiCall } from '../../lib/llm-clients/client-dispatcher';
+import { LLMStreamApiCallOptions, LLMApiCallOptions, StreamChunk } from '../../lib/llm-clients/types';
 import { ConversationMessage } from '../types/comparison_v2';
 import { getConfig } from '../config';
 import { getCache, generateCacheKey } from '../../lib/cache-service';
@@ -66,7 +66,7 @@ export async function getModelResponse(options: GetModelResponseOptions): Promis
             console.log(chalk.yellow('  -> Caching is enabled. Will store response after generation.'));
         }
 
-        const clientOptions: Omit<LLMStreamApiCallOptions, 'modelName'> & { modelId: string } = {
+        const clientOptions: Omit<LLMApiCallOptions, 'modelName'> & { modelId: string } = {
             modelId: modelId, 
             messages: messages,
             systemPrompt: systemPrompt ?? undefined,
@@ -88,22 +88,15 @@ export async function getModelResponse(options: GetModelResponseOptions): Promis
             }
         }
 
-        let fullResponse = '';
-        for await (const chunk of dispatchStreamApiCall(clientOptions)) {
-            if (chunk.type === 'content') {
-                fullResponse += chunk.content;
-                if (logProgress) {
-                    process.stdout.write(chalk.gray('.'));
-                }
-            } else if (chunk.type === 'error') {
-                console.error(chalk.red(`\nError chunk from stream for ${modelId}: ${chunk.error}`));
-                return `<error> LLM issue from stream for ${modelId}: ${chunk.error} </error>`;
-            }
+        const response = await dispatchMakeApiCall(clientOptions);
+
+        if (response.error) {
+            const errorMessage = `API Error from model ${modelId}: ${response.error}`;
+            console.error(chalk.red(errorMessage));
+            return `<error> ${errorMessage} </error>`;
         }
-        
-        if (logProgress) {
-           process.stdout.write('\n'); 
-        }
+
+        const fullResponse = response.responseText;
 
         if (useCache) {
             const cacheKeyPayload = {

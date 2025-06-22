@@ -320,25 +320,33 @@ export default function BetaComparisonClientPage() {
     const context = data.promptContexts[currentPromptId];
     const promptConfig = data.config.prompts.find(p => p.id === currentPromptId);
 
+    const systemMessages = Array.isArray(context) ? context.filter(msg => msg.role === 'system') : [];
+    const conversationMessages = Array.isArray(context) ? context.filter(msg => msg.role !== 'system') : context;
+
     const renderContent = () => {
-        if (typeof context === 'string') {
-          return <div className="text-card-foreground dark:text-card-foreground whitespace-pre-wrap">{context}</div>;
+        const messagesToRender = conversationMessages;
+
+        if (typeof messagesToRender === 'string') {
+          return <div className="text-card-foreground dark:text-card-foreground whitespace-pre-wrap">{messagesToRender}</div>;
         }
 
-        if (Array.isArray(context)) {
-          if (context.length === 1 && context[0].role === 'user') {
-            return <div className="text-card-foreground dark:text-card-foreground whitespace-pre-wrap">{context[0].content}</div>;
+        if (Array.isArray(messagesToRender)) {
+          if (messagesToRender.length === 1 && messagesToRender[0].role === 'user') {
+            return <div className="text-card-foreground dark:text-card-foreground whitespace-pre-wrap">{messagesToRender[0].content}</div>;
           }
-          if (context.length > 0) {
+          if (messagesToRender.length > 0) {
             return (
-              <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar p-1 rounded bg-muted/30 dark:bg-muted/20">
-                {context.map((msg, index) => (
-                  <div key={index} className={`p-2 rounded-md ${msg.role === 'user' ? 'bg-sky-100 dark:bg-sky-900/50' : 'bg-muted dark:bg-muted/50'}`}>
-                    <p className="text-xs font-semibold text-muted-foreground dark:text-muted-foreground capitalize">{msg.role}</p>
-                    <p className="text-sm text-card-foreground dark:text-card-foreground whitespace-pre-wrap">{msg.content}</p>
-                  </div>
-                ))}
-              </div>
+              <>
+                <p className="text-xs font-semibold text-muted-foreground mt-4">Conversation:</p>
+                <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar p-1 rounded bg-muted/30 dark:bg-muted/20">
+                    {messagesToRender.map((msg, index) => (
+                    <div key={index} className={`p-2 rounded-md ${msg.role === 'user' ? 'bg-sky-100 dark:bg-sky-900/50' : 'bg-muted dark:bg-muted/50'}`}>
+                        <p className="text-xs font-semibold text-muted-foreground dark:text-muted-foreground capitalize">{msg.role}</p>
+                        <p className="text-sm text-card-foreground dark:text-card-foreground whitespace-pre-wrap">{msg.content}</p>
+                    </div>
+                    ))}
+                </div>
+              </>
             );
           }
         }
@@ -352,6 +360,18 @@ export default function BetaComparisonClientPage() {
                     <ReactMarkdown remarkPlugins={[RemarkGfm]}>{promptConfig.description}</ReactMarkdown>
                 </div>
             )}
+            
+            {systemMessages.length > 0 && (
+                <div className="space-y-2 mt-4">
+                    {systemMessages.map((sysMsg, index) => (
+                        <div key={`sys-${index}`} className="p-3 rounded-md bg-green-50 dark:bg-green-900/40 ring-1 ring-green-200 dark:ring-green-800">
+                            <h4 className="text-sm font-semibold text-green-800 dark:text-green-300">System Prompt</h4>
+                            <p className="text-sm text-green-900 dark:text-green-200 whitespace-pre-wrap mt-1">{sysMsg.content}</p>
+                        </div>
+                    ))}
+                </div>
+            )}
+
             {renderContent()}
         </div>
     )
@@ -398,6 +418,14 @@ export default function BetaComparisonClientPage() {
       ])
     );
   }, [data?.promptContexts, getPromptContextDisplayString]);
+
+  const currentPromptSystemPrompt = useMemo(() => {
+    if (!currentPromptId || !data?.config?.prompts) {
+      return null;
+    }
+    const promptConfig = data.config.prompts.find(p => p.id === currentPromptId);
+    return promptConfig?.system ?? null;
+  }, [currentPromptId, data?.config?.prompts]);
 
   useEffect(() => {
     document.title = pageTitle;
@@ -585,6 +613,23 @@ export default function BetaComparisonClientPage() {
                 </CardHeader>
                 <CardContent className="text-sm">
                     {renderPromptDetails()}
+                </CardContent>
+            </Card>
+        )}
+
+        {/* show prompt SPECIFIC sys prompt if available */}
+        {currentPromptId && currentPromptSystemPrompt && (
+            <Card className="shadow-lg border-border dark:border-border">
+                <CardHeader>
+                    <CardTitle className="text-primary text-primary">Prompt-Specific System Prompt</CardTitle>
+                    <CardDescription>
+                        This prompt was executed with a specific system prompt, overriding any run-level variants.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="p-3 rounded-md bg-green-50 dark:bg-green-900/40 ring-1 ring-green-200 dark:ring-green-800">
+                        <p className="text-sm text-green-900 dark:text-green-200 whitespace-pre-wrap">{currentPromptSystemPrompt}</p>
+                    </div>
                 </CardContent>
             </Card>
         )}
