@@ -4,6 +4,7 @@ import { ThemeProvider } from '@/components/ThemeProvider';
 import { Toaster } from '@/components/ui/toaster';
 import TopProgressBar from './components/TopProgressBar';
 import { Suspense } from 'react';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 const geist = Geist({
   subsets: [],
@@ -34,6 +35,7 @@ export default function RootLayout({
           </Suspense>
           {children}
           <Toaster />
+          <ThemeToggle />
         </ThemeProvider>
       </body>
     </html>
