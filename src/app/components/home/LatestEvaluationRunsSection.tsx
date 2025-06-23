@@ -20,8 +20,6 @@ const getHybridScoreColor = (score: number | null | undefined): string => {
   return 'text-red-600 dark:text-red-400';
 };
 
-// Define dynamic components once, outside the render function
-const ExternalLink = nextDynamic(() => import('lucide-react').then(mod => mod.ExternalLink));
 const History = nextDynamic(() => import('lucide-react').then(mod => mod.History));
 const Layers = nextDynamic(() => import('lucide-react').then(mod => mod.Layers));
 const Hash = nextDynamic(() => import('lucide-react').then(mod => mod.Hash));

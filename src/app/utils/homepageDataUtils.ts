@@ -6,8 +6,8 @@ import { AggregateStatsData } from '@/app/components/AggregateStatsDisplay';
 import { PotentialDriftInfo } from '@/app/components/ModelDriftIndicator';
 
 // Re-exporting this from the original source for use in the API route.
-export type { AllCoverageScores } from '@/app/analysis/components/CoverageHeatmapCanvas'; 
-import { AllCoverageScores } from '@/app/analysis/components/CoverageHeatmapCanvas';
+export type { AllCoverageScores } from '@/app/(full)/analysis/components/CoverageHeatmapCanvas'; 
+import { AllCoverageScores } from '@/app/(full)/analysis/components/CoverageHeatmapCanvas';
 
 export interface EnhancedRunInfo {
   runLabel: string; 

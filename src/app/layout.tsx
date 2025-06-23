@@ -1,21 +1,18 @@
-import type { Metadata } from "next";
-import { Geist } from "next/font/google";
-import { ThemeProvider } from "@/components/ThemeProvider";
-import "./globals.css";
-import { Toaster } from "@/components/ui/toaster";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import TopProgressBar from "@/app/components/TopProgressBar";
+import { Geist } from 'next/font/google';
+import './globals.css';
+import { ThemeProvider } from '@/components/ThemeProvider';
+import { Toaster } from '@/components/ui/toaster';
+import TopProgressBar from './components/TopProgressBar';
 import { Suspense } from 'react';
 
 const geist = Geist({
-  subsets: ["latin"],
+  subsets: [],
   variable: '--font-geist-sans',
 });
 
-// This metadata is now primarily managed in metadata.ts
-export const metadata: Metadata = {
+export const metadata = {
   title: 'Weval',
-  description: 'A framework for generating, analyzing, and visualizing the semantic similarity of responses from large language models.',
+  description: 'An open-source framework for evaluation.',
 };
 
 export default function RootLayout({
@@ -24,9 +21,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={geist.variable} suppressHydrationWarning>
-      <head />
-      <body>
+    <html lang="en" suppressHydrationWarning>
+      <body className={geist.variable}>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
@@ -38,7 +34,6 @@ export default function RootLayout({
           </Suspense>
           {children}
           <Toaster />
-          <ThemeToggle />
         </ThemeProvider>
       </body>
     </html>

@@ -29,7 +29,7 @@ Ensure you have the following installed:
 
 1.  **Clone the Repository:**
     ```bash
-    git clone https://github.com/weval/app.git
+    git clone https://github.com/weval-org/app.git
     cd llm-semantic-comparison # Or your repository name
     ```
 

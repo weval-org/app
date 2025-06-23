@@ -1,8 +1,6 @@
 import React from 'react';
 
-interface CIPLogoProps extends React.SVGProps<SVGSVGElement> {
-  // Custom props can be added here if needed in the future
-}
+interface CIPLogoProps extends React.SVGProps<SVGSVGElement> {}
 
 const CIPLogo: React.FC<CIPLogoProps> = (props) => (
   <svg

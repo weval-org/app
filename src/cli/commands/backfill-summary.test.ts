@@ -2,8 +2,25 @@ import { backfillSummaryCommand } from './backfill-summary';
 import * as storageService from '../../lib/storageService';
 import { getConfig }from '../config';
 import { EnhancedComparisonConfigInfo } from '../../app/utils/homepageDataUtils';
+import { ModelRunPerformance } from '@/types/shared';
+import { ComparisonDataV2 as FetchedComparisonData } from '../../app/utils/types';
+import { IDEAL_MODEL_ID } from '../../app/utils/calculationUtils';
 
-jest.mock('../../lib/storageService');
+// Use the real implementation for updateSummaryDataWithNewRun, but mock the others.
+jest.mock('../../lib/storageService', () => {
+  const originalStorageService = jest.requireActual('../../lib/storageService');
+  return {
+    ...originalStorageService,
+    listConfigIds: jest.fn(),
+    listRunsForConfig: jest.fn(),
+    getResultByFileName: jest.fn(),
+    saveConfigSummary: jest.fn(),
+    saveHomepageSummary: jest.fn(),
+    saveLatestRunsSummary: jest.fn(),
+    saveModelSummary: jest.fn(),
+  };
+});
+
 jest.mock('../config');
 
 const mockedStorage = storageService as jest.Mocked<typeof storageService>;
@@ -21,6 +38,14 @@ const mockConfigData1 = {
     tags: ['_featured'],
     runs: [{ runLabel: 'run-1', timestamp: '2024-01-01T10-00-00-000Z', fileName: 'f1' }],
     latestRunTimestamp: '2024-01-01T10-00-00-000Z',
+    runLabel: 'run-1',
+    timestamp: '2024-01-01T10-00-00-000Z',
+    effectiveModels: ['test-provider:test-model-a'],
+    evaluationResults: {
+        perModelHybridScores: {
+            'test-provider:test-model-a': { average: 0.9, stddev: 0 }
+        }
+    }
 };
 
 const mockConfigData2 = {
@@ -31,12 +56,76 @@ const mockConfigData2 = {
     latestRunTimestamp: '2024-01-02T10-00-00-000Z',
 };
 
+const mockResultData1: Partial<FetchedComparisonData> = {
+    configId: 'config-1',
+    configTitle: 'Config 1',
+    runLabel: 'run-1',
+    timestamp: '2024-01-01T10-00-00-000Z',
+    config: {
+        id: 'config-1',
+        title: 'Config 1',
+        models: ['test-provider:test-model-a'],
+        prompts: [{id: 'p1', promptText: '...', idealResponse: 'ideal text'}],
+        tags: ['_featured'],
+    } as any,
+    evalMethodsUsed: ['embedding', 'llm-coverage'],
+    promptIds: ['p1'],
+    effectiveModels: ['test-provider:test-model-a', IDEAL_MODEL_ID],
+    evaluationResults: {
+        perPromptSimilarities: {
+            'p1': {
+                'test-provider:test-model-a': {
+                    [IDEAL_MODEL_ID]: 0.9
+                }
+            }
+        },
+        llmCoverageScores: {
+            'p1': {
+                'test-provider:test-model-a': {
+                    avgCoverageExtent: 0.9,
+                    keyPointsCount: 1,
+                } as any
+            }
+        }
+    }
+ };
+
+const mockResultData2: Partial<FetchedComparisonData> = {
+    configId: 'config-2',
+    configTitle: 'Config 2',
+    runLabel: 'run-2',
+    timestamp: '2024-01-02T10-00-00-000Z',
+    config: {
+        id: 'config-2',
+        title: 'Config 2',
+        models: ['test-provider:test-model-b'],
+        prompts: [{id: 'p1', promptText: '...', idealResponse: 'ideal text'}],
+        tags: ['not-featured'],
+    } as any,
+    evalMethodsUsed: ['embedding', 'llm-coverage'],
+    promptIds: ['p1'],
+    effectiveModels: ['test-provider:test-model-b', IDEAL_MODEL_ID],
+    evaluationResults: {
+        perPromptSimilarities: {
+            'p1': {
+                'test-provider:test-model-b': {
+                    [IDEAL_MODEL_ID]: 0.7
+                }
+            }
+        },
+        llmCoverageScores: {
+            'p1': {
+                'test-provider:test-model-b': {
+                    avgCoverageExtent: 0.85,
+                    keyPointsCount: 1,
+                } as any
+            }
+        }
+    }
+};
+
 const mockRunInfo1 = { runLabel: 'run-1', timestamp: '2024-01-01T10-00-00-000Z', fileName: 'f1.json' };
-const mockResultData1 = { configId: 'config-1', runLabel: 'run-1', timestamp: '2024-01-01T10-00-00-000Z', tags: ['_featured'] };
-
 const mockRunInfo2 = { runLabel: 'run-2', timestamp: '2024-01-02T10-00-00-000Z', fileName: 'f2.json' };
-const mockResultData2 = { configId: 'config-2', runLabel: 'run-2', timestamp: '2024-01-02T10-00-00-000Z', tags: ['not-featured'] };
-
 
 describe('backfill-summary command', () => {
     beforeEach(() => {
@@ -55,11 +144,6 @@ describe('backfill-summary command', () => {
             if (configId === 'config-2') return Promise.resolve(mockResultData2 as any);
             return Promise.resolve(null);
         });
-        mockedStorage.updateSummaryDataWithNewRun.mockImplementation((summary: EnhancedComparisonConfigInfo[] | null, newData: any) => {
-             if (newData.configId === 'config-1') return [mockConfigData1 as any];
-             if (newData.configId === 'config-2') return [mockConfigData2 as any];
-             return [];
-        });
     });
 
     it('should process all configs and runs, saving a summary for each', async () => {
@@ -72,8 +156,24 @@ describe('backfill-summary command', () => {
         
         // Check that a per-config summary was saved for each config
         expect(mockedStorage.saveConfigSummary).toHaveBeenCalledTimes(2);
-        expect(mockedStorage.saveConfigSummary).toHaveBeenCalledWith('config-1', mockConfigData1);
-        expect(mockedStorage.saveConfigSummary).toHaveBeenCalledWith('config-2', mockConfigData2);
+        expect(mockedStorage.saveConfigSummary).toHaveBeenCalledWith('config-1', expect.any(Object));
+        expect(mockedStorage.saveConfigSummary).toHaveBeenCalledWith('config-2', expect.any(Object));
+    });
+
+    it('should call saveModelSummary for models found in runs', async () => {
+        await backfillSummaryCommand.parseAsync(['node', 'test']);
+
+        // Check that the logic to generate model summaries was triggered
+        expect(mockedStorage.saveModelSummary).toHaveBeenCalled();
+
+        // Check that it was called for 'test-model-b' which was in mockResultData2
+        const saveModelSummaryCalls = mockedStorage.saveModelSummary.mock.calls;
+        const modelBSummaryCall = saveModelSummaryCalls.find(call => call[0] === 'test-provider:test-model-b');
+        expect(modelBSummaryCall).toBeDefined();
+        // Optionally, check some details of the summary object passed
+        const modelBSummaryObject = modelBSummaryCall![1];
+        expect(modelBSummaryObject.overallStats.totalRuns).toBe(1);
+        expect(modelBSummaryObject.overallStats.averageHybridScore).toBeCloseTo(0.7975);
     });
 
     it('should save a hybrid homepage summary with run data only for featured configs', async () => {
@@ -89,13 +189,13 @@ describe('backfill-summary command', () => {
         expect(savedHomepageSummary.configs).toHaveLength(2);
 
         // Find the featured config and assert it has its run data
-        const featuredConfig = savedHomepageSummary.configs.find(c => c.configId === 'config-1');
+        const featuredConfig = savedHomepageSummary.configs.find((c: any) => c.configId === 'config-1');
         expect(featuredConfig).toBeDefined();
         expect(featuredConfig!.tags).toContain('_featured');
         expect(featuredConfig!.runs).toHaveLength(1); // It should have its run data
 
         // Find the non-featured config and assert its run data is stripped
-        const nonFeaturedConfig = savedHomepageSummary.configs.find(c => c.configId === 'config-2');
+        const nonFeaturedConfig = savedHomepageSummary.configs.find((c: any) => c.configId === 'config-2');
         expect(nonFeaturedConfig).toBeDefined();
         expect(nonFeaturedConfig!.tags).not.toContain('_featured');
         expect(nonFeaturedConfig!.runs).toHaveLength(0); // Its runs should be an empty array

@@ -3,7 +3,7 @@
 import nextDynamic from 'next/dynamic';
 import Link from 'next/link';
 import { Card } from '@/components/ui/card';
-import CoverageHeatmapCanvas from '@/app/analysis/components/CoverageHeatmapCanvas';
+import CoverageHeatmapCanvas from '@/app/(full)/analysis/components/CoverageHeatmapCanvas';
 import { EnhancedComparisonConfigInfo, AllCoverageScores } from '@/app/utils/homepageDataUtils';
 import ClientDateTime from '../ClientDateTime';
 import { BLUEPRINT_CONFIG_REPO_URL } from '@/lib/configConstants';

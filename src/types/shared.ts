@@ -128,4 +128,49 @@ export interface WevalResult {
     errors?: Record<string, Record<string, string>>;
     evaluationResults: WevalEvaluationResults;
     excludedModels?: string[];
+    executiveSummary?: {
+        modelId: string;
+        content: string;
+    }
+}
+
+// --- New Types for Model-Specific Summaries ---
+
+export interface ModelRunPerformance {
+  configId: string;
+  configTitle: string;
+  runLabel: string;
+  timestamp: string;
+  hybridScore: number | null;
+}
+
+export interface ModelStrengthsWeaknesses {
+  topPerforming: {
+    configId: string;
+    configTitle: string;
+    score: number;
+  }[];
+  weakestPerforming: {
+    configId: string;
+    configTitle: string;
+    score: number;
+  }[];
+}
+
+export interface ModelSummary {
+  modelId: string; // The base model ID, e.g., openai:gpt-4o-mini
+  displayName: string;
+  provider: string;
+  
+  overallStats: {
+    averageHybridScore: number | null;
+    totalRuns: number;
+    totalBlueprints: number;
+  };
+
+  strengthsAndWeaknesses: ModelStrengthsWeaknesses;
+  
+  runs: ModelRunPerformance[];
+  
+  lastUpdated: string;
 } 

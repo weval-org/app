@@ -7,9 +7,6 @@ export interface PreferenceTestResult {
   confidence: number; // e.g., 1-10
   reasoning: string;
   allRankings?: string[]; // Optional, if rankings are produced
-  // Add other fields as needed, e.g.:
-  // responseA?: string;
-  // responseB?: string;
 }
 
 /**
@@ -23,5 +20,4 @@ export interface PreferenceFingerprint {
   systemPrompt?: string | null; // System prompt used
   timestamp: string | number; // When the test was run/saved
   results: PreferenceTestResult[]; // An array of results for each prompt tested
-  // Add other summary fields if needed
 } 

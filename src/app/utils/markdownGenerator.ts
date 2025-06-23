@@ -4,7 +4,8 @@ import {
     PointAssessment,
 } from '@/app/utils/types';
 import {
-    ConversationMessage
+    ConversationMessage,
+    WevalResult
 } from '@/types/shared';
 import {
     IDEAL_MODEL_ID,
@@ -380,4 +381,123 @@ export async function generateRunMarkdown(data: ComparisonDataV2, options: Markd
     }
 
     return md;
+}
+
+function buildMarkdown(data: WevalResult, truncationRatio: number = 1.0): string {
+    let md = ``;
+
+    md += `# Evaluation Report: ${data.configTitle}\n\n`;
+    if (data.description) {
+        md += `**Description:** ${data.description}\n\n`;
+    }
+    md += `**Run Label:** ${data.runLabel}\n`;
+    md += `**Timestamp:** ${formatTimestampForDisplay(fromSafeTimestamp(data.timestamp))}\n`;
+    if (data.sourceCommitSha) {
+        md += `**Commit SHA:** \`${data.sourceCommitSha.substring(0, 7)}\`\n`;
+    }
+    md += `\n---\n\n`;
+
+    md += `## Overall Results\n\n`;
+    const models = data.effectiveModels.filter(m => m !== IDEAL_MODEL_ID);
+    md += `| Model | Average Hybrid Score |\n`;
+    md += `|-------|----------------------|\n`;
+
+    const overallScores: { modelId: string; score: number | null }[] = [];
+
+    // Simple overall average score calculation
+    const modelScores = new Map<string, { total: number; count: number }>();
+    if (data.evaluationResults.llmCoverageScores) {
+        for (const promptId in data.evaluationResults.llmCoverageScores) {
+            for (const modelId in data.evaluationResults.llmCoverageScores[promptId]) {
+                const result = data.evaluationResults.llmCoverageScores[promptId][modelId];
+                if (result && !('error' in result) && result.avgCoverageExtent !== undefined) {
+                    const current = modelScores.get(modelId) || { total: 0, count: 0 };
+                    current.total += result.avgCoverageExtent;
+                    current.count++;
+                    modelScores.set(modelId, current);
+                }
+            }
+        }
+    }
+    
+    models.forEach(modelId => {
+        const scores = modelScores.get(modelId);
+        const avgScore = scores && scores.count > 0 ? scores.total / scores.count : null;
+        overallScores.push({ modelId, score: avgScore });
+    });
+
+    overallScores.sort((a, b) => (b.score ?? -1) - (a.score ?? -1)).forEach(({ modelId, score }) => {
+        md += `| ${getModelDisplayLabel(modelId)} | ${score !== null ? score.toFixed(3) : 'N/A'} |\n`;
+    });
+
+    md += `\n---\n\n`;
+    md += `## Detailed Per-Prompt Results\n\n`;
+
+    data.promptIds.forEach(promptId => {
+        md += `### Prompt: \`${promptId}\`\n\n`;
+        const promptContext = data.promptContexts?.[promptId];
+        if (promptContext) {
+            if (typeof promptContext === 'string') {
+                md += `> ${promptContext}\n\n`;
+            } else if (Array.isArray(promptContext)) {
+                md += `**Conversation History:**\n`;
+                promptContext.forEach(msg => {
+                    md += `* **${msg.role}:** ${msg.content}\n`;
+                });
+                md += `\n`;
+            }
+        }
+
+        md += `| Model | Response | Coverage Score |\n`;
+        md += `|-------|----------|----------------|\n`;
+        
+        models.forEach(modelId => {
+            let response = data.allFinalAssistantResponses?.[promptId]?.[modelId] || '*No response*';
+            if (truncationRatio < 1.0) {
+                const newLength = Math.floor(response.length * truncationRatio);
+                if (response.length > newLength) {
+                    response = response.substring(0, newLength) + '... (truncated)';
+                }
+            }
+
+            const coverageResult = data.evaluationResults.llmCoverageScores?.[promptId]?.[modelId];
+            const score = (coverageResult && !('error' in coverageResult) && coverageResult.avgCoverageExtent !== undefined) ? coverageResult.avgCoverageExtent.toFixed(3) : 'N/A';
+            
+            md += `| **${getModelDisplayLabel(modelId)}** | ${response.replace(/\n/g, '<br/>')} | ${score} |\n`;
+        });
+        
+        md += `\n`;
+    });
+
+    return md;
+}
+
+export function generateMarkdownReport(data: WevalResult, maxCharacters?: number): string {
+    const fullMarkdown = buildMarkdown(data);
+
+    if (!maxCharacters || fullMarkdown.length <= maxCharacters) {
+        return fullMarkdown;
+    }
+
+    // Recalculate with truncation
+    let totalResponseChars = 0;
+    let staticChars = 0;
+
+    data.promptIds.forEach(promptId => {
+        const models = data.effectiveModels.filter(m => m !== IDEAL_MODEL_ID);
+        models.forEach(modelId => {
+            totalResponseChars += (data.allFinalAssistantResponses?.[promptId]?.[modelId] || '').length;
+        });
+    });
+    
+    staticChars = fullMarkdown.length - totalResponseChars;
+    
+    if (staticChars >= maxCharacters) {
+        return fullMarkdown.substring(0, maxCharacters);
+    }
+    
+    const budgetForResponses = maxCharacters - staticChars;
+    const truncationRatio = budgetForResponses / totalResponseChars;
+    
+    return buildMarkdown(data, truncationRatio);
 } 

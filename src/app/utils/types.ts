@@ -59,50 +59,10 @@ export interface PerPromptSimilaritiesFE {
   };
 }
 
-// Embedding evaluation results within the main data structure - Deprecated by WevalEvaluationResults
-/*
-export interface EmbeddingEvaluationResult {
-    similarityMatrix?: Record<string, Record<string, number>> | null;
-    perPromptSimilarities?: Record<string, Record<string, Record<string, number>>> | null;
-    // Add other embedding-specific results if any
-}
-*/
-
-// LLM coverage evaluation results within the main data structure - Deprecated by WevalEvaluationResults
-/*
-export interface LLMCoverageEvaluationResult {
-    llmCoverageScores?: Record<string, Record<string, CoverageResult>>;
-}
-*/
-
-// Main data structure for the comparison results (V2) - Now aliased from shared.ts
-/*
-export interface ComparisonDataV2 {
-...
-}
-*/
-
-// ConfigData - Now aliased from shared.ts
-/*
-export interface ConfigData {
-...
-}
-*/
-
-// ConfigPromptData - Now aliased from shared.ts
-/*
-export interface ConfigPromptData {
-...
-}
-*/
-
 export type PointFunctionArgs = any;
 // PointFunctionDefinition is now just an alias for a tuple in the shared PointDefinition type
 export type PointFunctionDefinition = [string, PointFunctionArgs];
 // PointDefinition is now imported from shared.ts
-/*
-export type PointDefinition = string | PointFunctionDefinition;
-*/
 
 // Coverage Score data used within the modal (and also as part of CoverageResult)
 export interface LLMCoverageScoreData {

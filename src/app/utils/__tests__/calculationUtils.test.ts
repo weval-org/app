@@ -181,7 +181,6 @@ describe('calculationUtils', () => {
         });
     });
 
-    // New tests for functions moved from comparisonUtils
     describe('calculateAverageSimilarity', () => {
         const matrix = {
             modelA: { modelB: 0.8, modelC: 0.6 },

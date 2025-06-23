@@ -7,6 +7,8 @@ import { EmbeddingEvaluator } from '@/cli/evaluators/embedding-evaluator';
 import { LLMCoverageEvaluator } from '@/cli/evaluators/llm-coverage-evaluator';
 import { saveResult as saveResultToStorage } from '@/lib/storageService';
 import { toSafeTimestamp } from '@/lib/timestampUtils';
+import { generateMarkdownReport } from '@/app/utils/markdownGenerator';
+import { generateExecutiveSummary } from './executive-summary-service';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
@@ -243,6 +245,12 @@ async function aggregateAndSaveResults(
         },
         errors: Object.keys(errors).length > 0 ? errors : undefined,
     };
+
+    // Generate summary after the main result object is constructed
+    const summaryResult = await generateExecutiveSummary(finalOutput, logger);
+    if (!('error' in summaryResult)) {
+        finalOutput.executiveSummary = summaryResult;
+    }
 
     const fileName = `${runLabel}_${safeTimestamp}_comparison.json`;
 

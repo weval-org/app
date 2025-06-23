@@ -2,7 +2,10 @@ import {
     updateSummaryDataWithNewRun,
     getConfigSummary,
     saveConfigSummary,
-    HomepageSummaryFileContent
+    HomepageSummaryFileContent,
+    saveModelSummary,
+    getModelSummary,
+    listModelSummaries,
 } from '../storageService';
 import { EnhancedComparisonConfigInfo } from '../../app/utils/homepageDataUtils';
 import { ComparisonDataV2 as FetchedComparisonData } from '../../app/utils/types';
@@ -12,6 +15,7 @@ import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
 import { RESULTS_DIR, MULTI_DIR } from '@/cli/constants';
+import { ModelSummary } from '@/types/shared';
 
 // Mock calculation utilities as their specific output isn't being tested here.
 jest.mock('../../app/utils/calculationUtils', () => ({
@@ -50,6 +54,23 @@ const mockSummary: EnhancedComparisonConfigInfo = {
 const serializableMockSummary = {
     ...mockSummary,
     runs: []
+};
+
+const mockModelSummary: ModelSummary = {
+    modelId: 'test-provider:test-model',
+    displayName: 'Test Model',
+    provider: 'test-provider',
+    overallStats: {
+        averageHybridScore: 0.85,
+        totalRuns: 10,
+        totalBlueprints: 5,
+    },
+    strengthsAndWeaknesses: {
+        topPerforming: [],
+        weakestPerforming: [],
+    },
+    runs: [],
+    lastUpdated: '2024-01-01T00:00:00.000Z',
 };
 
 const baseMockResultData: FetchedComparisonData = {
@@ -185,6 +206,89 @@ describe('storageService', () => {
             expect(sentCommand.input.Bucket).toBe('test-bucket');
             expect(sentCommand.input.Key).toBe('multi/test-config/summary.json');
             expect(sentCommand.input.Body).toBe(JSON.stringify(serializableMockSummary, null, 2));
+        });
+    });
+
+    describe('Model Summaries', () => {
+        const safeModelId = 'test-provider_test-model';
+
+        describe('saveModelSummary', () => {
+            it('should write to local fs when provider is local', async () => {
+                process.env.STORAGE_PROVIDER = 'local';
+                const { saveModelSummary } = require('../storageService');
+                await saveModelSummary(mockModelSummary.modelId, mockModelSummary);
+                expect(mockedFs.writeFile).toHaveBeenCalledWith(
+                    path.join(RESULTS_DIR, MULTI_DIR, 'models', `${safeModelId}.json`),
+                    JSON.stringify(mockModelSummary, null, 2),
+                    'utf-8'
+                );
+            });
+
+            it('should write to S3 when provider is s3', async () => {
+                process.env.STORAGE_PROVIDER = 's3';
+                process.env.APP_S3_BUCKET_NAME = 'test-bucket';
+                process.env.APP_S3_REGION = 'us-east-1';
+                const { saveModelSummary } = require('../storageService');
+                await saveModelSummary(mockModelSummary.modelId, mockModelSummary);
+                expect(mockSend).toHaveBeenCalled();
+                const sentCommand = mockSend.mock.calls[0][0] as PutObjectCommand;
+                expect(sentCommand.input.Bucket).toBe('test-bucket');
+                expect(sentCommand.input.Key).toBe(`multi/models/${safeModelId}.json`);
+                expect(sentCommand.input.Body).toBe(JSON.stringify(mockModelSummary, null, 2));
+            });
+        });
+
+        describe('getModelSummary', () => {
+            it('should read from local fs when provider is local', async () => {
+                process.env.STORAGE_PROVIDER = 'local';
+                const { getModelSummary } = require('../storageService');
+                mockedFsSync.existsSync.mockReturnValue(true);
+                mockedFs.readFile.mockResolvedValue(JSON.stringify(mockModelSummary));
+                const summary = await getModelSummary(mockModelSummary.modelId);
+                expect(mockedFs.readFile).toHaveBeenCalledWith(path.join(RESULTS_DIR, MULTI_DIR, 'models', `${safeModelId}.json`),'utf-8');
+                expect(summary).toEqual(mockModelSummary);
+            });
+
+             it('should read from S3 when provider is s3', async () => {
+                process.env.STORAGE_PROVIDER = 's3';
+                process.env.APP_S3_BUCKET_NAME = 'test-bucket';
+                process.env.APP_S3_REGION = 'us-east-1';
+                const { getModelSummary } = require('../storageService');
+                const stream = new Readable();
+                stream.push(JSON.stringify(mockModelSummary));
+                stream.push(null);
+                mockSend.mockResolvedValue({ Body: stream });
+                const summary = await getModelSummary(mockModelSummary.modelId);
+                expect(mockSend).toHaveBeenCalled();
+                const sentCommand = mockSend.mock.calls[0][0] as GetObjectCommand;
+                expect(sentCommand.input.Key).toBe(`multi/models/${safeModelId}.json`);
+                expect(summary).toEqual(mockModelSummary);
+            });
+        });
+
+        describe('listModelSummaries', () => {
+             it('should list from local fs when provider is local', async () => {
+                process.env.STORAGE_PROVIDER = 'local';
+                const { listModelSummaries } = require('../storageService');
+                const mockDirent = [{ name: `${safeModelId}.json`, isFile: () => true }];
+                mockedFs.readdir.mockResolvedValue(mockDirent as any);
+                const summaries = await listModelSummaries();
+                expect(mockedFs.readdir).toHaveBeenCalledWith(path.join(process.cwd(), RESULTS_DIR, MULTI_DIR, 'models'), { withFileTypes: true });
+                expect(summaries).toEqual([safeModelId]);
+            });
+
+            it('should list from S3 when provider is s3', async () => {
+                process.env.STORAGE_PROVIDER = 's3';
+                process.env.APP_S3_BUCKET_NAME = 'test-bucket';
+                process.env.APP_S3_REGION = 'us-east-1';
+                const { listModelSummaries } = require('../storageService');
+                mockSend.mockResolvedValue({ Contents: [{ Key: `multi/models/${safeModelId}.json` }] });
+                const summaries = await listModelSummaries();
+                expect(mockSend).toHaveBeenCalled();
+                const sentCommand = mockSend.mock.calls[0][0];
+                expect(sentCommand.input.Prefix).toBe('multi/models/');
+                expect(summaries).toEqual([safeModelId]);
+            });
         });
     });
 

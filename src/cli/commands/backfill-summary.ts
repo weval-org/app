@@ -10,14 +10,17 @@ import {
     saveConfigSummary,
     saveLatestRunsSummary,
     LatestRunSummaryItem,
+    saveModelSummary,
 } from '../../lib/storageService';
-import { EnhancedComparisonConfigInfo } from '../../app/utils/homepageDataUtils';
+import { EnhancedComparisonConfigInfo, EnhancedRunInfo } from '../../app/utils/homepageDataUtils';
 import { ComparisonDataV2 as FetchedComparisonData } from '../../app/utils/types';
 import {
     calculateHeadlineStats,
     calculatePotentialModelDrift
 } from '../utils/summaryCalculationUtils';
 import { fromSafeTimestamp } from '../../lib/timestampUtils';
+import { ModelRunPerformance, ModelSummary } from '@/types/shared';
+import { parseEffectiveModelId, getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 
 async function actionBackfillSummary(options: { verbose?: boolean }) {
     const { logger } = getConfig();
@@ -140,6 +143,79 @@ async function actionBackfillSummary(options: { verbose?: boolean }) {
             });
             logger.info(`Latest runs summary saved successfully with ${latest50Runs.length} runs.`);
             // --- END: Backfill Latest Runs Summary ---
+
+            // --- BEGIN: Backfill Model Summaries ---
+            logger.info('Creating per-model summaries from backfilled data...');
+            const modelRunData = new Map<string, ModelRunPerformance[]>();
+
+            allConfigsForHomepage.forEach(config => {
+                config.runs.forEach(run => {
+                    if (run.perModelHybridScores) {
+                        run.perModelHybridScores.forEach((scoreData, effectiveModelId) => {
+                            if (scoreData.average !== null && scoreData.average !== undefined) {
+                                const { baseId } = parseEffectiveModelId(effectiveModelId);
+                                const currentRuns = modelRunData.get(baseId) || [];
+                                currentRuns.push({
+                                    configId: config.configId,
+                                    configTitle: config.title || config.configTitle,
+                                    runLabel: run.runLabel,
+                                    timestamp: run.timestamp,
+                                    hybridScore: scoreData.average,
+                                });
+                                modelRunData.set(baseId, currentRuns);
+                            }
+                        });
+                    }
+                });
+            });
+
+            logger.info(`Found data for ${modelRunData.size} unique base models. Generating and saving summaries...`);
+
+            for (const [baseModelId, runs] of modelRunData.entries()) {
+                const totalRuns = runs.length;
+                const blueprintsParticipated = new Set(runs.map(r => r.configId));
+                const totalBlueprints = blueprintsParticipated.size;
+
+                const validScores = runs.map(r => r.hybridScore).filter(s => s !== null) as number[];
+                const averageHybridScore = validScores.length > 0 ? validScores.reduce((a, b) => a + b, 0) / validScores.length : null;
+
+                // Strengths & Weaknesses
+                const blueprintScores = new Map<string, { scores: number[], title: string }>();
+                runs.forEach(run => {
+                    if (run.hybridScore !== null) {
+                        const existing = blueprintScores.get(run.configId) || { scores: [], title: run.configTitle };
+                        existing.scores.push(run.hybridScore);
+                        blueprintScores.set(run.configId, existing);
+                    }
+                });
+                
+                const avgBlueprintScores = Array.from(blueprintScores.entries()).map(([configId, data]) => ({
+                    configId,
+                    configTitle: data.title,
+                    score: data.scores.reduce((a, b) => a + b, 0) / data.scores.length,
+                })).sort((a, b) => b.score - a.score);
+
+                const modelSummary: ModelSummary = {
+                    modelId: baseModelId,
+                    displayName: getModelDisplayLabel(baseModelId),
+                    provider: baseModelId.split(':')[0] || 'unknown',
+                    overallStats: {
+                        averageHybridScore,
+                        totalRuns,
+                        totalBlueprints,
+                    },
+                    strengthsAndWeaknesses: {
+                        topPerforming: avgBlueprintScores.slice(0, 3),
+                        weakestPerforming: avgBlueprintScores.slice(-3).reverse(),
+                    },
+                    runs: runs.sort((a, b) => new Date(fromSafeTimestamp(b.timestamp)).getTime() - new Date(fromSafeTimestamp(a.timestamp)).getTime()),
+                    lastUpdated: new Date().toISOString(),
+                };
+                
+                await saveModelSummary(baseModelId, modelSummary);
+            }
+            logger.info(`Finished generating and saving ${modelRunData.size} model summaries.`);
+            // --- END: Backfill Model Summaries ---
 
         } else {
             logger.warn('No data was compiled for the summary. Summary file not saved.');

@@ -22,8 +22,8 @@ import { backfillSummaryCommand } from './commands/backfill-summary';
 import { deleteConfigCommand } from './commands/delete-config';
 import { backfillPromptContextsCommand } from './commands/backfill-prompt-contexts';
 import { getConfig } from './config';
+import { backfillExecutiveSummaryCommand } from './commands/backfill-executive-summary';
 
-// Add signal handling
 let isTerminating = false
 const cleanup = () => {
   if (isTerminating) return
@@ -82,6 +82,7 @@ cli.addCommand(runConfigCommand);
 cli.addCommand(backfillSummaryCommand);
 cli.addCommand(deleteConfigCommand);
 cli.addCommand(backfillPromptContextsCommand);
+cli.addCommand(backfillExecutiveSummaryCommand);
 
 cli.parseAsync(process.argv).catch(err => {
   console.error('CLI Error:', err); 

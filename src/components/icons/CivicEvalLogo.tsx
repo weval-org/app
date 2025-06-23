@@ -1,8 +1,6 @@
 import React from 'react';
 
-interface WevalLogoProps extends React.SVGProps<SVGSVGElement> {
-  // Custom props can be added here if needed in the future
-}
+interface WevalLogoProps extends React.SVGProps<SVGSVGElement> {}
 
 const WevalLogo: React.FC<WevalLogoProps> = (props) => (
   <svg

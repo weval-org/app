@@ -21,7 +21,6 @@ export function checkForErrors(response: string): boolean {
       'SERVICE_UNAVAILABLE',
       'NETWORK_ERROR',
       'UNEXPECTED_ERROR'
-      // Add any other common error strings observed
     ];
     
     // Ensure response is treated as a string for includes check
