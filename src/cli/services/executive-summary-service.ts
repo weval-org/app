@@ -26,13 +26,15 @@ export async function generateExecutiveSummary(
 
 Please provide a summary that covers:
 1.  **Overall Key Findings**: What are the 1-3 most important takeaways from this entire evaluation?
-2.  **Model Strengths and Weaknesses**: Which models excelled and where? Which models struggled? Were there any surprising results?
+2.  **Model Strengths and Weaknesses**: Which models excelled and where? Which models struggled? Were there any surprising results? 
 3.  **Interesting Patterns**: Did you notice any interesting patterns in the data? For example, did certain models cluster together in their responses? Was performance sensitive to temperature or system prompts?
-4.  **Data-Driven Conclusion**: Briefly conclude with a final assessment based on the data.`;
+4.  **Data-Driven Conclusion**: Briefly conclude with a final assessment based on the data.
+
+Provide it as a contiguous piece, formatted as you wish, for easy human consumption.`;
 
         const summaryText = await getModelResponse({
             modelId: SUMMARIZER_MODEL_ID,
-            messages: [{ role: 'user', content: markdownReport }],
+            messages: [{ role: 'user', content: '=== THE REPORT ===\n\n' + markdownReport }],
             systemPrompt: systemPrompt,
             temperature: 0.1,
             useCache: false,
