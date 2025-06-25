@@ -198,9 +198,11 @@ export default function RunLabelInstancesPage() {
             breadcrumbs={breadcrumbItems}
             pageTitle={pageTitle}
             contextualInfo={{
-              configTitle: overallConfigTitle,
-              description: configDescription,
-              tags: configTags
+              configTitle: overallConfigTitle || '',
+              runLabel: runLabel,
+              timestamp: '',
+              description: configDescription || '',
+              tags: configTags || []
             }}
             actions={headerActions}
             isSticky={false}

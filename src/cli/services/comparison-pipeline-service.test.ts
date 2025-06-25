@@ -38,6 +38,10 @@ jest.mock('@/cli/evaluators/llm-coverage-evaluator', () => ({
   })),
 }));
 
+jest.mock('./executive-summary-service', () => ({
+  generateExecutiveSummary: jest.fn().mockResolvedValue({ summary: 'Mocked summary' }),
+}));
+
 const mockedSaveResult = saveResultToStorage as jest.Mock;
 const mockedGetModelResponse = getModelResponse as jest.Mock;
 

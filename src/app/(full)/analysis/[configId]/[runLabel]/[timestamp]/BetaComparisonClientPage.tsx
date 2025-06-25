@@ -16,6 +16,7 @@ import {
 import {
     IDEAL_MODEL_ID,
     calculateStandardDeviation,
+    calculateAverageSimilarity,
 } from '@/app/utils/calculationUtils';
 import { useTheme } from 'next-themes';
 import DownloadResultsButton from '@/app/(full)/analysis/components/DownloadResultsButton';
@@ -40,7 +41,7 @@ const Loader2 = dynamic(() => import("lucide-react").then((mod) => mod.Loader2))
 const GitCommit = dynamic(() => import("lucide-react").then((mod) => mod.GitCommit))
 const AlertTriangle = dynamic(() => import("lucide-react").then((mod) => mod.AlertTriangle))
 
-export default function BetaComparisonClientPage() {
+export default function BetaComparisonClientPage({ data: initialData, isPlayground = false }: { data?: ImportedComparisonDataV2, isPlayground?: boolean }) {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -51,18 +52,31 @@ export default function BetaComparisonClientPage() {
 
   const currentPromptId = searchParams.get('prompt');
 
-  const { data, loading, error, promptNotFound, excludedModelsList } = useComparisonData({
+  // Use initialData if provided, otherwise fetch it.
+  const { data: fetchedData, loading, error, promptNotFound, excludedModelsList } = useComparisonData({
     configId: configIdFromUrl,
     runLabel,
     timestamp: timestampFromUrl,
     currentPromptId,
+    // Disable fetching if data is already provided
+    enabled: !initialData,
   });
+
+  const data = initialData || fetchedData;
 
   const [forceIncludeExcludedModels, setForceIncludeExcludedModels] = useState<boolean>(false);
   const [selectedTemperatures, setSelectedTemperatures] = useState<number[]>([]);
   const [activeSysPromptIndex, setActiveSysPromptIndex] = useState(0);
   const [activeHighlights, setActiveHighlights] = useState<Set<ActiveHighlight>>(new Set());
   const { resolvedTheme } = useTheme();
+
+  useEffect(() => {
+    if (data?.config?.temperatures) {
+      setSelectedTemperatures(data.config.temperatures);
+    } else {
+      setSelectedTemperatures([]);
+    }
+  }, [data]);
 
   const { displayedModels, modelsForMacroTable, modelsForAggregateView } = useModelFiltering({
     data,
@@ -190,21 +204,12 @@ export default function BetaComparisonClientPage() {
     return sensitivityMap;
   }, [data]);
 
-  const headerWidgetContent = useMemo(() => {
-    if (currentPromptId || !data?.evaluationResults?.llmCoverageScores || !data.promptIds || displayedModels.filter(m => m !== IDEAL_MODEL_ID).length === 0) {
-      return null;
-    }
-    return (
-      <CoverageHeatmapCanvas
-        allCoverageScores={data.evaluationResults.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>>} 
-        promptIds={data.promptIds}
-        models={displayedModels.filter(m => m !== IDEAL_MODEL_ID)}
-        width={100}
-        height={50}
-        className="rounded-md border border-border dark:border-border shadow-sm"
-      />
-    );
-  }, [currentPromptId, data, displayedModels]);
+  const normalizedExecutiveSummary = useMemo(() => {
+    if (!data?.executiveSummary) return null;
+    const content = typeof data.executiveSummary === 'string' ? data.executiveSummary : data.executiveSummary.content;
+    // Replace all headings (h1, h3, h4, etc.) with h2 headings.
+    return content.replace(/^#+\s/gm, '## ');
+  }, [data?.executiveSummary]);
 
   const getPromptContextDisplayString = useMemo(() => (promptId: string): string => {
     if (!data || !data.promptContexts) return promptId;
@@ -222,15 +227,58 @@ export default function BetaComparisonClientPage() {
     return promptId;
   }, [data]);
 
+  const summaryStats = useMemo(() => {
+    if (!data || !analysisStats || !analysisStats.overallHybridExtremes) return undefined;
+
+    const mdpFromStats = analysisStats.mostDifferentiatingPrompt;
+
+    const mostDifferentiatingPrompt = mdpFromStats
+        ? {
+            id: mdpFromStats.id,
+            score: mdpFromStats.score,
+            text: getPromptContextDisplayString(mdpFromStats.id),
+          }
+        : null;
+
+    return {
+      bestPerformingModel: analysisStats.overallHybridExtremes.bestHybrid
+        ? {
+            id: analysisStats.overallHybridExtremes.bestHybrid.modelId,
+            score: analysisStats.overallHybridExtremes.bestHybrid.avgScore,
+          }
+        : null,
+      worstPerformingModel: analysisStats.overallHybridExtremes.worstHybrid
+        ? {
+            id: analysisStats.overallHybridExtremes.worstHybrid.modelId,
+            score: analysisStats.overallHybridExtremes.worstHybrid.avgScore,
+          }
+        : null,
+      mostDifferentiatingPrompt,
+    };
+  }, [data, analysisStats, getPromptContextDisplayString]);
+
+  const headerWidgetContent = useMemo(() => {
+    if (currentPromptId || !data?.evaluationResults?.llmCoverageScores || !data.promptIds || displayedModels.filter(m => m !== IDEAL_MODEL_ID).length === 0) {
+      return null;
+    }
+    return (
+      <CoverageHeatmapCanvas
+        allCoverageScores={data.evaluationResults.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>>} 
+        promptIds={data.promptIds}
+        models={displayedModels.filter(m => m !== IDEAL_MODEL_ID)}
+        width={100}
+        height={50}
+        className="rounded-md border border-border dark:border-border shadow-sm"
+      />
+    );
+  }, [currentPromptId, data, displayedModels]);
+
   const currentPromptDisplayText = useMemo(() => currentPromptId ? getPromptContextDisplayString(currentPromptId) : 'All Prompts', [currentPromptId, getPromptContextDisplayString]);
   
   const pageTitle = useMemo(() => {
     let title = "Analysis";
     if (data) {
-      title = `${data.configTitle || configIdFromUrl} - ${data.runLabel || runLabel}`;
-      if (timestampFromUrl) {
-        title += ` (${formatTimestampForDisplay(fromSafeTimestamp(timestampFromUrl))})`;
-      }
+      title = `${data.configTitle || configIdFromUrl}`;
     } else if (configIdFromUrl && runLabel && timestampFromUrl) {
       title = `${configIdFromUrl} - ${runLabel}`;
       title += ` (${formatTimestampForDisplay(fromSafeTimestamp(timestampFromUrl))})`;
@@ -246,19 +294,25 @@ export default function BetaComparisonClientPage() {
       { label: 'Home', href: '/' },
       {
         label: data?.configTitle || configIdFromUrl,
-        href: `/analysis/${configIdFromUrl}`
+        href: `/analysis/${configIdFromUrl}`,
+        isCurrent: !currentPromptId,
       },
       {
         label: data?.runLabel || runLabel,
-        href: `/analysis/${configIdFromUrl}/${runLabel}`
+        href: `/analysis/${configIdFromUrl}/${runLabel}`,
+        isCurrent: !currentPromptId,
       },
       {
         label: timestampFromUrl ? formatTimestampForDisplay(fromSafeTimestamp(timestampFromUrl)) : "Instance",
-        ...(currentPromptId ? { href: `/analysis/${configIdFromUrl}/${runLabel}/${timestampFromUrl}` } : {})
+        ...(currentPromptId ? { href: `/analysis/${configIdFromUrl}/${runLabel}/${timestampFromUrl}` } : {}),
+        isCurrent: !currentPromptId,
       }
     ];
     if (currentPromptId) {
-      items.push({ label: `Prompt: ${currentPromptDisplayText}` });
+      items.push({
+        label: `Prompt: ${currentPromptDisplayText}`,
+        isCurrent: true,
+      });
     }
     return items;
   }, [data, configIdFromUrl, runLabel, timestampFromUrl, currentPromptId, currentPromptDisplayText]);
@@ -396,9 +450,10 @@ export default function BetaComparisonClientPage() {
             }}
             actions={headerActions}
             headerWidget={headerWidgetContent}
+            executiveSummary={normalizedExecutiveSummary}
+            summaryStats={summaryStats}
+            isPlayground={isPlayground}
         />
-
-        {data.executiveSummary && <ExecutiveSummary summary={data.executiveSummary} />}
 
         {renderPromptSelector()}
 

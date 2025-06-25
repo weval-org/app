@@ -4,24 +4,28 @@ import {
 } from '@/app/utils/types';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 
-interface UseComparisonDataParams {
+export interface UseComparisonDataParams {
     configId: string;
     runLabel: string;
     timestamp: string;
     currentPromptId: string | null;
+    enabled?: boolean;
 }
 
-export function useComparisonData({ configId, runLabel, timestamp, currentPromptId }: UseComparisonDataParams) {
+export const useComparisonData = ({ configId, runLabel, timestamp, currentPromptId, enabled = true }: UseComparisonDataParams) => {
     const [data, setData] = useState<ImportedComparisonDataV2 | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(enabled);
     const [error, setError] = useState<string | null>(null);
     const [promptNotFound, setPromptNotFound] = useState<boolean>(false);
     const [excludedModelsList, setExcludedModelsList] = useState<string[]>([]);
+    const [selectedTemperatures, setSelectedTemperatures] = useState<number[]>([]);
 
     useEffect(() => {
-        if (!configId || !runLabel || !timestamp) {
-            // If essential params are missing, don't attempt to fetch.
-            // This can happen during initial render on the client.
+        if (!configId || !runLabel || !timestamp || !enabled) {
+            // If the hook is not enabled, ensure loading is false.
+            if (!enabled) {
+                setLoading(false);
+            }
             return;
         }
 
@@ -66,6 +70,10 @@ export function useComparisonData({ configId, runLabel, timestamp, currentPrompt
                     setPromptNotFound(true);
                 }
 
+                if (result.config?.temperatures) {
+                    setSelectedTemperatures(result.config.temperatures);
+                }
+
             } catch (err) {
                 setError(err instanceof Error ? err.message : 'An unknown error occurred');
                 console.error(`Error fetching comparison data for ${configId}/${runLabel}/${timestamp}:`, err);
@@ -75,7 +83,7 @@ export function useComparisonData({ configId, runLabel, timestamp, currentPrompt
         };
 
         fetchData();
-    }, [configId, runLabel, timestamp, currentPromptId]);
+    }, [configId, runLabel, timestamp, currentPromptId, enabled]);
 
-    return { data, loading, error, promptNotFound, excludedModelsList, setExcludedModelsList };
+    return { data, loading, error, promptNotFound, excludedModelsList, setExcludedModelsList, selectedTemperatures, setSelectedTemperatures };
 } 

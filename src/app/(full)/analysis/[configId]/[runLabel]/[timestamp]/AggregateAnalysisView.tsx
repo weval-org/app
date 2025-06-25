@@ -301,8 +301,8 @@ export const AggregateAnalysisView: React.FC<AggregateAnalysisViewProps> = ({
                                                             ))}
                                                         </div>
                                                     </div>
-                                                    {(selectedTemperatures.length > 0) && (
-                                                        <Button variant="link" size="sm" className="p-0 h-auto text-xs self-end" onClick={() => setSelectedTemperatures([])}>
+                                                    {(selectedTemperatures.length > 0 && data.config?.temperatures && selectedTemperatures.length < data.config.temperatures.length) && (
+                                                        <Button variant="link" size="sm" className="p-0 h-auto text-xs self-end" onClick={() => setSelectedTemperatures(data.config?.temperatures || [])}>
                                                             Reset
                                                         </Button>
                                                     )}

@@ -198,7 +198,7 @@ export function parseAndNormalizeBlueprint(content: string, fileType: 'json' | '
                 return msg as ConversationMessage;
             });
         } else if (promptSource) {
-            finalPrompt.promptText = promptSource;
+            finalPrompt.messages = [{ role: 'user', content: promptSource }];
         }
 
         // Normalize other prompt fields

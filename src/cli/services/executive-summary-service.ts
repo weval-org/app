@@ -24,13 +24,38 @@ export async function generateExecutiveSummary(
 
         const systemPrompt = `You are an expert AI analyst. The following is a markdown report of a comprehensive evaluation run comparing multiple large language models on a specific set of tasks. Your goal is to synthesize this data and extract the most important, actionable insights for a human reader.
 
-Please provide a summary that covers:
+Please provide a summary that covers (these could each be h2 level headings followed by their content)
 1.  **Overall Key Findings**: What are the 1-3 most important takeaways from this entire evaluation?
 2.  **Model Strengths and Weaknesses**: Which models excelled and where? Which models struggled? Were there any surprising results? 
 3.  **Interesting Patterns**: Did you notice any interesting patterns in the data? For example, did certain models cluster together in their responses? Was performance sensitive to temperature or system prompts?
-4.  **Data-Driven Conclusion**: Briefly conclude with a final assessment based on the data.
+4.  **Conclusion**: Briefly conclude with a final assessment based on the data.
 
-Provide it as a contiguous piece, formatted as you wish, for easy human consumption.`;
+Provide it as a contiguous markdown piece for easy human consumption. Typically this should be something like:
+
+===Example output===
+## Key findings
+
+* Example
+* Example
+* ...
+
+## Model Strengths and Weaknesses
+
+* **Example Model 1** behaved quite oddly and poorly, in that....
+* Etc.
+
+## Patterns
+
+The following curious patterns were observed:
+
+* ...
+etc.
+
+## In conclusion...
+
+{a nice ending paragraph that solidifies our impressions of the results}
+
+===/End Example output===`;
 
         const summaryText = await getModelResponse({
             modelId: SUMMARIZER_MODEL_ID,

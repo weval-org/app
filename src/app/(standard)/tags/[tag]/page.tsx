@@ -95,6 +95,9 @@ export default async function TaggedBlueprintsPage({ params }: { params: Promise
           breadcrumbs={breadcrumbItems}
           pageTitle={pageTitle}
           contextualInfo={{
+            configTitle: '',
+            runLabel: '',
+            timestamp: '',
             description: `Showing all evaluation blueprints that have been tagged with \"${tagName}\".`,
           }}
           isSticky={false}
@@ -115,7 +118,7 @@ export default async function TaggedBlueprintsPage({ params }: { params: Promise
 
           {filteredConfigs.length > 0 && (
             <div className="space-y-5 md:space-y-6">
-              <BrowseAllBlueprintsSection blueprints={blueprintSummaries} title={`Evaluations Tagged: "${tagName}"`} />
+              <BrowseAllBlueprintsSection blueprints={blueprintSummaries} title={``} />
             </div>
           )}
         </main>

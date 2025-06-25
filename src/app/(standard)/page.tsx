@@ -110,7 +110,6 @@ export default async function HomePage() {
               </h2>
               <div className="space-y-8 md:space-y-10">
                   <AggregateStatsDisplay stats={headlineStats} />
-                  {driftDetectionResult && <ModelDriftIndicator driftInfo={driftDetectionResult} />}
               </div>
             </section>
           )}
@@ -141,6 +140,17 @@ export default async function HomePage() {
             </div>
           )}
           
+          {driftDetectionResult && (
+            <section>
+              <ModelDriftIndicator driftInfo={driftDetectionResult} />
+            </section>
+          )}
+          
+          <div className="text-center pt-6 pb-4">
+            <p className="text-sm text-muted-foreground">
+              Weval is an open source project from the <Link href="https://civicintegrity.org" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">Civic Integrity Project</Link>.
+            </p>
+          </div>
         </div>
       </div>
     </div>

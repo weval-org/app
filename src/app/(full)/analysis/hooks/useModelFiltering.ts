@@ -41,11 +41,15 @@ export const useModelFiltering = ({
         return systemPromptIndex === activeSysPromptIndex;
       });
     }
-
-    if (selectedTemperatures.length > 0) {
+    
+    if (data.config.temperatures && data.config.temperatures.length > 0) {
+      if (selectedTemperatures.length === 0) {
+        return [];
+      }
       models = models.filter(modelId => {
         const { temperature } = parseEffectiveModelId(modelId);
-        return temperature === undefined || selectedTemperatures.includes(temperature);
+        const modelTemp = temperature ?? (data.config.temperature ?? 0.0);
+        return selectedTemperatures.includes(modelTemp);
       });
     }
 

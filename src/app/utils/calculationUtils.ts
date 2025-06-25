@@ -449,4 +449,43 @@ export const findIdealExtremes = (
   }
 
   return { mostSimilar, leastSimilar };
+};
+
+/**
+ * Finds the prompt that produced the most diverse (least similar) responses across models.
+ * It does this by calculating the average similarity for each prompt and finding the minimum.
+ * @param perPromptSimilarities - An object mapping prompt IDs to their similarity matrices.
+ * @returns An object with the prompt ID and its low average similarity score, or null.
+ */
+export const calculateMostDifferentiatingPrompt = (
+  perPromptSimilarities: EvaluationResults['perPromptSimilarities'] | undefined
+): { id: string; score: number } | null => {
+  if (!perPromptSimilarities) {
+    return null;
+  }
+
+  let minAvgSim = Infinity;
+  let diversePromptId: string | null = null;
+
+  for (const promptId in perPromptSimilarities) {
+    const matrix = perPromptSimilarities[promptId];
+    // We check for a valid matrix for the prompt
+    if (matrix && typeof matrix === 'object' && Object.keys(matrix).length > 0) {
+      const avgSim = calculateAverageSimilarity(matrix);
+      // We look for a valid average similarity that is lower than the current minimum
+      if (typeof avgSim === 'number' && !isNaN(avgSim) && avgSim < minAvgSim) {
+        minAvgSim = avgSim;
+        diversePromptId = promptId;
+      }
+    }
+  }
+
+  if (diversePromptId && minAvgSim !== Infinity) {
+    return {
+      id: diversePromptId,
+      score: minAvgSim,
+    };
+  }
+
+  return null;
 }; 

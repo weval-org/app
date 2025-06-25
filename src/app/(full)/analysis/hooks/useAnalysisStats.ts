@@ -10,6 +10,7 @@ import {
     calculateOverallAverageCoverage as importedCalculateOverallAverageCoverage,
     calculateAverageHybridScoreForRun,
     findIdealExtremes,
+    calculateMostDifferentiatingPrompt,
 } from '@/app/utils/calculationUtils';
 import { parseEffectiveModelId } from '@/app/utils/modelIdUtils';
 
@@ -25,7 +26,8 @@ export const useAnalysisStats = (data: ComparisonDataV2 | null) => {
             calculatedPerModelHybridScores: new Map<string, { average: number | null; stddev: number | null }>(),
             calculatedPerModelSemanticScores: new Map<string, { average: number | null; stddev: number | null }>(),
             perSystemVariantHybridScores: {},
-            perTemperatureVariantHybridScores: {}
+            perTemperatureVariantHybridScores: {},
+            mostDifferentiatingPrompt: null,
           };
         }
 
@@ -44,6 +46,10 @@ export const useAnalysisStats = (data: ComparisonDataV2 | null) => {
 
         const overallHybridExtremes = (evaluationResults?.perPromptSimilarities && llmCoverageScores && effectiveModels)
           ? importedCalculateHybridScoreExtremes(evaluationResults.perPromptSimilarities, llmCoverageScores, effectiveModels, IDEAL_MODEL_ID)
+          : null;
+
+        const mostDifferentiatingPrompt = evaluationResults?.perPromptSimilarities
+          ? calculateMostDifferentiatingPrompt(evaluationResults.perPromptSimilarities)
           : null;
 
         const overallRunHybridStats = (evaluationResults?.perPromptSimilarities && llmCoverageScores && effectiveModels && promptIds)
@@ -115,7 +121,8 @@ export const useAnalysisStats = (data: ComparisonDataV2 | null) => {
             calculatedPerModelHybridScores,
             calculatedPerModelSemanticScores,
             perSystemVariantHybridScores,
-            perTemperatureVariantHybridScores
+            perTemperatureVariantHybridScores,
+            mostDifferentiatingPrompt,
         };
     }, [data]);
 }; 

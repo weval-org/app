@@ -3,12 +3,14 @@
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import React from 'react';
+import { cn } from '@/lib/utils';
 
-const ChevronRightIcon = dynamic(() => import('lucide-react').then(mod => mod.ChevronRightIcon));
+const ChevronRight = dynamic(() => import('lucide-react').then(mod => mod.ChevronRight));
 
 export interface BreadcrumbItem {
   label: string;
   href?: string;
+  isCurrent?: boolean;
 }
 
 interface BreadcrumbsProps {
@@ -24,16 +26,16 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ items, className }) => {
   return (
     <nav aria-label="Breadcrumb" className={`flex items-center space-x-1 text-sm text-muted-foreground ${className || ''}`}>
       {items.map((item, index) => (
-        <React.Fragment key={index}>
-          {index > 0 && ChevronRightIcon && <ChevronRightIcon className="w-4 h-4 flex-shrink-0" />}
-          {item.href ? (
-            <Link href={item.href} className="hover:text-foreground hover:underline">
+        <div key={index} className="flex items-center">
+          {index > 0 && <ChevronRight className="h-4 w-4 mx-1" />}
+          {item.href && !item.isCurrent ? (
+            <Link href={item.href} className="hover:underline">
               {item.label}
             </Link>
           ) : (
             <span className="font-medium text-foreground">{item.label}</span>
           )}
-        </React.Fragment>
+        </div>
       ))}
     </nav>
   );

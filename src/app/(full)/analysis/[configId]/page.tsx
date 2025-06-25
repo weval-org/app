@@ -209,8 +209,11 @@ export default function ConfigRunsPage() {
           breadcrumbs={breadcrumbItems}
           pageTitle={pageTitle}
           contextualInfo={{
-            description: configDescription,
-            tags: configTags
+            configTitle: overallConfigTitle || '',
+            runLabel: '',
+            timestamp: '',
+            description: configDescription || '',
+            tags: configTags || []
           }}
           isSticky={false}
         />

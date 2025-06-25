@@ -30,7 +30,7 @@ prompt: Third prompt
             const result = parseAndNormalizeBlueprint(yamlContent, 'yaml');
             expect(result.id).toBeUndefined();
             expect(result.prompts).toHaveLength(3);
-            expect(result.prompts[0].promptText).toBe('First prompt');
+            expect(result.prompts[0].messages?.[0].content).toBe('First prompt');
             expect(result.prompts[2].id).toBe('p3');
         });
 
@@ -71,7 +71,7 @@ prompt: First prompt
 `;
             const result = parseAndNormalizeBlueprint(yamlContent, 'yaml');
             expect(result.prompts).toHaveLength(3);
-            expect(result.prompts[0].promptText).toBe('First prompt');
+            expect(result.prompts[0].messages?.[0].content).toBe('First prompt');
             expect(result.prompts[1].id).toBe('p2');
         });
     });
@@ -166,7 +166,7 @@ prompts:
 `;
             const result = parseAndNormalizeBlueprint(yamlContent, 'yaml');
             const prompt = result.prompts[0];
-            expect(prompt.id).toBe('hash-092e687b92d4');
+            expect(prompt.id).toBe('hash-a123cf388be1');
         });
     });
 

@@ -5,4 +5,8 @@
 
 # This will run the 'fetch-and-schedule-evals' function weekly on Sunday at midnight UTC.
 [functions."fetch-and-schedule-evals"]
-  schedule = "0 0 * * 0" 
+  schedule = "0 0 * * 0"
+
+# This will run the 'cleanup-playground-runs' function daily at 2 AM UTC.
+[functions."cleanup-playground-runs"]
+  schedule = "0 2 * * *" 
