@@ -3,9 +3,11 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 
-// Get the root directory of the project
+// Determine the cache directory based on the environment
+const isNetlify = process.env.NETLIFY === 'true';
 const projectRoot = process.cwd();
-const cacheDir = path.resolve(projectRoot, '.cache');
+// Use /tmp on Netlify, otherwise use .cache in the project root
+const cacheDir = isNetlify ? path.resolve('/tmp', '.cache') : path.resolve(projectRoot, '.cache');
 
 // Ensure the cache directory exists
 if (!fs.existsSync(cacheDir)) {
