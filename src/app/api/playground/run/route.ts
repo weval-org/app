@@ -112,37 +112,22 @@ export async function POST(request: Request) {
         ContentType: 'application/json',
     }));
 
-    // 6. Invoke background function or run directly for local dev
-    const siteId = process.env.NETLIFY_SITE_ID;
+    // 6. Invoke background function.
+    const functionUrl = new URL(
+      '/.netlify/functions/execute-playground-pipeline-background',
+      process.env.URL || 'http://localhost:8888'
+    );
 
-    if (siteId) {
-      // Production or `netlify dev` environment
-      const client = await getNetlifyClient();
-      await client.functions.invoke({
-          siteID: siteId,
-          name: 'execute-playground-pipeline-background',
-          body: JSON.stringify({ runId, blueprintKey }),
-      });
-    } else if (process.env.NODE_ENV === 'development') {
-      // Local dev environment without `netlify dev`
-      // Fire-and-forget the background task
-      console.warn('Local dev: NETLIFY_SITE_ID not found. Running playground pipeline directly in the background.');
-      Promise.resolve(backgroundHandler({ body: JSON.stringify({ runId, blueprintKey }) } as any, {} as any))
-        .catch((err: Error) => {
-            console.error(`Local background handler failed for runId ${runId}:`, err);
-            // Attempt to update S3 status with error
-            const statusKey = `${PLAYGROUND_TEMP_DIR}/runs/${runId}/status.json`;
-            s3Client.send(new PutObjectCommand({
-                Bucket: process.env.APP_S3_BUCKET_NAME!,
-                Key: statusKey,
-                Body: JSON.stringify({ status: 'error', message: 'Local handler failed.', details: err.message }),
-                ContentType: 'application/json',
-            })).catch((s3Err: Error) => console.error('Failed to update S3 status for local handler failure:', s3Err));
-        });
-    } else {
-      // Production environment, but siteId is missing. This is a configuration error.
-      throw new Error("NETLIFY_SITE_ID environment variable is not set in a non-development environment.");
-    }
+    // Fire-and-forget the background task
+    fetch(functionUrl.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ runId, blueprintKey }),
+    }).catch(error => {
+      // This will only catch network errors, not server-side errors in the function.
+      // We'll log it, but the primary error handling is inside the background function itself.
+      console.error('Failed to invoke background function:', error);
+    });
 
     // 7. Return the runId
     return NextResponse.json({ runId });
