@@ -1,4 +1,5 @@
 import type { Metadata, ResolvingMetadata } from 'next';
+import { cache } from 'react';
 import { generateAnalysisPageMetadata } from '@/app/utils/metadataUtils';
 import BetaComparisonClientPage from './BetaComparisonClientPage';
 import { notFound } from 'next/navigation';
@@ -23,6 +24,8 @@ type ThisPageGenerateMetadataProps = {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
 
+export const revalidate = 3600; // Revalidate once per hour
+
 export async function generateMetadata(
   props: ThisPageGenerateMetadataProps,
   parent: ResolvingMetadata
@@ -37,7 +40,7 @@ export async function generateMetadata(
   );
 }
 
-async function getComparisonData(params: ThisPageProps['params']): Promise<ComparisonDataV2> {
+const getComparisonData = cache(async (params: ThisPageProps['params']): Promise<ComparisonDataV2> => {
   const { configId, runLabel, timestamp } = await params;
 
   try {
@@ -70,7 +73,7 @@ async function getComparisonData(params: ThisPageProps['params']): Promise<Compa
     console.error(`[Page Fetch] Failed to get comparison data for ${configId}/${runLabel}/${timestamp}:`, error);
     notFound();
   }
-}
+});
 
 export default async function BetaComparisonPage(props: ThisPageProps) {
   const data = await getComparisonData(props.params);

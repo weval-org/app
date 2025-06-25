@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { cache } from 'react';
 import RunLabelInstancesClientPage from './RunLabelInstancesClientPage';
 import { ApiRunsResponse } from '../page';
 import { getConfigSummary } from '@/lib/storageService';
@@ -10,7 +11,9 @@ type ThisPageProps = {
     }>;
 };
 
-async function getRunLabelInstancesData(configId: string, runLabel: string): Promise<ApiRunsResponse> {
+export const revalidate = 3600; // Revalidate once per hour
+
+const getRunLabelInstancesData = cache(async (configId: string, runLabel: string): Promise<ApiRunsResponse> => {
     try {
         const configSummary = await getConfigSummary(configId);
 
@@ -35,7 +38,7 @@ async function getRunLabelInstancesData(configId: string, runLabel: string): Pro
         console.error(`[Page Fetch] Error fetching config summary for ${configId}:`, error);
         notFound();
     }
-}
+});
 
 export default async function RunLabelInstancesPage({ params }: ThisPageProps) {
   const thisParams = await params;

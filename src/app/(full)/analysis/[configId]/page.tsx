@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { cache } from 'react';
 import { EnhancedRunInfo } from '@/app/utils/homepageDataUtils';
 import ConfigRunsClientPage from './ConfigRunsClientPage';
 import { getConfigSummary } from '@/lib/storageService';
@@ -10,13 +11,15 @@ export interface ApiRunsResponse {
     configTags: string[] | null;
 }
 
+export const revalidate = 3600; // Revalidate once per hour
+
 type ThisPageProps = {
     params: Promise<{
         configId: string;
     }>;
 };
 
-async function getConfigRunsData(configId: string): Promise<ApiRunsResponse> {
+const getConfigRunsData = cache(async (configId: string): Promise<ApiRunsResponse> => {
     try {
         const configSummary = await getConfigSummary(configId);
 
@@ -36,7 +39,7 @@ async function getConfigRunsData(configId: string): Promise<ApiRunsResponse> {
         console.error(`[Page Fetch] Error fetching config summary for ${configId}:`, error);
         notFound();
     }
-}
+});
 
 export default async function ConfigRunsPage({ params }: ThisPageProps) {
   const thisParams = await params;
