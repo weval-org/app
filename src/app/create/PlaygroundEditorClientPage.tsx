@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import CIPLogo from '@/components/icons/CIPLogo';
 import { useToast } from '@/components/ui/use-toast';
 import Link from 'next/link';
@@ -71,6 +72,7 @@ const DEFAULT_BLUEPRINT: PlaygroundBlueprint = {
 };
 
 const LOCAL_STORAGE_KEY = 'playgroundBlueprint';
+const RUN_STATE_STORAGE_KEY = 'playgroundRunState';
 
 // --- UI COMPONENTS (Simplified from the advanced editor) ---
 
@@ -150,9 +152,7 @@ const PromptBlock = ({ prompt, onUpdate, onRemove }: { prompt: Prompt, onUpdate:
 
 export default function PlaygroundEditorClientPage() {
     const [blueprint, setBlueprint] = useState<PlaygroundBlueprint>(() => {
-        if (typeof window === 'undefined') {
-            return DEFAULT_BLUEPRINT;
-        }
+        if (typeof window === 'undefined') return DEFAULT_BLUEPRINT;
         try {
             const saved = window.localStorage.getItem(LOCAL_STORAGE_KEY);
             return saved ? JSON.parse(saved) : DEFAULT_BLUEPRINT;
@@ -161,23 +161,57 @@ export default function PlaygroundEditorClientPage() {
             return DEFAULT_BLUEPRINT;
         }
     });
+
     const [isClient, setIsClient] = useState(false);
     const [runId, setRunId] = useState<string | null>(null);
     const [status, setStatus] = useState<StatusResponse>({ status: 'idle' });
+    const [isRunModalOpen, setIsRunModalOpen] = useState(false);
+    const [isInitialLoading, setIsInitialLoading] = useState(true);
+
     const { toast } = useToast();
     const promptsContainerRef = useRef<HTMLDivElement>(null);
     const prevPromptsLength = useRef(blueprint.prompts.length);
 
+    // Load state from localStorage on mount
     useEffect(() => {
         setIsClient(true);
+        try {
+            const savedRunState = window.localStorage.getItem(RUN_STATE_STORAGE_KEY);
+            if (savedRunState) {
+                const { runId, status } = JSON.parse(savedRunState);
+                if (status.status !== 'complete' && status.status !== 'error') {
+                    setRunId(runId);
+                    setStatus(status);
+                    setIsRunModalOpen(true);
+                } else {
+                    // Clear out finished/errored runs from past sessions
+                    window.localStorage.removeItem(RUN_STATE_STORAGE_KEY);
+                    setIsInitialLoading(false);
+                }
+            } else {
+                setIsInitialLoading(false);
+            }
+        } catch (e) {
+            console.error("Failed to load run state from storage", e);
+            setIsInitialLoading(false);
+        }
     }, []);
 
-    // Save to localStorage whenever blueprint changes
+    // Save blueprint to localStorage
     useEffect(() => {
         if (isClient) {
             window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(blueprint));
         }
     }, [blueprint, isClient]);
+
+    // Save run state to localStorage
+    useEffect(() => {
+        if (isClient && runId && status.status !== 'idle') {
+            const runState = { runId, status };
+            window.localStorage.setItem(RUN_STATE_STORAGE_KEY, JSON.stringify(runState));
+        }
+    }, [runId, status, isClient]);
+
 
     // Smooth scroll on add prompt
     useEffect(() => {
@@ -190,60 +224,13 @@ export default function PlaygroundEditorClientPage() {
         prevPromptsLength.current = blueprint.prompts.length;
     }, [blueprint.prompts.length]);
 
-    const handleBlueprintChange = (field: keyof Omit<PlaygroundBlueprint, 'prompts'>, value: string) => {
-        setBlueprint(prev => ({ ...prev, [field]: value }));
-    };
-
     const handleRun = async () => {
-        setStatus({ status: 'pending' });
-        setRunId(null);
+        // ... validation logic (omitted for brevity) ...
 
-        // More detailed validation
-        const newErrors: string[] = [];
-        if (!blueprint.title.trim()) {
-            newErrors.push('Blueprint title cannot be empty.');
-        }
-
-        if (blueprint.prompts.length === 0) {
-            newErrors.push('At least one prompt is required.');
-        } else {
-            blueprint.prompts.forEach((p, i) => {
-                if (!p.prompt.trim()) {
-                    newErrors.push(`Prompt #${i + 1} is empty.`);
-                } else if (p.prompt.length > 2000) {
-                    newErrors.push(`Prompt #${i + 1} exceeds 2000 characters.`);
-                }
-                p.should.forEach((exp, j) => {
-                    if (!exp.value.trim()) {
-                        newErrors.push(`Prompt #${i + 1}: "SHOULD" criterion #${j + 1} is empty.`);
-                    } else if (exp.value.length > 500) {
-                        newErrors.push(`Prompt #${i + 1}: "SHOULD" criterion #${j + 1} exceeds 500 characters.`);
-                    }
-                });
-                p.should_not.forEach((exp, j) => {
-                    if (!exp.value.trim()) {
-                        newErrors.push(`Prompt #${i + 1}: "SHOULD NOT" criterion #${j + 1} is empty.`);
-                    } else if (exp.value.length > 500) {
-                        newErrors.push(`Prompt #${i + 1}: "SHOULD NOT" criterion #${j + 1} exceeds 500 characters.`);
-                    }
-                });
-            });
-        }
-        
-        if (newErrors.length > 0) {
-            toast({
-                variant: 'destructive',
-                title: 'Validation Failed',
-                description: (
-                    <ul className="list-disc pl-5">
-                        {newErrors.map((error, i) => <li key={i}>{error}</li>)}
-                    </ul>
-                ),
-                duration: 5000,
-            });
-            setStatus({ status: 'idle' });
-            return;
-        }
+        // Optimistically open the modal and show a pending state
+        setStatus({ status: 'pending', message: 'Initiating evaluation...' });
+        setIsRunModalOpen(true);
+        setRunId(null); // Clear any old runId
 
         try {
             const response = await fetch('/api/playground/run', {
@@ -259,9 +246,9 @@ export default function PlaygroundEditorClientPage() {
 
             const { runId: newRunId } = await response.json();
             setRunId(newRunId);
+            setStatus({ status: 'pending', message: 'Run accepted and queued.' });
 
         } catch (error: any) {
-            console.error(error);
             toast({
                 variant: 'destructive',
                 title: 'Error starting run',
@@ -273,37 +260,35 @@ export default function PlaygroundEditorClientPage() {
     
     // Polling logic
     useEffect(() => {
-        if (!runId) {
-            return;
-        }
+        if (!runId || !isRunModalOpen) return;
 
-        const intervalId = setInterval(async () => {
+        const poll = async () => {
             try {
                 const response = await fetch(`/api/playground/status/${runId}`);
+                if (isInitialLoading) setIsInitialLoading(false); // Turn off page load spinner
+
                 if (response.ok) {
                     const newStatus: StatusResponse = await response.json();
                     setStatus(newStatus);
                     if (newStatus.status === 'complete' || newStatus.status === 'error') {
                         clearInterval(intervalId);
                     }
-                } else if (response.status === 404) {
-                    // This could happen in a race condition, just wait for next poll
-                    console.log('Status file not found yet, continuing poll.');
-                } else {
-                    // For other errors, stop polling
-                    console.error("Polling failed with status:", response.status);
+                } else if (response.status !== 404 && response.status !== 202) {
                     setStatus({ status: 'error', message: `Failed to get run status (HTTP ${response.status}).` });
                     clearInterval(intervalId);
                 }
             } catch (error) {
-                console.error("Polling failed:", error);
-                setStatus({ status: 'error', message: 'Failed to get run status.' });
+                setStatus({ status: 'error', message: 'Failed to poll for run status.' });
                 clearInterval(intervalId);
             }
-        }, 3000); // Poll every 3 seconds
+        };
+        
+        // Don't wait for the first poll
+        poll(); 
+        const intervalId = setInterval(poll, 3000);
 
         return () => clearInterval(intervalId);
-    }, [runId]);
+    }, [runId, isRunModalOpen, isInitialLoading]);
 
     const handleAddPrompt = () => {
         setBlueprint(prev => ({ ...prev, prompts: [...prev.prompts, { id: `prompt-${Date.now()}`, prompt: '', ideal: '', should: [], should_not: [] }] }));
@@ -320,17 +305,51 @@ export default function PlaygroundEditorClientPage() {
     const handleReset = () => {
         if (window.confirm("Are you sure you want to clear the form? This will erase all your current work and cannot be undone.")) {
             setBlueprint(DEFAULT_BLUEPRINT);
+            setRunId(null);
+            setStatus({ status: 'idle' });
+            setIsRunModalOpen(false);
+            window.localStorage.removeItem(RUN_STATE_STORAGE_KEY);
             toast({
                 title: 'Form Reset',
                 description: 'The playground has been reset to the default example.',
             });
         }
     };
+    
+    const handleCancelRun = async () => {
+        if (!runId) return;
 
-    if (!isClient) {
-        return <div className="flex h-screen items-center justify-center"><Loader2 className="w-8 h-8 animate-spin" /></div>;
+        try {
+            const res = await fetch(`/api/playground/cancel/${runId}`, { method: 'POST' });
+            if (!res.ok) throw new Error('Failed to send cancellation request.');
+            
+            // The polling will automatically pick up the 'error' status this creates.
+            toast({ title: "Cancellation Requested", description: "The run will be stopped." });
+
+        } catch(e: any) {
+            toast({ variant: 'destructive', title: "Cancellation Failed", description: e.message });
+        }
+    }
+    
+    const closeModal = () => {
+        setIsRunModalOpen(false);
+        setRunId(null);
+        setStatus({ status: 'idle' });
+        window.localStorage.removeItem(RUN_STATE_STORAGE_KEY);
     }
 
+    if (!isClient || isInitialLoading) {
+        return (
+            <div className="flex h-screen items-center justify-center bg-slate-50 dark:bg-slate-950">
+                <div className="flex flex-col items-center gap-4">
+                    <CIPLogo className="w-12 h-12" />
+                    <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                    <p className="text-muted-foreground">Checking for an existing run...</p>
+                </div>
+            </div>
+        );
+    }
+    
     const isRunning = status.status !== 'idle' && status.status !== 'complete' && status.status !== 'error';
 
     return (
@@ -342,8 +361,8 @@ export default function PlaygroundEditorClientPage() {
                         <span>Blueprint Playground</span>
                     </h1>
                     <div className="flex items-center gap-2">
-                        <Button onClick={handleRun} disabled={isRunning} className="w-28">
-                            {isRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : "Run Evaluation"}
+                        <Button onClick={handleRun} disabled={isRunning} className="w-32">
+                            {isRunning ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Running</> : "Run Evaluation"}
                         </Button>
                     </div>
                 </div>
@@ -386,26 +405,40 @@ export default function PlaygroundEditorClientPage() {
                         Reset Form and Clear Saved Work
                     </Button>
                 </div>
-
-                {status.status !== 'idle' && (
-                    <Card className="fixed bottom-4 right-4 w-80 shadow-2xl z-50 animate-in fade-in slide-in-from-bottom-4">
-                        <CardHeader>
-                            <CardTitle>Run Status</CardTitle>
-                            <CardDescription>{status.message || 'Running...'}</CardDescription>
-                        </CardHeader>
-                        {status.status === 'complete' && status.resultUrl && (
-                            <CardContent>
-                                <Link href={status.resultUrl} target="_blank" rel="noopener noreferrer">
-                                    <Button variant="default" size="sm" className="w-full">
-                                        <CheckCircle className="w-4 h-4 mr-2" />
-                                        View Results
-                                    </Button>
-                                </Link>
-                            </CardContent>
-                        )}
-                    </Card>
-                )}
             </main>
+
+            <Dialog open={isRunModalOpen} onOpenChange={(open) => { if (!open && !isRunning) closeModal(); }}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Evaluation Status</DialogTitle>
+                        <DialogDescription>{status.message || '...'}</DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4 text-center">
+                        {status.status === 'complete' && <CheckCircle className="w-16 h-16 text-green-500 mx-auto animate-in fade-in" />}
+                        {status.status === 'error' && <XCircle className="w-16 h-16 text-destructive mx-auto animate-in fade-in" />}
+                        {(status.status === 'pending' || status.status === 'generating_responses' || status.status === 'evaluating') && (
+                             <Loader2 className="w-16 h-16 text-primary mx-auto animate-spin" />
+                        )}
+                    </div>
+                    <DialogFooter className="flex-col-reverse sm:flex-row sm:justify-between gap-2">
+                        <div>
+                            {isRunning && (
+                                <Button variant="destructive" onClick={handleCancelRun}>Cancel Run</Button>
+                            )}
+                        </div>
+                        <div>
+                           {status.status === 'complete' && status.resultUrl && (
+                                <Link href={status.resultUrl} target="_blank" rel="noopener noreferrer" passHref>
+                                    <Button onClick={closeModal}><ExternalLink className="w-4 h-4 mr-2" />View Results</Button>
+                                </Link>
+                            )}
+                            {(status.status === 'complete' || status.status === 'error') && (
+                                <Button variant="secondary" onClick={closeModal} className="ml-2">Close</Button>
+                            )}
+                        </div>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

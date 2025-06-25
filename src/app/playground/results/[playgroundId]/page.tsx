@@ -2,6 +2,8 @@ import BetaComparisonClientPage from '@/app/(full)/analysis/[configId]/[runLabel
 import { ComparisonDataV2 } from '@/app/utils/types';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { Readable } from 'stream';
 
 interface PlaygroundResultsPageProps {
   params: Promise<{
@@ -9,23 +11,50 @@ interface PlaygroundResultsPageProps {
   }>;
 }
 
-export const dynamic = 'force-dynamic';
-
-// Ensure the page is not cached
+// Ensure the page is not cached and rendered dynamically
 export const revalidate = 0;
 
+const PLAYGROUND_TEMP_DIR = 'playground';
+
+const s3Client = new S3Client({
+  region: process.env.APP_S3_REGION!,
+  credentials: {
+    accessKeyId: process.env.APP_AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.APP_AWS_SECRET_ACCESS_KEY!,
+  },
+});
+
+const streamToString = (stream: Readable): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    stream.on('data', (chunk) => chunks.push(chunk));
+    stream.on('error', reject);
+    stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
+  });
+
+
 async function getPlaygroundResult(playgroundId: string): Promise<ComparisonDataV2 | null> {
-    // This fetch needs to be absolute for server-side fetching.
-    // In a real deployment, NEXT_PUBLIC_URL would be set.
-    const baseUrl = process.env.NEXT_PUBLIC_URL || 'http://localhost:3000';
+    const resultKey = `${PLAYGROUND_TEMP_DIR}/runs/${playgroundId}/_comparison.json`;
+
     try {
-        const res = await fetch(`${baseUrl}/api/playground/results/${playgroundId}`);
-        if (!res.ok) {
+        const command = new GetObjectCommand({
+            Bucket: process.env.APP_S3_BUCKET_NAME!,
+            Key: resultKey,
+        });
+        const { Body } = await s3Client.send(command);
+        
+        if (Body) {
+            const content = await streamToString(Body as Readable);
+            return JSON.parse(content);
+        } else {
             return null;
         }
-        return res.json();
-    } catch (error) {
-        console.error(`Failed to fetch playground result for ${playgroundId}`, error);
+    } catch (error: any) {
+        if (error.name !== 'NoSuchKey') {
+            // We log the error but don't expose details to the client.
+            // NoSuchKey is an expected error if the file isn't ready.
+            console.error(`Failed to fetch playground result for ${playgroundId}`, error);
+        }
         return null;
     }
 }
