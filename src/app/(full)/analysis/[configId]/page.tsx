@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { EnhancedRunInfo } from '@/app/utils/homepageDataUtils';
 import ConfigRunsClientPage from './ConfigRunsClientPage';
+import { getConfigSummary } from '@/lib/storageService';
 
 export interface ApiRunsResponse {
     runs: EnhancedRunInfo[];
@@ -16,18 +17,25 @@ type ThisPageProps = {
 };
 
 async function getConfigRunsData(configId: string): Promise<ApiRunsResponse> {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:8888';
-    
-    const res = await fetch(`${appUrl}/api/runs/${configId}`, {
-        next: { revalidate: 3600 },
-    });
+    try {
+        const configSummary = await getConfigSummary(configId);
 
-    if (!res.ok) {
-        console.error(`[Page Fetch] API request failed for /api/runs/${configId} with status ${res.status}`);
+        if (!configSummary) {
+            console.warn(`[Page Fetch] No config-summary.json found for ${configId}.`);
+            notFound();
+        }
+
+        const runs = configSummary.runs || [];
+        const configTitle = configSummary.title || configSummary.configTitle || null;
+        const configDescription = configSummary.description || null;
+        const configTags = configSummary.tags || null;
+
+        return { runs, configTitle, configDescription, configTags };
+
+    } catch (error) {
+        console.error(`[Page Fetch] Error fetching config summary for ${configId}:`, error);
         notFound();
     }
- 
-    return res.json();
 }
 
 export default async function ConfigRunsPage({ params }: ThisPageProps) {

@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import RunLabelInstancesClientPage from './RunLabelInstancesClientPage';
 import { ApiRunsResponse } from '../page';
+import { getConfigSummary } from '@/lib/storageService';
 
 type ThisPageProps = {
     params: Promise<{
@@ -10,19 +11,30 @@ type ThisPageProps = {
 };
 
 async function getRunLabelInstancesData(configId: string, runLabel: string): Promise<ApiRunsResponse> {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:8888';
-    
-    // The API route supports filtering by runLabel
-    const res = await fetch(`${appUrl}/api/runs/${configId}?runLabel=${runLabel}`, {
-        next: { revalidate: 3600 },
-    });
+    try {
+        const configSummary = await getConfigSummary(configId);
 
-    if (!res.ok) {
-        console.error(`[Page Fetch] API request failed for /api/runs/${configId}?runLabel=${runLabel} with status ${res.status}`);
+        if (!configSummary) {
+            console.warn(`[Page Fetch] No config-summary.json found for ${configId}.`);
+            notFound();
+        }
+
+        const runs = (configSummary.runs || []).filter(run => run.runLabel === runLabel);
+        const configTitle = configSummary.title || configSummary.configTitle || null;
+        const configDescription = configSummary.description || null;
+        const configTags = configSummary.tags || null;
+
+        if (runs.length === 0) {
+            console.log(`[Page Fetch] No runs found for runLabel '${runLabel}' in config '${configId}'.`);
+            notFound();
+        }
+        
+        return { runs, configTitle, configDescription, configTags };
+
+    } catch (error) {
+        console.error(`[Page Fetch] Error fetching config summary for ${configId}:`, error);
         notFound();
     }
- 
-    return res.json();
 }
 
 export default async function RunLabelInstancesPage({ params }: ThisPageProps) {
