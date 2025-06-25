@@ -4,7 +4,7 @@ import fs from 'fs';
 import crypto from 'crypto';
 
 // Determine the cache directory based on the environment
-const isNetlify = process.env.NETLIFY === 'true';
+const isNetlify = !!process.env.NETLIFY;
 const projectRoot = process.cwd();
 // Use /tmp on Netlify, otherwise use .cache in the project root
 const cacheDir = isNetlify ? path.resolve('/tmp', '.cache') : path.resolve(projectRoot, '.cache');
