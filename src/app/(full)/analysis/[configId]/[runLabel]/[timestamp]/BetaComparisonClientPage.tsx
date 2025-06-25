@@ -41,7 +41,7 @@ const Loader2 = dynamic(() => import("lucide-react").then((mod) => mod.Loader2))
 const GitCommit = dynamic(() => import("lucide-react").then((mod) => mod.GitCommit))
 const AlertTriangle = dynamic(() => import("lucide-react").then((mod) => mod.AlertTriangle))
 
-export default function BetaComparisonClientPage({ data: initialData, isPlayground = false }: { data?: ImportedComparisonDataV2, isPlayground?: boolean }) {
+export default function BetaComparisonClientPage({ data: initialData, isPlayground = false }: { data: ImportedComparisonDataV2, isPlayground?: boolean }) {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -52,17 +52,11 @@ export default function BetaComparisonClientPage({ data: initialData, isPlaygrou
 
   const currentPromptId = searchParams.get('prompt');
 
-  // Use initialData if provided, otherwise fetch it.
-  const { data: fetchedData, loading, error, promptNotFound, excludedModelsList } = useComparisonData({
-    configId: configIdFromUrl,
-    runLabel,
-    timestamp: timestampFromUrl,
+  // The hook now takes the initial data directly.
+  const { data, loading, error, promptNotFound, excludedModelsList } = useComparisonData({
+    initialData,
     currentPromptId,
-    // Disable fetching if data is already provided
-    enabled: !initialData,
   });
-
-  const data = initialData || fetchedData;
 
   const [forceIncludeExcludedModels, setForceIncludeExcludedModels] = useState<boolean>(false);
   const [selectedTemperatures, setSelectedTemperatures] = useState<number[]>([]);

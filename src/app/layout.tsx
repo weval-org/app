@@ -5,6 +5,7 @@ import { Toaster } from '@/components/ui/toaster';
 import TopProgressBar from './components/TopProgressBar';
 import { Suspense } from 'react';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { NavigationEvents } from '@/app/components/NavigationEvents';
 
 const geist = Geist({
   subsets: [],
@@ -32,6 +33,7 @@ export default function RootLayout({
         >
           <Suspense fallback={null}>
             <TopProgressBar />
+            <NavigationEvents />
           </Suspense>
           {children}
           <Toaster />

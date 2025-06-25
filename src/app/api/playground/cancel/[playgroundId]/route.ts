@@ -13,9 +13,9 @@ const s3Client = new S3Client({
 
 export async function POST(
   request: Request,
-  { params }: { params: { playgroundId: string } }
+  { params }: { params: Promise<{ playgroundId: string }> }
 ) {
-  const { playgroundId } = params;
+  const { playgroundId } = await params;
   if (!playgroundId) {
     return NextResponse.json({ error: 'playgroundId is required' }, { status: 400 });
   }
