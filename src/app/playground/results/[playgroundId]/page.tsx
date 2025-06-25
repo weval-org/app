@@ -9,6 +9,8 @@ interface PlaygroundResultsPageProps {
   }>;
 }
 
+export const dynamic = 'force-dynamic';
+
 // Ensure the page is not cached
 export const revalidate = 0;
 
