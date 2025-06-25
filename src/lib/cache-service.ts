@@ -3,11 +3,8 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 
-// Determine the cache directory based on the environment
-const isNetlify = !!process.env.NETLIFY;
-const projectRoot = process.cwd();
-// Use /tmp on Netlify, otherwise use .cache in the project root
-const cacheDir = isNetlify ? path.resolve('/tmp', '.cache') : path.resolve(projectRoot, '.cache');
+// Use the /tmp directory for caching, which is writable in serverless environments.
+const cacheDir = path.resolve('/tmp', '.cache');
 
 // Ensure the cache directory exists
 if (!fs.existsSync(cacheDir)) {
