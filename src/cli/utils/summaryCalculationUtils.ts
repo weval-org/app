@@ -117,37 +117,52 @@ export function calculateHeadlineStats(
     }
   });
 
-  const allModelScores = new Map<string, { totalScore: number; count: number; runs: Set<string> }>();
+  const allModelScores = new Map<string, { totalScore: number; count: number }>();
 
   filteredConfigs.forEach(config => {
-    config.runs.forEach(run => {
-      if (run.perModelHybridScores) {
-        const scoresMap = run.perModelHybridScores instanceof Map
-          ? run.perModelHybridScores
-          : new Map(Object.entries(run.perModelHybridScores) as [string, { average: number | null; stddev: number | null }][]);
-        
-        scoresMap.forEach((scoreData, modelId) => {
-          if (modelId === IDEAL_MODEL_ID) return;
-          if (scoreData && scoreData.average !== null && scoreData.average !== undefined) {
-            const parsed = parseEffectiveModelId(modelId);
-            const baseModelId = parsed.baseId; // Group by base model ID
+    if (!config.runs || config.runs.length === 0) {
+      return;
+    }
 
-            const current = allModelScores.get(baseModelId) || { totalScore: 0, count: 0, runs: new Set() };
-            current.totalScore += scoreData.average;
-            current.count++;
-            current.runs.add(`${config.id || config.configId}-${run.runLabel}-${run.timestamp}`); // Unique run identifier
-            allModelScores.set(baseModelId, current);
-          }
-        });
-      }
+    // Find the latest run for the current config
+    const latestRun = config.runs.reduce((latest, current) => {
+      const latestDate = new Date(fromSafeTimestamp(latest.timestamp));
+      const currentDate = new Date(fromSafeTimestamp(current.timestamp));
+      return currentDate > latestDate ? current : latest;
     });
+
+    // Now, only use the scores from this latestRun
+    if (latestRun.perModelHybridScores) {
+      const scoresMap =
+        latestRun.perModelHybridScores instanceof Map
+          ? latestRun.perModelHybridScores
+          : new Map(
+              Object.entries(latestRun.perModelHybridScores) as [
+                string,
+                { average: number | null; stddev: number | null },
+              ][],
+            );
+
+      scoresMap.forEach((scoreData, modelId) => {
+        if (modelId === IDEAL_MODEL_ID) return;
+        if (scoreData && scoreData.average !== null && scoreData.average !== undefined) {
+          const parsed = parseEffectiveModelId(modelId);
+          const baseModelId = parsed.baseId;
+
+          const current = allModelScores.get(baseModelId) || { totalScore: 0, count: 0 };
+          current.totalScore += scoreData.average;
+          current.count++;
+          allModelScores.set(baseModelId, current);
+        }
+      });
+    }
   });
 
   const rankedOverallModels: TopModelStatInfo[] = Array.from(allModelScores.entries())
     .map(([modelId, data]) => ({
-      modelId: modelId, // This is the baseId
+      modelId: modelId,
       overallAverageScore: data.totalScore / data.count,
-      runsParticipatedIn: data.runs.size, // Count unique runs participated in
+      runsParticipatedIn: data.count,
     }))
     .sort((a, b) => b.overallAverageScore - a.overallAverageScore);
 

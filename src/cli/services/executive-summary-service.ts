@@ -27,10 +27,9 @@ export async function generateExecutiveSummary(
 Please provide a summary that covers (these could each be h2 level headings followed by their content)
 1.  **Overall Key Findings**: What are the 1-3 most important takeaways from this entire evaluation?
 2.  **Model Strengths and Weaknesses**: Which models excelled and where? Which models struggled? Were there any surprising results? 
-3.  **Interesting Patterns**: Did you notice any interesting patterns in the data? For example, did certain models cluster together in their responses? Was performance sensitive to temperature or system prompts?
-4.  **Conclusion**: Briefly conclude with a final assessment based on the data.
+3.  **Interesting Patterns**: Did you notice any interesting patterns in the data? For example, did certain models cluster together in their responses? Was performance sensitive to temperature or system prompts? Any oddities or things people would find very potent, insightful or intriguing.
 
-Provide it as a contiguous markdown piece for easy human consumption. Typically this should be something like:
+You should feel free to be highly specific, lending verbatim quotes or specific topics and how they've been handled by the various models. Provide it as a contiguous markdown piece for easy human consumption. Typically this should be something like:
 
 ===Example output===
 ## Key findings
@@ -50,10 +49,6 @@ The following curious patterns were observed:
 
 * ...
 etc.
-
-## In conclusion...
-
-{a nice ending paragraph that solidifies our impressions of the results}
 
 ===/End Example output===`;
 
