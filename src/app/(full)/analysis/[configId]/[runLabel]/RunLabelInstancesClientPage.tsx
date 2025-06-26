@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { Card } from '@/components/ui/card'
@@ -12,26 +12,13 @@ import { AllCoverageScores, EnhancedRunInfo } from '@/app/utils/homepageDataUtil
 import AnalysisPageHeader from '../../components/AnalysisPageHeader';
 import CoverageHeatmapCanvas from '../../components/CoverageHeatmapCanvas';
 import { ApiRunsResponse } from '../page';
+import DriftComparisonView from './DriftComparisonView';
+import ClientDateTime from '@/app/components/ClientDateTime';
 
-interface RunInstanceInfo {
+export interface RunInstanceInfo extends EnhancedRunInfo {
   configId: string;
-  runLabel: string;
-  timestamp: string | null;
   safeTimestamp: string;
   displayDate: string;
-  fileName: string;
-  hybridScoreStats?: {
-    average: number;
-    min: number;
-    max: number;
-    stdDev: number;
-    count: number;
-  } | null;
-  numPrompts?: number;
-  numModels?: number;
-  totalModelsAttempted?: number;
-  allCoverageScores?: AllCoverageScores | null;
-  models?: string[];
   promptIds?: string[];
 }
 
@@ -50,7 +37,12 @@ const getHybridScoreColor = (score: number | null | undefined): string => {
 
 export default function RunLabelInstancesClientPage({ configId, runLabel, data }: { configId: string, runLabel: string, data: ApiRunsResponse }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { runs: allRunsForThisConfig, configTitle, configDescription, configTags } = data;
+
+  const minScoreTimestamp = searchParams.get('min_ts');
+  const maxScoreTimestamp = searchParams.get('max_ts');
+  const modelId = searchParams.get('modelId');
 
   const runInstances = useMemo(() => {
     if (!allRunsForThisConfig) { 
@@ -59,33 +51,38 @@ export default function RunLabelInstancesClientPage({ configId, runLabel, data }
   
     const instances = allRunsForThisConfig
       .map((run: EnhancedRunInfo) => {
-        let displayDate = "Invalid Date";
-        const isoTimestampToParse = fromSafeTimestamp(run.timestamp);
-        const dateObj = new Date(isoTimestampToParse);
-        if (!isNaN(dateObj.getTime())) {
-            displayDate = dateObj.toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        }
+        const isoTimestamp = fromSafeTimestamp(run.timestamp);
+        const dateObj = new Date(isoTimestamp);
+        const displayDate = !isNaN(dateObj.getTime()) 
+            ? dateObj.toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+            : "Invalid Date";
+        
         const promptIds = run.allCoverageScores ? Object.keys(run.allCoverageScores) : [];
+        
         return {
+          ...run,
           configId: configId,
-          runLabel: run.runLabel,
-          timestamp: run.timestamp,
+          timestamp: isoTimestamp,
           safeTimestamp: run.timestamp,
           displayDate,
-          fileName: run.fileName,
-          hybridScoreStats: run.hybridScoreStats,
-          numPrompts: run.numPrompts,
-          numModels: run.numModels,
-          totalModelsAttempted: run.totalModelsAttempted,
-          allCoverageScores: run.allCoverageScores,
-          models: run.models,
           promptIds: promptIds,
-        } as RunInstanceInfo;
+        };
       });
     
-    instances.sort((a, b) => new Date(fromSafeTimestamp(b.timestamp!)).getTime() - new Date(fromSafeTimestamp(a.timestamp!)).getTime());
+    instances.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     return instances;
   }, [allRunsForThisConfig, configId]);
+
+  const comparisonRuns = useMemo(() => {
+    if (minScoreTimestamp && maxScoreTimestamp) {
+      const minScoreRun = runInstances.find(run => run.safeTimestamp === minScoreTimestamp);
+      const maxScoreRun = runInstances.find(run => run.safeTimestamp === maxScoreTimestamp);
+      if (minScoreRun && maxScoreRun) {
+        return { minScoreRun, maxScoreRun };
+      }
+    }
+    return null;
+  }, [runInstances, minScoreTimestamp, maxScoreTimestamp]);
 
   const pageTitle = configTitle ? 
     `Instances for Run Label: ${runLabel} (Blueprint: ${configTitle})` : 
@@ -123,80 +120,87 @@ export default function RunLabelInstancesClientPage({ configId, runLabel, data }
           />
 
           <main className="mt-6 md:mt-8">
-              {runInstances.length === 0 && (
-                  <div className="text-center py-12">
-                      <HistoryIcon className="w-12 h-12 mx-auto mb-4 text-muted-foreground dark:text-slate-500" />
-                      <p className="text-lg text-muted-foreground dark:text-slate-400">
-                          No specific instances found for Run Label: <strong className="text-foreground dark:text-slate-200">{runLabel}</strong>
-                      </p>
-                      <p className="text-sm text-muted-foreground dark:text-slate-500 mt-2">
-                          This might mean the selected run label (hash) does not exist or has no associated execution records for this blueprint.
-                      </p>
-                  </div>
-              )}
+              {comparisonRuns ? (
+                <DriftComparisonView 
+                  minScoreRun={comparisonRuns.minScoreRun} 
+                  maxScoreRun={comparisonRuns.maxScoreRun}
+                  modelId={modelId}
+                />
+              ) : (
+                <>
+                  {runInstances.length === 0 && (
+                      <div className="text-center py-12">
+                          <HistoryIcon className="w-12 h-12 mx-auto mb-4 text-muted-foreground dark:text-slate-500" />
+                          <p className="text-lg text-muted-foreground dark:text-slate-400">
+                              No specific instances found for Run Label: <strong className="text-foreground dark:text-slate-200">{runLabel}</strong>
+                          </p>
+                          <p className="text-sm text-muted-foreground dark:text-slate-500 mt-2">
+                              This might mean the selected run label (hash) does not exist or has no associated execution records for this blueprint.
+                          </p>
+                      </div>
+                  )}
 
-              {runInstances.length > 0 && (
-                  <div className="space-y-4">
-                      <p className="text-sm text-muted-foreground dark:text-slate-400">
-                          Showing all recorded executions for Run Label <strong className="text-foreground dark:text-slate-300">{runLabel}</strong>. Each execution represents the same blueprint configuration run at a different time.
-                      </p>
-                      {runInstances.map((instance) => (
-                          <Card key={instance.timestamp} className="bg-card/80 dark:bg-slate-800/60 backdrop-blur-sm hover:shadow-lg transition-shadow duration-200 ring-1 ring-border dark:ring-slate-700/70 overflow-hidden">
-                              <Link href={`/analysis/${instance.configId}/${instance.runLabel}/${instance.safeTimestamp}`} className="block hover:bg-muted/30 dark:hover:bg-slate-700/40 transition-colors p-4">
-                                  <div className="flex justify-between items-start">
-                                      <div>
-                                          <p className="text-base font-medium text-primary text-primary">
-                                              Executed: {instance.displayDate}
-                                          </p>
-                                          <p className="text-xs text-muted-foreground dark:text-slate-500 mt-1">
-                                            Filename: {instance.fileName}
-                                          </p>
-                                      </div>
-                                       <div className="flex items-center space-x-6 text-right">
-                                           {instance.allCoverageScores && instance.models && instance.promptIds && instance.models.length > 0 && instance.promptIds.length > 0 && (
-                                              <div className="flex-shrink-0 w-24 h-16 mr-4">
-                                                  <CoverageHeatmapCanvas 
-                                                      allCoverageScores={instance.allCoverageScores}
-                                                      models={instance.models}
-                                                      promptIds={instance.promptIds}
-                                                      width={96}
-                                                      height={64}
-                                                      className="rounded-sm border border-border/50 dark:border-slate-700"
-                                                  />
-                                              </div>
-                                            )}
-                                          {instance.hybridScoreStats?.average !== undefined && instance.hybridScoreStats?.average !== null && (
-                                            <div className="flex flex-col items-end w-28">
-                                              <p className="text-xs text-muted-foreground dark:text-slate-400">Avg. Hybrid Score</p>
-                                              <p className={`text-xl font-semibold ${getHybridScoreColor(instance.hybridScoreStats.average)}`}>
-                                                {(instance.hybridScoreStats.average * 100).toFixed(1)}%
+                  {runInstances.length > 0 && (
+                      <div className="space-y-4">
+                          <p className="text-sm text-muted-foreground dark:text-slate-400">
+                              Showing all recorded executions for Run Label <strong className="text-foreground dark:text-slate-300">{runLabel}</strong>. Each execution represents the same blueprint configuration run at a different time.
+                          </p>
+                          {runInstances.map((instance) => (
+                              <Card key={instance.safeTimestamp} className="bg-card/80 dark:bg-slate-800/60 backdrop-blur-sm hover:shadow-lg transition-shadow duration-200 ring-1 ring-border dark:ring-slate-700/70 overflow-hidden">
+                                  <Link href={`/analysis/${instance.configId}/${instance.runLabel}/${instance.safeTimestamp}`} className="block hover:bg-muted/30 dark:hover:bg-slate-700/40 transition-colors p-4">
+                                      <div className="flex justify-between items-start">
+                                          <div>
+                                              <p className="text-base font-medium text-primary">
+                                                  Executed: <ClientDateTime timestamp={instance.timestamp} />
                                               </p>
-                                            </div>
-                                          )}
-                                           {instance.numModels !== undefined && (
-                                            <div className="flex flex-col items-end">
-                                              <p className="text-xs text-muted-foreground dark:text-slate-400">Models</p>
-                                              <p className="text-xl font-semibold text-foreground dark:text-slate-200">
-                                                {instance.totalModelsAttempted && instance.totalModelsAttempted !== instance.numModels 
-                                                  ? `${instance.numModels} / ${instance.totalModelsAttempted}`
-                                                  : instance.numModels
-                                                }
+                                              <p className="text-xs text-muted-foreground dark:text-slate-500 mt-1">
+                                                Filename: {instance.fileName}
                                               </p>
-                                            </div>
-                                          )}
-                                          {instance.numPrompts !== undefined && (
-                                            <div className="flex flex-col items-end">
-                                              <p className="text-xs text-muted-foreground dark:text-slate-400">Test Cases</p>
-                                              <p className="text-xl font-semibold text-foreground dark:text-slate-200">{instance.numPrompts}</p>
-                                            </div>
-                                          )}
-                                          {ChevronRightIcon && <ChevronRightIcon className="w-5 h-5 text-muted-foreground dark:text-slate-400 self-center ml-2" />}
+                                          </div>
+                                           <div className="flex items-center space-x-6 text-right">
+                                               {instance.allCoverageScores && instance.models && instance.promptIds && instance.models.length > 0 && instance.promptIds.length > 0 && (
+                                                  <div className="flex-shrink-0 w-24 h-16 mr-4">
+                                                      <CoverageHeatmapCanvas 
+                                                          allCoverageScores={instance.allCoverageScores}
+                                                          models={instance.models}
+                                                          promptIds={instance.promptIds}
+                                                          width={96}
+                                                          height={64}
+                                                          className="rounded-sm border border-border/50 dark:border-slate-700"
+                                                      />
+                                                  </div>
+                                                )}
+                                              {instance.hybridScoreStats?.average !== undefined && instance.hybridScoreStats?.average !== null && (
+                                                <div className="flex flex-col items-end w-28">
+                                                  <p className="text-xs text-muted-foreground dark:text-slate-400">Avg. Hybrid Score</p>
+                                                  <p className={`text-xl font-semibold ${getHybridScoreColor(instance.hybridScoreStats.average)}`}>
+                                                    {(instance.hybridScoreStats.average * 100).toFixed(1)}%
+                                                  </p>
+                                                </div>
+                                              )}
+                                               {instance.numModels !== undefined && (
+                                                <div className="flex flex-col items-end">
+                                                  <p className="text-xs text-muted-foreground dark:text-slate-400">Model Variants</p>
+                                                  <p className="text-xl font-semibold text-foreground dark:text-slate-200">
+                                                    {instance.numModels}
+                                                  </p>
+                                                </div>
+                                              )}
+                                              {instance.numPrompts !== undefined && (
+                                                <div className="flex flex-col items-end">
+                                                  <p className="text-xs text-muted-foreground dark:text-slate-400">Test Cases</p>
+                                                  <p className="text-xl font-semibold text-foreground dark:text-slate-200">{instance.numPrompts}</p>
+                                                </div>
+                                              )}
+                                              {ChevronRightIcon && <ChevronRightIcon className="w-5 h-5 text-muted-foreground dark:text-slate-400 self-center ml-2" />}
+                                          </div>
                                       </div>
-                                  </div>
-                              </Link>
-                          </Card>
-                      ))}
-                  </div>
+                                  </Link>
+                              </Card>
+                          ))}
+                      </div>
+                  )}
+                </>
               )}
           </main>
         </div>

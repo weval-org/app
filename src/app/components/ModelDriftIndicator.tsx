@@ -15,6 +15,8 @@ export interface PotentialDriftInfo {
   runsCount: number;
   oldestTimestamp: string;
   newestTimestamp: string;
+  minScoreTimestamp: string;
+  maxScoreTimestamp: string;
 }
 
 interface ModelDriftIndicatorProps {
@@ -69,7 +71,7 @@ const ModelDriftIndicator: React.FC<ModelDriftIndicatorProps> = ({ driftInfo }) 
           </div>
           <div className="mt-3 flex justify-start">
             <Link 
-              href={`/analysis/${driftInfo.configId}/${encodeURIComponent(driftInfo.runLabel)}`}
+              href={`/analysis/${driftInfo.configId}/${encodeURIComponent(driftInfo.runLabel)}?min_ts=${encodeURIComponent(driftInfo.minScoreTimestamp)}&max_ts=${encodeURIComponent(driftInfo.maxScoreTimestamp)}&modelId=${encodeURIComponent(driftInfo.modelId)}`}
               className="inline-flex items-center justify-center px-4 py-2 text-xs font-medium rounded-md text-amber-800 dark:text-amber-100 bg-amber-400/50 hover:bg-amber-400/80 dark:bg-amber-500/40 dark:hover:bg-amber-500/60 transition-colors border border-amber-500/50 dark:border-amber-500/70"
             >
               Investigate Runs
@@ -83,7 +85,7 @@ const ModelDriftIndicator: React.FC<ModelDriftIndicatorProps> = ({ driftInfo }) 
               <li><strong>Note:</strong> To provide a reliable signal, Weval's drift detection is carefully controlled. It only considers runs where the models being tested had a <code className="text-xs">temperature</code> of 0, and it uses judge models that are also set to temperature 0 for scoring.</li>
             </ul>
             <p className="mt-2">
-              A significant shift warrants investigation to understand if a model's capabilities or safety behavior have changed.
+              A significant shift warrants investigation to understand if a model's capabilities or safety behavior have changed. To investigate, click the link above and compare the model's responses and coverage scores between the oldest and newest runs.
             </p>
           </div>
         </div>

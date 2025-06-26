@@ -18,7 +18,7 @@ export default function HomePageBanner() {
           <div className="grid grid-cols-1 md:grid-cols-1 gap-4 md:gap-5">
             <div className="bg-card/40 dark:bg-card/40 backdrop-blur-sm p-4 rounded-lg shadow-md ring-1 ring-border/50 dark:ring-border/50 flex flex-col h-full">
               <p className="text-sm text-foreground/80 dark:text-muted-foreground leading-relaxed flex-grow">
-                Our code is open-source. And all evaluation blueprints are public domain, easy for you to scrutinize and constribute to. You can add your own blueprints to <a href="https://weval.org" className="text-highlight-success dark:text-highlight-success hover:underline">weval.org</a> itself, or even ship your own version of Weval for the niche of your choice, private or public.
+                Our code is open-source. And all evaluation blueprints are public domain, easy for you to scrutinize and contribute to. You can add your own blueprints to <a href="https://weval.org" className="text-highlight-success dark:text-highlight-success hover:underline">weval.org</a> itself, or even ship your own version of Weval for the niche of your choice, private or public.
               </p>
               <div className="mt-2 pt-3 border-t border-border/30 dark:border-border/30 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <a

@@ -268,26 +268,36 @@ export function calculatePotentialModelDrift(
             ? run.perModelHybridScores
             : new Map(Object.entries(run.perModelHybridScores || {}) as [string, { average: number | null; stddev: number | null }][]);
           
+          const scoresForThisRun: number[] = [];
           scoresMap.forEach((scoreData, fullModelId) => {
             if (parseEffectiveModelId(fullModelId).baseId === baseModelId && scoreData.average !== null && scoreData.average !== undefined) {
-              modelScoresOverTime.push({ timestamp: run.timestamp, score: scoreData.average });
+              scoresForThisRun.push(scoreData.average);
             }
           });
+
+          if (scoresForThisRun.length > 0) {
+            const averageScoreForRun = scoresForThisRun.reduce((a, b) => a + b, 0) / scoresForThisRun.length;
+            modelScoresOverTime.push({ timestamp: run.timestamp, score: averageScoreForRun });
+          }
         });
 
         if (modelScoresOverTime.length < 2) return;
 
-        const oldestRun = modelScoresOverTime[0];
-        const newestRun = modelScoresOverTime[modelScoresOverTime.length - 1];
+        // Find the runs with the true min and max scores, not just the oldest/newest
+        let minScoreData = modelScoresOverTime[0];
+        let maxScoreData = modelScoresOverTime[0];
+        for (const scoreData of modelScoresOverTime) {
+            if (scoreData.score < minScoreData.score) minScoreData = scoreData;
+            if (scoreData.score > maxScoreData.score) maxScoreData = scoreData;
+        }
 
-        const scoreDiff = newestRun.score - oldestRun.score;
-        const absScoreDiff = Math.abs(scoreDiff);
-        const relativeChange = oldestRun.score > 0 ? Math.abs(scoreDiff / oldestRun.score) : (newestRun.score !== 0 ? Infinity : 0);
+        const scoreDiff = maxScoreData.score - minScoreData.score;
+        const relativeChange = minScoreData.score > 0 ? Math.abs(scoreDiff / minScoreData.score) : (maxScoreData.score !== 0 ? Infinity : 0);
 
-        if (DEBUG) console.log(`[DriftCalc] ->>> Model '${baseModelId}': Abs Score Diff: ${absScoreDiff.toFixed(4)}, Rel Change: ${(relativeChange * 100).toFixed(2)}%`);
+        if (DEBUG) console.log(`[DriftCalc] ->>> Model '${baseModelId}': Abs Score Diff: ${scoreDiff.toFixed(4)}, Rel Change: ${(relativeChange * 100).toFixed(2)}%`);
 
-        if (absScoreDiff >= MIN_ABSOLUTE_SCORE_DIFFERENCE && relativeChange >= SIGNIFICANT_SCORE_CHANGE_THRESHOLD) {
-          const scoreRange = Math.max(...modelScoresOverTime.map(s => s.score)) - Math.min(...modelScoresOverTime.map(s => s.score));
+        if (scoreDiff >= MIN_ABSOLUTE_SCORE_DIFFERENCE && relativeChange >= SIGNIFICANT_SCORE_CHANGE_THRESHOLD) {
+          const scoreRange = scoreDiff;
           
           if (DEBUG) console.log(`[DriftCalc] ->>> SIGNIFICANT DRIFT DETECTED for '${baseModelId}'. Score range: ${scoreRange.toFixed(4)}`);
 
@@ -298,12 +308,16 @@ export function calculatePotentialModelDrift(
               configTitle: config.title || config.configTitle || config.id || config.configId,
               runLabel: sortedRuns[0].runLabel,
               modelId: baseModelId, 
-              minScore: Math.min(...modelScoresOverTime.map(s => s.score)),
-              maxScore: Math.max(...modelScoresOverTime.map(s => s.score)),
+              minScore: minScoreData.score,
+              maxScore: maxScoreData.score,
               scoreRange: scoreRange,
               runsCount: modelScoresOverTime.length,
-              oldestTimestamp: fromSafeTimestamp(modelScoresOverTime[0].timestamp),
-              newestTimestamp: fromSafeTimestamp(modelScoresOverTime[modelScoresOverTime.length - 1].timestamp),
+              // Use the timestamps from the runs with the extreme scores for the investigation link
+              minScoreTimestamp: minScoreData.timestamp,
+              maxScoreTimestamp: maxScoreData.timestamp,
+              // Use the chronological first/last timestamps for the display text
+              oldestTimestamp: fromSafeTimestamp(sortedRuns[0].timestamp),
+              newestTimestamp: fromSafeTimestamp(sortedRuns[sortedRuns.length - 1].timestamp),
             };
           }
         }

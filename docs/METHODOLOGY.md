@@ -93,11 +93,21 @@ The Hybrid Score is a composite metric designed to provide a single, balanced me
 
 This is a statistical check to flag potential changes in a model's performance over time on an identical test.
 
-*   **Conditions**: The analysis compares runs of the same blueprint (`runLabel`) with `temperature: 0` that are separated by at least 23 hours.
-*   **Statistical Triggers**: A significant drift is flagged only if **both** of the following conditions are met between the oldest and newest runs:
+*   **Conditions**: The analysis compares multiple runs of the same blueprint version (identical `runLabel`) that use `temperature: 0`. The series of runs must also span at least 23 hours from the oldest to the newest execution.
+*   **Process**: For a given model that has participated in all runs in the series, the system finds the run where the model achieved its absolute lowest Hybrid Score and the run where it achieved its absolute highest Hybrid Score.
+*   **Statistical Triggers**: A significant drift is flagged only if the difference between this true minimum and maximum score meets **both** of the following conditions:
     1.  The **absolute score change** is $\ge 0.05$.
     2.  The **relative score change** is $\ge 10\%$.
-*   **Metric**: The system highlights the model that meets these criteria and has the largest score range (max score - min score) across its runs.
+*   **Investigation**: The system highlights the model that meets these criteria and has the largest score range (`max score - min score`). The "Investigate Runs" link will direct you to a side-by-side comparison of the specific runs where the minimum and maximum scores were recorded, ensuring the visualization accurately reflects the detected drift.
+
+### 5.3. Platform-Wide Statistics (Leaderboard)
+
+The homepage displays several aggregate statistics, including a leaderboard of top-performing models. This leaderboard is calculated based on the following principles to ensure fairness and relevance:
+
+*   **Metric**: Models are ranked by their **Overall Average Hybrid Score**.
+*   **Blueprint Weighting**: To ensure that each evaluation blueprint contributes equally to the final rankings, the leaderboard calculation uses only the **single most recent run** of each unique blueprint. This prevents blueprints that are run more frequently from having an outsized influence on the results.
+*   **Calculation**: For each model, the system takes its average Hybrid Score from the latest run of every blueprint it participated in. These scores are then averaged to produce the final `overallAverageScore` used for ranking.
+*   **Participation Threshold**: To ensure statistical significance and prevent models from being ranked based on performance in only a few, specialized tests, a model must have participated in a minimum number of evaluation runs to be included on the leaderboard.
 
 ## 6. Risks, Assumptions, and Affordances
 
