@@ -112,9 +112,13 @@ const BrowseAllBlueprintsSection = ({ blueprints, title, actionLink }: BrowseAll
                             <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1.5">
                                 {Tag && <Tag className="w-3.5 h-3.5 text-muted-foreground dark:text-muted-foreground flex-shrink-0" />} 
                                 {bp.tags.map((tag: string) => (
-                                <span key={tag} className="px-2.5 py-0.5 text-xs font-medium bg-primary/10 text-primary rounded-full transition-colors group-hover:bg-primary/20">
+                                <Link
+                                  href={`/tags/${tag}`}
+                                  key={tag}
+                                  className="px-2.5 py-0.5 text-xs font-medium bg-primary/10 text-primary rounded-full transition-colors hover:bg-primary/20"
+                                >
                                     {tag}
-                                </span>
+                                </Link>
                                 ))}
                             </div>
                         )}

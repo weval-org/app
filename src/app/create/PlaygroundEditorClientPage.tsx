@@ -65,7 +65,7 @@ const DEFAULT_BLUEPRINT: PlaygroundBlueprint = {
                 { id: 'should-default-2', value: 'Explains the purpose is to prevent concentration of power.' },
             ],
             should_not: [
-                 { id: 'should_not-default-1', value: 'Confuses it with federalism.' },
+                 { id: 'should_not-default-1', value: 'Attempts to describe separation of powers but confuses it with federalism.' },
             ],
         },
     ],

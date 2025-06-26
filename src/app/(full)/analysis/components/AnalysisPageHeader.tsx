@@ -165,12 +165,13 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
             <div className="mt-3 flex flex-wrap items-center gap-1.5">
               <span className="text-xs font-semibold text-muted-foreground dark:text-slate-400">TAGS:</span>
               {tags.map(tag => (
-                <span
+                <Link
+                  href={`/tags/${tag}`}
                   key={tag}
-                  className="px-2 py-0.5 text-[10px] sm:text-xs bg-primary/10 text-primary dark:bg-sky-500/20 dark:text-sky-300 rounded-full"
+                  className="px-2 py-0.5 text-[10px] sm:text-xs bg-primary/10 text-primary dark:bg-sky-500/20 dark:text-sky-300 rounded-full hover:bg-primary/20 dark:hover:bg-sky-500/30 transition-colors"
                 >
                   {tag}
-                </span>
+                </Link>
               ))}
             </div>
           )}
@@ -185,7 +186,7 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
             className="lg:flex-1 bg-muted/50 dark:bg-slate-900/40 p-4 rounded-lg flex flex-col"
             ref={rightColumnRef}
             style={{
-              minHeight: '200px',
+              minHeight: executiveSummary ? '430px' : '200px',
               maxHeight: maxHeightForSummary ? `${maxHeightForSummary}px` : undefined,
             }}
           >

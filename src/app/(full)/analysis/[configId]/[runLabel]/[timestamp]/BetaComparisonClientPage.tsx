@@ -289,12 +289,10 @@ export default function BetaComparisonClientPage({ data: initialData, isPlaygrou
       {
         label: data?.configTitle || configIdFromUrl,
         href: `/analysis/${configIdFromUrl}`,
-        isCurrent: !currentPromptId,
       },
       {
         label: data?.runLabel || runLabel,
         href: `/analysis/${configIdFromUrl}/${runLabel}`,
-        isCurrent: !currentPromptId,
       },
       {
         label: timestampFromUrl ? formatTimestampForDisplay(fromSafeTimestamp(timestampFromUrl)) : "Instance",
