@@ -10,8 +10,7 @@ export default function HomePageBanner() {
           className="md:w-2/3 text-sm sm:text-base text-foreground/80 dark:text-muted-foreground leading-relaxed space-y-4"
         >
           <p>
-            <strong>Current AI evaluations measure what's easy, not what's important.</strong>
-            Benchmarks that rely on multiple-choice questions or simple
+            <strong>Current AI evaluations measure what's easy, not what's important.</strong> Benchmarks that rely on multiple-choice questions or simple
             pass/fail tests can't capture the nuance of real-world tasks. They
             can tell you if code runs, but not if it's well-written. They can
             test for textbook knowledge, but not for applied wisdom or regional
