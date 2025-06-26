@@ -37,12 +37,32 @@ This method quantifies the semantic closeness between model responses and a pote
 
 This method uses a powerful "judge" LLM to score a model's response against a structured, qualitative rubric defined in the blueprint. This is Weval's primary method for measuring nuanced performance against specific criteria.
 
+#### Multi-Approach Judging & Consensus
+
+To ensure robustness and mitigate against the biases of a single evaluation method, Weval employs a multi-judge consensus model by default. Instead of relying on a single perspective, it queries multiple judge configurations in parallel and averages their scores. Each judge configuration is a combination of an LLM (`model`) and an `approach`.
+
+This is configured via the `judges` property in a blueprint's `evaluationConfig`:
+
+```yaml
+evaluationConfig:
+  llm-coverage:
+    judges:
+      - { model: 'openai:gpt-4o', approach: 'holistic' }
+      - { model: 'anthropic:claude-3-opus', approach: 'holistic' }
+      - { model: 'openrouter:google/gemini-pro-1.5', approach: 'prompt-aware' }
+```
+
+If no `judges` are specified, the system uses a default set designed to provide a balanced evaluation:
+1.  **`standard` approach:** A judge sees only the model's response and the single criterion to be evaluated. This tests for the presence of the criterion in isolation.
+2.  **`prompt-aware` approach:** A judge sees the response, the criterion, and the original user prompt. This allows the judge to consider the criterion in the context of the user's request.
+3.  **`holistic` approach:** A judge sees the response, the criterion, the user prompt, and *all other criteria* in the rubric. This provides the richest context, allowing the judge to assess the point as part of a whole, which can be useful for identifying redundancy or assessing trade-offs.
+
 #### Judge Prompting and Classification
 
-A specific, structured prompt is used to elicit a judgment for each individual point in the rubric.
+A specific, structured prompt is used to elicit a judgment for each individual point in the rubric, tailored to the judge's `approach`.
 
 *   **System Prompt Persona**: The judge is instructed to act as an "expert evaluator and examiner" and to adhere strictly to the task and output format.
-*   **Task Definition**: The judge is presented with the model's response (`<TEXT>`) and a single criterion (`<CRITERION>`) and is asked to classify the degree to which the criterion is present in the text according to a 5-point scale.
+*   **Task Definition**: The judge is presented with the model's response (`<TEXT>`) and a single criterion (`<CRITERION>`) and is asked to classify the degree to which the criterion is present in the text according to a 5-point scale. Depending on the `approach`, the original `<PROMPT>` and the full `<CRITERIA_LIST>` may also be included for context.
 *   **The 5-Point Scale**: The judge must choose one of the following five classes:
     *   `CLASS_ABSENT`: The criterion is not found or addressed.
     *   `CLASS_SLIGHTLY_PRESENT`: The criterion is very slightly or tangentially touched upon.
@@ -66,8 +86,8 @@ The judge's categorical classification is mapped to a quantitative score.
 
 #### Judge Reliability Mechanisms
 
-*   **Consensus Mode (Default)**: To improve robustness, Weval queries multiple judge models concurrently and averages the scores from all successful responses. This mitigates the impact of a single model's random error or specific bias.
-*   **Failover Mode**: The system can be configured to query judges sequentially, using the first valid response it receives.
+*   **Consensus by Default**: To improve robustness, Weval queries all configured judge configurations concurrently and averages the numerical scores from all successful responses. This mitigates the impact of a single model's random error or a single approach's specific bias. The final `judgeModelId` reflects this, e.g., `consensus(standard(modelA), holistic(modelB))`.
+*   **Transparent Breakdowns**: The output for each point assessment includes an `individualJudgements` array, detailing the score and reflection from each participating judge. This allows for deep inspection of any disagreements or biases among the judges.
 
 ## 5. Aggregate Statistical Measures
 
@@ -125,7 +145,6 @@ The validity of Weval's metrics rests on these core assumptions:
 
 *   **Risk of Masking Nuance**: The Hybrid Score, by design, collapses two distinct performance axes into one number. This can obscure critical insights. A model could score well by excelling on one axis while failing on the other. **It should be used as a high-level indicator, not a substitute for examining the individual score components.**
 *   **Risk of Arbitrary Thresholds in Drift Detection**: The thresholds for flagging performance drift (0.05 absolute, 10% relative) are heuristics, not empirically derived from the statistical properties of the platform's data. They are designed to be reasonably conservative but may not be optimal, and the "drift" signal should be treated as a flag for further investigation, not a definitive conclusion.
-*   **Risk of Shared Judge Bias**: The `consensus` mode for LLM-judged rubrics reduces noise from any single judge but **does not protect against shared systematic biases**. If all models in the judge pool share the same underlying bias (e.g., political, positional), the consensus score will simply represent the average of that bias.
 *   **Risk of Misinterpreting Aggregate Rankings**: High-level platform statistics like "Top Ranked Models" average scores across vastly different and non-commensurate tasks (e.g., legal analysis vs. poetry). This rewards generalist models and can be statistically misleading. **These aggregate views should be interpreted with extreme caution and skepticism.**
 
 ### 6.3. Affordances and Recommended Use

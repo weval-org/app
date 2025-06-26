@@ -24,6 +24,16 @@ const Server = dynamic(() => import('lucide-react').then(mod => mod.Server));
 const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
 const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
 
+const parseJudgeId = (judgeId: string): { approach: string, model: string } => {
+    const match = judgeId.match(/^([\w-]+)\((.*)\)$/);
+    if (match && match[1] && match[2]) {
+        // Handles "approach(model:id)"
+        return { approach: match[1], model: getModelDisplayLabel(match[2]) };
+    }
+    // Fallback for simple model IDs or other formats
+    return { approach: 'Custom', model: getModelDisplayLabel(judgeId) };
+};
+
 export type { PointAssessment, ModelEvaluationVariant, ModelEvaluationDetailModalData };
 
 interface PointAssessment {
@@ -158,15 +168,27 @@ const AssessmentItem: React.FC<{
                 <div className="mt-2 pt-2 border-t border-border/50">
                     <h5 className="font-semibold text-xs text-muted-foreground mb-1.5">Consensus Breakdown:</h5>
                     <div className="space-y-2 pl-2 border-l-2 border-border/50">
-                        {assessment.individualJudgements.map((judgement, j_index) => (
+                        {assessment.individualJudgements.map((judgement, j_index) => {
+                            const { approach, model } = parseJudgeId(judgement.judgeModelId);
+                            return (
                             <div key={j_index} className="text-xs">
                                 <div className="flex items-center space-x-2">
-                                    <Badge variant="secondary" className="font-normal">{getModelDisplayLabel(judgement.judgeModelId)}</Badge>
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger>
+                                                <Badge variant="outline" className="font-normal capitalize cursor-default">{approach}</Badge>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>Judging Approach</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                    <Badge variant="secondary" className="font-normal">{model}</Badge>
                                     <Badge className={`text-white ${assessment.isInverted ? getInvertedScoreColor(judgement.coverageExtent) : getScoreColor(judgement.coverageExtent)}`}>{judgement.coverageExtent.toFixed(2)}</Badge>
                                 </div>
                                 <p className="text-muted-foreground/80 italic pl-1 mt-1 whitespace-pre-wrap">{judgement.reflection}</p>
                             </div>
-                        ))}
+                        )})}
                     </div>
                 </div>
             )}
@@ -196,7 +218,7 @@ const AssessmentItem: React.FC<{
                         {isLogExpanded && assessment.judgeLog && (
                             <div className="mt-2 p-2 rounded bg-muted/50 dark:bg-slate-900/50">
                                     <pre className="font-mono text-[10px] max-h-48 overflow-y-auto custom-scrollbar whitespace-pre-wrap">
-                                    {assessment.judgeLog.join('\\n')}
+                                    {assessment.judgeLog.join('\n')}
                                 </pre>
                             </div>
                         )}

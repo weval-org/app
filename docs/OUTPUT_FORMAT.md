@@ -94,9 +94,21 @@ This object contains the detailed evaluation for a single rubric item.
   "error": string, // Present if an error occurred for this point
   "multiplier": number, // The weight of this point
   "citation": string, // Optional citation associated with the point
-  "judgeModelId": string, // The final judge model that produced this assessment
+  "judgeModelId": string, // The identifier for the judge(s). For a consensus, this will be like `consensus(judge1(model), judge2(model))`.
   "isInverted": boolean, // True if the point came from a `should_not` block
   "judgeLog": string[], // (Debug) Log of steps taken by the judge logic
-  "individualJudgements": object[] // (Debug) The raw outputs from each judge in a consensus call
+  "individualJudgements": IndividualJudgement[] // (Debug) The raw outputs from each judge in a consensus call
 }
-``` 
+```
+
+### `IndividualJudgement` Object
+
+This object contains the specific output from a single judge within a consensus evaluation.
+
+```typescript
+{
+  "judgeModelId": string, // The ID of the specific judge, e.g., `holistic(openai:gpt-4o-mini)`
+  "coverageExtent": number,
+  "reflection": string
+}
+```

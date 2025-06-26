@@ -148,7 +148,7 @@ export default async function HomePage() {
           
           <div className="text-center pt-6 pb-4">
             <p className="text-sm text-muted-foreground">
-              Weval is an open source project from the <Link href="https://civicintegrity.org" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">Civic Integrity Project</Link>.
+              Weval is an open source project from the <Link href="https://cip.org" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">Collective Intelligence Project</Link>.
             </p>
           </div>
         </div>

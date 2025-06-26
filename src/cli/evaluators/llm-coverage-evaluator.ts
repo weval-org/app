@@ -7,7 +7,8 @@ import {
     EvaluationMethod,
     NormalizedPoint,
     PromptConfig,
-    PointDefinition
+    PointDefinition,
+    Judge
 } from '../types/cli_types';
 import {
     ConversationMessage,
@@ -30,13 +31,24 @@ import { evaluateFunctionPoints, aggregateCoverageScores } from './coverage-logi
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
+// Add local interface to fix TS error until types can be globally updated
+interface LLMCoverageEvaluationConfig {
+    judgeModels?: string[];
+    judgeMode?: 'failover' | 'consensus';
+    judges?: Judge[];
+}
+
+const DEFAULT_JUDGES: Judge[] = [
+    { id: 'standard', model: 'openrouter:google/gemini-2.5-flash-preview-05-20', approach: 'standard' },
+    { id: 'prompt-aware', model: 'openrouter:x-ai/grok-3-mini', approach: 'prompt-aware' },
+    { id: 'holistic', model: 'openai:gpt-4.1-mini', approach: 'holistic' }
+];
+
 interface PointwiseCoverageLLMResult {
     coverage_extent: number;
     reflection: string;
 }
 
-const MAX_RETRIES_POINTWISE = 2;
-const RETRY_DELAY_MS_POINTWISE = 2000;
 const CALL_TIMEOUT_MS_POINTWISE = 45000;
 
 export class LLMCoverageEvaluator implements Evaluator {
@@ -121,47 +133,49 @@ export class LLMCoverageEvaluator implements Evaluator {
 
     private async evaluateSinglePoint(
         modelResponseText: string,
-        keyPointText: string,
+        pointToEvaluate: NormalizedPoint,
+        allPointsInPrompt: NormalizedPoint[],
         promptContextText: string,
-        judgeModels?: string[],
-        judgeMode?: 'failover' | 'consensus'
-    ): Promise<(PointwiseCoverageLLMResult & { judgeModelId: string, judgeLog: string[], individualJudgements?: IndividualJudgement[] }) | { error: string, judgeLog: string[] }> {
-        const effectiveJudgeMode = judgeMode || 'consensus';
-        this.logger.info(`[LLMCoverageEvaluator] Evaluating single point with mode: ${effectiveJudgeMode}`);
-        const modelsToTry: string[] = judgeModels && judgeModels.length > 0 ? judgeModels : [
-            'openrouter:google/gemini-2.5-flash-preview-05-20',
-            'openai:gpt-4.1-mini'
-        ];
-        
-        if (effectiveJudgeMode === 'consensus') {
-            return this.evaluateSinglePointConsensus(modelResponseText, keyPointText, promptContextText, modelsToTry);
-        } else {
-            return this.evaluateSinglePointFailover(modelResponseText, keyPointText, promptContextText, modelsToTry);
-        }
-    }
-
-    private async evaluateSinglePointConsensus(
-        modelResponseText: string,
-        keyPointText: string,
-        promptContextText: string,
-        modelsToTry: string[]
+        judges?: Judge[],
+        judgeMode?: 'failover' | 'consensus' // Legacy
     ): Promise<(PointwiseCoverageLLMResult & { judgeModelId: string, judgeLog: string[], individualJudgements?: IndividualJudgement[] }) | { error: string, judgeLog: string[] }> {
         const judgeLog: string[] = [];
         const pLimitFunction = (await import('p-limit')).default;
-        const judgeRequestLimit = pLimitFunction(5); // Concurrently request up to 5 judges
+        const judgeRequestLimit = pLimitFunction(5);
         const successfulJudgements: (PointwiseCoverageLLMResult & { judgeModelId: string })[] = [];
 
-        const evaluationPromises = modelsToTry.map(modelId =>
+        // Determine which judges to use
+        let judgesToUse: Judge[];
+        if (judges && judges.length > 0) {
+            this.logger.info(`[LLMCoverageEvaluator] Using custom judges configuration with ${judges.length} judges.`);
+            judgesToUse = judges;
+        } else {
+            this.logger.info(`[LLMCoverageEvaluator] No custom judges configured. Using default set of ${DEFAULT_JUDGES.length} judges.`);
+            judgesToUse = DEFAULT_JUDGES;
+        }
+
+        const allKeyPointTexts = allPointsInPrompt.map(p => p.displayText);
+        
+        const evaluationPromises = judgesToUse.map((judge, index) =>
             judgeRequestLimit(async () => {
-                this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- [Consensus] Requesting judge: ${modelId} for KP: "${keyPointText.substring(0, 50)}..."`);
-                judgeLog.push(`[${modelId}] Starting evaluation.`);
-                const singleEvalResult = await this.requestIndividualJudge(modelResponseText, keyPointText, promptContextText, modelId);
+                const judgeIdentifier = judge.id || `judge-${index}`;
+                this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- [Consensus] Requesting judge: ${judgeIdentifier} (Model: ${judge.model}, Approach: ${judge.approach}) for KP: "${pointToEvaluate.textToEvaluate!.substring(0, 50)}..."`);
+                judgeLog.push(`[${judgeIdentifier}] Starting evaluation with model ${judge.model} and approach ${judge.approach}.`);
+
+                const singleEvalResult = await this.requestIndividualJudge(
+                    modelResponseText,
+                    pointToEvaluate.textToEvaluate!,
+                    allKeyPointTexts,
+                    promptContextText,
+                    judge
+                );
 
                 if ('error' in singleEvalResult) {
-                    judgeLog.push(`[${modelId}] FAILED: ${singleEvalResult.error}`);
+                    judgeLog.push(`[${judgeIdentifier}] FAILED: ${singleEvalResult.error}`);
                 } else {
-                    judgeLog.push(`[${modelId}] SUCCEEDED. Score: ${singleEvalResult.coverage_extent}`);
-                    successfulJudgements.push({ ...singleEvalResult, judgeModelId: modelId });
+                    const finalJudgeId = judge.id ? `${judge.id}(${judge.model})` : `${judge.approach}(${judge.model})`;
+                    judgeLog.push(`[${judgeIdentifier}] SUCCEEDED. Score: ${singleEvalResult.coverage_extent}`);
+                    successfulJudgements.push({ ...singleEvalResult, judgeModelId: finalJudgeId });
                 }
             })
         );
@@ -196,84 +210,97 @@ export class LLMCoverageEvaluator implements Evaluator {
         }
     }
 
-    private async evaluateSinglePointFailover(
-        modelResponseText: string,
-        keyPointText: string,
-        promptContextText: string,
-        modelsToTry: string[]
-    ): Promise<(PointwiseCoverageLLMResult & { judgeModelId: string, judgeLog: string[] }) | { error: string, judgeLog: string[] }> {
-        const judgeLog: string[] = [];
-        for (let attempt = 1; attempt <= MAX_RETRIES_POINTWISE + 1; attempt++) {
-            for (const modelId of modelsToTry) {
-                this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- [Failover Attempt ${attempt}] Requesting judge: ${modelId} for KP: "${keyPointText.substring(0, 50)}..."`);
-                judgeLog.push(`[Attempt ${attempt}][${modelId}] Starting evaluation.`);
-                const singleEvalResult = await this.requestIndividualJudge(modelResponseText, keyPointText, promptContextText, modelId);
-                
-                if ('error' in singleEvalResult) {
-                    judgeLog.push(`[Attempt ${attempt}][${modelId}] FAILED: ${singleEvalResult.error}`);
-                    // Continue to next model
-                } else {
-                    judgeLog.push(`[Attempt ${attempt}][${modelId}] SUCCEEDED. Score: ${singleEvalResult.coverage_extent}`);
-                    this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- Failover mode SUCCEEDED with judge: ${modelId}`);
-                    return {
-                        ...singleEvalResult,
-                        judgeModelId: modelId,
-                        judgeLog
-                    };
-                }
-            }
-            if (attempt <= MAX_RETRIES_POINTWISE) {
-                this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- All models failed on attempt ${attempt}. Retrying in ${RETRY_DELAY_MS_POINTWISE}ms...`);
-                await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS_POINTWISE));
-            }
-        }
-
-        // If all attempts fail
-        const errorMsg = `All judges failed in failover mode after ${MAX_RETRIES_POINTWISE + 1} attempts.`;
-        this.logger.warn(`[LLMCoverageEvaluator-Pointwise] --- ${errorMsg}`);
-        judgeLog.push(`FINAL_ERROR: ${errorMsg}`);
-        return { error: errorMsg, judgeLog };
-    }
-
     private async requestIndividualJudge(
         modelResponseText: string,
         keyPointText: string,
+        allOtherKeyPoints: string[],
         promptContextText: string,
-        modelId: string
+        judge: Judge
     ): Promise<PointwiseCoverageLLMResult | { error: string }> {
         const cacheKeyPayload = {
             modelResponseText,
             keyPointText,
+            allOtherKeyPoints,
             promptContextText,
-            modelId,
+            judge, // Judge object includes model and approach
         };
         const cacheKey = generateCacheKey(cacheKeyPayload);
         const cache = getCache('judge-evaluations');
+        const { model: modelId, approach } = judge;
 
         if (this.useCache) {
             const cachedResult = await cache.get(cacheKey);
             if (cachedResult) {
-                this.logger.info(`Cache HIT for pointwise judge evaluation with ${modelId}`);
+                this.logger.info(`Cache HIT for pointwise judge evaluation with ${modelId} (${approach})`);
                 return cachedResult as PointwiseCoverageLLMResult;
             }
-            this.logger.info(`Cache MISS for pointwise judge evaluation with ${modelId}`);
+            this.logger.info(`Cache MISS for pointwise judge evaluation with ${modelId} (${approach})`);
         }
 
-        // For now: we don't insert the original prompt nor suggest that the text
-        // was generated by AI. This would inject bias.
+        let pointwisePrompt: string;
 
-        const pointwisePrompt = `
-Given the following <TEXT>:
+        switch (approach) {
+            case 'prompt-aware':
+                pointwisePrompt = `
+The user's original request was:
+<PROMPT>
+${promptContextText}
+</PROMPT>
 
+Given the following <TEXT> which was generated in response to the prompt:
 <TEXT>
 ${modelResponseText}
 </TEXT>
 
 Carefully assess how well the following <CRITERION> is expressed in the text:
-
 <CRITERION>
 ${keyPointText}
 </CRITERION>
+`;
+                break;
+            
+            case 'holistic':
+                pointwisePrompt = `
+The user's original request was:
+<PROMPT>
+${promptContextText}
+</PROMPT>
+
+You are evaluating a response against a rubric of several criteria.
+For context only, the full list of criteria is:
+<CRITERIA_LIST>
+${allOtherKeyPoints.map(kp => `- ${kp}`).join('\n')}
+</CRITERIA_LIST>
+
+Given the following <TEXT> which was generated in response to the prompt:
+<TEXT>
+${modelResponseText}
+</TEXT>
+
+Now, carefully assess how well THIS SPECIFIC <CRITERION> ONLY is expressed in the text:
+<CRITERION>
+${keyPointText}
+</CRITERION>
+`;
+                break;
+
+            case 'standard':
+            default:
+                 pointwisePrompt = `
+Given the following <TEXT>:
+<TEXT>
+${modelResponseText}
+</TEXT>
+
+Carefully assess how well the following <CRITERION> is expressed in the text:
+<CRITERION>
+${keyPointText}
+</CRITERION>
+`;
+                break;
+        }
+
+        const finalPrompt = `${pointwisePrompt}
 
 Your task is to provide a 'reflection' and a 'classification' based on the guidelines below. Your classification should indicate the degree to which the criterion is present in the text.
 
@@ -290,7 +317,7 @@ Your output MUST strictly follow this XML format:
 <reflection>Your 1-2 sentence reflection and reasoning for the classification, explaining how well the criterion is met, if at all.</reflection>
 <classification>ONE of the 5 class names (e.g., CLASS_FULLY_PRESENT)</classification>
 `;
-
+        
         const systemPrompt = `
 You are an expert evaluator and examiner. Your task is to assess how well a specific criterion is covered by a given text by providing a reflection and a classification. 
 Focus solely on the provided criterion, the text, and the classification guidelines. Adhere strictly to the XML output format specified in the user prompt. Be brief if possible.
@@ -310,7 +337,7 @@ The criterion is an assertion being made about the <TEXT>. It might be allude to
         try {
              const clientOptions: Omit<LLMApiCallOptions, 'modelName'> & { modelId: string } = {
                 modelId: modelId,
-                prompt: pointwisePrompt, 
+                prompt: finalPrompt, 
                 systemPrompt: systemPrompt,
                 temperature: 0.0,
                 maxTokens: 500,
@@ -430,6 +457,8 @@ The criterion is an assertion being made about the <TEXT>. It might be allude to
                 combinedNormalizedPoints = this.normalizePoints(keyPointExtractionResult.key_points, promptData.promptId, false);
             }
 
+            const llmCoverageConfig = config.evaluationConfig?.['llm-coverage'] as LLMCoverageEvaluationConfig | undefined;
+
             for (const [modelId, responseData] of promptData.modelResponses.entries()) {
                 if (modelId === IDEAL_MODEL_ID) continue;
 
@@ -449,10 +478,11 @@ The criterion is an assertion being made about the <TEXT>. It might be allude to
                         for (const point of textPoints) {
                             const judgeResult = await this.evaluateSinglePoint(
                                 responseData.finalAssistantResponseText,
-                                point.textToEvaluate!,
+                                point,
+                                textPoints,
                                 promptContextString,
-                                config.evaluationConfig?.['llm-coverage']?.judgeModels,
-                                config.evaluationConfig?.['llm-coverage']?.judgeMode
+                                llmCoverageConfig?.judges,
+                                llmCoverageConfig?.judgeMode
                             );
 
                             let finalScore = 'error' in judgeResult ? undefined : judgeResult.coverage_extent;

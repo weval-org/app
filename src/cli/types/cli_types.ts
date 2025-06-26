@@ -80,4 +80,20 @@ export interface Evaluator {
     evaluate(inputs: EvaluationInput[]): Promise<Partial<WevalEvaluationResults & Pick<FinalComparisonOutputV2, 'extractedKeyPoints'>>>;
 }
 
+export interface Judge {
+    id?: string; // Optional identifier for a specific judge configuration
+    model: string;
+    approach: 'standard' | 'prompt-aware' | 'holistic';
+}
+
+interface LLMCoverageEvaluationConfig {
+    judgeModels?: string[]; // Kept for backwards compatibility, but 'judges' is preferred
+    judgeMode?: 'failover' | 'consensus'; // Kept for backwards compatibility
+    judges?: Judge[];
+}
+
+interface EvaluationConfig {
+    // ... existing code ...
+}
+
 export { IDEAL_MODEL_ID }; 

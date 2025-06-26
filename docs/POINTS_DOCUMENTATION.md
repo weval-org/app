@@ -112,7 +112,7 @@ The `LLMCoverageEvaluator` iterates through each `Point` object for a given mode
 This path is for `text`-based points and is the most complex.
 
 1.  **Function Call**: The evaluator calls the `evaluateSinglePoint` method.
-2.  **Prompt Construction**: This method constructs a highly detailed prompt for a "judge" LLM. The prompt includes the model's full response and—most importantly—the single key point (`text`) it needs to assess.
+2.  **Prompt Construction**: This method constructs a highly detailed prompt for a "judge" LLM. The prompt's content depends on the `approach` (`standard`, `prompt-aware`, or `holistic`) configured for the specific judge. It will always include the model's response and the single key point, but may also include the original user prompt and the full list of other criteria for context.
 
     ```typescript
     // Snippet from the prompt in src/cli/evaluators/llm-coverage-evaluator.ts
@@ -133,8 +133,9 @@ This path is for `text`-based points and is the most complex.
     \`;
     ```
 
-3.  **LLM Judge**: It sends this prompt to a powerful judge model. The code includes a list of models to try and has retry logic for robustness.
-4.  **Parsing and Scoring**: The judge LLM returns an XML string containing a `<classification>` tag (e.g., `CLASS_PARTIALLY_PRESENT`). The system parses this classification and maps it to a numerical score based on a predefined scale (e.g., `CLASS_ABSENT` -> 0.0, `CLASS_PARTIALLY_PRESENT` -> 0.5, `CLASS_FULLY_PRESENT` -> 1.0). This score and the `<reflection>` text become a `PointAssessment`.
+3.  **LLM Judge**: It sends this prompt to all configured judge models in parallel. By default, this includes judges using `standard`, `prompt-aware`, and `holistic` approaches to get a robust consensus.
+4.  **Parsing and Scoring**: Each judge LLM returns an XML string containing a `<classification>` tag (e.g., `CLASS_PARTIALLY_PRESENT`). The system parses this classification and maps it to a numerical score based on a predefined scale (e.g., `CLASS_ABSENT` -> 0.0, `CLASS_PARTIALLY_PRESENT` -> 0.5, `CLASS_FULLY_PRESENT` -> 1.0).
+5.  **Consensus Score**: The scores from all successful judge responses are averaged to produce the final `coverageExtent` for the point. This score and a summary `reflection` become part of the `PointAssessment`.
 
 **Path B: Function-Based "Exact" Evaluation (if `fn` IS present)**
 
