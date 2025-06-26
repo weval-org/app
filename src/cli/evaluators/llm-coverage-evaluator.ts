@@ -154,7 +154,7 @@ export class LLMCoverageEvaluator implements Evaluator {
             judgesToUse = DEFAULT_JUDGES;
         }
 
-        const allKeyPointTexts = allPointsInPrompt.map(p => p.displayText);
+        const allKeyPointTexts = allPointsInPrompt.map(p => `${p.isInverted ? '[should not]' : '[should]'} ${p.displayText}`);
         
         const evaluationPromises = judgesToUse.map((judge, index) =>
             judgeRequestLimit(async () => {

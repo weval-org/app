@@ -133,7 +133,7 @@ describe('LLMCoverageEvaluator', () => {
         expect(requestIndividualJudgeSpy).toHaveBeenCalledWith(
             "Test response", // modelResponseText
             "This is a string point", // keyPointText
-            ["This is a string point"], // allOtherKeyPoints
+            ["[should] This is a string point"], // allOtherKeyPoints
             expect.stringContaining("Prompt for prompt1"), // promptContextText
             expect.objectContaining({ approach: 'standard' }) // judge object
         );
@@ -293,8 +293,8 @@ describe('LLMCoverageEvaluator', () => {
              await evaluator.evaluate([input]);
              
              const expectedAllPoints = [
-                "point one",
-                "point two"
+                "[should] point one",
+                "[should] point two"
              ];
 
              expect(requestIndividualJudgeSpy).toHaveBeenCalledWith(
@@ -324,6 +324,42 @@ describe('LLMCoverageEvaluator', () => {
             expect(assessment.error).toBe('All judges failed in consensus mode.');
             expect(assessment.coverageExtent).toBeUndefined();
             expect(assessment.judgeModelId).toBeUndefined();
+        });
+
+        it('should prepend [should] and [should not] to criteria in holistic evaluation', async () => {
+            const points: PointDefinition[] = ['be polite'];
+            const input = createMockEvaluationInput('prompt-holistic-mixed', points, 'this is a response');
+            input.config.prompts[0].should_not = ['be rude'];
+
+            const customJudges: Judge[] = [{ model: 'judge', approach: 'holistic' }];
+            input.config.evaluationConfig = { 'llm-coverage': { judges: customJudges } as any };
+            
+            requestIndividualJudgeSpy.mockResolvedValue({ coverage_extent: 1.0, reflection: 'holistic reflection' });
+
+            await evaluator.evaluate([input]);
+            
+            const expectedAllPointsContext = [
+                '[should] be polite',
+                '[should not] be rude',
+            ];
+
+            // Check call for the 'should' point
+            expect(requestIndividualJudgeSpy).toHaveBeenCalledWith(
+                'this is a response',
+                'be polite',
+                expectedAllPointsContext,
+                expect.any(String),
+                expect.objectContaining({ approach: 'holistic' })
+            );
+
+            // Check call for the 'should not' point
+            expect(requestIndividualJudgeSpy).toHaveBeenCalledWith(
+                'this is a response',
+                'be rude',
+                expectedAllPointsContext,
+                expect.any(String),
+                expect.objectContaining({ approach: 'holistic' })
+            );
         });
     });
 
