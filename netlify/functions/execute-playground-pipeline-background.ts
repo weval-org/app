@@ -85,18 +85,23 @@ export const handler: BackgroundHandler = async (event) => {
         if (promptData.idealResponseText) {
             effectiveModelIdsSet.add(IDEAL_MODEL_ID);
         }
-        for (const modelId of promptData.modelResponses.keys()) {
+        for (const modelId of Object.keys(promptData.modelResponses)) {
             effectiveModelIdsSet.add(modelId);
         }
     }
     const effectiveModelIds = Array.from(effectiveModelIdsSet).sort();
 
     // Evaluators expect an array of EvaluationInput
-    const evaluationInputs: EvaluationInput[] = Array.from(allResponsesMap.values()).map(promptData => ({
-        promptData,
-        config,
-        effectiveModelIds,
-    }));
+    const evaluationInputs: EvaluationInput[] = [];
+
+    for (const promptData of allResponsesMap.values()) {
+        const modelIdsForThisPrompt = Object.keys(promptData.modelResponses);
+        evaluationInputs.push({
+            promptData: promptData,
+            config: config,
+            effectiveModelIds: modelIdsForThisPrompt
+        });
+    }
 
     if (evalMethods.includes('embedding')) {
         const result = await embeddingEval.evaluate(evaluationInputs);
@@ -178,7 +183,7 @@ async function aggregatePlaygroundResult(
         if (promptData.idealResponseText) {
             allFinalAssistantResponses[promptId][IDEAL_MODEL_ID] = promptData.idealResponseText;
         }
-        for (const [effectiveModelId, responseData] of promptData.modelResponses.entries()) {
+        for (const [effectiveModelId, responseData] of Object.entries(promptData.modelResponses)) {
             effectiveModelsSet.add(effectiveModelId);
             allFinalAssistantResponses[promptId][effectiveModelId] = responseData.finalAssistantResponseText;
         }

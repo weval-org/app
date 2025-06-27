@@ -371,7 +371,9 @@ export async function generateRunMarkdown(data: ComparisonDataV2, options: Markd
                     md += "\n";
                 } else if (llmCoverageResult && 'error' in llmCoverageResult) {
                      md += `*   **Key Point Coverage Score:** Error\n`;
-                     md += `> _Error during coverage assessment: ${escapeMarkdown(llmCoverageResult.error)}_\n\n`;
+                     if (llmCoverageResult.error) {
+                         md += `> _Error during coverage assessment: ${escapeMarkdown(llmCoverageResult.error)}_\n\n`;
+                     }
                 } else {
                      md += `*   **Key Point Coverage Score:** N/A\n\n`;
                 }

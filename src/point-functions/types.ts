@@ -10,7 +10,8 @@ export interface PointFunctionContext {
     logger?: Logger;
 }
 
-export type PointFunctionArgs = any;
+export type AtLeastNOfArg = [number, string[]];
+export type PointFunctionArgs = string | number | boolean | null | (string | number | boolean)[] | AtLeastNOfArg | Record<string, unknown>;
 
 export type PointFunctionReturn = boolean | number | { error: string };
 

@@ -57,7 +57,9 @@ export interface PromptResponseData {
     promptText?: string;
     initialMessages?: ConversationMessage[];
     idealResponseText: string | null;
-    modelResponses: Map<string, ModelResponseDetail>;
+    modelResponses: {
+        [modelId: string]: ModelResponseDetail;
+    };
 }
 
 export interface EvaluationInput {

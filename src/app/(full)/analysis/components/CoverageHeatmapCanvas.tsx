@@ -2,22 +2,10 @@
 
 import React, { useEffect, useRef, useMemo, useCallback } from 'react';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
+import { CoverageResult as ImportedCoverageResult, PointAssessment } from '@/types/shared';
 
-// Type definitions (consistent with MacroCoverageTable)
-interface PointAssessment {
-    keyPointText: string;
-    coverageExtent?: number;
-    reflection?: string;
-    error?: string;
-    multiplier?: number;
-    citation?: string;
-}
-type CoverageResult = {
-    keyPointsCount: number;
-    avgCoverageExtent?: number;
-    pointAssessments?: PointAssessment[];
-} | { error: string } | null;
-
+// Re-export shared types for local consistency and to avoid conflicts.
+export type CoverageResult = ImportedCoverageResult;
 export type AllCoverageScores = Record<string, Record<string, CoverageResult>>; // promptId -> modelId -> CoverageResult
 
 interface CoverageHeatmapCanvasProps {

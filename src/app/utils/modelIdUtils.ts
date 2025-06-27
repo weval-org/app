@@ -100,6 +100,9 @@ export function getModelDisplayLabel(
     if (parsed.systemPromptHash) {
         suffixes.push(`${parsed.systemPromptHash}`);
     }
+    if (parsed.systemPromptIndex !== undefined) {
+        suffixes.push(`sys:${parsed.systemPromptIndex}`);
+    }
     if (parsed.temperature !== undefined && parsed.temperature !== 0) {
         suffixes.push(`T:${parsed.temperature}`);
     }

@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import SimilarityHeatmap from '@/app/(full)/analysis/components/SimilarityHeatmap';
 import SimilarityGraph from '@/app/(full)/analysis/components/SimilarityGraph';
 import DendrogramChart from '@/app/(full)/analysis/components/DendrogramChart';
@@ -25,6 +26,7 @@ interface SinglePromptViewProps {
     currentPromptId: string;
     currentPromptDisplayText: string;
     displayedModels: string[];
+    canonicalModels: string[];
     handleSimilarityCellClick: (modelA: string, modelB: string, similarity: number, promptId: string) => void;
     handleCoverageCellClick: (modelId: string, assessment: PointAssessment, promptId: string) => void;
     handleSemanticExtremesClick: (modelId: string) => void;
@@ -37,6 +39,7 @@ export const SinglePromptView: React.FC<SinglePromptViewProps> = ({
     currentPromptId,
     currentPromptDisplayText,
     displayedModels,
+    canonicalModels,
     handleSimilarityCellClick,
     handleCoverageCellClick,
     handleSemanticExtremesClick,
@@ -137,6 +140,33 @@ export const SinglePromptView: React.FC<SinglePromptViewProps> = ({
     
     return (
         <>
+            {data?.config?.systems && (
+                (data.config.systems.length > 1 || data.config.systems[0] !== null)
+            ) && (
+                <Card className="shadow-lg border-border dark:border-border mb-6">
+                    <CardHeader>
+                        <CardTitle className="text-primary text-primary">System Prompt Variants</CardTitle>
+                        <CardDescription>This run was executed against the following system prompt variations.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <ul className="space-y-3">
+                            {data.config.systems.map((systemPrompt, index) => (
+                                <li key={index} className="flex items-start gap-3 p-2 rounded-md bg-muted/50 dark:bg-muted/30">
+                                    <Badge variant="secondary" className="mt-1">{`sp_idx:${index}`}</Badge>
+                                    <div className="text-sm text-card-foreground dark:text-card-foreground">
+                                        {systemPrompt === null ? (
+                                            <em className="text-muted-foreground">[No System Prompt]</em>
+                                        ) : (
+                                            <p className="whitespace-pre-wrap font-mono">{systemPrompt}</p>
+                                        )}
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>
+                    </CardContent>
+                </Card>
+            )}
+
             {currentPromptSystemPrompt && (
                 <Card className="shadow-lg border-border dark:border-border">
                     <CardHeader>
@@ -163,7 +193,7 @@ export const SinglePromptView: React.FC<SinglePromptViewProps> = ({
 
             {allFinalAssistantResponses && data.evaluationResults?.llmCoverageScores?.[currentPromptId] && allFinalAssistantResponses?.[currentPromptId]?.[IDEAL_MODEL_ID] && (
                 <KeyPointCoverageComparisonDisplay
-                    coverageScores={data.evaluationResults.llmCoverageScores[currentPromptId] as Record<string, ImportedCoverageResult>}
+                    coverageScores={data.evaluationResults.llmCoverageScores[currentPromptId]}
                     models={displayedModels.filter(m => m !== IDEAL_MODEL_ID)} 
                     promptResponses={allFinalAssistantResponses[currentPromptId]}
                     idealModelId={IDEAL_MODEL_ID}
@@ -198,7 +228,7 @@ export const SinglePromptView: React.FC<SinglePromptViewProps> = ({
                     </CardHeader>
                     <CardContent>
                         <KeyPointCoverageTable 
-                            coverageScores={data.evaluationResults.llmCoverageScores[currentPromptId] as Record<string, ImportedCoverageResult>}
+                            coverageScores={data.evaluationResults.llmCoverageScores[currentPromptId]}
                             models={displayedModels.filter(m => m !== IDEAL_MODEL_ID)}
                             onCellClick={(modelId, assessment) => {
                                 if (assessment) {
@@ -226,10 +256,10 @@ export const SinglePromptView: React.FC<SinglePromptViewProps> = ({
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        {safeMatrixForCurrentView && displayedModels.length > 0 ? (
+                        {safeMatrixForCurrentView && canonicalModels.length > 0 ? (
                             <SimilarityHeatmap 
                                 similarityMatrix={safeMatrixForCurrentView} 
-                                models={displayedModels}
+                                models={canonicalModels}
                                 onCellClick={(modelA, modelB, similarity) => handleSimilarityCellClick(modelA, modelB, similarity, currentPromptId)}
                             />
                         ) : <p className="text-center text-muted-foreground dark:text-muted-foreground py-4">Not enough data or models to display heatmap for this view.</p>}
@@ -249,10 +279,10 @@ export const SinglePromptView: React.FC<SinglePromptViewProps> = ({
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="h-[400px]">
-                            {safeMatrixForCurrentView && displayedModels.length > 1 ? (
+                            {safeMatrixForCurrentView && canonicalModels.length > 1 ? (
                                 <SimilarityGraph 
                                     similarityMatrix={safeMatrixForCurrentView} 
-                                    models={displayedModels}
+                                    models={canonicalModels}
                                     resolvedTheme={resolvedTheme}
                                 />
                             ) : <p className="text-center text-muted-foreground dark:text-muted-foreground py-4">Not enough data or models to display graph for this view.</p>}
@@ -273,10 +303,10 @@ export const SinglePromptView: React.FC<SinglePromptViewProps> = ({
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="h-[450px] overflow-x-auto custom-scrollbar">
-                        {safeMatrixForCurrentView && displayedModels.length > 1 ? (
+                        {safeMatrixForCurrentView && canonicalModels.length > 1 ? (
                             <DendrogramChart 
                                 similarityMatrix={safeMatrixForCurrentView} 
-                                models={displayedModels}
+                                models={canonicalModels}
                             />
                         ) : <p className="text-center text-muted-foreground dark:text-muted-foreground py-4">Not enough data or models to display dendrogram.</p>}
                     </CardContent>

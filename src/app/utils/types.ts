@@ -59,16 +59,11 @@ export interface PerPromptSimilaritiesFE {
   };
 }
 
-export type PointFunctionArgs = any;
+export type AtLeastNOfArg = [number, string[]];
+export type PointFunctionArgs = string | number | boolean | null | (string | number | boolean)[] | AtLeastNOfArg | Record<string, unknown>;
 // PointFunctionDefinition is now just an alias for a tuple in the shared PointDefinition type
 export type PointFunctionDefinition = [string, PointFunctionArgs];
 // PointDefinition is now imported from shared.ts
-
-// Coverage Score data used within the modal (and also as part of CoverageResult)
-export interface LLMCoverageScoreData {
-    keyPointsCount: number;
-    avgCoverageExtent?: number;
-}
 
 // The frontend-specific, enriched evaluation results, which includes calculated stats.
 export interface EvaluationResults extends WevalEvaluationResults {

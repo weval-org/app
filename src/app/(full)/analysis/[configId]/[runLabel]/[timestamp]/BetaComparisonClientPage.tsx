@@ -23,10 +23,10 @@ import DownloadResultsButton from '@/app/(full)/analysis/components/DownloadResu
 import AnalysisPageHeader from '@/app/(full)/analysis/components/AnalysisPageHeader';
 import type { AnalysisPageHeaderProps } from '@/app/(full)/analysis/components/AnalysisPageHeader';
 import { fromSafeTimestamp, formatTimestampForDisplay } from '@/lib/timestampUtils';
-import ModelEvaluationDetailModal from '@/app/(full)/analysis/components/ModelEvaluationDetailModal';
+import ModelEvaluationDetailModalV2 from '@/app/(full)/analysis/components/ModelEvaluationDetailModalV2';
 import DebugPanel from '@/app/(full)/analysis/components/DebugPanel';
 import CoverageHeatmapCanvas from '@/app/(full)/analysis/components/CoverageHeatmapCanvas';
-import { parseEffectiveModelId } from '@/app/utils/modelIdUtils';
+import { parseEffectiveModelId, getCanonicalModels } from '@/app/utils/modelIdUtils';
 import { BLUEPRINT_CONFIG_REPO_URL } from '@/lib/configConstants';
 import { useComparisonData } from '@/app/(full)/analysis/hooks/useComparisonData';
 import { useAnalysisStats } from '@/app/(full)/analysis/hooks/useAnalysisStats';
@@ -83,6 +83,11 @@ export default function BetaComparisonClientPage({ data: initialData, isPlaygrou
   
   const analysisStats = useAnalysisStats(data);
 
+  const canonicalModelsForSinglePrompt = useMemo(() => {
+    if (!data || !currentPromptId) return displayedModels;
+    return getCanonicalModels(displayedModels, data.config);
+  }, [data, currentPromptId, displayedModels]);
+
   const {
     responseComparisonModal,
     closeResponseComparisonModal,
@@ -93,6 +98,13 @@ export default function BetaComparisonClientPage({ data: initialData, isPlaygrou
     handleCoverageCellClick,
     handleSemanticExtremesClick,
   } = usePageInteraction(data);
+
+  const handleMostDifferentiatingClick = useCallback(() => {
+    if (analysisStats?.mostDifferentiatingPrompt?.id) {
+        const promptId = analysisStats.mostDifferentiatingPrompt.id;
+        router.push(`/analysis/${configIdFromUrl}/${runLabel}/${timestampFromUrl}?prompt=${promptId}`);
+    }
+  }, [analysisStats?.mostDifferentiatingPrompt?.id, router, configIdFromUrl, runLabel, timestampFromUrl]);
 
   const handleActiveHighlightsChange = useCallback((newHighlights: Set<ActiveHighlight>) => {
     setActiveHighlights(prevHighlights => {
@@ -445,6 +457,7 @@ export default function BetaComparisonClientPage({ data: initialData, isPlaygrou
             executiveSummary={normalizedExecutiveSummary}
             summaryStats={summaryStats}
             isPlayground={isPlayground}
+            onMostDifferentiatingClick={handleMostDifferentiatingClick}
         />
 
         {renderPromptSelector()}
@@ -455,6 +468,7 @@ export default function BetaComparisonClientPage({ data: initialData, isPlaygrou
                 currentPromptId={currentPromptId}
                 currentPromptDisplayText={currentPromptDisplayText}
                 displayedModels={displayedModels}
+                canonicalModels={canonicalModelsForSinglePrompt}
                 handleSimilarityCellClick={handleSimilarityCellClick}
                 handleCoverageCellClick={handleCoverageCellClick}
                 handleSemanticExtremesClick={handleSemanticExtremesClick}
@@ -502,7 +516,7 @@ export default function BetaComparisonClientPage({ data: initialData, isPlaygrou
         />
       )}
       {modelEvaluationModal && (
-        <ModelEvaluationDetailModal
+        <ModelEvaluationDetailModalV2
           isOpen={true}
           onClose={closeModelEvaluationDetailModal}
           data={modelEvaluationModal}

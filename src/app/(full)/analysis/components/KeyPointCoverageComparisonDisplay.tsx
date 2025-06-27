@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { getGradedCoverageColor } from '../utils/colorUtils';
 import { getModelDisplayLabel, parseEffectiveModelId as globalParseEffectiveModelId } from '@/app/utils/modelIdUtils';
+import { CoverageResult as ImportedCoverageResult, PointAssessment as ImportedPointAssessment } from '@/types/shared';
 
 const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
 const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
@@ -14,19 +15,9 @@ const XCircle = dynamic(() => import("lucide-react").then((mod) => mod.XCircle))
 const TrendingUp = dynamic(() => import("lucide-react").then((mod) => mod.TrendingUp));
 const TrendingDown = dynamic(() => import("lucide-react").then((mod) => mod.TrendingDown));
 
-interface PointAssessment {
-    keyPointText: string;
-    coverageExtent?: number;
-    reflection?: string;
-    error?: string;
-    isInverted?: boolean;
-}
-
-type CoverageResult = {
-    keyPointsCount: number;
-    avgCoverageExtent?: number;
-    pointAssessments?: PointAssessment[];
-} | { error: string } | null;
+// Use shared types
+export type PointAssessment = ImportedPointAssessment;
+export type CoverageResult = ImportedCoverageResult;
 
 interface KeyPointCoverageComparisonDisplayProps {
     coverageScores: Record<string, CoverageResult> | undefined | null; // ModelId -> CoverageResult

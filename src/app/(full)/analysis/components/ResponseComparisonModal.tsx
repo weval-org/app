@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import dynamic from 'next/dynamic';
-import { ConversationMessage } from '@/types/shared';
+import { ConversationMessage, CoverageResult, PointAssessment } from '@/types/shared';
 import {
   Collapsible,
   CollapsibleContent,
@@ -25,21 +25,6 @@ interface PairResponseContent {
     responseB: string;
 }
 
-// Type for the LLM Coverage score data passed from the page
-interface LLMCoverageScoreData {
-    keyPointsCount: number;
-    avgCoverageExtent?: number;
-    pointAssessments?: PointAssessment[];
-}
-
-// Local PointAssessment type, ensure it aligns with the global one after updates
-interface PointAssessment {
-    keyPointText: string;
-    coverageExtent?: number;
-    reflection?: string;
-    error?: string;
-}
-
 interface ResponseComparisonModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -52,8 +37,8 @@ interface ResponseComparisonModalProps {
   responseB: string;
   semanticSimilarity?: number | null;
   performanceSimilarity?: number | null;
-  llmCoverageScoreA?: (LLMCoverageScoreData) | { error: string } | null; // Model A vs Ideal
-  llmCoverageScoreB?: (LLMCoverageScoreData) | { error: string } | null; // Model B vs Ideal
+  llmCoverageScoreA?: CoverageResult; // Model A vs Ideal
+  llmCoverageScoreB?: CoverageResult; // Model B vs Ideal
   extractedKeyPoints?: string[] | null;
   pointAssessmentsA?: PointAssessment[] | null; // Assessments for Model A vs Ideal
   pointAssessmentsB?: PointAssessment[] | null; // Assessments for Model B vs Ideal

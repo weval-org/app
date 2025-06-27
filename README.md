@@ -157,6 +157,17 @@ pnpm cli backfill-prompt-contexts
 
 -   `--dry-run`: Log what would be changed without saving.
 
+### `repair-run`
+
+Repairs a specific evaluation run by re-running failed assessments and generation errors. This is useful for fixing gaps in a result file without re-running the entire evaluation.
+
+```bash
+pnpm cli repair-run <configId/runLabel/timestamp>
+```
+
+-   `<runIdentifier>`: **(Required)** The unique identifier for the run, typically found in the URL of the analysis page (e.g., `my-config/my-run-label/2024-01-01T12-00-00-000Z`).
+-   `--cache`: Enables caching for model responses during the repair. By default, caching is disabled for repairs to ensure fresh results.
+
 ## Blueprint File Structure
 
 Blueprints can be YAML (`.yml`, `.yaml`) or JSON (`.json`) files. They use a "multi-document" YAML structure, separating the main configuration from the list of prompts with a `---` divider for clarity.

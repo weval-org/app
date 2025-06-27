@@ -2,6 +2,7 @@ import { getConfig } from '../config';
 import { EvaluationInput, FinalComparisonOutputV2, Evaluator, EvaluationMethod, IDEAL_MODEL_ID } from '../types/cli_types';
 import { getEmbedding } from '../services/embedding-service'; // Correct path to existing service
 import { cosineSimilarity as calculateSimilarity } from '@/lib/math';
+import { parseEffectiveModelId } from '@/app/utils/modelIdUtils';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
@@ -37,7 +38,7 @@ export class EmbeddingEvaluator implements Evaluator {
                 modelIdsInEvaluation.add(IDEAL_MODEL_ID);
             }
 
-            for (const [modelId, responseData] of promptData.modelResponses.entries()) {
+            for (const [modelId, responseData] of Object.entries(promptData.modelResponses)) {
                 modelIdsInEvaluation.add(modelId);
                 if (!responseData.hasError && responseData.finalAssistantResponseText && responseData.finalAssistantResponseText.trim() !== '') {
                     const modelKey = `${promptData.promptId}:${modelId}`;

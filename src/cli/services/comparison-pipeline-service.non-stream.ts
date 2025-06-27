@@ -32,7 +32,7 @@ export async function generateAllResponses(
             promptText: promptConfig.promptText,
             initialMessages: promptConfig.messages,
             idealResponseText: promptConfig.idealResponse || null,
-            modelResponses: new Map()
+            modelResponses: {}
         };
         allResponsesMap.set(promptConfig.id, currentPromptData);
 
@@ -88,13 +88,13 @@ export async function generateAllResponses(
                             fullConversationHistoryWithResponse = [...messagesForLlm, { role: 'assistant', content: finalAssistantResponseText }];
                         }
 
-                        currentPromptData.modelResponses.set(finalEffectiveId, {
+                        currentPromptData.modelResponses[finalEffectiveId] = {
                             finalAssistantResponseText,
                             fullConversationHistory: fullConversationHistoryWithResponse,
                             hasError,
                             errorMessage,
                             systemPromptUsed: systemPromptToUse ?? null
-                        });
+                        };
                         generatedCount++;
                         logger.info(`[PipelineService] Generated ${generatedCount}/${totalResponsesToGenerate} responses.`);
                     }));

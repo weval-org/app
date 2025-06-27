@@ -63,7 +63,7 @@ async function aggregateAndSaveResults(
             // If storing full histories, the ideal response doesn't have a "history" in the same way
         }
 
-        for (const [effectiveModelId, responseData] of promptData.modelResponses.entries()) {
+        for (const [effectiveModelId, responseData] of Object.entries(promptData.modelResponses)) {
             effectiveModelsSet.add(effectiveModelId);
             allFinalAssistantResponses[promptId][effectiveModelId] = responseData.finalAssistantResponseText;
             modelSystemPrompts[effectiveModelId] = responseData.systemPromptUsed;
@@ -175,7 +175,7 @@ export async function executeComparisonPipeline(
     const evaluationInputs: EvaluationInput[] = [];
 
     for (const promptData of allResponsesMap.values()) {
-        const modelIdsForThisPrompt = Array.from(promptData.modelResponses.keys());
+        const modelIdsForThisPrompt = Object.keys(promptData.modelResponses);
         
         evaluationInputs.push({
             promptData: promptData,

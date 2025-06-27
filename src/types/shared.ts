@@ -3,7 +3,7 @@
 // By centralizing them here, we prevent type duplication and inconsistencies.
 
 export interface ConversationMessage {
-    role: 'user' | 'assistant' | 'system';
+    role: 'user' | 'assistant' | 'system' | 'function' | 'tool';
     content: string;
 }
 
@@ -30,11 +30,12 @@ export interface PointAssessment {
 
 // A container for the results of an llm-coverage evaluation for a single
 // (prompt, model) pair.
-export type CoverageResult = ({
-    keyPointsCount: number;
+export type CoverageResult = {
+    keyPointsCount?: number;
     avgCoverageExtent?: number;
     pointAssessments?: PointAssessment[];
-} | { error: string }) | null;
+    error?: string;
+} | null;
 
 export type EvaluationMethod = 'embedding' | 'llm-coverage';
 
@@ -59,14 +60,17 @@ export interface WevalEvaluationResults {
     perModelSemanticScores?: any;
 }
 
+type AtLeastNOfArg = [number, string[]];
+type PointFunctionArgs = string | number | boolean | null | (string | number | boolean)[] | AtLeastNOfArg | Record<string, unknown>;
+
 // A Point can be a simple string, a function call tuple, or a rich object.
 export type PointDefinition =
     string |
-    [string, any] |
+    [string, PointFunctionArgs] |
     {
         text?: string;
         fn?: string;
-        fnArgs?: any;
+        fnArgs?: PointFunctionArgs;
         arg?: any; // Alias for fnArgs
         multiplier?: number;
         citation?: string;
@@ -173,4 +177,18 @@ export interface ModelSummary {
   runs: ModelRunPerformance[];
   
   lastUpdated: string;
-} 
+}
+
+export interface RunLabelStats {
+    totalRuns: number;
+    latestRunTimestamp: string;
+    // other stats...
+}
+
+export type ModelResponseDetail = {
+    finalAssistantResponseText: string;
+    fullConversationHistory?: ConversationMessage[];
+    systemPromptUsed: string | null;
+    hasError: boolean;
+    errorMessage?: string;
+}; 

@@ -239,4 +239,6 @@ async function actionBackfillSummary(options: { verbose?: boolean }) {
 export const backfillSummaryCommand = new Command('backfill-summary')
     .description('Rebuilds all summary files. Creates a summary.json for each config and a hybrid homepage_summary.json (metadata for all, runs for featured).')
     .option('-v, --verbose', 'Enable verbose logging for detailed processing steps.')
-    .action(actionBackfillSummary); 
+    .action(actionBackfillSummary);
+
+export { actionBackfillSummary }; 

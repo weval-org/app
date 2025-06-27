@@ -87,10 +87,11 @@ describe('LLMCoverageEvaluator', () => {
             models: ['model1'],
             prompts: [promptConfig],
         };
-        const modelResponses = new Map<string, ModelResponseDetail>();
-        modelResponses.set('model1', { finalAssistantResponseText: modelResponseText, hasError: false, fullConversationHistory: [], systemPromptUsed: null });
+        const modelResponses: { [modelId: string]: ModelResponseDetail } = {};
+        modelResponses['model1'] = { finalAssistantResponseText: modelResponseText, hasError: false, fullConversationHistory: [], systemPromptUsed: null };
+
         if (idealResponseText) {
-             modelResponses.set(IDEAL_MODEL_ID, { finalAssistantResponseText: idealResponseText, hasError: false, fullConversationHistory: [], systemPromptUsed: null });
+             modelResponses[IDEAL_MODEL_ID] = { finalAssistantResponseText: idealResponseText, hasError: false, fullConversationHistory: [], systemPromptUsed: null };
         }
 
         const promptData: PromptResponseData = {
@@ -126,8 +127,8 @@ describe('LLMCoverageEvaluator', () => {
 
         const result = await evaluator.evaluate([input]);
         
-        // Expect it to be called for each of the 3 default judges
-        expect(requestIndividualJudgeSpy).toHaveBeenCalledTimes(3);
+        // Expect it to be called for each of the 2 default judges
+        expect(requestIndividualJudgeSpy).toHaveBeenCalledTimes(2);
         
         // Check the call for one of the judges
         expect(requestIndividualJudgeSpy).toHaveBeenCalledWith(
@@ -143,7 +144,7 @@ describe('LLMCoverageEvaluator', () => {
         expect(model1Result).not.toHaveProperty('error');
         const successResult = model1Result as Exclude<CoverageResult, { error: string } | null>;
 
-        // The result should be the average of the 3 mocked responses (0.75)
+        // The result should be the average of the 2 mocked responses (0.75)
         expect(successResult.pointAssessments?.[0]?.coverageExtent).toBe(0.75);
         expect(successResult.pointAssessments?.[0]).toMatchObject({
             keyPointText: 'This is a string point',
@@ -227,7 +228,7 @@ describe('LLMCoverageEvaluator', () => {
         
         // We now pass the default judges to the extraction service
         expect(mockExtractKeyPoints).toHaveBeenCalledWith('Ideal response with point one and point two.', expect.stringContaining("Prompt for prompt7"), mockLogger, undefined, false);
-        expect(requestIndividualJudgeSpy).toHaveBeenCalledTimes(6); // 2 key points * 3 default judges
+        expect(requestIndividualJudgeSpy).toHaveBeenCalledTimes(4); // 2 key points * 2 default judges
         expect(result.extractedKeyPoints?.['prompt7']).toEqual(['point one', 'point two']);
         
         const model1Result = result.llmCoverageScores?.['prompt7']?.['model1'];
@@ -235,9 +236,9 @@ describe('LLMCoverageEvaluator', () => {
         expect(model1Result).not.toHaveProperty('error');
         const successResult = model1Result as Exclude<CoverageResult, { error: string } | null>;
         
-        // P1 score: (0.7+0.8+0.9)/3 = 0.8. P2 score: (1+1+1)/3 = 1.0. 
-        // Final avg: (0.8 + 1.0) / 2 = 0.9
-        expect(successResult.avgCoverageExtent).toBeCloseTo(0.90, 2);
+        // P1 score: (0.7+0.8)/2 = 0.75. P2 score: (1+1)/2 = 1.0. 
+        // Final avg: (0.75 + 1.0) / 2 = 0.875
+        expect(successResult.avgCoverageExtent).toBeCloseTo(0.88, 2);
         expect(successResult.keyPointsCount).toBe(2);
     });
 
@@ -272,14 +273,14 @@ describe('LLMCoverageEvaluator', () => {
         });
 
         it('should use default judges if `judges` array in config is empty', async () => {
-            const input = createMockEvaluationInput('prompt-empty-judges', points);
-            input.config.evaluationConfig = { 'llm-coverage': { judges: [] } as any }; // Empty array
-            
-            requestIndividualJudgeSpy.mockResolvedValue({ coverage_extent: 1.0, reflection: 'default' });
+            const input = createMockEvaluationInput('prompt-default-judges-empty', points);
+            (input.config.evaluationConfig as any) = { 'llm-coverage': { judges: [] } };
+
+            requestIndividualJudgeSpy.mockResolvedValue({ coverage_extent: 0.5, reflection: 'Default judge reflection' });
 
             await evaluator.evaluate([input]);
-            
-            expect(requestIndividualJudgeSpy).toHaveBeenCalledTimes(3); // 3 default judges
+
+            expect(requestIndividualJudgeSpy).toHaveBeenCalledTimes(2); // 2 default judges
         });
 
         it('should correctly pass all key points for holistic evaluation', async () => {

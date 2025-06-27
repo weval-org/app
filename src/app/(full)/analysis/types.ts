@@ -1,26 +1,19 @@
-import { PointAssessment, CoverageResult } from '@/types/shared';
-
-// Type definitions (can be shared or imported if defined centrally)
-/*
-export interface PointAssessment {
-    keyPointText: string;
-    coverageExtent?: number;
-    reflection?: string;
-    error?: string;
-    multiplier?: number;
-    citation?: string;
-    individualJudgements?: {
-        judgeModelId: string;
-        coverageExtent: number;
-        reflection: string;
-    }[];
-}
-export type CoverageResult = {
-    keyPointsCount: number;
-    avgCoverageExtent?: number;
-    pointAssessments?: PointAssessment[];
-} | { error: string } | null;
-*/
+import { PointAssessment, CoverageResult, ConversationMessage } from '@/types/shared';
 
 export type AllCoverageScores = Record<string, Record<string, CoverageResult>>; // promptId -> modelId -> CoverageResult
 export type AllFinalAssistantResponses = Record<string, Record<string, string>>; // promptId -> modelId -> response string 
+
+export interface AnalysisStats {
+    averageSimilarity: {
+        value: number;
+        stdDev: number;
+    },
+    consistency: {
+        value: number;
+        stdDev: number;
+    },
+    totalRuns: number,
+    totalPrompts: number,
+    totalModels: number,
+    lastRunDate: string,
+} 

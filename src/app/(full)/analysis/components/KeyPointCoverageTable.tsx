@@ -5,28 +5,15 @@ import dynamic from 'next/dynamic';
 import { getGradedCoverageColor } from '../utils/colorUtils';
 import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import { Badge } from '@/components/ui/badge';
+import { CoverageResult as ImportedCoverageResult, PointAssessment as ImportedPointAssessment } from '@/types/shared';
 
 const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.AlertCircle));
 const CheckCircle2 = dynamic(() => import("lucide-react").then((mod) => mod.CheckCircle2));
 const XCircle = dynamic(() => import("lucide-react").then((mod) => mod.XCircle));
 
-// Reuse types from page.tsx or define locally if needed
-interface PointAssessment {
-    keyPointText: string;
-    coverageExtent?: number;
-    reflection?: string;
-    error?: string;
-    multiplier?: number;
-    citation?: string;
-    isInverted?: boolean;
-}
-
-// Match CoverageResult from page.tsx
-type CoverageResult = {
-    keyPointsCount: number;
-    avgCoverageExtent?: number;
-    pointAssessments?: PointAssessment[];
-} | { error: string } | null;
+// Use shared types
+export type PointAssessment = ImportedPointAssessment;
+export type CoverageResult = ImportedCoverageResult;
 
 interface KeyPointCoverageTableProps {
     coverageScores: Record<string, CoverageResult> | undefined | null; // ModelId -> CoverageResult
@@ -95,7 +82,7 @@ const KeyPointCoverageTable: React.FC<KeyPointCoverageTableProps> = ({
                     <tr className="bg-muted dark:bg-slate-800">
                         <th className="border border-border dark:border-slate-700 px-3 py-2.5 text-left font-semibold text-primary dark:text-sky-300 sticky left-0 bg-muted dark:bg-slate-800 z-10 w-[40%]">Evaluation Criterion</th>
                         {models.map(modelId => {
-                            const modelDisplayLabel = getModelDisplayLabel(modelId, {hideProvider: true});
+                            const modelDisplayLabel = getModelDisplayLabel(modelId);
                             const headerClasses = "border border-border dark:border-slate-700 px-2 py-2.5 text-center font-semibold text-foreground dark:text-slate-200 whitespace-nowrap w-24";
                             const isClickable = !!onModelHeaderClick;
                             return (

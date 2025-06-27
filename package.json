@@ -16,6 +16,7 @@
     "test:self-preference": "tsx src/cli/self-preference-test.ts",
     "cli": "tsx --no-cache -r dotenv/config src/cli/index.ts",
     "cli:backfill-summary": "pnpm cli backfill-summary",
+    "cli:repair-run": "pnpm cli repair-run",
     "embed_baseline_responses": "tsx src/cli/index.ts embed_baseline_responses",
     "embed_responses": "tsx src/cli/index.ts embed_responses",
     "compare_responses": "tsx src/cli/index.ts compare_responses",

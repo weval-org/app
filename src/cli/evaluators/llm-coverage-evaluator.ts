@@ -40,8 +40,7 @@ interface LLMCoverageEvaluationConfig {
 
 const DEFAULT_JUDGES: Judge[] = [
     { id: 'standard', model: 'openrouter:google/gemini-2.5-flash-preview-05-20', approach: 'standard' },
-    { id: 'prompt-aware', model: 'openrouter:x-ai/grok-3-mini', approach: 'prompt-aware' },
-    { id: 'holistic', model: 'openai:gpt-4.1-mini', approach: 'holistic' }
+    { id: 'prompt-aware', model: 'openai:gpt-4.1-mini', approach: 'prompt-aware' },
 ];
 
 interface PointwiseCoverageLLMResult {
@@ -459,7 +458,7 @@ The criterion is an assertion being made about the <TEXT>. It might be allude to
 
             const llmCoverageConfig = config.evaluationConfig?.['llm-coverage'] as LLMCoverageEvaluationConfig | undefined;
 
-            for (const [modelId, responseData] of promptData.modelResponses.entries()) {
+            for (const [modelId, responseData] of Object.entries(promptData.modelResponses)) {
                 if (modelId === IDEAL_MODEL_ID) continue;
 
                 try {

@@ -35,17 +35,24 @@ export interface AnalysisPageHeaderProps {
   isPlayground?: boolean;
   children?: React.ReactNode;
   isSticky?: boolean;
+  onMostDifferentiatingClick?: () => void;
 }
 
-const SummaryStatsTable = ({ stats }: { stats: AnalysisPageHeaderProps['summaryStats'] }) => {
+const SummaryStatsTable = ({ stats, onMostDifferentiatingClick }: { stats: AnalysisPageHeaderProps['summaryStats'], onMostDifferentiatingClick?: () => void }) => {
   if (!stats) return null;
 
   const { bestPerformingModel, worstPerformingModel, mostDifferentiatingPrompt } = stats;
 
-  const rows = [
+  const rows: ({
+    label: string;
+    item: string;
+    value: string;
+    tooltip: string;
+    onClick?: () => void;
+  })[] = [
     { label: '🏆 Best Performer', item: bestPerformingModel ? getModelDisplayLabel(bestPerformingModel.id, { hideProvider: true }) : 'N/A', value: bestPerformingModel ? `${(bestPerformingModel.score * 100).toFixed(1)}%` : 'N/A', tooltip: `Based on highest average hybrid score. Model: ${bestPerformingModel ? getModelDisplayLabel(bestPerformingModel.id) : 'N/A'}` },
     { label: '📉 Worst Performer', item: worstPerformingModel ? getModelDisplayLabel(worstPerformingModel.id, { hideProvider: true }) : 'N/A', value: worstPerformingModel ? `${(worstPerformingModel.score * 100).toFixed(1)}%` : 'N/A', tooltip: `Based on lowest average hybrid score. Model: ${worstPerformingModel ? getModelDisplayLabel(worstPerformingModel.id) : 'N/A'}` },
-    { label: '🧐 Most Differentiating', item: mostDifferentiatingPrompt ? (mostDifferentiatingPrompt.text || mostDifferentiatingPrompt.id) : 'N/A', value: mostDifferentiatingPrompt ? `~${(mostDifferentiatingPrompt.score).toFixed(3)} sim` : 'N/A', tooltip: `Prompt with the most diverse responses (lowest avg similarity). Prompt: ${mostDifferentiatingPrompt ? (mostDifferentiatingPrompt.text || mostDifferentiatingPrompt.id) : 'N/A'}` },
+    { label: '🧐 Most Differentiating', item: mostDifferentiatingPrompt ? (mostDifferentiatingPrompt.text || mostDifferentiatingPrompt.id) : 'N/A', value: mostDifferentiatingPrompt ? `~${(mostDifferentiatingPrompt.score).toFixed(3)} sim` : 'N/A', tooltip: `Prompt with the most diverse responses (lowest avg similarity). Prompt: ${mostDifferentiatingPrompt ? (mostDifferentiatingPrompt.text || mostDifferentiatingPrompt.id) : 'N/A'}`, onClick: onMostDifferentiatingClick },
   ];
 
   return (
@@ -53,7 +60,7 @@ const SummaryStatsTable = ({ stats }: { stats: AnalysisPageHeaderProps['summaryS
       <table className="w-full text-sm">
         <tbody>
           {rows.map((row, index) => (
-            <tr key={index} className="border-b border-border/30 last:border-b-0">
+            <tr key={index} className={`border-b border-border/30 last:border-b-0 ${row.onClick ? 'cursor-pointer hover:bg-muted/50 dark:hover:bg-slate-800/80 transition-colors' : ''}`} onClick={row.onClick}>
               <td className="py-1.5 pr-2 font-medium text-muted-foreground whitespace-nowrap">{row.label}</td>
               <td className="py-1.5 px-2 text-foreground truncate max-w-[200px]" title={row.tooltip}>{row.item}</td>
               <td className="py-1.5 pl-2 text-right font-semibold text-foreground whitespace-nowrap">{row.value}</td>
@@ -76,6 +83,7 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
   isPlayground = false,
   children,
   isSticky = false,
+  onMostDifferentiatingClick,
 }) => {
   const leftColumnRef = useRef<HTMLDivElement>(null);
   const rightColumnRef = useRef<HTMLDivElement>(null);
@@ -191,7 +199,7 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
             }}
           >
             <h3 className="text-base font-semibold text-foreground dark:text-slate-200 mb-2 flex-shrink-0">Summary of results:</h3>
-            {summaryStats && <SummaryStatsTable stats={summaryStats} />}
+            {summaryStats && <SummaryStatsTable stats={summaryStats} onMostDifferentiatingClick={onMostDifferentiatingClick} />}
 
             {executiveSummary && (
                 <div
@@ -211,7 +219,7 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
             <Sparkles className="w-5 h-5 mr-2 text-primary" />
             Summary of results:
           </h2>
-          {summaryStats && <SummaryStatsTable stats={summaryStats} />}
+          {summaryStats && <SummaryStatsTable stats={summaryStats} onMostDifferentiatingClick={onMostDifferentiatingClick} />}
           {executiveSummary && (
             <div className={`text-sm ${summaryStats ? 'mt-4' : ''}`}>
               <MarkdownAccordion content={executiveSummary} />

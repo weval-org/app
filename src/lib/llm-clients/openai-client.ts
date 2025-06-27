@@ -44,7 +44,7 @@ class OpenAIClient {
 
         // Favor messages array if it exists
         if (optionMessages && optionMessages.length > 0) {
-            messages.push(...optionMessages.map(m => ({ role: m.role, content: m.content || '' })));
+            messages.push(...optionMessages.filter(m => ['user', 'assistant', 'system'].includes(m.role)).map(m => ({ role: m.role as 'user' | 'assistant' | 'system', content: m.content || '' })));
             if (systemPrompt && !messages.find(m => m.role === 'system')) {
                  messages.unshift({ role: 'system', content: systemPrompt });
             }
@@ -96,7 +96,7 @@ class OpenAIClient {
 
         const fetch = (await import('node-fetch')).default;
 
-        const apiMessages: { role: 'system' | 'user' | 'assistant'; content: string }[] = messages?.map(m => ({ role: m.role, content: m.content || '' })) || [];
+        const apiMessages: { role: 'system' | 'user' | 'assistant'; content: string }[] = messages?.filter(m => ['user', 'assistant', 'system'].includes(m.role)).map(m => ({ role: m.role as 'user' | 'assistant' | 'system', content: m.content || '' })) || [];
         if (systemPrompt) {
             apiMessages.unshift({ role: 'system', content: systemPrompt });
         }
