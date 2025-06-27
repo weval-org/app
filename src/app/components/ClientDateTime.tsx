@@ -16,25 +16,28 @@ const defaultOptions: Intl.DateTimeFormatOptions = {
   minute: '2-digit',
 };
 
-const ClientDateTime: React.FC<ClientDateTimeProps> = ({ timestamp, options = defaultOptions }) => {
+const ClientDateTime: React.FC<ClientDateTimeProps> = ({ timestamp, options }) => {
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
+  const finalOptions = { ...defaultOptions, ...options };
+
   if (!isMounted || !timestamp) {
-    // On the server, or on the initial client render, or if no timestamp, return null or a placeholder.
-    // Returning null avoids any hydration mismatch.
-    return null;
+    // Return an empty time tag as a consistent placeholder to avoid DOM structure changes.
+    return <time />;
   }
   
   const dateObj = new Date(fromSafeTimestamp(timestamp));
   if (isNaN(dateObj.getTime())) {
-    return <>Invalid Date</>;
+    return <time>Invalid Date</time>;
   }
 
-  return <>{dateObj.toLocaleDateString([], options)}</>;
+  // Forcing 'en-GB' locale to ensure consistent output between server and client.
+  // This prevents hydration errors caused by differing locales.
+  return <time dateTime={dateObj.toISOString()}>{dateObj.toLocaleDateString('en-GB', finalOptions)}</time>;
 };
 
 export default ClientDateTime; 

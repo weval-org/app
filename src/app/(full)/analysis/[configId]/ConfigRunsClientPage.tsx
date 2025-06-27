@@ -11,6 +11,7 @@ import { fromSafeTimestamp } from '@/lib/timestampUtils';
 import AnalysisPageHeader from '../components/AnalysisPageHeader';
 import { Badge } from '@/components/ui/badge';
 import { ApiRunsResponse } from './page';
+import ClientDateTime from '@/app/components/ClientDateTime';
 
 const ChevronRightIcon = dynamic(() => import('lucide-react').then(mod => mod.ChevronRight));
 const HistoryIcon = dynamic(() => import('lucide-react').then(mod => mod.History));
@@ -168,7 +169,7 @@ export default function ConfigRunsClientPage({ configId, data }: { configId: str
                       </CardHeader>
                       <CardContent className="flex justify-between items-center">
                         <div className="text-xs text-muted-foreground">
-                          Latest run: {run.displayLatestDate}
+                          Latest run: <ClientDateTime timestamp={run.latestInstanceSafeTimestamp} />
                         </div>
                         <div className="flex items-center space-x-4">
                           {run.averageHybridScore !== null && run.averageHybridScore !== undefined && (

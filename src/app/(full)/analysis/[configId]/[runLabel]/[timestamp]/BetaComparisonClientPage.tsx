@@ -394,7 +394,7 @@ export default function BetaComparisonClientPage({ data: initialData, isPlaygrou
     <div className="flex items-center gap-2">
         {data.sourceCommitSha ? (
             <Button asChild variant="outline">
-                <Link href={`${BLUEPRINT_CONFIG_REPO_URL}/blob/${data.sourceCommitSha}/blueprints/${data.configId}.json`} target="_blank" rel="noopener noreferrer" title={`View blueprint at commit ${data.sourceCommitSha.substring(0, 7)}`}>
+                <Link href={`${BLUEPRINT_CONFIG_REPO_URL}/blob/${data.sourceCommitSha}/blueprints/${data.configId}.yml`} target="_blank" rel="noopener noreferrer" title={`View blueprint at commit ${data.sourceCommitSha.substring(0, 7)}`}>
                     <GitCommit className="w-4 h-4 mr-2" />
                     View Blueprint on GitHub
                 </Link>
