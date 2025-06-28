@@ -63,12 +63,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export async function generateStaticParams() {
-  const modelIds = await listModelSummaries();
-  return modelIds.map(modelId => ({
-    modelId: modelId.split('/'),
-  }));
-}
+export const revalidate = 3600; // Revalidate once per hour at most
 
 export default async function ModelSummaryPage({ params }: Props) {
   const modelId = getModelIdFromParams(await params);

@@ -19,47 +19,51 @@ export const useModelFiltering = ({
   activeSysPromptIndex,
   selectedTemperatures,
 }: ModelFilteringOptions) => {
+  const effectiveModels = data?.effectiveModels;
+  const config = data?.config;
+
   const displayedModels = useMemo(() => {
-    if (!data?.effectiveModels) return [];
+    if (!effectiveModels) return [];
     if (!currentPromptId) {
-      return data.effectiveModels;
+      return effectiveModels;
     }
     if (forceIncludeExcludedModels) {
-      return data.effectiveModels;
+      return effectiveModels;
     }
-    return (data.effectiveModels || []).filter((m: string) => !excludedModelsList.includes(m));
-  }, [data?.effectiveModels, excludedModelsList, forceIncludeExcludedModels, currentPromptId]);
+    return (effectiveModels || []).filter((m: string) => !excludedModelsList.includes(m));
+  }, [effectiveModels, excludedModelsList, forceIncludeExcludedModels, currentPromptId]);
 
   const modelsForMacroTable = useMemo(() => {
-    if (!data) return [];
+    if (!config) return [];
     
     let models = displayedModels;
 
-    if (data.config.systems && data.config.systems.length > 1) {
+    if (config.systems && config.systems.length > 1) {
       models = models.filter(modelId => {
         const { systemPromptIndex } = parseEffectiveModelId(modelId);
         return systemPromptIndex === activeSysPromptIndex;
       });
     }
     
-    if (data.config.temperatures && data.config.temperatures.length > 0) {
+    if (config.temperatures && config.temperatures.length > 0) {
       if (selectedTemperatures.length === 0) {
         return [];
       }
       models = models.filter(modelId => {
         const { temperature } = parseEffectiveModelId(modelId);
-        const modelTemp = temperature ?? (data.config.temperature ?? 0.0);
+        const modelTemp = temperature ?? (config.temperature ?? 0.0);
         return selectedTemperatures.includes(modelTemp);
       });
     }
 
     return models;
-  }, [displayedModels, activeSysPromptIndex, selectedTemperatures, data]);
+  }, [displayedModels, activeSysPromptIndex, selectedTemperatures, config]);
 
   const modelsForAggregateView = useMemo(() => {
-    if (!data) return [];
-    return getCanonicalModels(data.effectiveModels, data.config);
-  }, [data]);
+    if (!config) return [];
+    const canonical = getCanonicalModels(displayedModels, config);
+    return canonical;
+  }, [config, displayedModels]);
 
   return {
     displayedModels,

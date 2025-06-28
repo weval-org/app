@@ -603,6 +603,7 @@ export async function listRunsForConfig(configId: string): Promise<Array<{ runLa
 export async function getResultByFileName(configId: string, fileName: string): Promise<any | null> {
   if (storageProvider === 's3' && s3Client && s3BucketName) {
     const s3Key = path.join(MULTI_DIR, configId, fileName);
+    console.log(`[StorageService] Attempting to load result by fileName from S3: s3://${s3BucketName}/${s3Key}`);
     try {
       const { Body } = await s3Client.send(new GetObjectCommand({
         Bucket: s3BucketName,
@@ -626,6 +627,7 @@ export async function getResultByFileName(configId: string, fileName: string): P
     }
   } else if (storageProvider === 'local') {
     const localPath = path.join(process.cwd(), RESULTS_DIR, MULTI_DIR, configId, fileName);
+    console.log(`[StorageService] Attempting to load result by fileName from local disk: ${localPath}`);
     try {
       const fileContents = await fs.readFile(localPath, 'utf-8');
       console.log(`[StorageService] Result retrieved locally by fileName: ${localPath}`);

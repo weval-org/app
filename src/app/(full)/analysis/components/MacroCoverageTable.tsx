@@ -152,21 +152,6 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
         return <p className="p-4 text-muted-foreground italic">No prompts available.</p>;
     }
     if (localSortedModels.length === 0 && !focusedModelId) {
-        console.log("No models available. All details [debug]: ", {
-            allCoverageScores,
-            localSortedModels,
-            focusedModelId,
-            allFinalAssistantResponses,
-            promptIds,
-            promptTexts,
-            models,
-            parsedModelsMap,
-            baseModelGlobalIndexMap,
-            baseIdToVisualGroupStyleMap,
-            sortedPromptIds,
-            promptStats,
-            systemPromptIndex,
-        });
         return <p className="p-4 text-muted-foreground italic">No models available.</p>;
     }
     

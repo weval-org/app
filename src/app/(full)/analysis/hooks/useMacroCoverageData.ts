@@ -12,7 +12,6 @@ export const useMacroCoverageData = (
     promptIds: string[],
     models: string[]
 ) => {
-    console.log('[DEBUG] useMacroCoverageData received models:', models);
     const calculateModelAverageCoverage = React.useCallback((modelId: string): number | null => {
         if (!allCoverageScores) return null;
         let totalAvgExtent = 0;

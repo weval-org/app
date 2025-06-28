@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { listRunsForConfig, getConfigSummary } from '@/lib/storageService';
-import { EnhancedRunInfo } from '@/app/utils/homepageDataUtils';
+import { getConfigSummary } from '@/lib/storageService';
 
 export const revalidate = 3600;
+export const dynamic = 'force-dynamic';
 
 export async function GET(
     request: NextRequest,

@@ -4,7 +4,7 @@ import { generateAnalysisPageMetadata } from '@/app/utils/metadataUtils';
 import BetaComparisonClientPage from './BetaComparisonClientPage';
 import { notFound } from 'next/navigation';
 import { ComparisonDataV2 } from '@/app/utils/types';
-import { listRunsForConfig, getResultByFileName } from '@/lib/storageService';
+import { getResultByFileName } from '@/lib/storageService';
 
 type ThisPageProps = {
   params: Promise<{
@@ -44,26 +44,13 @@ const getComparisonData = cache(async (params: ThisPageProps['params']): Promise
   const { configId, runLabel, timestamp } = await params;
 
   try {
-    const allRunsForConfig = await listRunsForConfig(configId);
-
-    if (!allRunsForConfig || allRunsForConfig.length === 0) {
-      console.log(`[Page Fetch] No runs found for configId: ${configId}`);
-      notFound();
-    }
-
-    const specificRun = allRunsForConfig.find(run => 
-      run.runLabel === runLabel && run.timestamp === timestamp
-    );
-
-    if (!specificRun) {
-      console.log(`[Page Fetch] No specific run found for ${configId}/${runLabel}/${timestamp}`);
-      notFound();
-    }
+    // Optimistically construct the filename directly to avoid listing all files.
+    const fileName = `${runLabel}_${timestamp}_comparison.json`;
     
-    const jsonData = await getResultByFileName(configId, specificRun.fileName);
+    const jsonData = await getResultByFileName(configId, fileName);
     
     if (!jsonData) {
-      console.log(`[Page Fetch] Data not found for file: ${specificRun.fileName}`);
+      console.log(`[Page Fetch] Data not found for file: ${fileName}`);
       notFound();
     }
 

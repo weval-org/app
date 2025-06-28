@@ -1,61 +1,26 @@
 import { NextResponse } from 'next/server';
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
-import { Readable } from 'stream';
 
-const PLAYGROUND_TEMP_DIR = 'playground';
-
-const s3Client = new S3Client({
-  region: process.env.APP_S3_REGION!,
-  credentials: {
-    accessKeyId: process.env.APP_AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.APP_AWS_SECRET_ACCESS_KEY!,
-  },
-});
-
-const streamToString = (stream: Readable): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    stream.on('data', (chunk) => chunks.push(chunk));
-    stream.on('error', reject);
-    stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
-  });
-
+/**
+ * @deprecated This API route is no longer used for rendering playground result pages.
+ * The data fetching logic is handled directly within `src/app/playground/results/[playgroundId]/page.tsx`.
+ * This file can likely be removed.
+ */
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ playgroundId: string }> }
 ) {
   const { playgroundId } = await params;
-  if (!playgroundId) {
-    return NextResponse.json({ error: 'playgroundId is required' }, { status: 400 });
-  }
 
-  // The final result file is named _comparison.json in the run's directory
-  const resultKey = `${PLAYGROUND_TEMP_DIR}/runs/${playgroundId}/_comparison.json`;
+  console.error(
+    `[DEPRECATED] The API route at /api/playground/results/[playgroundId]/route.ts was called for ${playgroundId}. ` +
+    `This route is deprecated. Data fetching is now handled directly in the page component.`
+  );
 
-  try {
-    const command = new GetObjectCommand({
-      Bucket: process.env.APP_S3_BUCKET_NAME!,
-      Key: resultKey,
-    });
-    const { Body } = await s3Client.send(command);
-    
-    if (Body) {
-      const content = await streamToString(Body as Readable);
-      // We send the raw JSON content and set the content type header
-      return new NextResponse(content, {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-    } else {
-      return NextResponse.json({ error: 'Result file not found.' }, { status: 404 });
-    }
-  } catch (error: any) {
-    if (error.name === 'NoSuchKey') {
-      return NextResponse.json({ error: 'Result not found. The run may still be in progress or failed.' }, { status: 404 });
-    }
-    console.error(`Error fetching result for ${playgroundId}:`, error);
-    return NextResponse.json({ error: 'Failed to fetch run result.' }, { status: 500 });
-  }
+  return NextResponse.json(
+    {
+      error: 'This API endpoint is deprecated and should not be used for page data.',
+      message: 'Data fetching for playground result pages is handled server-side in the corresponding page.tsx file.'
+    },
+    { status: 410 } // 410 Gone
+  );
 }

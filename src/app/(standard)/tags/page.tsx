@@ -1,34 +1,12 @@
 import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import type { Metadata } from 'next';
+import { getTags } from '@/app/utils/tagUtils';
 
 export const metadata: Metadata = {
   title: 'All Tags - Weval',
   description: 'Browse all evaluation categories and tags used across Weval blueprints.',
 };
-
-type TagInfo = {
-  name: string;
-  count: number;
-};
-
-async function getTags(): Promise<TagInfo[]> {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:8888' : 'https://weval.org');
-  try {
-    const res = await fetch(`${appUrl}/api/tags`, {
-      next: { revalidate: 3600 }, // Match the API revalidate time
-    });
-    if (!res.ok) {
-      console.error('Failed to fetch tags:', res.status, res.statusText);
-      return [];
-    }
-    const data = await res.json();
-    return data.tags || [];
-  } catch (error) {
-    console.error('Error fetching tags data:', error);
-    return [];
-  }
-}
 
 export default async function TagsPage() {
   const tags = await getTags();
