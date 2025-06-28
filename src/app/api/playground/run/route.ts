@@ -28,10 +28,9 @@ const PlaygroundBlueprintSchema = z.object({
 // --- Hardcoded settings for playground runs ---
 const PLAYGROUND_MODELS = [
   "openrouter:openai/gpt-4.1-nano",
-  "openrouter:openai/gpt-4.1-mini",
   "openrouter:anthropic/claude-3.5-haiku",
-  "openrouter:mistralai/mistral-large-2411",
-  "openrouter:google/gemini-2.5-flash-preview-05-20",
+  // "openrouter:mistralai/mistral-large-2411",
+  "openrouter:x-ai/grok-3-mini-beta",
   "openrouter:qwen/qwen3-30b-a3b"
 ];
 const PLAYGROUND_EVAL_METHODS = ['llm-coverage', 'embedding'];

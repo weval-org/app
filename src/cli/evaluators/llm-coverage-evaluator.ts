@@ -3,31 +3,23 @@ import {
     EvaluationInput,
     FinalComparisonOutputV2,
     Evaluator,
-    LLMCoverageScores,
     EvaluationMethod,
     NormalizedPoint,
-    PromptConfig,
     PointDefinition,
     Judge
 } from '../types/cli_types';
 import {
-    ConversationMessage,
     IndividualJudgement,
-    PointAssessment,
-    CoverageResult,
+    PointAssessment
 } from '@/types/shared';
 import { extractKeyPoints } from '../services/llm-evaluation-service';
 import { dispatchMakeApiCall } from '../../lib/llm-clients/client-dispatcher';
 import { LLMApiCallOptions } from '../../lib/llm-clients/types';
-import * as pointFunctions from '@/point-functions';
-import { PointFunctionContext, PointFunctionReturn } from '@/point-functions/types';
+import { PointFunctionContext } from '@/point-functions/types';
 import { getCache, generateCacheKey } from '../../lib/cache-service';
-import { backOff } from 'exponential-backoff';
-import xml2js from 'xml2js';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
-import { PointFunctionDefinition } from '@/app/utils/types';
-import { getModelResponse, DEFAULT_TEMPERATURE } from '../services/llm-service';
 import { evaluateFunctionPoints, aggregateCoverageScores } from './coverage-logic';
+import { ProgressCallback } from '../services/comparison-pipeline-service.non-stream';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
@@ -40,7 +32,16 @@ interface LLMCoverageEvaluationConfig {
 
 const DEFAULT_JUDGES: Judge[] = [
     { id: 'standard', model: 'openrouter:google/gemini-2.5-flash-preview-05-20', approach: 'standard' },
-    { id: 'prompt-aware', model: 'openai:gpt-4.1-mini', approach: 'prompt-aware' },
+    { id: 'prompt-aware', model: 'openrouter:google/gemini-2.5-flash-preview-05-20', approach: 'prompt-aware' },
+];
+
+const CLASSIFICATION_SCALE = [
+    // Old Approach: CLASS_ABSENT, CLASS_SLIGHTLY_PRESENT, CLASS_PARTIALLY_PRESENT, CLASS_MAJORLY_PRESENT, CLASS_FULLY_PRESENT
+    { name: 'CLASS_UNMET', score: 0.0, description: 'The criterion is not met.' },
+    { name: 'CLASS_PARTIALLY_MET', score: 0.25, description: 'The criterion is partially met.' },
+    { name: 'CLASS_MODERATELY_MET', score: 0.5, description: 'The criterion is moderately met.' },
+    { name: 'CLASS_MAJORLY_MET', score: 0.75, description: 'The criterion is mostly met.' },
+    { name: 'CLASS_EXACTLY_MET', score: 1.0, description: 'The criterion is fully met.' }
 ];
 
 interface PointwiseCoverageLLMResult {
@@ -251,7 +252,7 @@ Given the following <TEXT> which was generated in response to the prompt:
 ${modelResponseText}
 </TEXT>
 
-Carefully assess how well the following <CRITERION> is expressed in the text:
+Carefully assess to what degree the following <CRITERION> is met in the text:
 <CRITERION>
 ${keyPointText}
 </CRITERION>
@@ -299,26 +300,22 @@ ${keyPointText}
                 break;
         }
 
+        const classificationGuidelines = CLASSIFICATION_SCALE.map(c => `- ${c.name}: ${c.description}`).join('\n');
+
         const finalPrompt = `${pointwisePrompt}
 
-Your task is to provide a 'reflection' and a 'classification' based on the guidelines below. Your classification should indicate the degree to which the criterion is present in the text.
+Your task is to provide a 'reflection' and a 'classification' based on the guidelines below. Your classification should indicate which class the text falls into, according to the wording of the criterion.
 
 Classification Guidelines:
-- CLASS_ABSENT: The criterion is not found or addressed or expressed in any way in the <TEXT>. This is a complete absence.
-- CLASS_SLIGHTLY_PRESENT: The criterion is very slightly or tangentially touched upon, or hinted at.
-- CLASS_PARTIALLY_PRESENT: The criterion is partially expressed. Some core aspects of the criterion are present, but significant parts are missing, or there are notable discrepancies.
-- CLASS_MAJORLY_PRESENT: The criterion is very much expressed. The main substance of the criterion is present and largely matching, but some minor details might be missing, or there are slight differences between the criterion and what is expressed in the <TEXT>.
-- CLASS_FULLY_PRESENT: The criterion is fully expressed in the <TEXT>. This is a complete presence.
-
-IMPORTANT: Your judgment should be based purely on the *presence* of the criterion, not its sentiment or any potential real-world implications. For example, if the criterion is "The text contains rude language" and the text is "You are a dummy", you should classify it as CLASS_FULLY_PRESENT because the criterion is met, regardless of the rudeness.
+${classificationGuidelines}
 
 Your output MUST strictly follow this XML format:
 <reflection>Your 1-2 sentence reflection and reasoning for the classification, explaining how well the criterion is met, if at all.</reflection>
-<classification>ONE of the 5 class names (e.g., CLASS_FULLY_PRESENT)</classification>
+<classification>ONE of the ${CLASSIFICATION_SCALE.length} class names (e.g., ${CLASSIFICATION_SCALE[CLASSIFICATION_SCALE.length - 1].name})</classification>
 `;
         
         const systemPrompt = `
-You are an expert evaluator and examiner. Your task is to assess how well a specific criterion is covered by a given text by providing a reflection and a classification. 
+You are an expert evaluator and examiner. You are incredibly precise. Your task is to assess how well a specific criterion is covered by a given text by providing a reflection and a precise classification. 
 Focus solely on the provided criterion, the text, and the classification guidelines. Adhere strictly to the XML output format specified in the user prompt. Be brief if possible.
 
 The criterion is an assertion being made about the <TEXT>. It might be allude to a 'response', which relates to the <TEXT>. It might be phrased in various ways. So some valid variations of a criterion given the text "The lemonade stand was open for 10 hours." might be:
@@ -330,8 +327,27 @@ The criterion is an assertion being made about the <TEXT>. It might be allude to
 - "Not forget to include opening times and not forget to be concise"
 - "Concise, w/ opening times"
 
-(These are all equivalent)
+(These are all equivalent ways to express the same criterion)
+
+Here are examples of correct outputs:
+
+-----
+Input: <TEXT>The people in the room were not happy.</TEXT><CRITERION>The people in the room were happy.</CRITERION>
+Output: <reflection>The text states that the people in the room were NOT happy. However, the criterion is that the people in the room WERE happy, which means the criterion is entirely UNMET.</reflection><classification>${CLASSIFICATION_SCALE[0].name}</classification>
+-----
+Input: <TEXT>The population is 8,000,000</TEXT><CRITERION>The population is 8,019,828</CRITERION>
+Output: <reflection>The number provided in the text is very close to the number in the criterion. Therefore, the criterion is nearly met, i.e. ${CLASSIFICATION_SCALE[3].name}.</reflection><classification>${CLASSIFICATION_SCALE[3].name}</classification>
+-----
+Input: <TEXT>Handling a situation where a colleague consistently takes credit for your ideas requires a balance of assertiveness, empathy, and strategic communication</TEXT><CRITERION>Mentions empathy</CRITERION>
+Output: <reflection>The text mentions empathy, which means the criterion is MET precisely.</reflection><classification>${CLASSIFICATION_SCALE[CLASSIFICATION_SCALE.length - 1].name}</classification>
+-----
 `.trim();
+
+// console.log('[debug] Exact prompts used', `
+//    SYSTEM PROMPT: ${systemPrompt}
+//    --------------------------------
+//    FINAL PROMPT: ${finalPrompt}
+// `);
         
         try {
              const clientOptions: Omit<LLMApiCallOptions, 'modelName'> & { modelId: string } = {
@@ -366,13 +382,9 @@ The criterion is an assertion being made about the <TEXT>. It might be allude to
                 return { error: `Failed to parse XML. Response: ${response.responseText.substring(0,100)}...` };
             }
 
-            const classificationToScore: Record<string, number> = {
-                'CLASS_ABSENT': 0.0,
-                'CLASS_SLIGHTLY_PRESENT': 0.25,
-                'CLASS_PARTIALLY_PRESENT': 0.5,
-                'CLASS_MAJORLY_PRESENT': 0.75,
-                'CLASS_FULLY_PRESENT': 1.0,
-            };
+            const classificationToScore: Record<string, number> = Object.fromEntries(
+                CLASSIFICATION_SCALE.map(item => [item.name, item.score])
+            );
 
             const reflection = reflectionMatch[1].trim();
             let classification = classificationMatch[1].trim().toUpperCase();
@@ -414,10 +426,23 @@ The criterion is an assertion being made about the <TEXT>. It might be allude to
         return "Error: No prompt context found.";
     }
 
-    async evaluate(inputs: EvaluationInput[]): Promise<Partial<FinalComparisonOutputV2['evaluationResults'] & Pick<FinalComparisonOutputV2, 'extractedKeyPoints'>>> {
+    async evaluate(
+        inputs: EvaluationInput[],
+        onProgress?: ProgressCallback,
+    ): Promise<Partial<FinalComparisonOutputV2['evaluationResults'] & Pick<FinalComparisonOutputV2, 'extractedKeyPoints'>>> {
         this.logger.info(`[LLMCoverageEvaluator] Starting evaluation for ${inputs.length} prompts.`);
+        const pLimit = (await import('p-limit')).default;
+        const limit = pLimit(10);
+        const tasks: Promise<void>[] = [];
+
         const llmCoverageScores: FinalComparisonOutputV2['evaluationResults']['llmCoverageScores'] = {};
         const extractedKeyPoints: FinalComparisonOutputV2['extractedKeyPoints'] = {};
+
+        const totalTasks = inputs.reduce((sum, input) => {
+            const modelsToEval = Object.keys(input.promptData.modelResponses).filter(m => m !== IDEAL_MODEL_ID);
+            return sum + modelsToEval.length;
+        }, 0);
+        let completedTasks = 0;
 
         for (const input of inputs) {
             const { promptData, config } = input;
@@ -437,6 +462,7 @@ The criterion is an assertion being made about the <TEXT>. It might be allude to
 
             // Handle automatic key point extraction if no points are manually defined
             if (combinedNormalizedPoints.length === 0 && promptData.idealResponseText) {
+                // This part remains sequential as it modifies a shared object and is not the common path.
                 const promptContextStr = this.getPromptContextString(promptData);
                 const keyPointExtractionResult = await extractKeyPoints(
                     promptData.idealResponseText!,
@@ -461,66 +487,79 @@ The criterion is an assertion being made about the <TEXT>. It might be allude to
             for (const [modelId, responseData] of Object.entries(promptData.modelResponses)) {
                 if (modelId === IDEAL_MODEL_ID) continue;
 
-                try {
-                    const functionPoints = combinedNormalizedPoints.filter(p => p.isFunction);
-                    const textPoints = combinedNormalizedPoints.filter(p => !p.isFunction);
-                    
-                    const context: PointFunctionContext = { config, prompt: promptConfig, modelId, logger: this.logger };
+                tasks.push(limit(async () => {
+                    try {
+                        const functionPoints = combinedNormalizedPoints.filter(p => p.isFunction);
+                        const textPoints = combinedNormalizedPoints.filter(p => !p.isFunction);
+                        
+                        const context: PointFunctionContext = { config, prompt: promptConfig, modelId, logger: this.logger };
 
-                    // 1. Evaluate function points using our new helper
-                    const functionAssessments = await evaluateFunctionPoints(functionPoints, responseData.finalAssistantResponseText, context);
+                        // 1. Evaluate function points using our new helper
+                        const functionAssessments = await evaluateFunctionPoints(functionPoints, responseData.finalAssistantResponseText, context);
 
-                    // 2. Evaluate text points (LLM-judged)
-                    const textAssessments: PointAssessment[] = [];
-                    if (textPoints.length > 0) {
-                        const promptContextString = this.getPromptContextString(promptData);
-                        for (const point of textPoints) {
-                            const judgeResult = await this.evaluateSinglePoint(
-                                responseData.finalAssistantResponseText,
-                                point,
-                                textPoints,
-                                promptContextString,
-                                llmCoverageConfig?.judges,
-                                llmCoverageConfig?.judgeMode
-                            );
+                        // 2. Evaluate text points (LLM-judged)
+                        const textAssessments: PointAssessment[] = [];
+                        if (textPoints.length > 0) {
+                            const promptContextString = this.getPromptContextString(promptData);
+                            for (const point of textPoints) {
+                                const judgeResult = await this.evaluateSinglePoint(
+                                    responseData.finalAssistantResponseText,
+                                    point,
+                                    textPoints,
+                                    promptContextString,
+                                    llmCoverageConfig?.judges,
+                                    llmCoverageConfig?.judgeMode
+                                );
 
-                            let finalScore = 'error' in judgeResult ? undefined : judgeResult.coverage_extent;
-                            if (finalScore !== undefined && point.isInverted) {
-                                finalScore = 1.0 - finalScore;
+                                let finalScore = 'error' in judgeResult ? undefined : judgeResult.coverage_extent;
+                                if (finalScore !== undefined && point.isInverted) {
+                                    finalScore = 1.0 - finalScore;
+                                }
+                                
+                                textAssessments.push({
+                                    keyPointText: point.displayText,
+                                    coverageExtent: finalScore,
+                                    reflection: 'error' in judgeResult ? undefined : `${point.isInverted ? '[INVERTED] ' : ''}${judgeResult.reflection}`,
+                                    error: 'error' in judgeResult ? judgeResult.error : undefined,
+                                    individualJudgements: 'individualJudgements' in judgeResult ? judgeResult.individualJudgements : undefined,
+                                    judgeModelId: 'judgeModelId' in judgeResult ? judgeResult.judgeModelId : undefined,
+                                    multiplier: point.multiplier,
+                                    citation: point.citation,
+                                    isInverted: point.isInverted,
+                                });
                             }
-                            
-                            textAssessments.push({
-                                keyPointText: point.displayText,
-                                coverageExtent: finalScore,
-                                reflection: 'error' in judgeResult ? undefined : `${point.isInverted ? '[INVERTED] ' : ''}${judgeResult.reflection}`,
-                                error: 'error' in judgeResult ? judgeResult.error : undefined,
-                                individualJudgements: 'individualJudgements' in judgeResult ? judgeResult.individualJudgements : undefined,
-                                judgeModelId: 'judgeModelId' in judgeResult ? judgeResult.judgeModelId : undefined,
-                                multiplier: point.multiplier,
-                                citation: point.citation,
-                                isInverted: point.isInverted,
-                            });
                         }
+
+                        // 3. Combine and aggregate scores
+                        const allAssessments = [...functionAssessments, ...textAssessments];
+                        const finalAverage = aggregateCoverageScores(allAssessments);
+
+                        llmCoverageScores[promptData.promptId][modelId] = {
+                            keyPointsCount: allAssessments.length,
+                            avgCoverageExtent: allAssessments.length > 0 ? parseFloat(finalAverage.toFixed(2)) : undefined,
+                            pointAssessments: allAssessments,
+                        };
+                    
+                    } catch (e: any) {
+                        this.logger.error(`[LLMCoverageEvaluator] Unexpected error during point evaluation for model ${modelId} on prompt ${promptData.promptId}: ${e.message}`);
+                        llmCoverageScores[promptData.promptId][modelId] = { error: `Internal evaluator error: ${e.message}` };
                     }
 
-                    // 3. Combine and aggregate scores using our new helper
-                    const allAssessments = [...functionAssessments, ...textAssessments];
-                    const finalAverage = aggregateCoverageScores(allAssessments);
-
-                    llmCoverageScores[promptData.promptId][modelId] = {
-                        keyPointsCount: allAssessments.length,
-                        avgCoverageExtent: allAssessments.length > 0 ? parseFloat(finalAverage.toFixed(2)) : undefined,
-                        pointAssessments: allAssessments,
-                    };
-
-                } catch (error: any) {
-                    this.logger.error(`[LLMCoverageEvaluator] Error processing model ${modelId} for prompt ${promptData.promptId}: ${error.message}`);
-                    llmCoverageScores[promptData.promptId][modelId] = { error: error.message };
-                }
+                    completedTasks++;
+                    this.logger.info(`[LLMCoverageEvaluator] Progress: ${completedTasks}/${totalTasks}`);
+                    if (onProgress) {
+                        await onProgress(completedTasks, totalTasks);
+                    }
+                }));
             }
         }
+        
+        await Promise.all(tasks);
 
-        return { llmCoverageScores, extractedKeyPoints };
+        return {
+            llmCoverageScores,
+            extractedKeyPoints,
+        };
     }
 
 } 

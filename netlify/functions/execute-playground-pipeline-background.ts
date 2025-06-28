@@ -69,7 +69,14 @@ export const handler: BackgroundHandler = async (event) => {
     const config = parseAndNormalizeBlueprint(blueprintContent, 'yaml');
 
     await updateStatus(runId, 'generating_responses', 'Generating model responses...');
-    const allResponsesMap = await generateAllResponses(config, logger, true);
+    
+    const generationProgressCallback = async (completed: number, total: number) => {
+        await updateStatus(runId, 'generating_responses', 'Generating model responses...', {
+            progress: { completed, total },
+        });
+    };
+
+    const allResponsesMap = await generateAllResponses(config, logger, true, generationProgressCallback);
 
     await updateStatus(runId, 'evaluating', 'Running evaluations...');
     
@@ -102,15 +109,39 @@ export const handler: BackgroundHandler = async (event) => {
             effectiveModelIds: modelIdsForThisPrompt
         });
     }
+    
+    let totalEvalTasks = 0;
+    if (evalMethods.includes('embedding')) {
+        // Total embeddings to generate
+        totalEvalTasks += evaluationInputs.reduce((sum, input) => {
+            let count = Object.keys(input.promptData.modelResponses).length;
+            if (input.promptData.idealResponseText) count++;
+            return sum + count;
+        }, 0);
+    }
+     if (evalMethods.includes('llm-coverage')) {
+        // Total model responses to judge
+        totalEvalTasks += evaluationInputs.reduce((sum, input) => sum + Object.keys(input.promptData.modelResponses).length, 0);
+    }
+    let completedEvalTasks = 0;
+
+    const evaluationProgressCallback = async (completedInStep: number, totalInStep: number) => {
+        // Note: This callback will be called by each evaluator separately.
+        // We need a way to track overall progress if they run sequentially.
+        // For now, we just pass the progress from the current step.
+         await updateStatus(runId, 'evaluating', 'Running evaluations...', {
+            progress: { completed: completedInStep, total: totalInStep },
+        });
+    };
 
     if (evalMethods.includes('embedding')) {
-        const result = await embeddingEval.evaluate(evaluationInputs);
+        const result = await embeddingEval.evaluate(evaluationInputs, evaluationProgressCallback);
         evaluationResults.similarityMatrix = result.similarityMatrix;
         evaluationResults.perPromptSimilarities = result.perPromptSimilarities;
     }
 
     if (evalMethods.includes('llm-coverage')) {
-        const result = await coverageEval.evaluate(evaluationInputs);
+        const result = await coverageEval.evaluate(evaluationInputs, evaluationProgressCallback);
         evaluationResults.llmCoverageScores = result.llmCoverageScores;
         evaluationResults.extractedKeyPoints = result.extractedKeyPoints;
     }

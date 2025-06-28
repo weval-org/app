@@ -4,10 +4,13 @@ import { getModelResponse, DEFAULT_TEMPERATURE } from './llm-service';
 import { checkForErrors } from '../utils/response-utils';
 import { SimpleLogger } from '@/lib/blueprint-service';
 
+export type ProgressCallback = (completed: number, total: number) => Promise<void>;
+
 export async function generateAllResponses(
     config: ComparisonConfig,
     logger: SimpleLogger,
-    useCache: boolean
+    useCache: boolean,
+    onProgress?: ProgressCallback,
 ): Promise<Map<string, PromptResponseData>> {
     logger.info(`[PipelineService] Generating model responses... Caching: ${useCache}`);
     const pLimit = (await import('p-limit')).default;
@@ -97,6 +100,9 @@ export async function generateAllResponses(
                         };
                         generatedCount++;
                         logger.info(`[PipelineService] Generated ${generatedCount}/${totalResponsesToGenerate} responses.`);
+                        if (onProgress) {
+                            await onProgress(generatedCount, totalResponsesToGenerate);
+                        }
                     }));
                 });
             });

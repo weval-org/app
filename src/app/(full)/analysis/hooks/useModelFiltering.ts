@@ -62,6 +62,8 @@ export const useModelFiltering = ({
   const modelsForAggregateView = useMemo(() => {
     if (!config) return [];
     const canonical = getCanonicalModels(displayedModels, config);
+    console.log('[useModelFiltering] displayedModels:', displayedModels);
+    console.log('[useModelFiltering] modelsForAggregateView:', canonical);
     return canonical;
   }, [config, displayedModels]);
 

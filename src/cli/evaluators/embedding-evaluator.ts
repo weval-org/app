@@ -3,6 +3,7 @@ import { EvaluationInput, FinalComparisonOutputV2, Evaluator, EvaluationMethod, 
 import { getEmbedding } from '../services/embedding-service'; // Correct path to existing service
 import { cosineSimilarity as calculateSimilarity } from '@/lib/math';
 import { parseEffectiveModelId } from '@/app/utils/modelIdUtils';
+import { ProgressCallback } from '../services/comparison-pipeline-service.non-stream';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
@@ -16,7 +17,10 @@ export class EmbeddingEvaluator implements Evaluator {
 
     getMethodName(): EvaluationMethod { return 'embedding'; }
 
-    async evaluate(inputs: EvaluationInput[]): Promise<Partial<FinalComparisonOutputV2['evaluationResults'] & Pick<FinalComparisonOutputV2, 'extractedKeyPoints'>>> {
+    async evaluate(
+        inputs: EvaluationInput[],
+        onProgress?: ProgressCallback,
+    ): Promise<Partial<FinalComparisonOutputV2['evaluationResults'] & Pick<FinalComparisonOutputV2, 'extractedKeyPoints'>>> {
         this.logger.info('[EmbeddingEvaluator] Starting evaluation...');
         const ora = (await import('ora')).default; // Keep ora for potential CLI use if this class were ever used there directly, though pipeline service won't show it.
         const pLimit = (await import('p-limit')).default;
@@ -70,6 +74,9 @@ export class EmbeddingEvaluator implements Evaluator {
                 }
                 embeddedCount++;
                 this.logger.info(`[EmbeddingEvaluator] Generated ${embeddedCount}/${totalEmbeddings} embeddings.`);
+                if (onProgress) {
+                    await onProgress(embeddedCount, totalEmbeddings);
+                }
             }));
         });
 

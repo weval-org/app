@@ -2,59 +2,33 @@
 
 import { useState, useEffect, useCallback, ChangeEvent, useRef } from 'react';
 import dynamic from 'next/dynamic';
+import * as yaml from 'js-yaml';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import CIPLogo from '@/components/icons/CIPLogo';
 import { useToast } from '@/components/ui/use-toast';
-import Link from 'next/link';
+import CIPLogo from '@/components/icons/CIPLogo';
+import { PlaygroundBlueprint, Prompt, StatusResponse, Expectation } from './components/types';
+import { GlobalConfigCard } from './components/GlobalConfigCard';
+import { PromptCard } from './components/PromptCard';
+import { RunStatusModal } from './components/RunStatusModal';
+import { ContributionGuide } from './components/ContributionGuide';
+import { YamlEditorCard } from './components/YamlEditorCard';
+import { WelcomeCard } from './components/WelcomeCard';
+import { AutoCreateModal } from './components/AutoCreateModal';
 
-// Dynamically import icons for performance
+// Dynamic imports for icons
 const Plus = dynamic(() => import('lucide-react').then(mod => mod.Plus));
 const Trash2 = dynamic(() => import('lucide-react').then(mod => mod.Trash2));
-const CheckCircle = dynamic(() => import('lucide-react').then(mod => mod.CheckCircle));
-const XCircle = dynamic(() => import('lucide-react').then(mod => mod.XCircle));
 const Loader2 = dynamic(() => import('lucide-react').then(mod => mod.Loader2));
-const ExternalLink = dynamic(() => import('lucide-react').then(mod => mod.ExternalLink));
+const Wand = dynamic(() => import('lucide-react').then(mod => mod.Wand2));
 
-// --- SIMPLIFIED TYPES for the Playground ---
-interface Expectation {
-  id: string;
-  value: string;
-}
-
-interface Prompt {
-  id: string; // Internal ID for React keys
-  prompt: string;
-  ideal: string;
-  should: Expectation[];
-  should_not: Expectation[];
-}
-
-interface PlaygroundBlueprint {
-  title: string;
-  description: string;
-  prompts: Prompt[];
-}
-
-// --- API & State Types ---
-type RunStatus = 'idle' | 'pending' | 'generating_responses' | 'evaluating' | 'complete' | 'error';
-
-interface StatusResponse {
-    status: RunStatus;
-    message?: string;
-    progress?: {
-        completed: number;
-        total: number;
-    };
-    resultUrl?: string;
-}
+const LOCAL_STORAGE_KEY = 'playgroundBlueprint_v2';
+const RUN_STATE_STORAGE_KEY = 'playgroundRunState';
 
 const DEFAULT_BLUEPRINT: PlaygroundBlueprint = {
     title: 'My First Playground Blueprint',
     description: 'A quick test to see how different models respond to my prompts.',
+    models: [],
+    system: '',
     prompts: [
         {
             id: 'prompt-default-1',
@@ -71,98 +45,17 @@ const DEFAULT_BLUEPRINT: PlaygroundBlueprint = {
     ],
 };
 
-const LOCAL_STORAGE_KEY = 'playgroundBlueprint';
-const RUN_STATE_STORAGE_KEY = 'playgroundRunState';
-
-// --- UI COMPONENTS (Simplified from the advanced editor) ---
-
-const ExpectationEditor = ({ expectation, onUpdate, onRemove, variant }: { expectation: Expectation, onUpdate: (exp: Expectation) => void, onRemove: () => void, variant: 'should' | 'should-not' }) => (
-    <div className="flex items-start gap-2">
-        <Textarea
-            placeholder={variant === 'should' ? 'e.g., The response is polite.' : 'e.g., Avoids technical jargon.'}
-            value={expectation.value}
-            onChange={(e) => onUpdate({ ...expectation, value: e.target.value })}
-            className="h-auto resize-y blueprint-input"
-            rows={1}
-        />
-        <Button size="icon" variant="ghost" onClick={onRemove} className="h-8 w-8 flex-shrink-0" title="Remove Criterion">
-            <Trash2 className="h-4 w-4 text-muted-foreground" />
-        </Button>
-    </div>
-);
-
-const ExpectationGroup = ({ title, expectations, onUpdate, variant }: { title: string, expectations: Expectation[], onUpdate: (exps: Expectation[]) => void, variant: 'should' | 'should-not' }) => {
-    const handleAdd = () => onUpdate([...expectations, { id: `exp-${Date.now()}`, value: '' }]);
-    const handleUpdate = (id: string, updatedExp: Expectation) => onUpdate(expectations.map(exp => exp.id === id ? updatedExp : exp));
-    const handleRemove = (id: string) => onUpdate(expectations.filter(exp => exp.id !== id));
-
-    const styles = {
-        should: { Icon: CheckCircle, titleColor: 'text-green-800 dark:text-green-300' },
-        'should-not': { Icon: XCircle, titleColor: 'text-red-800 dark:text-red-300' },
-    }[variant];
-    
-    return (
-        <div className="space-y-3">
-            <h4 className={`font-semibold text-sm flex items-center gap-2 ${styles.titleColor}`}>
-                <styles.Icon className="w-4 h-4" />
-                {title}
-            </h4>
-            <div className="pl-6 space-y-3">
-                {expectations.map(exp => (
-                    <ExpectationEditor key={exp.id} expectation={exp} onUpdate={(updated) => handleUpdate(exp.id, updated)} onRemove={() => handleRemove(exp.id)} variant={variant} />
-                ))}
-                <Button size="sm" variant="ghost" onClick={handleAdd} className="text-muted-foreground">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add criterion
-                </Button>
-            </div>
-        </div>
-    );
-};
-
-const PromptBlock = ({ prompt, onUpdate, onRemove }: { prompt: Prompt, onUpdate: (p: Prompt) => void, onRemove: () => void }) => {
-    const setField = (field: keyof Prompt, value: any) => onUpdate({ ...prompt, [field]: value });
-
-    return (
-        <Card className="relative p-6 sm:p-8" id={prompt.id}>
-            <Button variant="ghost" size="icon" onClick={onRemove} className="absolute top-2 right-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-8 w-8">
-                <Trash2 className="h-4 w-4" />
-            </Button>
-            <div className="space-y-6">
-                <div>
-                    <label className="text-base font-semibold text-foreground">Prompt</label>
-                    <p className="text-sm text-muted-foreground mb-2">The exact question or instruction for the AI. Be specific.</p>
-                    <Textarea placeholder="e.g., Write a short story about a robot who discovers music." value={prompt.prompt} onChange={e => setField('prompt', e.target.value)} className="min-h-[100px] text-base blueprint-input" />
-                </div>
-                <div>
-                    <label className="text-base font-semibold text-foreground">Ideal Response <span className="text-sm font-normal text-muted-foreground">(Optional)</span></label>
-                    <p className="text-sm text-muted-foreground mb-2">A "gold-standard" answer to compare against for semantic similarity.</p>
-                    <Textarea placeholder="e.g., Unit 734 processed the auditory input..." value={prompt.ideal} onChange={e => setField('ideal', e.target.value)} className="min-h-[100px] text-base blueprint-input" />
-                </div>
-                <div className="space-y-4">
-                    <ExpectationGroup title="The response SHOULD..." expectations={prompt.should} onUpdate={exps => setField('should', exps)} variant="should" />
-                    <ExpectationGroup title="The response SHOULD NOT..." expectations={prompt.should_not} onUpdate={exps => setField('should_not', exps)} variant="should-not" />
-                </div>
-            </div>
-        </Card>
-    );
-};
-
-// --- MAIN PAGE COMPONENT ---
+// --- Main Page Component ---
 
 export default function PlaygroundEditorClientPage() {
-    const [blueprint, setBlueprint] = useState<PlaygroundBlueprint>(() => {
-        if (typeof window === 'undefined') return DEFAULT_BLUEPRINT;
-        try {
-            const saved = window.localStorage.getItem(LOCAL_STORAGE_KEY);
-            return saved ? JSON.parse(saved) : DEFAULT_BLUEPRINT;
-        } catch (error) {
-            console.error("Failed to parse blueprint from localStorage", error);
-            return DEFAULT_BLUEPRINT;
-        }
-    });
-
+    const [blueprint, setBlueprint] = useState<PlaygroundBlueprint>(DEFAULT_BLUEPRINT);
     const [isClient, setIsClient] = useState(false);
+    
+    // YAML State
+    const [yamlText, setYamlText] = useState('');
+    const [yamlError, setYamlError] = useState<string | null>(null);
+
+    // Run State
     const [runId, setRunId] = useState<string | null>(null);
     const [status, setStatus] = useState<StatusResponse>({ status: 'idle' });
     const [isRunModalOpen, setIsRunModalOpen] = useState(false);
@@ -172,65 +65,225 @@ export default function PlaygroundEditorClientPage() {
     const promptsContainerRef = useRef<HTMLDivElement>(null);
     const prevPromptsLength = useRef(blueprint.prompts.length);
 
-    // Load state from localStorage on mount
+    const MAX_PROMPTS = 5;
+
+    // --- Effects for State Management ---
+
+    // Load state from localStorage on initial mount
     useEffect(() => {
         setIsClient(true);
+        // Load blueprint
+        try {
+            const savedBlueprint = window.localStorage.getItem(LOCAL_STORAGE_KEY);
+            if (savedBlueprint) {
+                const parsed = JSON.parse(savedBlueprint);
+                // Basic validation and merging with default to prevent breakages
+                setBlueprint(bp => ({...DEFAULT_BLUEPRINT, ...parsed, prompts: parsed.prompts || bp.prompts }));
+            }
+        } catch (e) {
+            console.error("Failed to parse blueprint from localStorage", e);
+        }
+
+        // Load running evaluation state
         try {
             const savedRunState = window.localStorage.getItem(RUN_STATE_STORAGE_KEY);
             if (savedRunState) {
-                const { runId, status } = JSON.parse(savedRunState);
-                if (status.status !== 'complete' && status.status !== 'error') {
-                    setRunId(runId);
-                    setStatus(status);
+                const { runId: savedRunId, status: savedStatus } = JSON.parse(savedRunState);
+                if (savedStatus.status !== 'complete' && savedStatus.status !== 'error') {
+                    setRunId(savedRunId);
+                    setStatus(savedStatus);
                     setIsRunModalOpen(true);
                 } else {
-                    // Clear out finished/errored runs from past sessions
                     window.localStorage.removeItem(RUN_STATE_STORAGE_KEY);
-                    setIsInitialLoading(false);
                 }
-            } else {
-                setIsInitialLoading(false);
             }
         } catch (e) {
             console.error("Failed to load run state from storage", e);
-            setIsInitialLoading(false);
         }
+        setIsInitialLoading(false);
     }, []);
 
-    // Save blueprint to localStorage
+    // Save blueprint to localStorage on change
     useEffect(() => {
         if (isClient) {
             window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(blueprint));
         }
     }, [blueprint, isClient]);
 
-    // Save run state to localStorage
+    // Save active run state to localStorage
     useEffect(() => {
         if (isClient && runId && status.status !== 'idle') {
-            const runState = { runId, status };
-            window.localStorage.setItem(RUN_STATE_STORAGE_KEY, JSON.stringify(runState));
+            window.localStorage.setItem(RUN_STATE_STORAGE_KEY, JSON.stringify({ runId, status }));
         }
     }, [runId, status, isClient]);
-
 
     // Smooth scroll on add prompt
     useEffect(() => {
         if (blueprint.prompts.length > prevPromptsLength.current) {
-            promptsContainerRef.current?.lastElementChild?.scrollIntoView({
-                behavior: 'smooth',
-                block: 'center',
-            });
+            promptsContainerRef.current?.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
         prevPromptsLength.current = blueprint.prompts.length;
     }, [blueprint.prompts.length]);
 
-    const handleRun = async () => {
-        // ... validation logic (omitted for brevity) ...
+    // Sync from Blueprint State -> YAML Text
+    useEffect(() => {
+        try {
+            const header: any = {};
+            if (blueprint.title?.trim()) header.title = blueprint.title.trim();
+            if (blueprint.description?.trim()) header.description = blueprint.description.trim();
+            if (blueprint.models && blueprint.models.length > 0) header.models = blueprint.models;
+            if (blueprint.system?.trim()) header.system = blueprint.system.trim();
 
-        // Optimistically open the modal and show a pending state
+            const formatExpectationToYaml = (exp: Expectation) => {
+                if (!exp.value?.trim()) return null;
+                return exp.value;
+            };
+
+            const prompts = blueprint.prompts.map(p => {
+                if (!p.prompt.trim()) return null;
+
+                const promptObject: any = {};
+                promptObject.prompt = p.prompt;
+                if (p.ideal.trim()) promptObject.ideal = p.ideal;
+
+                const should = p.should.map(formatExpectationToYaml).filter(Boolean);
+                if (should.length > 0) promptObject.should = should;
+
+                const should_not = p.should_not.map(formatExpectationToYaml).filter(Boolean);
+                if (should_not.length > 0) promptObject.should_not = should_not;
+
+                return promptObject;
+            }).filter(Boolean);
+
+            const hasHeaderContent = Object.keys(header).length > 0;
+            const headerYaml = hasHeaderContent ? yaml.dump(header, { skipInvalid: true, flowLevel: -1, indent: 2 }) : '';
+            
+            let finalYaml = '';
+            if (prompts.length > 0) {
+                const promptsYaml = yaml.dump(prompts, { skipInvalid: true, indent: 2, flowLevel: -1 });
+                finalYaml = hasHeaderContent ? `${headerYaml}---\n${promptsYaml}` : promptsYaml;
+            } else {
+                finalYaml = headerYaml;
+            }
+            
+            setYamlText(finalYaml);
+            setYamlError(null);
+        } catch (e: any) {
+            setYamlError("Error generating YAML: " + e.message);
+        }
+    }, [blueprint]);
+
+    const handleYamlChange = useCallback((value: string) => {
+        setYamlText(value);
+        try {
+            const docs = yaml.loadAll(value).filter(d => d !== null && d !== undefined);
+            const newBlueprint: PlaygroundBlueprint = { ...DEFAULT_BLUEPRINT, prompts: [] };
+
+            if (docs.length === 0) {
+                setBlueprint(newBlueprint);
+                setYamlError(null);
+                return;
+            }
+
+            const firstDoc: any = docs[0] || {};
+            const firstDocIsConfig = typeof firstDoc === 'object' && !Array.isArray(firstDoc) && (firstDoc.title || firstDoc.description || firstDoc.models || firstDoc.system || firstDoc.id);
+            
+            const configHeader = firstDocIsConfig ? firstDoc : {};
+            const rawPrompts = firstDocIsConfig ? (docs.length > 1 ? docs.slice(1) : (configHeader.prompts || [])) : docs;
+
+            newBlueprint.title = configHeader.title || '';
+            newBlueprint.description = configHeader.description || '';
+            newBlueprint.models = Array.isArray(configHeader.models) ? configHeader.models : [];
+            newBlueprint.system = configHeader.system || '';
+
+            const parseExpectations = (rawItems: any[] | undefined): Expectation[] => {
+                if (!Array.isArray(rawItems)) return [];
+                return rawItems.map((item, index): Expectation => {
+                    const id = `exp-${Date.now()}-${index}`;
+                    const value = typeof item === 'string' ? item : yaml.dump(item).trim();
+                    return { id, value };
+                });
+            };
+
+            let parsedPrompts = (rawPrompts.flat() as any[]).map((p: any, index: number): Prompt => ({
+                id: p.id || `prompt-${Date.now()}-${index}`,
+                prompt: p.prompt || '',
+                ideal: p.ideal || '',
+                should: parseExpectations(p.should || p.points || p.expect),
+                should_not: parseExpectations(p.should_not),
+            }));
+            
+            if (parsedPrompts.length > MAX_PROMPTS) {
+                toast({
+                    variant: 'destructive',
+                    title: 'Prompt Limit Exceeded',
+                    description: `Playground blueprints are limited to ${MAX_PROMPTS} prompts. The first ${MAX_PROMPTS} have been imported.`
+                });
+                parsedPrompts = parsedPrompts.slice(0, MAX_PROMPTS);
+            }
+
+            newBlueprint.prompts = parsedPrompts;
+
+            setBlueprint(newBlueprint);
+            setYamlError(null);
+        } catch (e: any) {
+            setYamlError(e.message);
+        }
+    }, []);
+
+    // --- Handlers for Blueprint Manipulation ---
+
+    const handleUpdateBlueprint = (updatedBlueprint: PlaygroundBlueprint) => {
+        setBlueprint(updatedBlueprint);
+    };
+
+    const handleAddPrompt = () => {
+        if (blueprint.prompts.length >= MAX_PROMPTS) {
+            toast({
+                variant: 'destructive',
+                title: 'Prompt Limit Reached',
+                description: `You can add a maximum of ${MAX_PROMPTS} prompts in the playground.`
+            });
+            return;
+        }
+        setBlueprint(prev => ({ 
+            ...prev, 
+            prompts: [...prev.prompts, { id: `prompt-${Date.now()}`, prompt: '', ideal: '', should: [], should_not: [] }] 
+        }));
+    };
+
+    const handleUpdatePrompt = (updatedPrompt: Prompt) => {
+        setBlueprint(prev => ({ 
+            ...prev, 
+            prompts: prev.prompts.map(p => (p.id === updatedPrompt.id ? updatedPrompt : p)) 
+        }));
+    };
+
+    const handleRemovePrompt = (id: string) => {
+        setBlueprint(prev => ({ ...prev, prompts: prev.prompts.filter(p => p.id !== id) }));
+    };
+
+    const handleReset = () => {
+        if (window.confirm("Are you sure you want to clear the form? This will erase all your current work and cannot be undone.")) {
+            setBlueprint(DEFAULT_BLUEPRINT);
+            setRunId(null);
+            setStatus({ status: 'idle' });
+            setIsRunModalOpen(false);
+            window.localStorage.removeItem(RUN_STATE_STORAGE_KEY);
+            window.localStorage.removeItem(LOCAL_STORAGE_KEY);
+            toast({
+                title: 'Form Reset',
+                description: 'The playground has been reset to the default example.',
+            });
+        }
+    };
+
+    // --- Handlers for API Interaction ---
+
+    const handleRun = async () => {
         setStatus({ status: 'pending', message: 'Initiating evaluation...' });
         setIsRunModalOpen(true);
-        setRunId(null); // Clear any old runId
+        setRunId(null);
 
         try {
             const response = await fetch('/api/playground/run', {
@@ -247,26 +300,29 @@ export default function PlaygroundEditorClientPage() {
             const { runId: newRunId } = await response.json();
             setRunId(newRunId);
             setStatus({ status: 'pending', message: 'Run accepted and queued.' });
-
         } catch (error: any) {
-            toast({
-                variant: 'destructive',
-                title: 'Error starting run',
-                description: error.message,
-            });
+            toast({ variant: 'destructive', title: 'Error starting run', description: error.message });
             setStatus({ status: 'error', message: error.message });
         }
     };
-    
-    // Polling logic
+
+    const handleCancelRun = async () => {
+        if (!runId) return;
+        try {
+            await fetch(`/api/playground/cancel/${runId}`, { method: 'POST' });
+            toast({ title: "Cancellation Requested", description: "The run will be stopped shortly." });
+        } catch(e: any) {
+            toast({ variant: 'destructive', title: "Cancellation Failed", description: e.message });
+        }
+    };
+
+    // --- Polling Logic ---
     useEffect(() => {
         if (!runId || !isRunModalOpen) return;
 
         const poll = async () => {
             try {
                 const response = await fetch(`/api/playground/status/${runId}`);
-                if (isInitialLoading) setIsInitialLoading(false); // Turn off page load spinner
-
                 if (response.ok) {
                     const newStatus: StatusResponse = await response.json();
                     setStatus(newStatus);
@@ -274,69 +330,21 @@ export default function PlaygroundEditorClientPage() {
                         clearInterval(intervalId);
                     }
                 } else if (response.status !== 404 && response.status !== 202) {
-                    setStatus({ status: 'error', message: `Failed to get run status (HTTP ${response.status}).` });
+                    setStatus({ status: 'error', message: `Failed to get status (HTTP ${response.status}).` });
                     clearInterval(intervalId);
                 }
             } catch (error) {
-                setStatus({ status: 'error', message: 'Failed to poll for run status.' });
+                setStatus({ status: 'error', message: 'Polling failed.' });
                 clearInterval(intervalId);
             }
         };
         
-        // Don't wait for the first poll
-        poll(); 
         const intervalId = setInterval(poll, 3000);
-
+        poll(); // Initial poll
         return () => clearInterval(intervalId);
-    }, [runId, isRunModalOpen, isInitialLoading]);
+    }, [runId, isRunModalOpen]);
 
-    const handleAddPrompt = () => {
-        setBlueprint(prev => ({ ...prev, prompts: [...prev.prompts, { id: `prompt-${Date.now()}`, prompt: '', ideal: '', should: [], should_not: [] }] }));
-    };
-
-    const handleUpdatePrompt = (updatedPrompt: Prompt) => {
-        setBlueprint(prev => ({ ...prev, prompts: prev.prompts.map(p => p.id === updatedPrompt.id ? updatedPrompt : p) }));
-    };
-
-    const handleRemovePrompt = (id: string) => {
-        setBlueprint(prev => ({ ...prev, prompts: prev.prompts.filter(p => p.id !== id) }));
-    };
-
-    const handleReset = () => {
-        if (window.confirm("Are you sure you want to clear the form? This will erase all your current work and cannot be undone.")) {
-            setBlueprint(DEFAULT_BLUEPRINT);
-            setRunId(null);
-            setStatus({ status: 'idle' });
-            setIsRunModalOpen(false);
-            window.localStorage.removeItem(RUN_STATE_STORAGE_KEY);
-            toast({
-                title: 'Form Reset',
-                description: 'The playground has been reset to the default example.',
-            });
-        }
-    };
-    
-    const handleCancelRun = async () => {
-        if (!runId) return;
-
-        try {
-            const res = await fetch(`/api/playground/cancel/${runId}`, { method: 'POST' });
-            if (!res.ok) throw new Error('Failed to send cancellation request.');
-            
-            // The polling will automatically pick up the 'error' status this creates.
-            toast({ title: "Cancellation Requested", description: "The run will be stopped." });
-
-        } catch(e: any) {
-            toast({ variant: 'destructive', title: "Cancellation Failed", description: e.message });
-        }
-    }
-    
-    const closeModal = () => {
-        setIsRunModalOpen(false);
-        setRunId(null);
-        setStatus({ status: 'idle' });
-        window.localStorage.removeItem(RUN_STATE_STORAGE_KEY);
-    }
+    // --- Render Logic ---
 
     if (!isClient || isInitialLoading) {
         return (
@@ -344,7 +352,7 @@ export default function PlaygroundEditorClientPage() {
                 <div className="flex flex-col items-center gap-4">
                     <CIPLogo className="w-12 h-12" />
                     <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-                    <p className="text-muted-foreground">Checking for an existing run...</p>
+                    <p className="text-muted-foreground">Loading Playground...</p>
                 </div>
             </div>
         );
@@ -355,90 +363,84 @@ export default function PlaygroundEditorClientPage() {
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
             <header className="bg-background/80 backdrop-blur-lg border-b sticky top-0 z-20">
-                <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+                <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
                     <h1 className="text-xl font-bold flex items-center gap-2">
                         <CIPLogo className="w-7 h-7" />
                         <span>Blueprint Playground</span>
                     </h1>
                     <div className="flex items-center gap-2">
-                        <Button onClick={handleRun} disabled={isRunning} className="w-32">
-                            {isRunning ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Running</> : "Run Evaluation"}
+                        <AutoCreateModal onGenerated={handleYamlChange}>
+                            <Button variant="outline">
+                                <Wand className="w-4 h-4 mr-2" />
+                                Auto-Create
+                            </Button>
+                        </AutoCreateModal>
+                        <Button onClick={handleRun} disabled={isRunning} className="w-36">
+                            {isRunning ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Running</> : "🧪 Run Playground"}
                         </Button>
                     </div>
                 </div>
             </header>
             
-            <main className="max-w-3xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
-                <Card className="mb-8 bg-background/50">
-                    <CardHeader>
-                        <CardTitle>Welcome to the Playground!</CardTitle>
-                        <CardDescription>Create a simple evaluation in three steps.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="text-sm text-muted-foreground">
-                        <ol className="list-decimal list-inside space-y-2">
-                            <li><strong>Write Your Prompts:</strong> Add one or more prompts you want to test the AI on. Provide an optional "ideal response" for comparison.</li>
-                            <li><strong>Define Your Criteria:</strong> For each prompt, list what the response SHOULD and SHOULD NOT contain. Be specific!</li>
-                            <li><strong>Run Evaluation:</strong> Click "Run Evaluation" to test your prompts against a set of fast, inexpensive models and see the results.</li>
-                        </ol>
-                    </CardContent>
-                </Card>
-                <div className="space-y-8" ref={promptsContainerRef}>
-                    {blueprint.prompts.map((p, i) => (
-                        <PromptBlock
-                            key={p.id}
-                            prompt={p}
-                            onUpdate={handleUpdatePrompt}
-                            onRemove={() => handleRemovePrompt(p.id)}
-                        />
-                    ))}
-                    <div className="text-center">
-                        <Button variant="outline" onClick={handleAddPrompt}>
-                            <Plus className="h-4 w-4 mr-2" />
-                            Add Prompt
-                        </Button>
-                    </div>
-                </div>
+            <main className="max-w-screen-2xl mx-auto p-4 sm:p-6 lg:p-8">
+                <div className="grid grid-cols-1 lg:grid-cols-2 lg:gap-8 xl:gap-12">
+                    {/* Left Column: Form UI */}
+                    <div className="lg:pr-4">
+                        <div className="space-y-8">
+                            <WelcomeCard />
+                            <GlobalConfigCard blueprint={blueprint} onUpdate={handleUpdateBlueprint} />
 
-                <div className="mt-8 text-center border-t pt-6">
-                     <Button variant="ghost" size="sm" onClick={handleReset} className="text-muted-foreground hover:text-destructive">
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Reset Form and Clear Saved Work
-                    </Button>
+                            <div className="space-y-8" ref={promptsContainerRef}>
+                                {blueprint.prompts.map((p) => (
+                                    <PromptCard
+                                        key={p.id}
+                                        prompt={p}
+                                        onUpdate={handleUpdatePrompt}
+                                        onRemove={() => handleRemovePrompt(p.id)}
+                                    />
+                                ))}
+                            </div>
+
+                            <div className="text-center">
+                                <Button 
+                                    variant="outline" 
+                                    onClick={handleAddPrompt}
+                                    disabled={blueprint.prompts.length >= MAX_PROMPTS}
+                                >
+                                    <Plus className="h-4 w-4 mr-2" />
+                                    Add Prompt ({blueprint.prompts.length}/{MAX_PROMPTS})
+                                </Button>
+                            </div>
+
+                            <div className="text-center border-t pt-6">
+                                <Button variant="ghost" size="sm" onClick={handleReset} className="text-muted-foreground hover:text-destructive">
+                                    <Trash2 className="w-4 h-4 mr-2" />
+                                    Reset Form and Clear Saved Work
+                                </Button>
+                            </div>
+
+                            <ContributionGuide />
+                        </div>
+                    </div>
+
+                    {/* Right Column: YAML Editor */}
+                    <div>
+                        <YamlEditorCard 
+                            yamlText={yamlText} 
+                            yamlError={yamlError}
+                            onYamlChange={handleYamlChange} 
+                        />
+                    </div>
                 </div>
             </main>
 
-            <Dialog open={isRunModalOpen} onOpenChange={(open) => { if (!open && !isRunning) closeModal(); }}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Evaluation Status</DialogTitle>
-                        <DialogDescription>{status.message || '...'}</DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4 text-center">
-                        {status.status === 'complete' && <CheckCircle className="w-16 h-16 text-green-500 mx-auto animate-in fade-in" />}
-                        {status.status === 'error' && <XCircle className="w-16 h-16 text-destructive mx-auto animate-in fade-in" />}
-                        {(status.status === 'pending' || status.status === 'generating_responses' || status.status === 'evaluating') && (
-                             <Loader2 className="w-16 h-16 text-primary mx-auto animate-spin" />
-                        )}
-                    </div>
-                    <DialogFooter className="flex-col-reverse sm:flex-row sm:justify-between gap-2">
-                        <div>
-                            {isRunning && (
-                                <Button variant="destructive" onClick={handleCancelRun}>Cancel Run</Button>
-                            )}
-                        </div>
-                        <div>
-                           {status.status === 'complete' && status.resultUrl && (
-                                <Link href={status.resultUrl} target="_blank" rel="noopener noreferrer" passHref>
-                                    <Button onClick={closeModal}><ExternalLink className="w-4 h-4 mr-2" />View Results</Button>
-                                </Link>
-                            )}
-                            {(status.status === 'complete' || status.status === 'error') && (
-                                <Button variant="secondary" onClick={closeModal} className="ml-2">Close</Button>
-                            )}
-                        </div>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            <RunStatusModal
+                isOpen={isRunModalOpen}
+                status={status}
+                isRunning={isRunning}
+                onClose={() => setIsRunModalOpen(false)}
+                onCancel={handleCancelRun}
+            />
         </div>
     );
 }
