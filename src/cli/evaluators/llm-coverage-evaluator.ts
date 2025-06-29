@@ -21,6 +21,8 @@ import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { evaluateFunctionPoints, aggregateCoverageScores } from './coverage-logic';
 import { ProgressCallback } from '../services/comparison-pipeline-service.non-stream';
 
+const DEFAULT_JUDGE_CONCURRENCY = 20;
+
 type Logger = ReturnType<typeof getConfig>['logger'];
 
 // Add local interface to fix TS error until types can be globally updated
@@ -432,7 +434,7 @@ Output: <reflection>The text mentions empathy, which means the criterion is MET 
     ): Promise<Partial<FinalComparisonOutputV2['evaluationResults'] & Pick<FinalComparisonOutputV2, 'extractedKeyPoints'>>> {
         this.logger.info(`[LLMCoverageEvaluator] Starting evaluation for ${inputs.length} prompts.`);
         const pLimit = (await import('p-limit')).default;
-        const limit = pLimit(10);
+        const limit = pLimit(DEFAULT_JUDGE_CONCURRENCY);
         const tasks: Promise<void>[] = [];
 
         const llmCoverageScores: FinalComparisonOutputV2['evaluationResults']['llmCoverageScores'] = {};

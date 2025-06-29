@@ -22,17 +22,28 @@ const PromptSchema = z.object({
 const PlaygroundBlueprintSchema = z.object({
   title: z.string().min(1, 'Title cannot be empty.'),
   description: z.string().optional(),
+  models: z.array(z.string()).max(5, "You can select a maximum of 5 models.").optional(),
   prompts: z.array(PromptSchema).min(1, 'At least one prompt is required.'),
 });
 
 // --- Hardcoded settings for playground runs ---
-const PLAYGROUND_MODELS = [
+const AVAILABLE_PLAYGROUND_MODELS = [
   "openrouter:openai/gpt-4.1-nano",
   "openrouter:anthropic/claude-3.5-haiku",
-  // "openrouter:mistralai/mistral-large-2411",
+  "openrouter:mistralai/mistral-large-2411",
+  "openrouter:x-ai/grok-3-mini-beta",
+  "openrouter:qwen/qwen3-30b-a3b",
+  "openrouter:mistralai/mistral-medium-3",
+  "openrouter:deepseek/deepseek-chat-v3-0324"
+];
+
+const DEFAULT_PLAYGROUND_MODELS = [
+  "openrouter:openai/gpt-4.1-nano",
+  "openrouter:anthropic/claude-3.5-haiku",
   "openrouter:x-ai/grok-3-mini-beta",
   "openrouter:qwen/qwen3-30b-a3b"
 ];
+
 const PLAYGROUND_EVAL_METHODS = ['llm-coverage', 'embedding'];
 const PLAYGROUND_TEMP_DIR = 'playground';
 
@@ -70,12 +81,21 @@ export async function POST(request: Request) {
     }
     const playgroundBlueprint = validation.data;
 
+    let modelsToUse = DEFAULT_PLAYGROUND_MODELS;
+    if (playgroundBlueprint.models && playgroundBlueprint.models.length > 0) {
+        const allModelsAreValid = playgroundBlueprint.models.every(m => AVAILABLE_PLAYGROUND_MODELS.includes(m));
+        if (!allModelsAreValid) {
+            return NextResponse.json({ error: 'Invalid models selected. Please only use models from the allowed list.' }, { status: 400 });
+        }
+        modelsToUse = playgroundBlueprint.models;
+    }
+
     // 2. Transform into a full ComparisonConfig object
     const config = {
       id: `playground-${runId}`,
       title: playgroundBlueprint.title,
       description: playgroundBlueprint.description,
-      models: PLAYGROUND_MODELS,
+      models: modelsToUse,
       prompts: playgroundBlueprint.prompts.map(p => ({
         id: p.id,
         prompt: p.prompt,

@@ -6,6 +6,8 @@ import { SimpleLogger } from '@/lib/blueprint-service';
 
 export type ProgressCallback = (completed: number, total: number) => Promise<void>;
 
+const DEFAULT_GENERATION_CONCURRENCY = 20;
+
 export async function generateAllResponses(
     config: ComparisonConfig,
     logger: SimpleLogger,
@@ -14,7 +16,7 @@ export async function generateAllResponses(
 ): Promise<Map<string, PromptResponseData>> {
     logger.info(`[PipelineService] Generating model responses... Caching: ${useCache}`);
     const pLimit = (await import('p-limit')).default;
-    const limit = pLimit(config.concurrency || 10);
+    const limit = pLimit(config.concurrency || DEFAULT_GENERATION_CONCURRENCY);
     const allResponsesMap = new Map<string, PromptResponseData>();
     const tasks: Promise<void>[] = [];
     let generatedCount = 0;

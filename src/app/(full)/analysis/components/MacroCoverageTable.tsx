@@ -10,6 +10,7 @@ import { useMacroCoverageData } from '@/app/(full)/analysis/hooks/useMacroCovera
 import { FocusView } from './FocusView';
 import { cn } from '@/lib/utils';
 import { ActiveHighlight } from './CoverageTableLegend';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const UsersIcon = dynamic(() => import("lucide-react").then((mod) => mod.Users));
 const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.AlertCircle));
@@ -18,6 +19,7 @@ const ThermometerIcon = dynamic(() => import("lucide-react").then((mod) => mod.T
 const MessageSquareIcon = dynamic(() => import("lucide-react").then((mod) => mod.MessageSquare));
 const UnlinkIcon = dynamic(() => import("lucide-react").then((mod) => mod.Unlink));
 const MedalIcon = dynamic(() => import("lucide-react").then((mod) => mod.Medal));
+const InfoIcon = dynamic(() => import("lucide-react").then((mod) => mod.Info));
 
 interface MacroCoverageTableProps {
     allCoverageScores: AllCoverageScores | undefined | null;
@@ -281,262 +283,273 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
     };
 
     return (
-        <div className="overflow-x-auto rounded-md ring-1 ring-border dark:ring-slate-700 shadow-md">
-            <table className="border-collapse text-xs table-fixed">
-                <thead>
-                    <tr className="bg-muted">
-                        <th className={cn(firstColStickyHeader, "border-t-transparent")}></th>
-                        <th className={cn(secondColStickyHeader, "border-t-transparent")}></th>
-                        {localSortedModels.map(modelId => {
-                            const parsed = parsedModelsMap[modelId];
-                            const rank = modelIdToRank?.[modelId];
-                            const visualGroupStyle = baseIdToVisualGroupStyleMap[parsed.baseId] || 'border-t-border dark:border-t-slate-700';
-                            
-                            const getOrdinalSuffix = (n: number) => {
-                                if (n % 100 >= 11 && n % 100 <= 13) return 'th';
-                                switch (n % 10) {
-                                    case 1: return 'st';
-                                    case 2: return 'nd';
-                                    case 3: return 'rd';
-                                    default: return 'th';
-                                }
-                            };
+        <div>
+            {onCellClick && (
+                <Alert className="mb-4 bg-sky-50 border border-sky-200 text-sky-900 dark:bg-sky-900/20 dark:border-sky-500/30 dark:text-sky-200">
+                    <InfoIcon className="h-4 w-4" />
+                    <AlertTitle className="font-semibold">Pro Tip</AlertTitle>
+                    <AlertDescription>
+                        Click on any result cell in the table to open a detailed view with the model's full response and evaluation criteria.
+                    </AlertDescription>
+                </Alert>
+            )}
+            <div className="overflow-x-auto rounded-md ring-1 ring-border dark:ring-slate-700 shadow-md">
+                <table className="border-collapse text-xs table-fixed">
+                    <thead>
+                        <tr className="bg-muted">
+                            <th className={cn(firstColStickyHeader, "border-t-transparent")}></th>
+                            <th className={cn(secondColStickyHeader, "border-t-transparent")}></th>
+                            {localSortedModels.map(modelId => {
+                                const parsed = parsedModelsMap[modelId];
+                                const rank = modelIdToRank?.[modelId];
+                                const visualGroupStyle = baseIdToVisualGroupStyleMap[parsed.baseId] || 'border-t-border dark:border-t-slate-700';
+                                
+                                const getOrdinalSuffix = (n: number) => {
+                                    if (n % 100 >= 11 && n % 100 <= 13) return 'th';
+                                    switch (n % 10) {
+                                        case 1: return 'st';
+                                        case 2: return 'nd';
+                                        case 3: return 'rd';
+                                        default: return 'th';
+                                    }
+                                };
 
-                            const renderRankContent = () => {
-                                if (!rank) return null;
-                                const rankStr = `${rank}${getOrdinalSuffix(rank)}`;
-                                if (rank <= 3) {
-                                    const colorClass = rank === 1 ? 'text-yellow-400' : rank === 2 ? 'text-slate-400' : 'text-amber-600';
-                                    return (
-                                        <span className="flex items-center justify-center gap-1 font-semibold">
-                                            {MedalIcon && <MedalIcon className={`w-4 h-4 ${colorClass}`} />}
-                                            <span>{rankStr}</span>
-                                        </span>
-                                    );
-                                }
-                                return <span className="font-semibold">{rankStr}</span>;
-                            };
-                            
-                            return (
-                                <th 
-                                    key={`m-rank-header-${modelId}`}
-                                    className={cn(mIndexHeaderStyle, visualGroupStyle)}
-                                    title={`Ranked ${rank ? `${rank}${getOrdinalSuffix(rank)}` : 'N/A'} overall`}
-                                >
-                                    {renderRankContent()}
-                                </th>
-                            );
-                        })}
-                    </tr>
-                    <tr className="bg-muted">
-                        <th className={cn(firstColStickyHeader, "border-t-0")}>Avg %</th>
-                        <th className={cn(secondColStickyHeader, "border-t-0")}>Prompt</th>
-                        {localSortedModels.map(modelId => {
-                            const parsed = parsedModelsMap[modelId];
-                            const shortDisplayLabel = getModelDisplayLabel(parsed, { hideProvider: true, hideModelMaker: true });
-                            const fullDisplayLabel = getModelDisplayLabel(parsed);
-                            return (
-                                <th 
-                                  key={modelId} 
-                                  className={cn(modelNameHeaderStyle, "border-t-0 hover:bg-muted/70 dark:hover:bg-slate-700/60 transition-colors cursor-pointer")}
-                                  title={`Click to focus on ${fullDisplayLabel}`}
-                                  onClick={() => setFocusedModelId(modelId)}
-                                >
-                                    {shortDisplayLabel}
-                                </th>
-                            );
-                        })}
-                    </tr>
-                    <tr className="bg-muted/70">
-                        <th className={firstColModelAvgSticky}>Model Avg</th>
-                        <th className={secondColModelAvgSticky}></th>
-                        {localSortedModels.map(modelId => {
-                            const modelAvgCoverage = calculateModelAverageCoverage(modelId);
-                            let colorClasses = 'bg-muted/80 text-muted-foreground';
-                            if (modelAvgCoverage !== null) {
-                                const score = modelAvgCoverage * 100;
-                                if (score >= 75) {
-                                    colorClasses = 'bg-highlight-success/80 text-highlight-success-foreground';
-                                } else if (score >= 50) {
-                                    colorClasses = 'bg-highlight-warning/80 text-highlight-warning-foreground';
-                                } else if (score > 0) {
-                                    colorClasses = 'bg-highlight-error/80 text-highlight-error-foreground';
-                                }
-                            }
-                            return (
-                                 <th key={`${modelId}-avg-score`} className={cn(modelAvgScoreHeaderBase, "font-medium text-foreground dark:text-slate-200 w-36")}>
-                                      {modelAvgCoverage !== null ? (
-                                          <span className={cn(
-                                                "inline-block px-1 py-0.5 rounded-md font-semibold font-mono",
-                                                colorClasses,
-                                            )}>
-                                            {(modelAvgCoverage * 100).toFixed(1)}%
-                                        </span>
-                                    ) : (
-                                        <span className="text-muted-foreground dark:text-slate-500">-</span>
-                                    )}
-                                </th>
-                            );
-                        })}
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-border dark:divide-slate-700">
-                    {sortedPromptIds.map((promptId) => {
-                        const avgScore = calculatePromptAverage(promptId);
-                        let colorClasses = 'bg-muted/80 text-muted-foreground';
-                        if (avgScore !== null) {
-                            if (avgScore >= 75) {
-                                colorClasses = 'bg-highlight-success/90 text-highlight-success-foreground';
-                            } else if (avgScore >= 50) {
-                                colorClasses = 'bg-highlight-warning/90 text-highlight-warning-foreground';
-                            } else {
-                                colorClasses = 'bg-highlight-error/90 text-highlight-error-foreground';
-                            }
-                        }
-                        return (
-                            <tr
-                                key={promptId}
-                                className="hover:bg-muted/50 dark:hover:bg-slate-700/30 transition-colors duration-100"
-                            >
-                                <td className="border-x border-border dark:border-slate-700 px-1 py-2 text-center align-middle font-medium sticky left-0 z-10 bg-card/90 hover:bg-muted/60 dark:hover:bg-slate-700/50 w-16">
-                                    {avgScore !== null ? (
-                                        <span className={cn(
-                                            "inline-block px-1.5 py-0.5 rounded-md text-[10px] font-semibold font-mono",
-                                            colorClasses
-                                        )}>
-                                            {avgScore.toFixed(1)}%
-                                        </span>
-                                    ) : (
-                                        <span className="text-muted-foreground dark:text-slate-500">-</span>
-                                    )}
-                                </td>
-                                <td className="border-x border-border dark:border-slate-700 px-3 py-2 text-left align-middle sticky left-0 z-10 bg-card/90  hover:bg-muted/60 dark:hover:bg-slate-700/50 w-96">
-                                    <Link
-                                        href={`/analysis/${encodeURIComponent(configId)}/${encodeURIComponent(runLabel)}/${encodeURIComponent(safeTimestampFromParams)}?prompt=${encodeURIComponent(promptId)}`}
-                                        className="block text-primary hover:text-primary/80 dark:hover:text-primary/80 hover:underline cursor-pointer text-xs"
-                                        title={`View details for: ${getPromptText(promptId)}`}
+                                const renderRankContent = () => {
+                                    if (!rank) return null;
+                                    const rankStr = `${rank}${getOrdinalSuffix(rank)}`;
+                                    if (rank <= 3) {
+                                        const colorClass = rank === 1 ? 'text-yellow-400' : rank === 2 ? 'text-slate-400' : 'text-amber-600';
+                                        return (
+                                            <span className="flex items-center justify-center gap-1 font-semibold">
+                                                {MedalIcon && <MedalIcon className={`w-4 h-4 ${colorClass}`} />}
+                                                <span>{rankStr}</span>
+                                            </span>
+                                        );
+                                    }
+                                    return <span className="font-semibold">{rankStr}</span>;
+                                };
+                                
+                                return (
+                                    <th 
+                                        key={`m-rank-header-${modelId}`}
+                                        className={cn(mIndexHeaderStyle, visualGroupStyle)}
+                                        title={`Ranked ${rank ? `${rank}${getOrdinalSuffix(rank)}` : 'N/A'} overall`}
                                     >
-                                        <span className="block truncate text-xs text-muted-foreground dark:text-slate-500">
-                                            {promptId}
-                                        </span>
-                                        <span className="whitespace-normal line-clamp-2" style={{ minHeight: "2.4em"}}>
-                                            {getPromptText(promptId)}
-                                        </span>
-                                    </Link>
-                                </td>
-                                {localSortedModels.map(modelId => {
-                                    const parsedModel = parsedModelsMap[modelId];
-                                    const result = allCoverageScores[promptId]?.[modelId];
-                                    let cellScoreNum: number | null = null;
-                                    if (result && !('error' in result) && typeof result.avgCoverageExtent === 'number' && !isNaN(result.avgCoverageExtent)) {
-                                        cellScoreNum = result.avgCoverageExtent;
+                                        {renderRankContent()}
+                                    </th>
+                                );
+                            })}
+                        </tr>
+                        <tr className="bg-muted">
+                            <th className={cn(firstColStickyHeader, "border-t-0")}>Avg %</th>
+                            <th className={cn(secondColStickyHeader, "border-t-0")}>Prompt</th>
+                            {localSortedModels.map(modelId => {
+                                const parsed = parsedModelsMap[modelId];
+                                const shortDisplayLabel = getModelDisplayLabel(parsed, { hideProvider: true, hideModelMaker: true });
+                                const fullDisplayLabel = getModelDisplayLabel(parsed);
+                                return (
+                                    <th 
+                                      key={modelId} 
+                                      className={cn(modelNameHeaderStyle, "border-t-0 hover:bg-muted/70 dark:hover:bg-slate-700/60 transition-colors cursor-pointer")}
+                                      title={`Click to focus on ${fullDisplayLabel}`}
+                                      onClick={() => setFocusedModelId(modelId)}
+                                    >
+                                        {shortDisplayLabel}
+                                    </th>
+                                );
+                            })}
+                        </tr>
+                        <tr className="bg-muted/70">
+                            <th className={firstColModelAvgSticky}>Model Avg</th>
+                            <th className={secondColModelAvgSticky}></th>
+                            {localSortedModels.map(modelId => {
+                                const modelAvgCoverage = calculateModelAverageCoverage(modelId);
+                                let colorClasses = 'bg-muted/80 text-muted-foreground';
+                                if (modelAvgCoverage !== null) {
+                                    const score = modelAvgCoverage * 100;
+                                    if (score >= 75) {
+                                        colorClasses = 'bg-highlight-success/80 text-highlight-success-foreground';
+                                    } else if (score >= 50) {
+                                        colorClasses = 'bg-highlight-warning/80 text-highlight-warning-foreground';
+                                    } else if (score > 0) {
+                                        colorClasses = 'bg-highlight-error/80 text-highlight-error-foreground';
                                     }
-
-                                    let titleText = "";
-                                    let isOutlier = false;
-
-                                    // Check for outliers
-                                    if (cellScoreNum !== null) {
-                                        const pStats = promptStats.get(promptId);
-                                        if (pStats && pStats.avg !== null && pStats.stdDev !== null && pStats.stdDev > 1e-9) { 
-                                            if (Math.abs(cellScoreNum - pStats.avg) > OUTLIER_THRESHOLD_STD_DEV * pStats.stdDev) {
-                                                isOutlier = true;
-                                                titleText += `Outlier: Score (${(cellScoreNum * 100).toFixed(1)}%) deviates significantly from prompt average (${(pStats.avg * 100).toFixed(1)}%).`;
-                                            }
-                                        }
-                                    }
-
-                                    // Check for high judge disagreement and critical failures
-                                    let hasHighDisagreement = false;
-                                    let hasCriticalFailure = false;
-                                    if (result && !('error' in result) && result.pointAssessments) {
-                                        for (const assessment of result.pointAssessments) {
-                                            if (!hasHighDisagreement && assessment.individualJudgements && assessment.individualJudgements.length > 1) {
-                                                const scores = assessment.individualJudgements.map(j => j.coverageExtent);
-                                                const n = scores.length;
-                                                const mean = scores.reduce((a, b) => a + b) / n;
-                                                const stdDev = Math.sqrt(scores.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b) / n);
-                                                
-                                                if (stdDev > HIGH_DISAGREEMENT_THRESHOLD_STD_DEV) {
-                                                    hasHighDisagreement = true;
-                                                    const disagreementDetails = `High Judge Disagreement: Found on key point "${assessment.keyPointText}". Scores: [${scores.map(s => s.toFixed(2)).join(', ')}], StdDev: ${stdDev.toFixed(2)}.`;
-                                                    if (titleText) titleText += '\n---\n';
-                                                    titleText += disagreementDetails;
-                                                }
-                                            }
-                                            
-                                            if (!hasCriticalFailure && (assessment as any).isInverted) {
-                                                const isPassing = assessment.coverageExtent !== undefined && assessment.coverageExtent >= 0.7;
-                                                if (!isPassing) {
-                                                    hasCriticalFailure = true;
-                                                    const failureDetails = `Critical Failure: Violated a 'should not' constraint: "${assessment.keyPointText}".`;
-                                                    if (titleText) titleText += '\n---\n';
-                                                    titleText += failureDetails;
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    const cellClasses = cn(
-                                        "border-x border-border dark:border-slate-700",
-                                        "p-1 align-middle relative", // Added relative positioning
-                                        onCellClick ? "cursor-pointer" : ""
-                                    );
-
-                                    const sensitivity = permutationSensitivityMap?.get(`${promptId}:${parsedModel.baseId}`);
-
-                                    return (
-                                        <td 
-                                            key={modelId}
-                                            className={cellClasses}
-                                            onMouseEnter={() => onModelHover && onModelHover(modelId)}
-                                            onMouseLeave={() => onModelHover && onModelHover(null)}
-                                            onClick={() => {
-                                                if (onCellClick) {
-                                                    onCellClick(promptId, modelId);
-                                                }
-                                            }}
-                                            title={titleText || undefined}
+                                }
+                                return (
+                                     <th key={`${modelId}-avg-score`} className={cn(modelAvgScoreHeaderBase, "font-medium text-foreground dark:text-slate-200 w-36")}>
+                                          {modelAvgCoverage !== null ? (
+                                              <span className={cn(
+                                                    "inline-block px-1 py-0.5 rounded-md font-semibold font-mono",
+                                                    colorClasses,
+                                                )}>
+                                                {(modelAvgCoverage * 100).toFixed(1)}%
+                                            </span>
+                                        ) : (
+                                            <span className="text-muted-foreground dark:text-slate-500">-</span>
+                                        )}
+                                    </th>
+                                );
+                            })}
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border dark:divide-slate-700">
+                        {sortedPromptIds.map((promptId) => {
+                            const avgScore = calculatePromptAverage(promptId);
+                            let colorClasses = 'bg-muted/80 text-muted-foreground';
+                            if (avgScore !== null) {
+                                if (avgScore >= 75) {
+                                    colorClasses = 'bg-highlight-success/90 text-highlight-success-foreground';
+                                } else if (avgScore >= 50) {
+                                    colorClasses = 'bg-highlight-warning/90 text-highlight-warning-foreground';
+                                } else {
+                                    colorClasses = 'bg-highlight-error/90 text-highlight-error-foreground';
+                                }
+                            }
+                            return (
+                                <tr
+                                    key={promptId}
+                                    className="hover:bg-muted/50 dark:hover:bg-slate-700/30 transition-colors duration-100"
+                                >
+                                    <td className="border-x border-border dark:border-slate-700 px-1 py-2 text-center align-middle font-medium sticky left-0 z-10 bg-card/90 hover:bg-muted/60 dark:hover:bg-slate-700/50 w-16">
+                                        {avgScore !== null ? (
+                                            <span className={cn(
+                                                "inline-block px-1.5 py-0.5 rounded-md text-[10px] font-semibold font-mono",
+                                                colorClasses
+                                            )}>
+                                                {avgScore.toFixed(1)}%
+                                            </span>
+                                        ) : (
+                                            <span className="text-muted-foreground dark:text-slate-500">-</span>
+                                        )}
+                                    </td>
+                                    <td className="border-x border-border dark:border-slate-700 px-3 py-2 text-left align-middle sticky left-0 z-10 bg-card/90  hover:bg-muted/60 dark:hover:bg-slate-700/50 w-96">
+                                        <Link
+                                            href={`/analysis/${encodeURIComponent(configId)}/${encodeURIComponent(runLabel)}/${encodeURIComponent(safeTimestampFromParams)}?prompt=${encodeURIComponent(promptId)}`}
+                                            className="block text-primary hover:text-primary/80 dark:hover:text-primary/80 hover:underline cursor-pointer text-xs"
+                                            title={`View details for: ${getPromptText(promptId)}`}
                                         >
-                                            {renderSegments(promptId, modelId)}
-                                            
-                                            <div className="absolute bottom-0.5 right-0.5 flex items-center gap-0.5">
-                                                {hasHighDisagreement && UsersIcon && (
-                                                    <span title="High judge disagreement on a criterion">
-                                                        <UsersIcon className="w-3 h-3 text-sky-600 dark:text-sky-500" />
-                                                    </span>
-                                                )}
-                                                {hasCriticalFailure && AlertTriangleIcon && (
-                                                    <span title="Violated a 'should not' constraint">
-                                                        <AlertTriangleIcon className="w-3 h-3 text-red-600 dark:text-red-500" />
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <div className="absolute top-0.5 right-0.5 flex items-center gap-0.5">
-                                                {isOutlier && UnlinkIcon && (
-                                                    <span title="Outlier score (>1.5σ from prompt average)">
-                                                        <UnlinkIcon className="w-3 h-3 text-amber-600 dark:text-amber-500" />
-                                                    </span>
-                                                )}
-                                                {(sensitivity === 'temp' || sensitivity === 'both') && ThermometerIcon && (
-                                                    <span title="Sensitive to temperature changes">
-                                                        <ThermometerIcon className="w-3 h-3 text-orange-500 dark:text-orange-400" />
-                                                    </span>
-                                                )}
-                                                {(sensitivity === 'sys' || sensitivity === 'both') && MessageSquareIcon && (
-                                                    <span title="Sensitive to system prompt changes">
-                                                        <MessageSquareIcon className="w-3 h-3 text-indigo-500 dark:text-indigo-400" />
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </td>
-                                    );
-                                })}
-                            </tr> 
-                        );
-                    })}
-                </tbody>
-            </table>
+                                            <span className="block truncate text-xs text-muted-foreground dark:text-slate-500">
+                                                {promptId}
+                                            </span>
+                                            <span className="whitespace-normal line-clamp-2" style={{ minHeight: "2.4em"}}>
+                                                {getPromptText(promptId)}
+                                            </span>
+                                        </Link>
+                                    </td>
+                                    {localSortedModels.map(modelId => {
+                                        const parsedModel = parsedModelsMap[modelId];
+                                        const result = allCoverageScores[promptId]?.[modelId];
+                                        let cellScoreNum: number | null = null;
+                                        if (result && !('error' in result) && typeof result.avgCoverageExtent === 'number' && !isNaN(result.avgCoverageExtent)) {
+                                            cellScoreNum = result.avgCoverageExtent;
+                                        }
+
+                                        let titleText = "";
+                                        let isOutlier = false;
+
+                                        // Check for outliers
+                                        if (cellScoreNum !== null) {
+                                            const pStats = promptStats.get(promptId);
+                                            if (pStats && pStats.avg !== null && pStats.stdDev !== null && pStats.stdDev > 1e-9) { 
+                                                if (Math.abs(cellScoreNum - pStats.avg) > OUTLIER_THRESHOLD_STD_DEV * pStats.stdDev) {
+                                                    isOutlier = true;
+                                                    titleText += `Outlier: Score (${(cellScoreNum * 100).toFixed(1)}%) deviates significantly from prompt average (${(pStats.avg * 100).toFixed(1)}%).`;
+                                                }
+                                            }
+                                        }
+
+                                        // Check for high judge disagreement and critical failures
+                                        let hasHighDisagreement = false;
+                                        let hasCriticalFailure = false;
+                                        if (result && !('error' in result) && result.pointAssessments) {
+                                            for (const assessment of result.pointAssessments) {
+                                                if (!hasHighDisagreement && assessment.individualJudgements && assessment.individualJudgements.length > 1) {
+                                                    const scores = assessment.individualJudgements.map(j => j.coverageExtent);
+                                                    const n = scores.length;
+                                                    const mean = scores.reduce((a, b) => a + b) / n;
+                                                    const stdDev = Math.sqrt(scores.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b) / n);
+                                                    
+                                                    if (stdDev > HIGH_DISAGREEMENT_THRESHOLD_STD_DEV) {
+                                                        hasHighDisagreement = true;
+                                                        const disagreementDetails = `High Judge Disagreement: Found on key point "${assessment.keyPointText}". Scores: [${scores.map(s => s.toFixed(2)).join(', ')}], StdDev: ${stdDev.toFixed(2)}.`;
+                                                        if (titleText) titleText += '\n---\n';
+                                                        titleText += disagreementDetails;
+                                                    }
+                                                }
+                                                
+                                                if (!hasCriticalFailure && (assessment as any).isInverted) {
+                                                    const isPassing = assessment.coverageExtent !== undefined && assessment.coverageExtent >= 0.7;
+                                                    if (!isPassing) {
+                                                        hasCriticalFailure = true;
+                                                        const failureDetails = `Critical Failure: Violated a 'should not' constraint: "${assessment.keyPointText}".`;
+                                                        if (titleText) titleText += '\n---\n';
+                                                        titleText += failureDetails;
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        const cellClasses = cn(
+                                            "border-x border-border dark:border-slate-700",
+                                            "p-1 align-middle relative", // Added relative positioning
+                                            onCellClick ? "cursor-pointer" : ""
+                                        );
+
+                                        const sensitivity = permutationSensitivityMap?.get(`${promptId}:${parsedModel.baseId}`);
+
+                                        return (
+                                            <td 
+                                                key={modelId}
+                                                className={cellClasses}
+                                                onMouseEnter={() => onModelHover && onModelHover(modelId)}
+                                                onMouseLeave={() => onModelHover && onModelHover(null)}
+                                                onClick={() => {
+                                                    if (onCellClick) {
+                                                        onCellClick(promptId, modelId);
+                                                    }
+                                                }}
+                                                title={titleText || undefined}
+                                            >
+                                                {renderSegments(promptId, modelId)}
+                                                
+                                                <div className="absolute bottom-0.5 right-0.5 flex items-center gap-0.5">
+                                                    {hasHighDisagreement && UsersIcon && (
+                                                        <span title="High judge disagreement on a criterion">
+                                                            <UsersIcon className="w-3 h-3 text-sky-600 dark:text-sky-500" />
+                                                        </span>
+                                                    )}
+                                                    {hasCriticalFailure && AlertTriangleIcon && (
+                                                        <span title="Violated a 'should not' constraint">
+                                                            <AlertTriangleIcon className="w-3 h-3 text-red-600 dark:text-red-500" />
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="absolute top-0.5 right-0.5 flex items-center gap-0.5">
+                                                    {isOutlier && UnlinkIcon && (
+                                                        <span title="Outlier score (>1.5σ from prompt average)">
+                                                            <UnlinkIcon className="w-3 h-3 text-amber-600 dark:text-amber-500" />
+                                                        </span>
+                                                    )}
+                                                    {(sensitivity === 'temp' || sensitivity === 'both') && ThermometerIcon && (
+                                                        <span title="Sensitive to temperature changes">
+                                                            <ThermometerIcon className="w-3 h-3 text-orange-500 dark:text-orange-400" />
+                                                        </span>
+                                                    )}
+                                                    {(sensitivity === 'sys' || sensitivity === 'both') && MessageSquareIcon && (
+                                                        <span title="Sensitive to system prompt changes">
+                                                            <MessageSquareIcon className="w-3 h-3 text-indigo-500 dark:text-indigo-400" />
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        );
+                                    })}
+                                </tr> 
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 };

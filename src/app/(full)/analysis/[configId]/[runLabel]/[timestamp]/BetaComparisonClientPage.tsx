@@ -234,7 +234,7 @@ export default function BetaComparisonClientPage({ data: initialData, isPlaygrou
   }, [data]);
 
   const summaryStats = useMemo(() => {
-    if (!data || !analysisStats || !analysisStats.overallHybridExtremes) return undefined;
+    if (!data || !analysisStats) return undefined;
 
     const mdpFromStats = analysisStats.mostDifferentiatingPrompt;
 
@@ -245,23 +245,47 @@ export default function BetaComparisonClientPage({ data: initialData, isPlaygrou
             text: getPromptContextDisplayString(mdpFromStats.id),
           }
         : null;
+        
+    let bestPerformer = null;
+    let worstPerformer = null;
+
+    if (isPlayground) {
+        // In playground mode, Hybrid score is not applicable as there's no IDEAL_MODEL.
+        // We use coverage extremes as the primary performance indicator.
+        if (analysisStats.overallCoverageExtremes?.bestCoverage) {
+            bestPerformer = {
+                id: analysisStats.overallCoverageExtremes.bestCoverage.modelId,
+                score: analysisStats.overallCoverageExtremes.bestCoverage.avgScore,
+            };
+        }
+        if (analysisStats.overallCoverageExtremes?.worstCoverage) {
+            worstPerformer = {
+                id: analysisStats.overallCoverageExtremes.worstCoverage.modelId,
+                score: analysisStats.overallCoverageExtremes.worstCoverage.avgScore,
+            };
+        }
+    } else if (analysisStats.overallHybridExtremes) {
+        // For regular runs, we use the hybrid score.
+        if (analysisStats.overallHybridExtremes.bestHybrid) {
+            bestPerformer = {
+                id: analysisStats.overallHybridExtremes.bestHybrid.modelId,
+                score: analysisStats.overallHybridExtremes.bestHybrid.avgScore,
+            };
+        }
+        if (analysisStats.overallHybridExtremes.worstHybrid) {
+            worstPerformer = {
+                id: analysisStats.overallHybridExtremes.worstHybrid.modelId,
+                score: analysisStats.overallHybridExtremes.worstHybrid.avgScore,
+            };
+        }
+    }
 
     return {
-      bestPerformingModel: analysisStats.overallHybridExtremes.bestHybrid
-        ? {
-            id: analysisStats.overallHybridExtremes.bestHybrid.modelId,
-            score: analysisStats.overallHybridExtremes.bestHybrid.avgScore,
-          }
-        : null,
-      worstPerformingModel: analysisStats.overallHybridExtremes.worstHybrid
-        ? {
-            id: analysisStats.overallHybridExtremes.worstHybrid.modelId,
-            score: analysisStats.overallHybridExtremes.worstHybrid.avgScore,
-          }
-        : null,
+      bestPerformingModel: bestPerformer,
+      worstPerformingModel: worstPerformer,
       mostDifferentiatingPrompt,
     };
-  }, [data, analysisStats, getPromptContextDisplayString]);
+  }, [isPlayground, data, analysisStats, getPromptContextDisplayString]);
 
   const headerWidgetContent = useMemo(() => {
     if (currentPromptId || !data?.evaluationResults?.llmCoverageScores || !data.promptIds || displayedModels.filter(m => m !== IDEAL_MODEL_ID).length === 0) {

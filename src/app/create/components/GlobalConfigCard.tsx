@@ -7,15 +7,17 @@ import { Textarea } from '@/components/ui/textarea';
 import dynamic from 'next/dynamic';
 import { useState } from 'react';
 import { PlaygroundBlueprint } from './types';
+import { ModelSelector } from './ModelSelector';
 
 const ChevronsUpDown = dynamic(() => import('lucide-react').then(mod => mod.ChevronsUpDown));
 
 interface GlobalConfigCardProps {
   blueprint: PlaygroundBlueprint;
-  onUpdate: (blueprint: PlaygroundBlueprint) => void;
+  onUpdate: (bp: PlaygroundBlueprint) => void;
+  availableModels: string[];
 }
 
-export function GlobalConfigCard({ blueprint, onUpdate }: GlobalConfigCardProps) {
+export function GlobalConfigCard({ blueprint, onUpdate, availableModels }: GlobalConfigCardProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   const setField = <K extends keyof PlaygroundBlueprint>(field: K, value: PlaygroundBlueprint[K]) => {
@@ -59,14 +61,14 @@ export function GlobalConfigCard({ blueprint, onUpdate }: GlobalConfigCardProps)
             </CollapsibleTrigger>
             <CollapsibleContent className="pt-4 space-y-4 border-t mt-4">
               <div>
-                  <label htmlFor="blueprint-models" className="text-sm font-medium block mb-1.5">Models</label>
-                  <Input
-                      id="blueprint-models"
-                      placeholder="openai:gpt-4o-mini, anthropic:claude-3-haiku..."
-                      value={(blueprint.models || []).join(', ')}
-                      onChange={(e) => setField('models', e.target.value.split(',').map(m => m.trim()).filter(Boolean))}
+                  <label className="text-base font-semibold text-foreground">Models</label>
+                   <p className="text-sm text-muted-foreground mb-2">The AI models you want to test.</p>
+                  <ModelSelector
+                    availableModels={availableModels}
+                    selectedModels={blueprint.models || []}
+                    onSelectionChange={(models) => setField('models', models)}
+                    maxSelection={5}
                   />
-                  <p className="text-xs text-muted-foreground mt-1.5">Optional. Comma-separated list. Defaults to a standard set if empty.</p>
               </div>
               <div>
                   <label htmlFor="blueprint-system" className="text-sm font-medium block mb-1.5">System Prompt</label>

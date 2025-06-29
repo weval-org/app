@@ -24,10 +24,27 @@ const Wand = dynamic(() => import('lucide-react').then(mod => mod.Wand2));
 const LOCAL_STORAGE_KEY = 'playgroundBlueprint_v2';
 const RUN_STATE_STORAGE_KEY = 'playgroundRunState';
 
+const AVAILABLE_PLAYGROUND_MODELS = [
+  "openrouter:openai/gpt-4.1-nano",
+  "openrouter:anthropic/claude-3.5-haiku",
+  "openrouter:mistralai/mistral-large-2411",
+  "openrouter:x-ai/grok-3-mini-beta",
+  "openrouter:qwen/qwen3-30b-a3b",
+  "openrouter:mistralai/mistral-medium-3",
+  "openrouter:deepseek/deepseek-chat-v3-0324"
+];
+
+const DEFAULT_PLAYGROUND_MODELS = [
+  "openrouter:openai/gpt-4.1-nano",
+  "openrouter:anthropic/claude-3.5-haiku",
+  "openrouter:x-ai/grok-3-mini-beta",
+  "openrouter:qwen/qwen3-30b-a3b"
+];
+
 const DEFAULT_BLUEPRINT: PlaygroundBlueprint = {
     title: 'My First Playground Blueprint',
     description: 'A quick test to see how different models respond to my prompts.',
-    models: [],
+    models: DEFAULT_PLAYGROUND_MODELS,
     system: '',
     prompts: [
         {
@@ -77,6 +94,13 @@ export default function PlaygroundEditorClientPage() {
             const savedBlueprint = window.localStorage.getItem(LOCAL_STORAGE_KEY);
             if (savedBlueprint) {
                 const parsed = JSON.parse(savedBlueprint);
+                
+                // If the saved blueprint has no models, it's likely from an older
+                // version, so we populate it with the new defaults.
+                if (!parsed.models || parsed.models.length === 0) {
+                    parsed.models = DEFAULT_PLAYGROUND_MODELS;
+                }
+
                 // Basic validation and merging with default to prevent breakages
                 setBlueprint(bp => ({...DEFAULT_BLUEPRINT, ...parsed, prompts: parsed.prompts || bp.prompts }));
             }
@@ -281,6 +305,65 @@ export default function PlaygroundEditorClientPage() {
     // --- Handlers for API Interaction ---
 
     const handleRun = async () => {
+        // --- Validation ---
+        if (blueprint.prompts.length === 0) {
+            toast({
+                variant: 'destructive',
+                title: 'Validation Failed',
+                description: 'Please add at least one prompt to run an evaluation.',
+            });
+            return;
+        }
+
+        for (let i = 0; i < blueprint.prompts.length; i++) {
+            const prompt = blueprint.prompts[i];
+            const promptNumber = i + 1;
+
+            if (prompt.prompt.trim().length <= 10) {
+                toast({
+                    variant: 'destructive',
+                    title: 'Validation Failed',
+                    description: `Prompt #${promptNumber} must be longer than 10 characters.`,
+                });
+                return;
+            }
+
+            const validShoulds = prompt.should.filter(exp => exp.value.trim().length > 0);
+            const validShouldNots = prompt.should_not.filter(exp => exp.value.trim().length > 0);
+
+            if (validShoulds.length === 0 && validShouldNots.length === 0) {
+                toast({
+                    variant: 'destructive',
+                    title: 'Validation Failed',
+                    description: `Prompt #${promptNumber} needs at least one 'SHOULD' or 'SHOULD NOT' criterion.`,
+                });
+                return;
+            }
+
+            for (const exp of validShoulds) {
+                if (exp.value.trim().length <= 10) {
+                    toast({
+                        variant: 'destructive',
+                        title: 'Validation Failed',
+                        description: `A 'SHOULD' criterion in Prompt #${promptNumber} is too short. All criteria must be longer than 10 characters.`,
+                    });
+                    return;
+                }
+            }
+            
+            for (const exp of validShouldNots) {
+                if (exp.value.trim().length <= 10) {
+                    toast({
+                        variant: 'destructive',
+                        title: 'Validation Failed',
+                        description: `A 'SHOULD NOT' criterion in Prompt #${promptNumber} is too short. All criteria must be longer than 10 characters.`,
+                    });
+                    return;
+                }
+            }
+        }
+
+        // --- If validation passes, proceed ---
         setStatus({ status: 'pending', message: 'Initiating evaluation...' });
         setIsRunModalOpen(true);
         setRunId(null);
@@ -388,7 +471,11 @@ export default function PlaygroundEditorClientPage() {
                     <div className="lg:pr-4">
                         <div className="space-y-8">
                             <WelcomeCard />
-                            <GlobalConfigCard blueprint={blueprint} onUpdate={handleUpdateBlueprint} />
+                            <GlobalConfigCard 
+                                blueprint={blueprint} 
+                                onUpdate={handleUpdateBlueprint} 
+                                availableModels={AVAILABLE_PLAYGROUND_MODELS}
+                            />
 
                             <div className="space-y-8" ref={promptsContainerRef}>
                                 {blueprint.prompts.map((p) => (
@@ -417,6 +504,24 @@ export default function PlaygroundEditorClientPage() {
                                     <Trash2 className="w-4 h-4 mr-2" />
                                     Reset Form and Clear Saved Work
                                 </Button>
+                            </div>
+
+                            <div className="py-8 border-t border-dashed">
+                                <div className="text-center">
+                                    <Button size="lg" onClick={handleRun} disabled={isRunning} className="w-full max-w-sm h-12 text-lg">
+                                        {isRunning ? (
+                                            <>
+                                                <Loader2 className="w-6 h-6 animate-spin mr-3" />
+                                                Running Evaluation...
+                                            </>
+                                        ) : (
+                                            "🧪 Run Playground Evaluation"
+                                        )}
+                                    </Button>
+                                    <p className="text-xs text-muted-foreground mt-2">
+                                        This will run your blueprint against a set of fast, inexpensive models to get instant feedback.
+                                    </p>
+                                </div>
                             </div>
 
                             <ContributionGuide />

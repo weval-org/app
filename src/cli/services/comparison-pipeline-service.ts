@@ -1,13 +1,10 @@
 import { getConfig } from '../config';
 import { ComparisonConfig, EvaluationMethod, PromptResponseData, EvaluationInput, FinalComparisonOutputV2, Evaluator, IDEAL_MODEL_ID } from '../types/cli_types';
 import { ConversationMessage } from '@/types/shared';
-import { getModelResponse, DEFAULT_TEMPERATURE } from './llm-service';
-import { checkForErrors } from '../utils/response-utils';
 import { EmbeddingEvaluator } from '@/cli/evaluators/embedding-evaluator';
 import { LLMCoverageEvaluator } from '@/cli/evaluators/llm-coverage-evaluator';
 import { saveResult as saveResultToStorage } from '@/lib/storageService';
 import { toSafeTimestamp } from '@/lib/timestampUtils';
-import { generateMarkdownReport } from '@/app/utils/markdownGenerator';
 import { generateExecutiveSummary } from './executive-summary-service';
 import { generateAllResponses } from './comparison-pipeline-service.non-stream';
 

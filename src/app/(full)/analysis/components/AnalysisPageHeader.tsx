@@ -9,10 +9,12 @@ import { BLUEPRINT_CONFIG_REPO_URL } from '@/lib/configConstants';
 import Link from 'next/link';
 import { MarkdownAccordion } from './MarkdownAccordion';
 import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
 const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
 const Sparkles = dynamic(() => import("lucide-react").then(mod => mod.Sparkles));
+const InfoIcon = dynamic(() => import("lucide-react").then(mod => mod.Info));
 
 export interface AnalysisPageHeaderProps {
   breadcrumbs: BreadcrumbItem[];
@@ -38,20 +40,49 @@ export interface AnalysisPageHeaderProps {
   onMostDifferentiatingClick?: () => void;
 }
 
-const SummaryStatsTable = ({ stats, onMostDifferentiatingClick }: { stats: AnalysisPageHeaderProps['summaryStats'], onMostDifferentiatingClick?: () => void }) => {
+const SummaryStatsTable = ({ stats, onMostDifferentiatingClick, isPlayground }: { stats: AnalysisPageHeaderProps['summaryStats'], onMostDifferentiatingClick?: () => void, isPlayground?: boolean }) => {
   if (!stats) return null;
 
   const { bestPerformingModel, worstPerformingModel, mostDifferentiatingPrompt } = stats;
 
+  const performerTooltipText = isPlayground
+    ? 'Based on highest average key point coverage score.'
+    : 'Based on highest average hybrid score (coverage + similarity to ideal).';
+  
+  const worstPerformerTooltipText = isPlayground
+    ? 'Based on lowest average key point coverage score.'
+    : 'Based on lowest average hybrid score (coverage + similarity to ideal).';
+
   const rows: ({
-    label: string;
+    label: React.ReactNode;
     item: string;
     value: string;
     tooltip: string;
     onClick?: () => void;
   })[] = [
-    { label: '🏆 Best Performer', item: bestPerformingModel ? getModelDisplayLabel(bestPerformingModel.id, { hideProvider: true }) : 'N/A', value: bestPerformingModel ? `${(bestPerformingModel.score * 100).toFixed(1)}%` : 'N/A', tooltip: `Based on highest average hybrid score. Model: ${bestPerformingModel ? getModelDisplayLabel(bestPerformingModel.id) : 'N/A'}` },
-    { label: '📉 Worst Performer', item: worstPerformingModel ? getModelDisplayLabel(worstPerformingModel.id, { hideProvider: true }) : 'N/A', value: worstPerformingModel ? `${(worstPerformingModel.score * 100).toFixed(1)}%` : 'N/A', tooltip: `Based on lowest average hybrid score. Model: ${worstPerformingModel ? getModelDisplayLabel(worstPerformingModel.id) : 'N/A'}` },
+    {
+      label: (
+        <span className="flex items-center gap-1.5">
+          🏆 Best Performer
+          {isPlayground && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <InfoIcon className="w-3.5 h-3.5 text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>In Playground, this is based on Key Point Coverage.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+        </span>
+      ),
+      item: bestPerformingModel ? getModelDisplayLabel(bestPerformingModel.id, { hideProvider: true }) : 'N/A',
+      value: bestPerformingModel ? `${(bestPerformingModel.score * 100).toFixed(1)}%` : 'N/A',
+      tooltip: `${performerTooltipText} Model: ${bestPerformingModel ? getModelDisplayLabel(bestPerformingModel.id) : 'N/A'}`,
+    },
+    { label: '📉 Worst Performer', item: worstPerformingModel ? getModelDisplayLabel(worstPerformingModel.id, { hideProvider: true }) : 'N/A', value: worstPerformingModel ? `${(worstPerformingModel.score * 100).toFixed(1)}%` : 'N/A', tooltip: `${worstPerformerTooltipText} Model: ${worstPerformingModel ? getModelDisplayLabel(worstPerformingModel.id) : 'N/A'}` },
     { label: '🧐 Most Differentiating', item: mostDifferentiatingPrompt ? (mostDifferentiatingPrompt.text || mostDifferentiatingPrompt.id) : 'N/A', value: mostDifferentiatingPrompt ? `~${(mostDifferentiatingPrompt.score).toFixed(3)} sim` : 'N/A', tooltip: `Prompt with the most diverse responses (lowest avg similarity). Prompt: ${mostDifferentiatingPrompt ? (mostDifferentiatingPrompt.text || mostDifferentiatingPrompt.id) : 'N/A'}`, onClick: onMostDifferentiatingClick },
   ];
 
@@ -199,7 +230,7 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
             }}
           >
             <h3 className="text-base font-semibold text-foreground dark:text-slate-200 mb-2 flex-shrink-0">Summary of results:</h3>
-            {summaryStats && <SummaryStatsTable stats={summaryStats} onMostDifferentiatingClick={onMostDifferentiatingClick} />}
+            {summaryStats && <SummaryStatsTable stats={summaryStats} onMostDifferentiatingClick={onMostDifferentiatingClick} isPlayground={isPlayground} />}
 
             {executiveSummary && (
                 <div
@@ -219,7 +250,7 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
             <Sparkles className="w-5 h-5 mr-2 text-primary" />
             Summary of results:
           </h2>
-          {summaryStats && <SummaryStatsTable stats={summaryStats} onMostDifferentiatingClick={onMostDifferentiatingClick} />}
+          {summaryStats && <SummaryStatsTable stats={summaryStats} onMostDifferentiatingClick={onMostDifferentiatingClick} isPlayground={isPlayground} />}
           {executiveSummary && (
             <div className={`text-sm ${summaryStats ? 'mt-4' : ''}`}>
               <MarkdownAccordion content={executiveSummary} />

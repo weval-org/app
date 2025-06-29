@@ -68,7 +68,7 @@ export function usePageInteraction(data: ComparisonDataV2 | null) {
             const modelResponse = allFinalAssistantResponses?.[promptId]?.[modelId];
             const systemPrompt = modelSystemPrompts?.[modelId] ?? config.system ?? null;
 
-            if (!modelResult || 'error' in modelResult || !modelResult.pointAssessments || !modelResponse) {
+            if (!modelResult || 'error' in modelResult || !modelResult.pointAssessments || modelResponse == null) {
                 continue; 
             }
 
