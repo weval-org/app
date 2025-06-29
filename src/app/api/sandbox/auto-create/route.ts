@@ -26,8 +26,8 @@ The blueprint has two parts separated by \`---\`:
 Each prompt in the list is an object with:
 - \`prompt\`: (Required) The specific instruction or question for the model. For multi-line prompts, use the YAML literal block scalar \`|\`.
 - \`ideal\`: (Optional) A "gold-standard" answer to compare against. Also use \`|\` for multi-line content.
-- \`should\`: (Required) A list of rubric items. These are conceptual checks for what a good response MUST contain.
-- \`should_not\`: (Optional) A list of rubric items for what a good response MUST NOT contain.
+- \`should\`: (Required) A list of rubric items. These are conceptual checks for what a good response MUST contain. They must be HIGHLY specific. Do not presume the judge has wider context or even knows about the prompt or users' high level goal.
+- \`should_not\`: (Optional) A list of rubric items for what a good response MUST NOT contain. They must be HIGHLY specific. Do not presume the judge has wider context or even knows about the prompt or users' high level goal.
 
 **YOUR TASK:**
 
