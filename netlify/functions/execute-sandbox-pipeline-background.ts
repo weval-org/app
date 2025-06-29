@@ -11,7 +11,7 @@ import { toSafeTimestamp } from '@/lib/timestampUtils';
 import { generateExecutiveSummary } from '@/cli/services/executive-summary-service';
 import { ConversationMessage } from '@/types/shared';
 
-const PLAYGROUND_TEMP_DIR = 'playground';
+const PLAYGROUND_TEMP_DIR = 'sandbox';
 
 const s3Client = new S3Client({
   region: process.env.APP_S3_REGION!,
@@ -30,12 +30,12 @@ const streamToString = (stream: Readable): Promise<string> =>
   });
 
 const logger = {
-  info: (message: string) => console.log(`[Playground Pipeline] [INFO] ${message}`),
-  warn: (message: string) => console.warn(`[Playground Pipeline] [WARN] ${message}`),
-  error: (message: string) => console.error(`[Playground Pipeline] [ERROR] ${message}`),
-  success: (message: string) => console.log(`[Playground Pipeline] [SUCCESS] ${message}`),
+  info: (message: string) => console.log(`[Sandbox Pipeline] [INFO] ${message}`),
+  warn: (message: string) => console.warn(`[Sandbox Pipeline] [WARN] ${message}`),
+  error: (message: string) => console.error(`[Sandbox Pipeline] [ERROR] ${message}`),
+  success: (message: string) => console.log(`[Sandbox Pipeline] [SUCCESS] ${message}`),
 };
-type PlaygroundLogger = typeof logger;
+type SandboxLogger = typeof logger;
 
 const updateStatus = async (runId: string, status: string, message: string, extraData: object = {}) => {
   logger.info(`Updating status for ${runId}: ${status} - ${message}`);
@@ -148,9 +148,9 @@ export const handler: BackgroundHandler = async (event) => {
     
     await updateStatus(runId, 'saving', 'Aggregating and saving results...');
 
-    const { data: finalOutput } = await aggregatePlaygroundResult(
+    const { data: finalOutput } = await aggregateSandboxResult(
         config,
-        'playground-run',
+        'sandbox-run',
         allResponsesMap,
         evaluationResults,
         evalMethods,
@@ -165,7 +165,7 @@ export const handler: BackgroundHandler = async (event) => {
         ContentType: 'application/json',
     }));
 
-    await updateStatus(runId, 'complete', 'Run finished!', { resultUrl: `/playground/results/${runId}` });
+    await updateStatus(runId, 'complete', 'Run finished!', { resultUrl: `/sandbox/results/${runId}` });
 
   } catch (error: any) {
     logger.error(`Pipeline failed for runId ${runId}: ${error.message}`);
@@ -173,13 +173,13 @@ export const handler: BackgroundHandler = async (event) => {
   }
 };
 
-async function aggregatePlaygroundResult(
+async function aggregateSandboxResult(
     config: ComparisonConfig,
     runLabel: string,
     allResponsesMap: Map<string, PromptResponseData>,
     evaluationResults: Partial<FinalComparisonOutputV2['evaluationResults'] & Pick<FinalComparisonOutputV2, 'extractedKeyPoints'>>,
     evalMethodsUsed: EvaluationMethod[],
-    logger: PlaygroundLogger,
+    logger: SandboxLogger,
 ): Promise<{ data: FinalComparisonOutputV2 }> {
     const promptIds = Array.from(allResponsesMap.keys());
     const effectiveModelsSet = new Set<string>();

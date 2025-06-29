@@ -41,7 +41,7 @@ const Loader2 = dynamic(() => import("lucide-react").then((mod) => mod.Loader2))
 const GitCommit = dynamic(() => import("lucide-react").then((mod) => mod.GitCommit))
 const AlertTriangle = dynamic(() => import("lucide-react").then((mod) => mod.AlertTriangle))
 
-export default function BetaComparisonClientPage({ data: initialData, isPlayground = false }: { data: ImportedComparisonDataV2, isPlayground?: boolean }) {
+export default function BetaComparisonClientPage({ data: initialData, isSandbox = false }: { data: ImportedComparisonDataV2, isSandbox?: boolean }) {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -249,8 +249,8 @@ export default function BetaComparisonClientPage({ data: initialData, isPlaygrou
     let bestPerformer = null;
     let worstPerformer = null;
 
-    if (isPlayground) {
-        // In playground mode, Hybrid score is not applicable as there's no IDEAL_MODEL.
+    if (isSandbox) {
+        // In sandbox mode, Hybrid score is not applicable as there's no IDEAL_MODEL.
         // We use coverage extremes as the primary performance indicator.
         if (analysisStats.overallCoverageExtremes?.bestCoverage) {
             bestPerformer = {
@@ -285,7 +285,7 @@ export default function BetaComparisonClientPage({ data: initialData, isPlaygrou
       worstPerformingModel: worstPerformer,
       mostDifferentiatingPrompt,
     };
-  }, [isPlayground, data, analysisStats, getPromptContextDisplayString]);
+  }, [isSandbox, data, analysisStats, getPromptContextDisplayString]);
 
   const headerWidgetContent = useMemo(() => {
     if (currentPromptId || !data?.evaluationResults?.llmCoverageScores || !data.promptIds || displayedModels.filter(m => m !== IDEAL_MODEL_ID).length === 0) {
@@ -480,7 +480,7 @@ export default function BetaComparisonClientPage({ data: initialData, isPlaygrou
             headerWidget={headerWidgetContent}
             executiveSummary={normalizedExecutiveSummary}
             summaryStats={summaryStats}
-            isPlayground={isPlayground}
+            isSandbox={isSandbox}
             onMostDifferentiatingClick={handleMostDifferentiatingClick}
         />
 

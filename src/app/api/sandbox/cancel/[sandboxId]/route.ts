@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { S3Client, PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 
-const PLAYGROUND_TEMP_DIR = 'playground';
+const PLAYGROUND_TEMP_DIR = 'sandbox';
 
 const s3Client = new S3Client({
   region: process.env.APP_S3_REGION!,
@@ -13,15 +13,15 @@ const s3Client = new S3Client({
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ playgroundId: string }> }
+  { params }: { params: Promise<{ sandboxId: string }> }
 ) {
-  const { playgroundId } = await params;
-  if (!playgroundId) {
-    return NextResponse.json({ error: 'playgroundId is required' }, { status: 400 });
+  const { sandboxId } = await params;
+  if (!sandboxId) {
+    return NextResponse.json({ error: 'sandboxId is required' }, { status: 400 });
   }
 
-  const cancelKey = `${PLAYGROUND_TEMP_DIR}/runs/${playgroundId}/cancel.json`;
-  const statusKey = `${PLAYGROUND_TEMP_DIR}/runs/${playgroundId}/status.json`;
+  const cancelKey = `${PLAYGROUND_TEMP_DIR}/runs/${sandboxId}/cancel.json`;
+  const statusKey = `${PLAYGROUND_TEMP_DIR}/runs/${sandboxId}/status.json`;
 
   try {
     // First, check if the run directory/status exists to avoid creating orphans.
@@ -51,7 +51,7 @@ export async function POST(
     if (error.name === 'NotFound') {
         return NextResponse.json({ error: 'Run not found. Cannot cancel.' }, { status: 404 });
     }
-    console.error(`[Cancel API] Error sending cancellation for ${playgroundId}.`, error);
+    console.error(`[Cancel API] Error sending cancellation for ${sandboxId}.`, error);
     return NextResponse.json({ error: 'Failed to send cancellation request.' }, { status: 500 });
   }
 } 

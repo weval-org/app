@@ -3,9 +3,9 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { v4 as uuidv4 } from 'uuid';
 import * as yaml from 'js-yaml';
 import { z } from 'zod';
-import { handler as backgroundHandler } from '../../../../../netlify/functions/execute-playground-pipeline-background';
+import { handler as backgroundHandler } from '../../../../../netlify/functions/execute-sandbox-pipeline-background';
 
-// --- Zod Validation Schema for incoming playground data ---
+// --- Zod Validation Schema for incoming sandbox data ---
 const ExpectationSchema = z.object({
   id: z.string(),
   value: z.string(),
@@ -19,14 +19,14 @@ const PromptSchema = z.object({
   should_not: z.array(ExpectationSchema),
 });
 
-const PlaygroundBlueprintSchema = z.object({
+const SandboxBlueprintSchema = z.object({
   title: z.string().min(1, 'Title cannot be empty.'),
   description: z.string().optional(),
   models: z.array(z.string()).max(5, "You can select a maximum of 5 models.").optional(),
   prompts: z.array(PromptSchema).min(1, 'At least one prompt is required.'),
 });
 
-// --- Hardcoded settings for playground runs ---
+// --- Hardcoded settings for sandbox runs ---
 const AVAILABLE_PLAYGROUND_MODELS = [
   "openrouter:openai/gpt-4.1-nano",
   "openrouter:anthropic/claude-3.5-haiku",
@@ -45,7 +45,7 @@ const DEFAULT_PLAYGROUND_MODELS = [
 ];
 
 const PLAYGROUND_EVAL_METHODS = ['llm-coverage', 'embedding'];
-const PLAYGROUND_TEMP_DIR = 'playground';
+const PLAYGROUND_TEMP_DIR = 'sandbox';
 
 
 // --- S3 Client Initialization ---
@@ -74,29 +74,29 @@ export async function POST(request: Request) {
   try {
     // 1. Read and validate the request body
     const body = await request.json();
-    const validation = PlaygroundBlueprintSchema.safeParse(body);
+    const validation = SandboxBlueprintSchema.safeParse(body);
 
     if (!validation.success) {
       return NextResponse.json({ error: 'Invalid blueprint data.', details: validation.error.flatten() }, { status: 400 });
     }
-    const playgroundBlueprint = validation.data;
+    const sandboxBlueprint = validation.data;
 
     let modelsToUse = DEFAULT_PLAYGROUND_MODELS;
-    if (playgroundBlueprint.models && playgroundBlueprint.models.length > 0) {
-        const allModelsAreValid = playgroundBlueprint.models.every(m => AVAILABLE_PLAYGROUND_MODELS.includes(m));
+    if (sandboxBlueprint.models && sandboxBlueprint.models.length > 0) {
+        const allModelsAreValid = sandboxBlueprint.models.every(m => AVAILABLE_PLAYGROUND_MODELS.includes(m));
         if (!allModelsAreValid) {
             return NextResponse.json({ error: 'Invalid models selected. Please only use models from the allowed list.' }, { status: 400 });
         }
-        modelsToUse = playgroundBlueprint.models;
+        modelsToUse = sandboxBlueprint.models;
     }
 
     // 2. Transform into a full ComparisonConfig object
     const config = {
-      id: `playground-${runId}`,
-      title: playgroundBlueprint.title,
-      description: playgroundBlueprint.description,
+      id: `sandbox-${runId}`,
+      title: sandboxBlueprint.title,
+      description: sandboxBlueprint.description,
       models: modelsToUse,
-      prompts: playgroundBlueprint.prompts.map(p => ({
+      prompts: sandboxBlueprint.prompts.map(p => ({
         id: p.id,
         prompt: p.prompt,
         ideal: p.ideal,
@@ -133,7 +133,7 @@ export async function POST(request: Request) {
 
     // 6. Invoke background function.
     const functionUrl = new URL(
-      '/.netlify/functions/execute-playground-pipeline-background',
+      '/.netlify/functions/execute-sandbox-pipeline-background',
       process.env.URL || 'http://localhost:8888'
     );
 
@@ -152,7 +152,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ runId });
 
   } catch (error: any) {
-    console.error('Playground run failed:', error);
+    console.error('Sandbox run failed:', error);
     // Also save an error status file to S3 so the frontend polling can see it
     const statusKey = `${PLAYGROUND_TEMP_DIR}/runs/${runId}/status.json`;
      await s3Client.send(new PutObjectCommand({

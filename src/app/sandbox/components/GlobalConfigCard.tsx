@@ -6,21 +6,21 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import dynamic from 'next/dynamic';
 import { useState } from 'react';
-import { PlaygroundBlueprint } from './types';
+import { SandboxBlueprint } from './types';
 import { ModelSelector } from './ModelSelector';
 
 const ChevronsUpDown = dynamic(() => import('lucide-react').then(mod => mod.ChevronsUpDown));
 
 interface GlobalConfigCardProps {
-  blueprint: PlaygroundBlueprint;
-  onUpdate: (bp: PlaygroundBlueprint) => void;
+  blueprint: SandboxBlueprint;
+  onUpdate: (bp: SandboxBlueprint) => void;
   availableModels: string[];
 }
 
 export function GlobalConfigCard({ blueprint, onUpdate, availableModels }: GlobalConfigCardProps) {
   const [isOpen, setIsOpen] = useState(false);
 
-  const setField = <K extends keyof PlaygroundBlueprint>(field: K, value: PlaygroundBlueprint[K]) => {
+  const setField = <K extends keyof SandboxBlueprint>(field: K, value: SandboxBlueprint[K]) => {
     onUpdate({ ...blueprint, [field]: value });
   };
 

@@ -28,7 +28,7 @@ export function AutoCreateModal({ onGenerated, children }: AutoCreateModalProps)
         }
         setIsLoading(true);
         try {
-            const response = await fetch('/api/playground/auto-create', {
+            const response = await fetch('/api/sandbox/auto-create', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ goal }),

@@ -1,7 +1,7 @@
 import { Handler, schedule } from '@netlify/functions';
 import { S3Client, ListObjectsV2Command, DeleteObjectsCommand, ObjectIdentifier, ListObjectsV2CommandOutput } from '@aws-sdk/client-s3';
 
-const PLAYGROUND_TEMP_DIR = 'playground';
+const PLAYGROUND_TEMP_DIR = 'sandbox';
 const RUNS_PREFIX = `${PLAYGROUND_TEMP_DIR}/runs/`;
 const CLEANUP_AGE_HOURS = 24; // Delete runs older than 24 hours
 
@@ -14,9 +14,9 @@ const s3Client = new S3Client({
 });
 
 const logger = {
-  info: (message: string) => console.log(`[Playground Cleanup] [INFO] ${message}`),
-  warn: (message: string) => console.warn(`[Playground Cleanup] [WARN] ${message}`),
-  error: (message: string) => console.error(`[Playground Cleanup] [ERROR] ${message}`),
+  info: (message: string) => console.log(`[Sandbox Cleanup] [INFO] ${message}`),
+  warn: (message: string) => console.warn(`[Sandbox Cleanup] [WARN] ${message}`),
+  error: (message: string) => console.error(`[Sandbox Cleanup] [ERROR] ${message}`),
 };
 
 const cleanupHandler: Handler = async () => {
@@ -42,7 +42,7 @@ const cleanupHandler: Handler = async () => {
         if (listResponse.Contents) {
             for (const object of listResponse.Contents) {
                 if (object.Key) {
-                    // Extract runId from the key, e.g., playground/runs/1622548800000-some-uuid/status.json
+                    // Extract runId from the key, e.g., sandbox/runs/1622548800000-some-uuid/status.json
                     const keyParts = object.Key.replace(RUNS_PREFIX, '').split('/');
                     const runId = keyParts[0];
 
@@ -87,7 +87,7 @@ const cleanupHandler: Handler = async () => {
             }
         }
     } else {
-        logger.info("No expired playground runs found to delete.");
+        logger.info("No expired sandbox runs found to delete.");
     }
 
     logger.info("Cleanup job finished.");

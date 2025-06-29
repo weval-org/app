@@ -6,7 +6,7 @@ import * as yaml from 'js-yaml';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import CIPLogo from '@/components/icons/CIPLogo';
-import { PlaygroundBlueprint, Prompt, StatusResponse, Expectation } from './components/types';
+import { SandboxBlueprint, Prompt, StatusResponse, Expectation } from './components/types';
 import { GlobalConfigCard } from './components/GlobalConfigCard';
 import { PromptCard } from './components/PromptCard';
 import { RunStatusModal } from './components/RunStatusModal';
@@ -21,8 +21,8 @@ const Trash2 = dynamic(() => import('lucide-react').then(mod => mod.Trash2));
 const Loader2 = dynamic(() => import('lucide-react').then(mod => mod.Loader2));
 const Wand = dynamic(() => import('lucide-react').then(mod => mod.Wand2));
 
-const LOCAL_STORAGE_KEY = 'playgroundBlueprint_v2';
-const RUN_STATE_STORAGE_KEY = 'playgroundRunState';
+const LOCAL_STORAGE_KEY = 'sandboxBlueprint_v2';
+const RUN_STATE_STORAGE_KEY = 'sandboxRunState';
 
 const AVAILABLE_PLAYGROUND_MODELS = [
   "openrouter:openai/gpt-4.1-nano",
@@ -41,8 +41,8 @@ const DEFAULT_PLAYGROUND_MODELS = [
   "openrouter:qwen/qwen3-30b-a3b"
 ];
 
-const DEFAULT_BLUEPRINT: PlaygroundBlueprint = {
-    title: 'My First Playground Blueprint',
+const DEFAULT_BLUEPRINT: SandboxBlueprint = {
+    title: 'My First Sandbox Blueprint',
     description: 'A quick test to see how different models respond to my prompts.',
     models: DEFAULT_PLAYGROUND_MODELS,
     system: '',
@@ -64,8 +64,8 @@ const DEFAULT_BLUEPRINT: PlaygroundBlueprint = {
 
 // --- Main Page Component ---
 
-export default function PlaygroundEditorClientPage() {
-    const [blueprint, setBlueprint] = useState<PlaygroundBlueprint>(DEFAULT_BLUEPRINT);
+export default function SandboxEditorClientPage() {
+    const [blueprint, setBlueprint] = useState<SandboxBlueprint>(DEFAULT_BLUEPRINT);
     const [isClient, setIsClient] = useState(false);
     
     // YAML State
@@ -201,7 +201,7 @@ export default function PlaygroundEditorClientPage() {
         setYamlText(value);
         try {
             const docs = yaml.loadAll(value).filter(d => d !== null && d !== undefined);
-            const newBlueprint: PlaygroundBlueprint = { ...DEFAULT_BLUEPRINT, prompts: [] };
+            const newBlueprint: SandboxBlueprint = { ...DEFAULT_BLUEPRINT, prompts: [] };
 
             if (docs.length === 0) {
                 setBlueprint(newBlueprint);
@@ -241,7 +241,7 @@ export default function PlaygroundEditorClientPage() {
                 toast({
                     variant: 'destructive',
                     title: 'Prompt Limit Exceeded',
-                    description: `Playground blueprints are limited to ${MAX_PROMPTS} prompts. The first ${MAX_PROMPTS} have been imported.`
+                    description: `Sandbox blueprints are limited to ${MAX_PROMPTS} prompts. The first ${MAX_PROMPTS} have been imported.`
                 });
                 parsedPrompts = parsedPrompts.slice(0, MAX_PROMPTS);
             }
@@ -257,7 +257,7 @@ export default function PlaygroundEditorClientPage() {
 
     // --- Handlers for Blueprint Manipulation ---
 
-    const handleUpdateBlueprint = (updatedBlueprint: PlaygroundBlueprint) => {
+    const handleUpdateBlueprint = (updatedBlueprint: SandboxBlueprint) => {
         setBlueprint(updatedBlueprint);
     };
 
@@ -266,7 +266,7 @@ export default function PlaygroundEditorClientPage() {
             toast({
                 variant: 'destructive',
                 title: 'Prompt Limit Reached',
-                description: `You can add a maximum of ${MAX_PROMPTS} prompts in the playground.`
+                description: `You can add a maximum of ${MAX_PROMPTS} prompts in the sandbox.`
             });
             return;
         }
@@ -297,7 +297,7 @@ export default function PlaygroundEditorClientPage() {
             window.localStorage.removeItem(LOCAL_STORAGE_KEY);
             toast({
                 title: 'Form Reset',
-                description: 'The playground has been reset to the default example.',
+                description: 'The sandbox has been reset to the default example.',
             });
         }
     };
@@ -369,7 +369,7 @@ export default function PlaygroundEditorClientPage() {
         setRunId(null);
 
         try {
-            const response = await fetch('/api/playground/run', {
+            const response = await fetch('/api/sandbox/run', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(blueprint),
@@ -392,7 +392,7 @@ export default function PlaygroundEditorClientPage() {
     const handleCancelRun = async () => {
         if (!runId) return;
         try {
-            await fetch(`/api/playground/cancel/${runId}`, { method: 'POST' });
+            await fetch(`/api/sandbox/cancel/${runId}`, { method: 'POST' });
             toast({ title: "Cancellation Requested", description: "The run will be stopped shortly." });
         } catch(e: any) {
             toast({ variant: 'destructive', title: "Cancellation Failed", description: e.message });
@@ -405,7 +405,7 @@ export default function PlaygroundEditorClientPage() {
 
         const poll = async () => {
             try {
-                const response = await fetch(`/api/playground/status/${runId}`);
+                const response = await fetch(`/api/sandbox/status/${runId}`);
                 if (response.ok) {
                     const newStatus: StatusResponse = await response.json();
                     setStatus(newStatus);
@@ -435,7 +435,7 @@ export default function PlaygroundEditorClientPage() {
                 <div className="flex flex-col items-center gap-4">
                     <CIPLogo className="w-12 h-12" />
                     <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-                    <p className="text-muted-foreground">Loading Playground...</p>
+                    <p className="text-muted-foreground">Loading Sandbox...</p>
                 </div>
             </div>
         );
@@ -449,7 +449,7 @@ export default function PlaygroundEditorClientPage() {
                 <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
                     <h1 className="text-xl font-bold flex items-center gap-2">
                         <CIPLogo className="w-7 h-7" />
-                        <span>Blueprint Playground</span>
+                        <span><code>weval.org/sandbox</code></span>
                     </h1>
                     <div className="flex items-center gap-2">
                         <AutoCreateModal onGenerated={handleYamlChange}>
@@ -459,7 +459,7 @@ export default function PlaygroundEditorClientPage() {
                             </Button>
                         </AutoCreateModal>
                         <Button onClick={handleRun} disabled={isRunning} className="w-36">
-                            {isRunning ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Running</> : "🧪 Run Playground"}
+                            {isRunning ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Running</> : "🧪 Run Sandbox"}
                         </Button>
                     </div>
                 </div>
@@ -515,7 +515,7 @@ export default function PlaygroundEditorClientPage() {
                                                 Running Evaluation...
                                             </>
                                         ) : (
-                                            "🧪 Run Playground Evaluation"
+                                            "🧪 Run Sandbox Evaluation"
                                         )}
                                     </Button>
                                     <p className="text-xs text-muted-foreground mt-2">

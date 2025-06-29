@@ -15,7 +15,7 @@ export interface Prompt {
   should_not: Expectation[];
 }
 
-export interface PlaygroundBlueprint {
+export interface SandboxBlueprint {
   title: string;
   description: string;
   // Advanced fields
@@ -25,7 +25,7 @@ export interface PlaygroundBlueprint {
   // We keep them here to allow for future expansion or for power-users editing localStorage
   concurrency?: number;
   temperature?: number;
-  // Full blueprint spec fields not used in playground
+  // Full blueprint spec fields not used in sandbox
   // tags?: string[];
   // temperatures?: number[];
   prompts: Prompt[];

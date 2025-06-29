@@ -34,22 +34,22 @@ export interface AnalysisPageHeaderProps {
     worstPerformingModel: { id: string; score: number } | null;
     mostDifferentiatingPrompt: { id: string; score: number; text: string | null } | null;
   };
-  isPlayground?: boolean;
+  isSandbox?: boolean;
   children?: React.ReactNode;
   isSticky?: boolean;
   onMostDifferentiatingClick?: () => void;
 }
 
-const SummaryStatsTable = ({ stats, onMostDifferentiatingClick, isPlayground }: { stats: AnalysisPageHeaderProps['summaryStats'], onMostDifferentiatingClick?: () => void, isPlayground?: boolean }) => {
+const SummaryStatsTable = ({ stats, onMostDifferentiatingClick, isSandbox }: { stats: AnalysisPageHeaderProps['summaryStats'], onMostDifferentiatingClick?: () => void, isSandbox?: boolean }) => {
   if (!stats) return null;
 
   const { bestPerformingModel, worstPerformingModel, mostDifferentiatingPrompt } = stats;
 
-  const performerTooltipText = isPlayground
+  const performerTooltipText = isSandbox
     ? 'Based on highest average key point coverage score.'
     : 'Based on highest average hybrid score (coverage + similarity to ideal).';
   
-  const worstPerformerTooltipText = isPlayground
+  const worstPerformerTooltipText = isSandbox
     ? 'Based on lowest average key point coverage score.'
     : 'Based on lowest average hybrid score (coverage + similarity to ideal).';
 
@@ -64,14 +64,14 @@ const SummaryStatsTable = ({ stats, onMostDifferentiatingClick, isPlayground }: 
       label: (
         <span className="flex items-center gap-1.5">
           🏆 Best Performer
-          {isPlayground && (
+          {isSandbox && (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <InfoIcon className="w-3.5 h-3.5 text-muted-foreground" />
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>In Playground, this is based on Key Point Coverage.</p>
+                  <p>In Sandbox, this is based on Key Point Coverage.</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -111,7 +111,7 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
   headerWidget,
   executiveSummary,
   summaryStats,
-  isPlayground = false,
+  isSandbox = false,
   children,
   isSticky = false,
   onMostDifferentiatingClick,
@@ -169,7 +169,7 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
         isSticky ? 'sticky top-4 z-40' : ''
       }`}
     >
-      {!isPlayground && breadcrumbs && breadcrumbs.length > 0 && (
+      {!isSandbox && breadcrumbs && breadcrumbs.length > 0 && (
         <div className="mb-3 px-1 sm:px-0">
           <Breadcrumbs items={breadcrumbs} className="text-xs sm:text-sm" />
         </div>
@@ -230,7 +230,7 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
             }}
           >
             <h3 className="text-base font-semibold text-foreground dark:text-slate-200 mb-2 flex-shrink-0">Summary of results:</h3>
-            {summaryStats && <SummaryStatsTable stats={summaryStats} onMostDifferentiatingClick={onMostDifferentiatingClick} isPlayground={isPlayground} />}
+            {summaryStats && <SummaryStatsTable stats={summaryStats} onMostDifferentiatingClick={onMostDifferentiatingClick} isSandbox={isSandbox} />}
 
             {executiveSummary && (
                 <div
@@ -250,7 +250,7 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
             <Sparkles className="w-5 h-5 mr-2 text-primary" />
             Summary of results:
           </h2>
-          {summaryStats && <SummaryStatsTable stats={summaryStats} onMostDifferentiatingClick={onMostDifferentiatingClick} isPlayground={isPlayground} />}
+          {summaryStats && <SummaryStatsTable stats={summaryStats} onMostDifferentiatingClick={onMostDifferentiatingClick} isSandbox={isSandbox} />}
           {executiveSummary && (
             <div className={`text-sm ${summaryStats ? 'mt-4' : ''}`}>
               <MarkdownAccordion content={executiveSummary} />

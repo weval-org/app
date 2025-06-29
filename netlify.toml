@@ -7,6 +7,6 @@
 [functions."fetch-and-schedule-evals"]
   schedule = "0 0 * * 0"
 
-# This will run the 'cleanup-playground-runs' function daily at 2 AM UTC.
-[functions."cleanup-playground-runs"]
+# This will run the 'cleanup-sandbox-runs' function daily at 2 AM UTC.
+[functions."cleanup-sandbox-runs"]
   schedule = "0 2 * * *" 

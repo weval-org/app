@@ -6,7 +6,7 @@ export function WelcomeCard() {
     return (
         <Card className="bg-background/50">
             <CardHeader>
-                <CardTitle>Welcome to the Playground!</CardTitle>
+                <CardTitle>Welcome to the Sandbox!</CardTitle>
                 <CardDescription>Create a simple evaluation blueprint in three steps.</CardDescription>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
@@ -18,7 +18,7 @@ export function WelcomeCard() {
                         <strong>Define Your Criteria:</strong> For each prompt, list what a good response SHOULD and SHOULD NOT contain. Be specific!
                     </li>
                     <li>
-                        <strong>Run & Analyze:</strong> Click "Run Playground" to test your blueprint and see the results.
+                        <strong>Run & Analyze:</strong> Click "Run Sandbox" to test your blueprint and see the results.
                     </li>
                 </ol>
             </CardContent>

@@ -5,16 +5,16 @@ import type { Metadata } from 'next';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
 
-interface PlaygroundResultsPageProps {
+interface SandboxResultsPageProps {
   params: Promise<{
-    playgroundId: string;
+    sandboxId: string;
   }>;
 }
 
 // Ensure the page is not cached and rendered dynamically
 export const revalidate = 0;
 
-const PLAYGROUND_TEMP_DIR = 'playground';
+const PLAYGROUND_TEMP_DIR = 'sandbox';
 
 const s3Client = new S3Client({
   region: process.env.APP_S3_REGION!,
@@ -33,8 +33,8 @@ const streamToString = (stream: Readable): Promise<string> =>
   });
 
 
-async function getPlaygroundResult(playgroundId: string): Promise<ComparisonDataV2 | null> {
-    const resultKey = `${PLAYGROUND_TEMP_DIR}/runs/${playgroundId}/_comparison.json`;
+async function getSandboxResult(sandboxId: string): Promise<ComparisonDataV2 | null> {
+    const resultKey = `${PLAYGROUND_TEMP_DIR}/runs/${sandboxId}/_comparison.json`;
 
     try {
         const command = new GetObjectCommand({
@@ -53,17 +53,17 @@ async function getPlaygroundResult(playgroundId: string): Promise<ComparisonData
         if (error.name !== 'NoSuchKey') {
             // We log the error but don't expose details to the client.
             // NoSuchKey is an expected error if the file isn't ready.
-            console.error(`Failed to fetch playground result for ${playgroundId}`, error);
+            console.error(`Failed to fetch sandbox result for ${sandboxId}`, error);
         }
         return null;
     }
 }
 
-export async function generateMetadata({ params }: PlaygroundResultsPageProps): Promise<Metadata> {
-    const { playgroundId } = await params;
-    const data = await getPlaygroundResult(playgroundId);
-    const title = data?.configTitle ? `${data.configTitle} (Playground)` : 'Playground Result';
-    const description = data?.config?.description || 'A custom blueprint evaluation run in the playground.';
+export async function generateMetadata({ params }: SandboxResultsPageProps): Promise<Metadata> {
+    const { sandboxId } = await params;
+    const data = await getSandboxResult(sandboxId);
+    const title = data?.configTitle ? `${data.configTitle} (Sandbox)` : 'Sandbox Result';
+    const description = data?.config?.description || 'A custom blueprint evaluation run in the sandbox.';
 
     return {
         title: title,
@@ -76,9 +76,9 @@ export async function generateMetadata({ params }: PlaygroundResultsPageProps): 
 }
 
 
-export default async function PlaygroundResultPage({ params }: PlaygroundResultsPageProps) {
-  const { playgroundId } = await params;
-  const data = await getPlaygroundResult(playgroundId);
+export default async function SandboxResultPage({ params }: SandboxResultsPageProps) {
+  const { sandboxId } = await params;
+  const data = await getSandboxResult(sandboxId);
 
   if (!data) {
     return notFound();
@@ -86,5 +86,5 @@ export default async function PlaygroundResultPage({ params }: PlaygroundResults
 
   // The BetaComparisonClientPage expects the data in a specific prop.
   // We pass the fetched data directly to it.
-  return <BetaComparisonClientPage data={data} isPlayground={true} />;
+  return <BetaComparisonClientPage data={data} isSandbox={true} />;
 }

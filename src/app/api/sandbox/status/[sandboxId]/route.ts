@@ -4,7 +4,7 @@ import { Readable } from 'stream';
 
 export const dynamic = 'force-dynamic';
 
-const PLAYGROUND_TEMP_DIR = 'playground';
+const PLAYGROUND_TEMP_DIR = 'sandbox';
 
 const s3Client = new S3Client({
   region: process.env.APP_S3_REGION!,
@@ -24,14 +24,14 @@ const streamToString = (stream: Readable): Promise<string> =>
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ playgroundId: string }> }
+  { params }: { params: Promise<{ sandboxId: string }> }
 ) {
-  const { playgroundId } = await params;
-  if (!playgroundId) {
-    return NextResponse.json({ error: 'playgroundId is required' }, { status: 400 });
+  const { sandboxId } = await params;
+  if (!sandboxId) {
+    return NextResponse.json({ error: 'sandboxId is required' }, { status: 400 });
   }
 
-  const statusKey = `${PLAYGROUND_TEMP_DIR}/runs/${playgroundId}/status.json`;
+  const statusKey = `${PLAYGROUND_TEMP_DIR}/runs/${sandboxId}/status.json`;
   console.log(`[Status API] Attempting to fetch status for key: ${statusKey}`);
 
   try {
@@ -43,21 +43,21 @@ export async function GET(
     
     if (Body) {
       const content = await streamToString(Body as Readable);
-      console.log(`[Status API] Found status for ${playgroundId}:`, content);
+      console.log(`[Status API] Found status for ${sandboxId}:`, content);
       return NextResponse.json(JSON.parse(content));
     } else {
       // This case is unlikely but handled
-      console.warn(`[Status API] Status file not found for ${playgroundId}, but no error was thrown.`);
+      console.warn(`[Status API] Status file not found for ${sandboxId}, but no error was thrown.`);
       return NextResponse.json({ status: 'pending', message: 'Status file not found.' }, { status: 404 });
     }
   } catch (error: any) {
-    console.error(`[Status API] Error fetching status for ${playgroundId}. Key: ${statusKey}`, error);
+    console.error(`[Status API] Error fetching status for ${sandboxId}. Key: ${statusKey}`, error);
     if (error.name === 'NoSuchKey') {
       // If the status file doesn't exist yet, it means the run is pending initialization
-      console.log(`[Status API] 'NoSuchKey' error for ${playgroundId}, returning 202.`);
+      console.log(`[Status API] 'NoSuchKey' error for ${sandboxId}, returning 202.`);
       return NextResponse.json({ status: 'pending', message: 'Run is initializing...' }, { status: 202 });
     }
-    console.error(`Error fetching status for ${playgroundId}:`, error);
+    console.error(`Error fetching status for ${sandboxId}:`, error);
     return NextResponse.json({ error: 'Failed to fetch run status.' }, { status: 500 });
   }
 }

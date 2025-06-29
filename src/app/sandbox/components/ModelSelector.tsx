@@ -37,7 +37,7 @@ export function ModelSelector({
   return (
     <div className="space-y-3">
         <p className="text-sm text-muted-foreground">
-            Select up to {maxSelection} models to include in this playground run.
+            Select up to {maxSelection} models to include in this sandbox run.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {availableModels.map(modelId => {
