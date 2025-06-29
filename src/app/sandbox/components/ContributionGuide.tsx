@@ -11,11 +11,9 @@ const ExternalLink = dynamic(() => import('lucide-react').then(mod => mod.Extern
 
 
 const contributingChecklist = [
-    { text: 'My blueprint tests reasoning, not just recall of facts.' },
-    { text: 'It uses conceptual rubrics instead of simple keyword checks.' },
-    { text: 'The prompts are clear, concise, and isolate a specific variable.' },
-    { text: 'It is grounded in an evidence-based, authoritative source (e.g. a statute, a charter).'},
-    { text: 'The topic aligns with Weval\'s public-interest mission.' },
+    { text: 'The prompts are clear, concise, and isolate a specific interesting competency.' },
+    { text: 'The should/should_not criteria are clear, concise, and highly specific.' },
+    { text: 'The topic aligns with Weval\'s public-interest mission. Ask yourself: "Is this an area of AI deficit that many other people would care about?"' },
 ];
 
 export function ContributionGuide() {
@@ -25,7 +23,7 @@ export function ContributionGuide() {
                 <CardHeader>
                     <CardTitle>Ready to Contribute?</CardTitle>
                     <CardDescription>
-                        Once your blueprint is working well, consider contributing it to the public repository on GitHub.
+                        Once your blueprint is working well, consider contributing it to the public repository on GitHub. To do this, you'll need to copy and save the YAML text that's been generated.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>

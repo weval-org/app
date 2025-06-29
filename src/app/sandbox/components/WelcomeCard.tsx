@@ -15,10 +15,10 @@ export function WelcomeCard() {
                         <strong>Write Your Prompts:</strong> Add one or more prompts to test an AI on. Provide an optional "ideal response" for comparison.
                     </li>
                     <li>
-                        <strong>Define Your Criteria:</strong> For each prompt, list what a good response SHOULD and SHOULD NOT contain. Be specific!
+                        <strong>Define Your Criteria:</strong> For each prompt, list what a good response SHOULD and SHOULD NOT contain. Be specific and use plain language.
                     </li>
                     <li>
-                        <strong>Run & Analyze:</strong> Click "Run Sandbox" to test your blueprint and see the results.
+                        <strong>Run & Analyze:</strong> Click "Run Sandbox" to test your blueprint and see the results. This can take a few minutes depending on the number of prompts.
                     </li>
                 </ol>
             </CardContent>

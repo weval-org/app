@@ -21,6 +21,13 @@ const Trash2 = dynamic(() => import('lucide-react').then(mod => mod.Trash2));
 const Loader2 = dynamic(() => import('lucide-react').then(mod => mod.Loader2));
 const Wand = dynamic(() => import('lucide-react').then(mod => mod.Wand2));
 
+const areArraysEqual = (a: string[] | undefined, b: string[] | undefined) => {
+    if (!a || !b || a.length !== b.length) return false;
+    const sortedA = [...a].sort();
+    const sortedB = [...b].sort();
+    return sortedA.every((value, index) => value === sortedB[index]);
+};
+
 const LOCAL_STORAGE_KEY = 'sandboxBlueprint_v2';
 const RUN_STATE_STORAGE_KEY = 'sandboxRunState';
 
@@ -52,14 +59,22 @@ const DEFAULT_BLUEPRINT: SandboxBlueprint = {
             prompt: 'Explain the concept of "separation of powers" in a democracy.',
             ideal: 'Separation of powers refers to the division of a state\'s government into branches, each with separate, independent powers and responsibilities, so that the powers of one branch are not in conflict with those of the other branches. The typical division is into a legislature, an executive, and a judiciary.',
             should: [
-                { id: 'should-default-1', value: 'Mentions the three branches: legislative, executive, and judicial.' },
-                { id: 'should-default-2', value: 'Explains the purpose is to prevent concentration of power.' },
+                { id: 'should-default-1', value: 'Mention the three branches: legislative, executive, and judicial.' },
+                { id: 'should-default-2', value: 'Explain the purpose is to prevent concentration of power.' },
             ],
             should_not: [
-                 { id: 'should_not-default-1', value: 'Attempts to describe separation of powers but confuses it with federalism.' },
+                 { id: 'should_not-default-1', value: 'Attempt to describe separation of powers but confuses it with federalism.' },
             ],
         },
     ],
+};
+
+const BLANK_BLUEPRINT: SandboxBlueprint = {
+    title: '',
+    description: '',
+    models: DEFAULT_PLAYGROUND_MODELS,
+    system: '',
+    prompts: [],
 };
 
 // --- Main Page Component ---
@@ -155,7 +170,9 @@ export default function SandboxEditorClientPage() {
             const header: any = {};
             if (blueprint.title?.trim()) header.title = blueprint.title.trim();
             if (blueprint.description?.trim()) header.description = blueprint.description.trim();
-            if (blueprint.models && blueprint.models.length > 0) header.models = blueprint.models;
+            if (blueprint.models && blueprint.models.length > 0 && !areArraysEqual(blueprint.models, DEFAULT_PLAYGROUND_MODELS)) {
+                header.models = blueprint.models;
+            }
             if (blueprint.system?.trim()) header.system = blueprint.system.trim();
 
             const formatExpectationToYaml = (exp: Expectation) => {
@@ -289,15 +306,25 @@ export default function SandboxEditorClientPage() {
 
     const handleReset = () => {
         if (window.confirm("Are you sure you want to clear the form? This will erase all your current work and cannot be undone.")) {
-            setBlueprint(DEFAULT_BLUEPRINT);
+            setBlueprint(BLANK_BLUEPRINT);
             setRunId(null);
             setStatus({ status: 'idle' });
             setIsRunModalOpen(false);
             window.localStorage.removeItem(RUN_STATE_STORAGE_KEY);
             window.localStorage.removeItem(LOCAL_STORAGE_KEY);
             toast({
-                title: 'Form Reset',
-                description: 'The sandbox has been reset to the default example.',
+                title: 'Form Cleared',
+                description: 'The sandbox has been reset.',
+            });
+        }
+    };
+
+    const handlePopulateWithExample = () => {
+        if (window.confirm("This will clear the form and populate it with the example. Any unsaved work will be lost. Continue?")) {
+            setBlueprint(DEFAULT_BLUEPRINT);
+            toast({
+                title: 'Example Loaded',
+                description: 'The default example has been loaded into the form.',
             });
         }
     };
@@ -369,10 +396,15 @@ export default function SandboxEditorClientPage() {
         setRunId(null);
 
         try {
+            const payload: Partial<SandboxBlueprint> = { ...blueprint };
+            if (areArraysEqual(blueprint.models, DEFAULT_PLAYGROUND_MODELS)) {
+                delete payload.models;
+            }
+
             const response = await fetch('/api/sandbox/run', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(blueprint),
+                body: JSON.stringify(payload),
             });
 
             if (!response.ok) {
@@ -499,10 +531,13 @@ export default function SandboxEditorClientPage() {
                                 </Button>
                             </div>
 
-                            <div className="text-center border-t pt-6">
+                            <div className="text-center border-t pt-6 space-x-2">
                                 <Button variant="ghost" size="sm" onClick={handleReset} className="text-muted-foreground hover:text-destructive">
                                     <Trash2 className="w-4 h-4 mr-2" />
-                                    Reset Form and Clear Saved Work
+                                    Reset Form
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={handlePopulateWithExample}>
+                                    Populate with Example
                                 </Button>
                             </div>
 
