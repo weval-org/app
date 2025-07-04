@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
         const user = await userResponse.json();
         const userLogin = user.login;
 
-        const fileResponse = await githubApiRequest(`/repos/${userLogin}/${forkName}/contents/${path}`, accessToken);
+        const fileResponse = await githubApiRequest(`/repos/${forkName}/contents/${path}`, accessToken);
 
         if (!fileResponse.ok) {
             const errorBody = await fileResponse.json();
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
         }
 
         const response = await githubApiRequest(
-            `/repos/${userLogin}/${forkName}/contents/${path}`,
+            `/repos/${forkName}/contents/${path}`,
             accessToken,
             {
                 method: 'PUT',
@@ -129,7 +129,7 @@ export async function DELETE(req: NextRequest) {
         const userLogin = user.login;
 
         const response = await githubApiRequest(
-            `/repos/${userLogin}/${forkName}/contents/${path}`,
+            `/repos/${forkName}/contents/${path}`,
             accessToken,
             {
                 method: 'DELETE',

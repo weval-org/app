@@ -77,26 +77,35 @@ async function createNewFork(accessToken: string, userLogin: string): Promise<st
 }
 
 // Helper to ensure the user's blueprint directory exists
-async function ensurePlaceholderFile(accessToken: string, userLogin: string, forkName: string) {
-    const placeholderPath = `blueprints/users/${userLogin}/.gitkeep`;
-    console.log(`Ensuring placeholder file exists at: ${placeholderPath} in repo ${forkName}`);
+async function ensurePlaceholderFile(octokit: any, owner: string, repo: string) {
+    const placeholderPath = `blueprints/users/${owner}/.gitkeep`;
+    console.log(`Ensuring placeholder file exists at: ${placeholderPath} in repo ${repo}`);
     
-    const response = await githubApiRequest(
-        `/repos/${userLogin}/${forkName}/contents/${placeholderPath}`,
-        accessToken,
-        {
-            method: 'PUT',
-            body: JSON.stringify({
+    try {
+        // First, try to get the file's SHA to see if it exists.
+        // This avoids an error if we try to create a file that's already there.
+        await octokit.repos.getContent({
+            owner,
+            repo,
+            path: placeholderPath,
+        });
+        console.log("Placeholder file already exists.");
+    } catch (error: any) {
+        // If it's a 404, the file doesn't exist, so we create it.
+        if (error.status === 404) {
+            console.log("Placeholder file not found, creating it...");
+            await octokit.repos.createOrUpdateFileContents({
+                owner,
+                repo,
+                path: placeholderPath,
                 message: 'feat: initialize user blueprint directory',
                 content: Buffer.from('').toString('base64'),
-            }),
+            });
+            console.log("Placeholder file created.");
+        } else {
+            // Re-throw other errors
+            throw error;
         }
-    );
-
-    // It's okay if it fails with 422 (already exists) or succeeds with 200/201.
-    if (!response.ok && response.status !== 422) {
-        const errorBody = await response.json();
-        throw new Error(`Failed to create placeholder file: ${errorBody.message}`);
     }
 }
 
@@ -107,24 +116,65 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-        const userResponse = await githubApiRequest('/user', accessToken);
-        if (!userResponse.ok) throw new Error('Failed to fetch user data');
-        const user = await userResponse.json();
-        const userLogin = user.login;
+        const { Octokit } = await import('@octokit/rest');
+        const octokit = new Octokit({ auth: accessToken });
 
-        let forkName = await findExistingFork(accessToken, userLogin);
+        const userResponse = await octokit.users.getAuthenticated();
+        const userLogin = userResponse.data.login;
+        
+        const forks = await octokit.repos.listForks({
+            owner: UPSTREAM_OWNER,
+            repo: UPSTREAM_REPO_NAME,
+        });
+        
+        const userFork = forks.data.find(fork => fork.owner.login === userLogin);
 
-        if (forkName) {
-            console.log(`Found existing user fork: '${forkName}'`);
+        let forkFullName: string;
+
+        if (userFork) {
+            console.log(`Found existing user fork: '${userFork.full_name}'`);
+            forkFullName = userFork.full_name;
         } else {
-            forkName = await createNewFork(accessToken, userLogin);
-        }
+            console.log(`No existing fork found. Creating one...`);
+            const newForkResponse = await octokit.repos.createFork({
+                owner: UPSTREAM_OWNER,
+                repo: UPSTREAM_REPO_NAME,
+            });
+            forkFullName = newForkResponse.data.full_name;
 
-        await ensurePlaceholderFile(accessToken, userLogin, forkName);
+            // Poll to wait for the fork to be ready, as it's an async operation
+            let isReady = false;
+            for (let i = 0; i < 15; i++) { // Max 30s timeout
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                try {
+                    await octokit.repos.get({
+                        owner: userLogin,
+                        repo: newForkResponse.data.name,
+                    });
+                    isReady = true;
+                    console.log(`Fork '${forkFullName}' is ready!`);
+                    break;
+                } catch (e: any) {
+                    if (e.status === 404) {
+                        console.log(`Waiting for fork to be created... (Attempt ${i + 1})`);
+                    } else {
+                        throw e; // Re-throw other errors
+                    }
+                }
+            }
+
+            if (!isReady) {
+                throw new Error(`Timed out waiting for fork ${forkFullName} to become available.`);
+            }
+        }
+        
+        const [owner, repo] = forkFullName.split('/');
+
+        await ensurePlaceholderFile(octokit, owner, repo);
 
         return NextResponse.json({ 
             message: 'Workspace setup completed successfully',
-            forkName: forkName 
+            forkName: forkFullName 
         });
 
     } catch (error: any) {

@@ -25,16 +25,17 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: 'forkName parameter is required' }, { status: 400 });
         }
         
-        const userResponse = await githubApiRequest('/user', accessToken);
-        if (!userResponse.ok) throw new Error('Failed to fetch user data');
-        const user = await userResponse.json();
-        const userLogin = user.login;
+        const [owner, repo] = forkName.split('/');
+        if (!owner || !repo) {
+             return NextResponse.json({ error: 'Invalid forkName format. Expected owner/repo.' }, { status: 400 });
+        }
 
-        const workspacePath = `blueprints/users/${userLogin}`;
+        const workspacePath = `blueprints/users/${owner}`;
         
-        const contentsResponse = await githubApiRequest(`/repos/${userLogin}/${forkName}/contents/${workspacePath}`, accessToken);
+        const contentsResponse = await githubApiRequest(`/repos/${forkName}/contents/${workspacePath}`, accessToken);
 
         if (contentsResponse.status === 404) {
+            // This is not an error, it just means the user's directory is empty.
             return NextResponse.json([]);
         }
 

@@ -1,98 +1,90 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { ActiveBlueprint } from '../hooks/useWorkspace';
-import { Button } from '@/components/ui/button';
-import Editor, { Monaco } from '@monaco-editor/react';
-import blueprintSchema from '@/lib/blueprint-schema.json';
+import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
+import { useTheme } from 'next-themes';
+import CodeMirror from '@uiw/react-codemirror';
+import { yaml as yamlLanguage } from '@codemirror/lang-yaml';
+import { githubDark, githubLight } from '@uiw/codemirror-theme-github';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useDebouncedCallback } from 'use-debounce';
 
-const SCHEMA_URI = 'file:///blueprint-schema.json';
+const AlertTriangle = dynamic(() => import('lucide-react').then(mod => mod.AlertTriangle));
 
-export interface EditorPanelProps {
-    activeBlueprint: ActiveBlueprint | null;
+interface EditorPanelProps {
+    rawContent: string | null;
+    onChange: (content: string) => void;
     isLoading: boolean;
     isSaving: boolean;
-    onSave: (content: string) => Promise<void>;
+    readOnly?: boolean;
+    yamlError?: string | null;
 }
 
-export function EditorPanel({ activeBlueprint, isLoading, isSaving, onSave }: EditorPanelProps) {
-    const [content, setContent] = useState<string | undefined>('');
+export function EditorPanel({ rawContent, onChange, isLoading, isSaving, readOnly = false, yamlError }: EditorPanelProps) {
+    const [content, setContent] = useState('');
+    const { resolvedTheme } = useTheme();
 
     useEffect(() => {
-        if (activeBlueprint) {
-            setContent(activeBlueprint.content);
-        } else {
-            setContent(undefined);
+        // Prevent updates from parent if content is the same, avoids cursor jumping
+        if (rawContent !== null && rawContent !== content) {
+            setContent(rawContent);
         }
-    }, [activeBlueprint]);
+    }, [rawContent]);
 
-    const handleSave = () => {
-        if (activeBlueprint && typeof content === 'string') {
-            onSave(content);
-        }
-    };
+    const debouncedUpdate = useDebouncedCallback((value: string) => {
+        onChange(value);
+    }, 300);
 
-    async function handleEditorDidMount(editor: any, monaco: Monaco) {
-        // Dynamically import the configuration function
-        const { configureMonacoYaml } = await import('monaco-yaml');
-
-        configureMonacoYaml(monaco, {
-            enableSchemaRequest: true,
-            schemas: [
-                {
-                    uri: SCHEMA_URI,
-                    fileMatch: ['*'], // Apply to all files in the editor
-                    schema: blueprintSchema as any,
-                },
-            ],
-        });
-    }
-    
-    if (isLoading) {
-        return <div className="p-4"><p>Loading blueprint...</p></div>;
+    const handleChange = (value: string) => {
+        setContent(value);
+        debouncedUpdate(value);
     }
 
-    if (!activeBlueprint) {
+    if (isLoading && rawContent === null) {
         return (
-            <div className="p-4 h-full flex items-center justify-center bg-gray-50 dark:bg-gray-900/50">
-                <div className="text-center">
-                    <p className="text-muted-foreground">Select a file to start editing or create a new one.</p>
-                </div>
+            <div className="p-4 space-y-2">
+                <Skeleton className="h-6 w-1/3" />
+                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="h-4 w-1/2" />
+                 <br />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
             </div>
-        );
+        )
     }
-
-    const hasChanges = activeBlueprint.content !== content;
 
     return (
-        <div className="flex flex-col h-full bg-slate-950">
-            <div className="flex-shrink-0 p-2 border-b border-slate-800 flex justify-between items-center">
-                <span className="font-mono text-sm text-slate-400">{activeBlueprint.path}</span>
-                <Button
-                    onClick={handleSave}
-                    disabled={isSaving || !hasChanges}
-                    size="sm"
-                >
-                    {isSaving ? 'Saving...' : 'Save'}
-                    {hasChanges && !isSaving && '*'}
-                </Button>
-            </div>
-            <div className="flex-grow h-full">
-                <Editor
-                    height="100%"
-                    language="yaml"
-                    theme="vs-dark"
-                    value={content}
-                    onChange={(value) => setContent(value)}
-                    onMount={handleEditorDidMount}
-                    options={{
-                        minimap: { enabled: false },
-                        fontSize: 14,
-                        wordWrap: 'on',
-                        scrollBeyondLastLine: false,
-                        padding: { top: 16 },
-                    }}
-                />
+        <div className="h-full w-full bg-background p-4">
+            <div className="relative flex h-full w-full flex-col overflow-hidden rounded-lg border">
+                {isSaving && (
+                    <div className="absolute top-2 right-4 z-10 text-xs text-muted-foreground">Saving...</div>
+                )}
+                <div className="relative flex-grow">
+                    <div className="absolute inset-0">
+                        <CodeMirror
+                            value={content}
+                            height="100%"
+                            extensions={[yamlLanguage()]}
+                            onChange={handleChange}
+                            theme={resolvedTheme === 'dark' ? githubDark : githubLight}
+                            className="h-full w-full"
+                            readOnly={readOnly}
+                            basicSetup={{
+                                foldGutter: true,
+                                dropCursor: true,
+                                allowMultipleSelections: true,
+                                indentOnInput: true,
+                            }}
+                        />
+                    </div>
+                </div>
+                {yamlError && (
+                    <div className="flex flex-shrink-0 items-center gap-2 bg-destructive p-2 text-xs font-mono text-destructive-foreground">
+                        <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                        <p className="truncate">YAML Error: {yamlError}</p>
+                    </div>
+                )}
             </div>
         </div>
     );
