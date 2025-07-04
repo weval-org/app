@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import SimilarityHeatmap from '@/app/(full)/analysis/components/SimilarityHeatmap';
+
 import SimilarityGraph from '@/app/(full)/analysis/components/SimilarityGraph';
 import DendrogramChart from '@/app/(full)/analysis/components/DendrogramChart';
 import KeyPointCoverageTable from '@/app/(full)/analysis/components/KeyPointCoverageTable';
@@ -16,10 +16,15 @@ import {
     ComparisonDataV2 as ImportedComparisonDataV2,
     CoverageResult as ImportedCoverageResult,
     PointAssessment,
+    SelectedPairInfo,
 } from '@/app/utils/types';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
+import ModelEvaluationDetailModalV2, { ModelEvaluationDetailModalData } from '@/app/(full)/analysis/components/ModelEvaluationDetailModalV2';
+import { ResponseComparisonModal } from '@/app/(full)/analysis/components/ResponseComparisonModal';
 
 const HelpCircle = dynamic(() => import("lucide-react").then(mod => mod.HelpCircle));
+const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
+const RemarkGfm = dynamic(() => import('remark-gfm'), { ssr: false });
 
 interface SinglePromptViewProps {
     data: ImportedComparisonDataV2;
@@ -27,10 +32,8 @@ interface SinglePromptViewProps {
     currentPromptDisplayText: string;
     displayedModels: string[];
     canonicalModels: string[];
-    handleSimilarityCellClick: (modelA: string, modelB: string, similarity: number, promptId: string) => void;
-    handleCoverageCellClick: (modelId: string, assessment: PointAssessment, promptId: string) => void;
-    handleSemanticExtremesClick: (modelId: string) => void;
-    openModelEvaluationDetailModal: (args: { promptId: string; modelId: string; }) => void;
+    prepareResponseComparisonModalData: (info: Partial<SelectedPairInfo>) => SelectedPairInfo | null;
+    prepareModelEvaluationModalData: (args: { promptId: string; modelId: string; }) => ModelEvaluationDetailModalData | null;
     resolvedTheme?: string;
 }
 
@@ -40,19 +43,61 @@ export const SinglePromptView: React.FC<SinglePromptViewProps> = ({
     currentPromptDisplayText,
     displayedModels,
     canonicalModels,
-    handleSimilarityCellClick,
-    handleCoverageCellClick,
-    handleSemanticExtremesClick,
-    openModelEvaluationDetailModal,
+    prepareResponseComparisonModalData,
+    prepareModelEvaluationModalData,
     resolvedTheme,
 }) => {
-    const [ReactMarkdown, setReactMarkdown] = useState<any>(null);
-    const [RemarkGfm, setRemarkGfm] = useState<any>(null);
+    const [responseComparisonModal, setResponseComparisonModal] = useState<SelectedPairInfo | null>(null);
+    const [modelEvaluationModal, setModelEvaluationModal] = useState<ModelEvaluationDetailModalData | null>(null);
 
-    useEffect(() => {
-        import('react-markdown').then(mod => setReactMarkdown(() => mod.default));
-        import('remark-gfm').then(mod => setRemarkGfm(() => mod.default));
-    }, []);
+    const handleSimilarityCellClick = (modelA: string, modelB: string, similarity: number, promptId: string) => {
+        const coverageScoresForPrompt = data.evaluationResults?.llmCoverageScores?.[promptId] as Record<string, ImportedCoverageResult> | undefined;
+        let coverageA: ImportedCoverageResult | null = null;
+        let coverageB: ImportedCoverageResult | null = null;
+        if (coverageScoresForPrompt) {
+            coverageA = coverageScoresForPrompt[modelA] ?? null;
+            coverageB = coverageScoresForPrompt[modelB] ?? null;
+        }
+        const pointAssessmentsA = (coverageA && !('error' in coverageA)) ? coverageA.pointAssessments : null;
+        const pointAssessmentsB = (coverageB && !('error' in coverageB)) ? coverageB.pointAssessments : null;
+
+        const modalData = prepareResponseComparisonModalData({
+            modelA,
+            modelB,
+            promptId,
+            semanticSimilarity: similarity,
+            llmCoverageScoreA: coverageA,
+            llmCoverageScoreB: coverageB,
+            pointAssessmentsA: pointAssessmentsA || undefined,
+            pointAssessmentsB: pointAssessmentsB || undefined,
+        });
+        if (modalData) {
+            setResponseComparisonModal(modalData);
+        }
+    };
+
+    const handleCoverageCellClick = (modelId: string, assessment: PointAssessment | null, promptId: string) => {
+        if (!assessment) return;
+        const modalData = prepareModelEvaluationModalData({ promptId, modelId });
+        if (modalData) {
+            setModelEvaluationModal(modalData);
+        }
+    };
+
+    const openModelEvaluationDetailModal = (args: { promptId: string; modelId: string; }) => {
+        const modalData = prepareModelEvaluationModalData(args);
+        if (modalData) {
+            setModelEvaluationModal(modalData);
+        }
+    };
+
+    const handleSemanticExtremesClick = (modelId: string) => {
+        if (!data || !data.promptIds || data.promptIds.length === 0) return;
+        const modalData = prepareModelEvaluationModalData({ promptId: currentPromptId, modelId });
+        if (modalData) {
+            setModelEvaluationModal(modalData);
+        }
+    };
 
     const safeMatrixForCurrentView = useMemo(() => {
         if (!data?.evaluationResults?.similarityMatrix) return null;
@@ -102,9 +147,9 @@ export const SinglePromptView: React.FC<SinglePromptViewProps> = ({
 
         return (
             <div className="space-y-4">
-                {promptConfig?.description && ReactMarkdown && RemarkGfm && (
+                {promptConfig?.description && (
                     <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground border-l-4 border-primary/20 pl-4 py-1">
-                        <ReactMarkdown remarkPlugins={[RemarkGfm]}>{promptConfig.description}</ReactMarkdown>
+                        <ReactMarkdown remarkPlugins={[RemarkGfm as any]}>{promptConfig.description}</ReactMarkdown>
                     </div>
                 )}
                 
@@ -190,81 +235,17 @@ export const SinglePromptView: React.FC<SinglePromptViewProps> = ({
                     {renderPromptDetails()}
                 </CardContent>
             </Card>
-
-            {allFinalAssistantResponses && data.evaluationResults?.llmCoverageScores?.[currentPromptId] && allFinalAssistantResponses?.[currentPromptId]?.[IDEAL_MODEL_ID] && (
-                <KeyPointCoverageComparisonDisplay
-                    coverageScores={data.evaluationResults.llmCoverageScores[currentPromptId]}
-                    models={displayedModels.filter(m => m !== IDEAL_MODEL_ID)} 
-                    promptResponses={allFinalAssistantResponses[currentPromptId]}
-                    idealModelId={IDEAL_MODEL_ID}
-                    promptId={currentPromptId}
-                    onModelClick={(modelId: string) => openModelEvaluationDetailModal({ promptId: currentPromptId, modelId })}
-                />
-            )}
-
-            {allFinalAssistantResponses && data.evaluationResults?.perPromptSimilarities?.[currentPromptId] && promptContexts?.[currentPromptId] && (
-                <SemanticExtremesDisplay
-                    promptSimilarities={data.evaluationResults.perPromptSimilarities[currentPromptId]}
-                    models={displayedModels.filter(m => m !== IDEAL_MODEL_ID)}
-                    promptResponses={allFinalAssistantResponses[currentPromptId]}
-                    idealModelId={IDEAL_MODEL_ID}
-                    promptId={currentPromptId}
-                    onModelClick={(modelId: string) => handleSemanticExtremesClick(modelId)}
-                />
-            )}
             
             {evalMethodsUsed.includes('llm-coverage') && data.evaluationResults?.llmCoverageScores?.[currentPromptId] && (
-                <Card className="shadow-lg border-border dark:border-border mt-6">
-                    <CardHeader>
-                        <div className="flex justify-between items-center">
-                            <CardTitle className="text-primary text-primary">Key Point Coverage Details</CardTitle>
-                            <Button variant="ghost" size="sm" title="Help: Key Point Coverage Table" asChild>
-                                <Link href="#key-point-coverage-help" scroll={false}><HelpCircle className="w-4 h-4 text-muted-foreground" /></Link>
-                            </Button>
-                        </div>
-                        <CardDescription className="text-muted-foreground dark:text-muted-foreground pt-1 text-sm">
-                            Detailed breakdown of how each model response covers the evaluation criteria for prompt: <strong className="text-card-foreground dark:text-card-foreground font-normal">{currentPromptDisplayText}</strong>.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <KeyPointCoverageTable 
-                            coverageScores={data.evaluationResults.llmCoverageScores[currentPromptId]}
-                            models={displayedModels.filter(m => m !== IDEAL_MODEL_ID)}
-                            onCellClick={(modelId, assessment) => {
-                                if (assessment) {
-                                    handleCoverageCellClick(modelId, assessment, currentPromptId)
-                                }
-                            }}
-                            onModelHeaderClick={(modelId) => openModelEvaluationDetailModal({ promptId: currentPromptId, modelId })}
-                        />
-                    </CardContent>
-                </Card>
+                <KeyPointCoverageTable
+                    data={data}
+                    promptId={currentPromptId}
+                    displayedModels={displayedModels.filter(m => m !== IDEAL_MODEL_ID)}
+                />
             )}
 
             <div className="mt-6 space-y-6">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <Card className="shadow-lg border-border dark:border-border lg:col-span-2">
-                    <CardHeader>
-                        <div className="flex justify-between items-center">
-                            <CardTitle className="text-primary text-primary">Model Similarity Matrix</CardTitle>
-                            <Button variant="ghost" size="sm" title="Help: Similarity Matrix">
-                                <HelpCircle className="w-4 h-4 text-muted-foreground" />
-                            </Button>
-                        </div>
-                        <CardDescription className="text-muted-foreground dark:text-muted-foreground pt-1 text-sm">
-                            Pairwise semantic similarity for prompt: <strong className='text-card-foreground dark:text-card-foreground font-normal'>{currentPromptDisplayText}</strong>. Darker means more similar.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {safeMatrixForCurrentView && canonicalModels.length > 0 ? (
-                            <SimilarityHeatmap 
-                                similarityMatrix={safeMatrixForCurrentView} 
-                                models={canonicalModels}
-                                onCellClick={(modelA, modelB, similarity) => handleSimilarityCellClick(modelA, modelB, similarity, currentPromptId)}
-                            />
-                        ) : <p className="text-center text-muted-foreground dark:text-muted-foreground py-4">Not enough data or models to display heatmap for this view.</p>}
-                    </CardContent>
-                    </Card>
 
                     <Card className="shadow-lg border-border dark:border-border lg:col-span-2">
                         <CardHeader>
@@ -312,6 +293,21 @@ export const SinglePromptView: React.FC<SinglePromptViewProps> = ({
                     </CardContent>
                 </Card>
             </div>
+
+            {responseComparisonModal && (
+                <ResponseComparisonModal 
+                isOpen={true} 
+                onClose={() => setResponseComparisonModal(null)}
+                {...responseComparisonModal}
+                />
+            )}
+            {modelEvaluationModal && (
+                <ModelEvaluationDetailModalV2
+                isOpen={true}
+                onClose={() => setModelEvaluationModal(null)}
+                data={modelEvaluationModal}
+                />
+            )}
         </>
     );
 }; 

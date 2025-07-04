@@ -1,11 +1,12 @@
-import { NextResponse } from 'next/server';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import * as yaml from 'js-yaml';
 import { z } from 'zod';
-import { handler as backgroundHandler } from '../../../../../netlify/functions/execute-sandbox-pipeline-background';
+import { fromZodError } from 'zod-validation-error';
+import * as yaml from 'js-yaml';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { ComparisonConfig, PromptConfig, LLMCoverageEvaluationConfig } from '@/cli/types/cli_types';
 
-// --- Zod Validation Schema for incoming sandbox data ---
+// --- Zod Validation Schema for incoming data ---
 const ExpectationSchema = z.object({
   id: z.string(),
   value: z.string(),
@@ -22,11 +23,15 @@ const PromptSchema = z.object({
 const SandboxBlueprintSchema = z.object({
   title: z.string().min(1, 'Title cannot be empty.'),
   description: z.string().optional(),
-  models: z.array(z.string()).max(5, "You can select a maximum of 5 models.").optional(),
+  models: z.array(z.string()).max(10, "You can select a maximum of 10 models.").optional(),
   prompts: z.array(PromptSchema).min(1, 'At least one prompt is required.'),
+  advanced: z.boolean().default(false),
 });
 
-// --- Hardcoded settings for sandbox runs ---
+// --- Hardcoded settings for runs ---
+const QUICK_RUN_MODEL = 'openrouter:google/gemini-2.5-flash-preview-05-20';
+const QUICK_RUN_JUDGE = 'openrouter:google/gemini-2.5-flash-preview-05-20';
+
 const AVAILABLE_PLAYGROUND_MODELS = [
   "openrouter:openai/gpt-4.1-nano",
   "openrouter:anthropic/claude-3.5-haiku",
@@ -44,9 +49,7 @@ const DEFAULT_PLAYGROUND_MODELS = [
   "openrouter:qwen/qwen3-30b-a3b"
 ];
 
-const PLAYGROUND_EVAL_METHODS = ['llm-coverage', 'embedding'];
-const PLAYGROUND_TEMP_DIR = 'sandbox';
-
+const PLAYGROUND_TEMP_DIR = 'sandbox'; // Both run types use the same temp dir
 
 // --- S3 Client Initialization ---
 const s3Client = new S3Client({
@@ -57,57 +60,68 @@ const s3Client = new S3Client({
   },
 });
 
-// Lazy-loaded Netlify client
-let netlifyClient: any;
-
-async function getNetlifyClient() {
-  if (!netlifyClient) {
-    const { NetlifyAPI } = await import('netlify');
-    netlifyClient = new NetlifyAPI(process.env.NETLIFY_API_TOKEN);
-  }
-  return netlifyClient;
-}
-
-export async function POST(request: Request) {
-  const runId = uuidv4();
+export async function POST(req: NextRequest) {
+  const runId = `${Date.now()}-${uuidv4()}`;
 
   try {
     // 1. Read and validate the request body
-    const body = await request.json();
+    const body = await req.json();
     const validation = SandboxBlueprintSchema.safeParse(body);
 
     if (!validation.success) {
-      return NextResponse.json({ error: 'Invalid blueprint data.', details: validation.error.flatten() }, { status: 400 });
+      const friendlyError = fromZodError(validation.error);
+      return NextResponse.json({ error: 'Invalid blueprint data.', details: friendlyError.message }, { status: 400 });
     }
     const sandboxBlueprint = validation.data;
+    const { advanced } = sandboxBlueprint;
 
-    let modelsToUse = DEFAULT_PLAYGROUND_MODELS;
-    if (sandboxBlueprint.models && sandboxBlueprint.models.length > 0) {
-        const allModelsAreValid = sandboxBlueprint.models.every(m => AVAILABLE_PLAYGROUND_MODELS.includes(m));
-        if (!allModelsAreValid) {
-            return NextResponse.json({ error: 'Invalid models selected. Please only use models from the allowed list.' }, { status: 400 });
+    let modelsToUse;
+    let evalMethods;
+    let evaluationConfig: Record<string, any> = {};
+
+    if (advanced) {
+      // --- Advanced Mode ---
+      modelsToUse = (sandboxBlueprint.models && sandboxBlueprint.models.length > 0)
+        ? sandboxBlueprint.models
+        : DEFAULT_PLAYGROUND_MODELS;
+      
+      const allModelsAreValid = modelsToUse.every(m => AVAILABLE_PLAYGROUND_MODELS.includes(m));
+      if (!allModelsAreValid) {
+          return NextResponse.json({ error: 'Invalid models selected. Please only use models from the allowed list.' }, { status: 400 });
+      }
+      
+      evalMethods = ['llm-coverage', 'embedding'];
+      evaluationConfig = evalMethods.reduce((acc, method) => {
+        acc[method] = {};
+        return acc;
+      }, {} as Record<string, any>);
+
+    } else {
+      // --- Normal (Quick Run) Mode ---
+      modelsToUse = [QUICK_RUN_MODEL];
+      evalMethods = ['llm-coverage']; // No embeddings for quick run
+      evaluationConfig = {
+        'llm-coverage': {
+          judges: [{ model: QUICK_RUN_JUDGE, approach: 'standard' }]
         }
-        modelsToUse = sandboxBlueprint.models;
+      };
     }
 
     // 2. Transform into a full ComparisonConfig object
-    const config = {
+    const config: ComparisonConfig = {
       id: `sandbox-${runId}`,
       title: sandboxBlueprint.title,
       description: sandboxBlueprint.description,
       models: modelsToUse,
+      tags: ['_sandbox_test'], // Tag all sandbox runs for the special UI
       prompts: sandboxBlueprint.prompts.map(p => ({
         id: p.id,
         prompt: p.prompt,
         ideal: p.ideal,
-        // The parser expects an array of strings for simple points
         should: p.should.map(s => s.value).filter(Boolean),
         should_not: p.should_not.map(s => s.value).filter(Boolean),
       })),
-      evaluationConfig: PLAYGROUND_EVAL_METHODS.reduce((acc, method) => {
-        acc[method] = {};
-        return acc;
-      }, {} as Record<string, any>),
+      evaluationConfig,
     };
 
     // 3. Convert to YAML
@@ -143,8 +157,6 @@ export async function POST(request: Request) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ runId, blueprintKey }),
     }).catch(error => {
-      // This will only catch network errors, not server-side errors in the function.
-      // We'll log it, but the primary error handling is inside the background function itself.
       console.error('Failed to invoke background function:', error);
     });
 
@@ -153,7 +165,6 @@ export async function POST(request: Request) {
 
   } catch (error: any) {
     console.error('Sandbox run failed:', error);
-    // Also save an error status file to S3 so the frontend polling can see it
     const statusKey = `${PLAYGROUND_TEMP_DIR}/runs/${runId}/status.json`;
      await s3Client.send(new PutObjectCommand({
         Bucket: process.env.APP_S3_BUCKET_NAME!,
@@ -164,3 +175,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Failed to start evaluation run.', details: error.message }, { status: 500 });
   }
 }
+
+export const dynamic = 'force-dynamic';

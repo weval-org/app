@@ -165,7 +165,7 @@ export const processXMLData = cache(async (): Promise<Post[]> => {
           id,
           title,
           content,
-          author: cleanContent(extractTag(item, 'dc:creator')),
+          author: cleanContent(extractTag(item, 'dc:sandbox')),
           date: formatDate(extractTag(item, 'pubDate')),
           categories: extractTags(item, 'category'),
           url: extractTag(item, 'link') || `#${id}`

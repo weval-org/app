@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { dispatchMakeApiCall } from '@/lib/llm-clients/client-dispatcher';
 import { LLMApiCallOptions } from '@/lib/llm-clients/types';
 import * as yaml from 'js-yaml';
+import { getModelResponse } from '@/cli/services/llm-service';
+import { checkForErrors } from '@/cli/utils/response-utils';
+import { fromZodError } from 'zod-validation-error';
+import { z } from 'zod';
 
 // Define the structure of the incoming request
 interface AutoCreateRequest {
@@ -12,33 +16,22 @@ interface AutoCreateRequest {
 const META_PROMPT = `
 You are an expert in AI evaluation and a master of the Weval blueprint format. Your task is to take a user's high-level goal and convert it into a detailed, high-quality Weval blueprint in YAML format.
 
-**WEVAL BLUEPRINT YAML STRUCTURE:**
-
-The blueprint has two parts separated by \`---\`:
-1.  **Header:** A configuration object containing the blueprint's title and description.
-2.  **Prompts:** A list of prompt objects.
-
-**HEADER FIELDS:**
-- \`title\`: (Required) A human-readable title for the blueprint.
-- \`description\`: (Required) A one or two-sentence description of what the blueprint tests.
-
-**PROMPT FIELDS:**
-Each prompt in the list is an object with:
-- \`prompt\`: (Required) The specific instruction or question for the model. For multi-line prompts, use the YAML literal block scalar \`|\`.
-- \`ideal\`: (Optional) A "gold-standard" answer to compare against. Also use \`|\` for multi-line content.
-- \`should\`: (Required) A list of rubric items. These are conceptual checks for what a good response MUST contain. They must be HIGHLY specific. Do not presume the judge has wider context or even knows about the prompt or users' high level goal.
-- \`should_not\`: (Optional) A list of rubric items for what a good response MUST NOT contain. They must be HIGHLY specific. Do not presume the judge has wider context or even knows about the prompt or users' high level goal.
-
 **YOUR TASK:**
 
-1.  **Understand the User's Goal:** Deeply analyze the user's request.
-2.  **Deconstruct into Prompts:** Break down the goal into 1-3 distinct, specific prompts. A good blueprint tests a concept from multiple angles.
-3.  **Create High-Quality Rubrics:** For each prompt, define clear, conceptual \`should\` and \`should_not\` criteria. This is the most important part. Good rubrics test for reasoning, nuance, and safety, not just keyword matching.
-4.  **Generate the YAML:** Output a SINGLE, complete YAML code block.
-5.  **Formatting Rules:**
-    - Use double quotes for all strings where necessary.
-    - Use the literal block scalar \`|\` for any multi-line strings, especially for \`prompt\` and \`ideal\`.
-    - **CRITICAL:** You MUST wrap your entire YAML output within \`<YAML>\` and \`</YAML>\` tags.
+1.  **Analyze the User's Goal:** Deeply analyze the user's request.
+2.  **Create 1-3 Distinct, Self-Contained Prompts:** Deconstruct the goal into 1 to 3 distinct, specific prompts. 
+    *   **CRITICAL:** The prompts must be standalone questions or challenges. They must not refer to "the article," "the provided text," or any other context outside of the prompt itself. They should be directly usable to test a model's general knowledge.
+3.  **Define High-Quality Criteria (CRITICAL):** For each prompt, you must define 'should' and 'should_not' criteria.
+    *   **Be Specific and Self-Contained:** Each criterion must be a clear, fully-qualified statement that can be understood and judged without needing to re-read the original prompt. Imagine a "blind" judge who only sees the model's response and the criterion.
+    *   **Good Example:** Instead of a vague criterion like "Mentions the four virtues," use a specific one like "Identifies the four cardinal Stoic virtues as wisdom, justice, courage, and temperance."
+    *   **Bad Example:** "Doesn't confuse it with other things." (Too vague).
+    *   **Good Example:** "Does not misattribute concepts from other philosophies, such as Epicureanism's pursuit of pleasure."
+4.  **Generate the YAML:** Output a SINGLE, complete YAML document.
+5.  **Format and Quoting (CRITICAL):**
+    *   The entire output must be a single, valid YAML document.
+    *   **You MUST enclose all string values in double quotes ("").** This applies to 'title', 'description', 'prompt', 'ideal', and every item in 'should' and 'should_not'.
+    *   For multi-line strings (like in a 'prompt' or 'ideal'), use the YAML literal block scalar \`|\`.
+    *   You MUST wrap your entire YAML output within \`<YAML>\` and \`</YAML>\` tags. DO NOT use markdown code fences (\`\`\`).
 
 **EXAMPLE:**
 
@@ -54,28 +47,32 @@ description: "Tests a model's ability to explain the core tenets of Stoicism and
   ideal: |
     The core tenets of Stoicism include the dichotomy of control (focusing on what is up to us), the practice of virtues (wisdom, justice, courage, temperance), and viewing nature as a rational and ordered system.
   should:
-    - "Explains the dichotomy of control"
-    - "Mentions the four cardinal virtues"
-    - "Describes the concept of living in accordance with nature"
+    - "Explains the dichotomy of control, which separates what we can influence from what we cannot."
+    - "Mentions the four cardinal virtues: wisdom, justice, courage, and temperance."
+    - "Describes the concept of living in accordance with nature as a rational and ordered system."
   should_not:
-    - "Confuses Stoicism with being emotionless"
-    - "Misattributes concepts from other philosophies like Epicureanism"
+    - "Confuses Stoicism with being emotionless or suppressing all feelings."
+    - "Misattributes concepts from other philosophies, such as Epicureanism's pursuit of pleasure."
 
 - prompt: "How can someone apply Stoic principles to deal with a stressful situation at work?"
   ideal: |
     A person could apply Stoicism by focusing on their own actions and responses, which are within their control, rather than the external events or other people's behavior. They could practice temperance to manage their emotional reactions and use wisdom to find a constructive path forward.
   should:
-    - "Connects the dichotomy of control to a specific workplace action"
-    - "Provides a practical example of applying at least one Stoic virtue"
-    - "Emphasizes internal response over external events"
+    - "Connects the dichotomy of control to a specific workplace action, like focusing on one's own performance instead of office gossip."
+    - "Provides a practical example of applying at least one Stoic virtue, such as using courage to address a difficult colleague constructively."
   should_not:
-    - "Suggests bottling up emotions or ignoring the problem entirely"
-    - "Gives generic, non-Stoic advice like 'just relax'"
+    - "Suggests bottling up emotions or ignoring the problem entirely, which is a misinterpretation of Stoic practice."
+    - "Gives generic, non-Stoic advice like 'just relax' or 'try not to think about it'."
 </YAML>
 
 Now, here is the user's request. Generate the YAML blueprint strictly following all rules.
 `;
 
+const GENERATOR_MODEL = 'openrouter:google/gemini-2.5-flash-preview-05-20';
+
+const autoCreateSchema = z.object({
+    goal: z.string().min(1, 'Goal is required'),
+});
 
 export async function POST(req: NextRequest) {
     try {
@@ -85,52 +82,62 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Goal is required.' }, { status: 400 });
         }
         
-        // Use a powerful model for this task
-        const modelId = 'openrouter:google/gemini-2.5-flash-preview-05-20'; 
-
-        const clientOptions: Omit<LLMApiCallOptions, 'modelName'> & { modelId: string } = {
-            modelId: modelId,
+        const generatedYaml = await getModelResponse({
+            modelId: GENERATOR_MODEL,
             messages: [{ role: 'user', content: goal }],
             systemPrompt: META_PROMPT,
-            maxTokens: 4000, // Allow for a detailed blueprint
-            temperature: 0.2, // Low temperature for more predictable, structured output
-        };
+            temperature: 0.2,
+            useCache: false, // Always generate fresh for this feature
+        });
 
-        const response = await dispatchMakeApiCall(clientOptions);
+        if (checkForErrors(generatedYaml)) {
+            throw new Error(`The YAML generation model returned an error: ${generatedYaml}`);
+        }
 
-        if (response.error) {
-            console.error(`[Auto-Create API] LLM Error: ${response.error}`);
-            return NextResponse.json({ error: `LLM Error: ${response.error}` }, { status: 500 });
+        const yamlRegex = /<YAML>([\s\S]*)<\/YAML>/;
+        const match = generatedYaml.match(yamlRegex);
+
+        if (!match || !match[1]) {
+            throw new Error("The model did not return a valid YAML response within <YAML> tags.");
         }
         
-        let yamlContent = response.responseText;
+        const cleanedYaml = match[1].trim();
+        let finalYaml = cleanedYaml;
+        let wasSanitized = false;
 
-        // The LLM should return YAML inside <YAML> tags. We need to extract it.
-        const yamlRegex = /<YAML>([\s\S]*?)<\/YAML>/;
-        const match = yamlContent.match(yamlRegex);
-
-        if (match && match[1]) {
-            yamlContent = match[1].trim();
-        } else {
-            // If no tags are found, this is an issue with the LLM not following instructions.
-            // Be defensive and try to parse the whole response, but warn about it.
-            console.warn("[Auto-Create API] LLM response did not contain <YAML> tags. This indicates a prompt-following issue. Attempting to parse the whole response as a fallback.");
-        }
-
-        // Validate the generated YAML
         try {
-            // Use loadAll to correctly handle multi-document YAML (header + prompts)
-            yaml.loadAll(yamlContent);
+            const parsed = yaml.loadAll(cleanedYaml);
+            if (parsed.filter(p => p !== null).length === 0) {
+                 throw new Error('Generated YAML is empty or invalid after parsing.');
+            }
         } catch (e: any) {
-            console.error(`[Auto-Create API] Generated content is not valid YAML. Error: ${e.message}`);
-            console.error(`[Auto-Create API] Invalid YAML content: \n${yamlContent}`);
-            return NextResponse.json({ error: 'The AI returned invalid YAML. Please try again or rephrase your goal.' }, { status: 500 });
+            if (e.message && typeof e.message === 'string' && e.message.includes('unexpected end of the stream')) {
+                const lines = cleanedYaml.trim().split('\n');
+                if (lines.length > 1) {
+                    const sanitizedYaml = lines.slice(0, -1).join('\n');
+                    try {
+                        const parsed = yaml.loadAll(sanitizedYaml);
+                        if (parsed.filter(p => p !== null).length === 0) {
+                            throw new Error('Generated YAML is empty or invalid after parsing.');
+                        }
+                        wasSanitized = true;
+                        finalYaml = sanitizedYaml;
+                    } catch (e2) {
+                        throw new Error(`YAML generation failed and could not be automatically repaired. Original error: ${e.message}`);
+                    }
+                } else {
+                    throw e; // Can't sanitize a single broken line
+                }
+            } else {
+                // A different kind of YAML error
+                throw e;
+            }
         }
 
-        return NextResponse.json({ yaml: yamlContent });
+        return NextResponse.json({ yaml: finalYaml, sanitized: wasSanitized });
 
     } catch (error: any) {
-        console.error(`[Auto-Create API] Top-level error: ${error.message}`);
+        console.error('[Auto-Create Error]', error);
         return NextResponse.json({ error: 'An unexpected error occurred.' }, { status: 500 });
     }
 } 

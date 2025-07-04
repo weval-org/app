@@ -60,7 +60,7 @@ export default function DownloadResultsButton({ data, label }: DownloadResultsBu
       title="Download the full analysis data as a JSON file"
     >
       {DownloadIcon && <DownloadIcon className="w-3.5 h-3.5 mr-1.5" />}
-      Download Results
+      Download Results as JSON
     </Button>
   );
 } 

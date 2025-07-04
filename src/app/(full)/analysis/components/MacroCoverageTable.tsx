@@ -7,19 +7,19 @@ import { getGradedCoverageColor } from '@/app/(full)/analysis/utils/colorUtils';
 import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import { AllCoverageScores, AllFinalAssistantResponses } from '@/app/(full)/analysis/types';
 import { useMacroCoverageData } from '@/app/(full)/analysis/hooks/useMacroCoverageData';
-import { FocusView } from './FocusView';
+import { FocusView } from '@/app/(full)/analysis/components/FocusView';
 import { cn } from '@/lib/utils';
 import { ActiveHighlight } from './CoverageTableLegend';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
-const UsersIcon = dynamic(() => import("lucide-react").then((mod) => mod.Users));
-const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.AlertCircle));
-const AlertTriangleIcon = dynamic(() => import("lucide-react").then((mod) => mod.AlertTriangle));
-const ThermometerIcon = dynamic(() => import("lucide-react").then((mod) => mod.Thermometer));
-const MessageSquareIcon = dynamic(() => import("lucide-react").then((mod) => mod.MessageSquare));
-const UnlinkIcon = dynamic(() => import("lucide-react").then((mod) => mod.Unlink));
-const MedalIcon = dynamic(() => import("lucide-react").then((mod) => mod.Medal));
-const InfoIcon = dynamic(() => import("lucide-react").then((mod) => mod.Info));
+const UsersIcon = dynamic(() => import("lucide-react").then((mod) => mod.Users), { ssr: false });
+const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.AlertCircle), { ssr: false });
+const AlertTriangleIcon = dynamic(() => import("lucide-react").then((mod) => mod.AlertTriangle), { ssr: false });
+const ThermometerIcon = dynamic(() => import("lucide-react").then((mod) => mod.Thermometer), { ssr: false });
+const MessageSquareIcon = dynamic(() => import("lucide-react").then((mod) => mod.MessageSquare), { ssr: false });
+const UnlinkIcon = dynamic(() => import("lucide-react").then((mod) => mod.Unlink), { ssr: false });
+const MedalIcon = dynamic(() => import("lucide-react").then((mod) => mod.Medal), { ssr: false });
+const InfoIcon = dynamic(() => import("lucide-react").then((mod) => mod.Info), { ssr: false });
 
 interface MacroCoverageTableProps {
     allCoverageScores: AllCoverageScores | undefined | null;
@@ -175,9 +175,8 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                 runLabel={runLabel}
                 safeTimestampFromParams={safeTimestampFromParams}
                 onReturn={() => setFocusedModelId(null)}
-                markdownModule={markdownModule}
                 onClearFocus={() => setFocusedModelId(null)}
-                onSwitchFocus={(direction) => {
+                onSwitchFocus={(direction: 'next' | 'prev') => {
                     const currentIndex = localSortedModels.indexOf(focusedModelId);
                     if (currentIndex === -1) return;
                     const nextIndex = direction === 'next' 

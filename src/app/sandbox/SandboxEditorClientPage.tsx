@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, ChangeEvent, useRef } from 'react';
+import { usePathname, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import * as yaml from 'js-yaml';
 import { Button } from '@/components/ui/button';
@@ -14,12 +15,18 @@ import { ContributionGuide } from './components/ContributionGuide';
 import { YamlEditorCard } from './components/YamlEditorCard';
 import { WelcomeCard } from './components/WelcomeCard';
 import { AutoCreateModal } from './components/AutoCreateModal';
+import { AutoWikiModal } from './components/AutoWikiModal';
+import { BLUEPRINT_CONFIG_REPO_URL } from '@/lib/configConstants';
+import { RunConfirmationDialog } from './components/RunConfirmationDialog';
+import { ProposalModal } from './components/ProposalModal';
 
 // Dynamic imports for icons
 const Plus = dynamic(() => import('lucide-react').then(mod => mod.Plus));
 const Trash2 = dynamic(() => import('lucide-react').then(mod => mod.Trash2));
 const Loader2 = dynamic(() => import('lucide-react').then(mod => mod.Loader2));
 const Wand = dynamic(() => import('lucide-react').then(mod => mod.Wand2));
+const GitPullRequest = dynamic(() => import('lucide-react').then(mod => mod.GitPullRequest));
+const BookOpenCheck = dynamic(() => import('lucide-react').then(mod => mod.BookOpenCheck));
 
 const areArraysEqual = (a: string[] | undefined, b: string[] | undefined) => {
     if (!a || !b || a.length !== b.length) return false;
@@ -28,8 +35,10 @@ const areArraysEqual = (a: string[] | undefined, b: string[] | undefined) => {
     return sortedA.every((value, index) => value === sortedB[index]);
 };
 
-const LOCAL_STORAGE_KEY = 'sandboxBlueprint_v2';
-const RUN_STATE_STORAGE_KEY = 'sandboxRunState';
+const LOCAL_STORAGE_KEY_NORMAL = 'sandboxBlueprint_v1';
+const LOCAL_STORAGE_KEY_ADVANCED = 'sandboxBlueprint_advanced_v1';
+const RUN_STATE_STORAGE_KEY_NORMAL = 'sandboxRunState_v1';
+const RUN_STATE_STORAGE_KEY_ADVANCED = 'sandboxRunState_advanced_v1';
 
 const AVAILABLE_PLAYGROUND_MODELS = [
   "openrouter:openai/gpt-4.1-nano",
@@ -49,8 +58,8 @@ const DEFAULT_PLAYGROUND_MODELS = [
 ];
 
 const DEFAULT_BLUEPRINT: SandboxBlueprint = {
-    title: 'My First Sandbox Blueprint',
-    description: 'A quick test to see how different models respond to my prompts.',
+    title: 'My First Contribution Blueprint',
+    description: 'A test to see how different models respond to my prompts, before proposing it to the community.',
     models: DEFAULT_PLAYGROUND_MODELS,
     system: '',
     prompts: [
@@ -80,26 +89,60 @@ const BLANK_BLUEPRINT: SandboxBlueprint = {
 // --- Main Page Component ---
 
 export default function SandboxEditorClientPage() {
+    const pathname = usePathname();
+    const isAdvancedMode = pathname === '/sandbox/advanced';
+
     const [blueprint, setBlueprint] = useState<SandboxBlueprint>(DEFAULT_BLUEPRINT);
     const [isClient, setIsClient] = useState(false);
     
     // YAML State
     const [yamlText, setYamlText] = useState('');
     const [yamlError, setYamlError] = useState<string | null>(null);
+    const [editMode, setEditMode] = useState<'form' | 'yaml'>('form');
 
     // Run State
     const [runId, setRunId] = useState<string | null>(null);
     const [status, setStatus] = useState<StatusResponse>({ status: 'idle' });
     const [isRunModalOpen, setIsRunModalOpen] = useState(false);
     const [isInitialLoading, setIsInitialLoading] = useState(true);
+    const [isRunConfirmationOpen, setIsRunConfirmationOpen] = useState(false);
+
+    // GitHub PR State
+    const [isProposalModalOpen, setIsProposalModalOpen] = useState(false);
 
     const { toast } = useToast();
     const promptsContainerRef = useRef<HTMLDivElement>(null);
     const prevPromptsLength = useRef(blueprint.prompts.length);
 
-    const MAX_PROMPTS = 5;
+    const MAX_PROMPTS = isAdvancedMode ? 10 : 5;
+    const MAX_MODELS = isAdvancedMode ? 10 : 5;
+    const LOCAL_STORAGE_KEY = isAdvancedMode ? LOCAL_STORAGE_KEY_ADVANCED : LOCAL_STORAGE_KEY_NORMAL;
+    const RUN_STATE_STORAGE_KEY = isAdvancedMode ? RUN_STATE_STORAGE_KEY_ADVANCED : RUN_STATE_STORAGE_KEY_NORMAL;
 
     // --- Effects for State Management ---
+
+    const searchParams = useSearchParams();
+
+    // Effect to handle the post-GitHub-auth redirect
+    useEffect(() => {
+        const authStatus = searchParams.get('github_auth_status');
+        if (authStatus === 'success') {
+            toast({
+                title: "GitHub Authentication Successful",
+                description: "You can now propose your blueprint as a pull request.",
+            });
+            // We can optionally trigger the PR creation automatically here,
+            // but for now we'll let the user click the button again.
+            // To auto-trigger: handleProposeBlueprint(true);
+        } else if (authStatus === 'error') {
+            const errorMessage = searchParams.get('error_message') || 'An unknown error occurred.';
+            toast({
+                variant: 'destructive',
+                title: "GitHub Authentication Failed",
+                description: errorMessage,
+            });
+        }
+    }, [searchParams]);
 
     // Load state from localStorage on initial mount
     useEffect(() => {
@@ -164,8 +207,10 @@ export default function SandboxEditorClientPage() {
         prevPromptsLength.current = blueprint.prompts.length;
     }, [blueprint.prompts.length]);
 
-    // Sync from Blueprint State -> YAML Text
+    // Sync from Blueprint State -> YAML Text (ONLY in form mode)
     useEffect(() => {
+        if (editMode === 'yaml') return; // In YAML mode, the editor is the source of truth.
+
         try {
             const header: any = {};
             if (blueprint.title?.trim()) header.title = blueprint.title.trim();
@@ -212,10 +257,9 @@ export default function SandboxEditorClientPage() {
         } catch (e: any) {
             setYamlError("Error generating YAML: " + e.message);
         }
-    }, [blueprint]);
+    }, [blueprint, editMode]);
 
-    const handleYamlChange = useCallback((value: string) => {
-        setYamlText(value);
+    const updateBlueprintFromYaml = useCallback((value: string, fromAutoCreate: boolean = false) => {
         try {
             const docs = yaml.loadAll(value).filter(d => d !== null && d !== undefined);
             const newBlueprint: SandboxBlueprint = { ...DEFAULT_BLUEPRINT, prompts: [] };
@@ -223,7 +267,7 @@ export default function SandboxEditorClientPage() {
             if (docs.length === 0) {
                 setBlueprint(newBlueprint);
                 setYamlError(null);
-                return;
+                return true;
             }
 
             const firstDoc: any = docs[0] || {};
@@ -255,11 +299,13 @@ export default function SandboxEditorClientPage() {
             }));
             
             if (parsedPrompts.length > MAX_PROMPTS) {
-                toast({
-                    variant: 'destructive',
-                    title: 'Prompt Limit Exceeded',
-                    description: `Sandbox blueprints are limited to ${MAX_PROMPTS} prompts. The first ${MAX_PROMPTS} have been imported.`
-                });
+                if (fromAutoCreate) { // Only toast for auto-create
+                    toast({
+                        variant: 'destructive',
+                        title: 'Prompt Limit Exceeded',
+                        description: `Blueprint proposals are limited to ${MAX_PROMPTS} prompts. The first ${MAX_PROMPTS} have been imported.`
+                    });
+                }
                 parsedPrompts = parsedPrompts.slice(0, MAX_PROMPTS);
             }
 
@@ -267,10 +313,43 @@ export default function SandboxEditorClientPage() {
 
             setBlueprint(newBlueprint);
             setYamlError(null);
+            return true;
+        } catch (e: any) {
+            setYamlError(e.message);
+            return false;
+        }
+    }, [isAdvancedMode, toast]);
+
+    const handleYamlChange = useCallback((value: string) => {
+        setYamlText(value);
+        try {
+            yaml.loadAll(value);
+            setYamlError(null);
         } catch (e: any) {
             setYamlError(e.message);
         }
     }, []);
+
+    const handleToggleEditMode = () => {
+        if (editMode === 'form') {
+            setEditMode('yaml');
+        } else { // Switching from 'yaml' to 'form'
+            if (updateBlueprintFromYaml(yamlText)) {
+                setEditMode('form');
+            } else {
+                if (window.confirm("You have an error in your YAML. Switching to form mode will discard these changes and revert to the last valid state. Continue?")) {
+                    setYamlError(null);
+                    setEditMode('form'); // This triggers the useEffect to revert the YAML text
+                }
+            }
+        }
+    };
+
+    const handleAutoCreate = (generatedYaml: string) => {
+        setYamlText(generatedYaml);
+        updateBlueprintFromYaml(generatedYaml, true);
+        setEditMode('form');
+    };
 
     // --- Handlers for Blueprint Manipulation ---
 
@@ -283,7 +362,7 @@ export default function SandboxEditorClientPage() {
             toast({
                 variant: 'destructive',
                 title: 'Prompt Limit Reached',
-                description: `You can add a maximum of ${MAX_PROMPTS} prompts in the sandbox.`
+                description: `You can add a maximum of ${MAX_PROMPTS} prompts in ${isAdvancedMode ? 'advanced' : 'normal'} mode.`
             });
             return;
         }
@@ -314,7 +393,7 @@ export default function SandboxEditorClientPage() {
             window.localStorage.removeItem(LOCAL_STORAGE_KEY);
             toast({
                 title: 'Form Cleared',
-                description: 'The sandbox has been reset.',
+                description: 'The sandbox studio has been reset.',
             });
         }
     };
@@ -329,15 +408,34 @@ export default function SandboxEditorClientPage() {
         }
     };
 
-    // --- Handlers for API Interaction ---
+    const handleProposeClick = () => {
+        // Simple validation before opening the proposal modal
+        if (!blueprint.title.trim()) {
+            toast({
+                variant: 'destructive',
+                title: "Blueprint Title Required",
+                description: "Please provide a title for your blueprint before proposing it.",
+            });
+            return;
+        }
+         if (!yamlText.trim()) {
+            toast({
+                variant: 'destructive',
+                title: "Empty Blueprint",
+                description: "You can't propose an empty blueprint.",
+            });
+            return;
+        }
+        setIsProposalModalOpen(true);
+    };
 
-    const handleRun = async () => {
+    const handleRunClick = () => {
         // --- Validation ---
         if (blueprint.prompts.length === 0) {
             toast({
                 variant: 'destructive',
                 title: 'Validation Failed',
-                description: 'Please add at least one prompt to run an evaluation.',
+                description: 'Please add at least one prompt to run a test.',
             });
             return;
         }
@@ -390,14 +488,24 @@ export default function SandboxEditorClientPage() {
             }
         }
 
+        // If validation passes, show confirmation dialog
+        setIsRunConfirmationOpen(true);
+    };
+
+    const handleRun = async () => {
+        setIsRunConfirmationOpen(false);
+        
         // --- If validation passes, proceed ---
         setStatus({ status: 'pending', message: 'Initiating evaluation...' });
         setIsRunModalOpen(true);
         setRunId(null);
 
         try {
-            const payload: Partial<SandboxBlueprint> = { ...blueprint };
-            if (areArraysEqual(blueprint.models, DEFAULT_PLAYGROUND_MODELS)) {
+            const payload: any = { ...blueprint, advanced: isAdvancedMode };
+            
+            // For the normal run, we don't need to check model equality
+            // as the backend will force a specific cheap model set.
+            if (isAdvancedMode && areArraysEqual(blueprint.models, DEFAULT_PLAYGROUND_MODELS)) {
                 delete payload.models;
             }
 
@@ -424,6 +532,7 @@ export default function SandboxEditorClientPage() {
     const handleCancelRun = async () => {
         if (!runId) return;
         try {
+            // This API now needs to exist for the sandbox runs
             await fetch(`/api/sandbox/cancel/${runId}`, { method: 'POST' });
             toast({ title: "Cancellation Requested", description: "The run will be stopped shortly." });
         } catch(e: any) {
@@ -437,6 +546,7 @@ export default function SandboxEditorClientPage() {
 
         const poll = async () => {
             try {
+                // This API needs to exist for sandbox runs
                 const response = await fetch(`/api/sandbox/status/${runId}`);
                 if (response.ok) {
                     const newStatus: StatusResponse = await response.json();
@@ -467,7 +577,7 @@ export default function SandboxEditorClientPage() {
                 <div className="flex flex-col items-center gap-4">
                     <CIPLogo className="w-12 h-12" />
                     <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-                    <p className="text-muted-foreground">Loading Sandbox...</p>
+                    <p className="text-muted-foreground">Loading Sandbox Studio...</p>
                 </div>
             </div>
         );
@@ -476,103 +586,144 @@ export default function SandboxEditorClientPage() {
     const isRunning = status.status !== 'idle' && status.status !== 'complete' && status.status !== 'error';
 
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+        <div className="h-screen flex flex-col bg-slate-50 dark:bg-slate-950">
             <header className="bg-background/80 backdrop-blur-lg border-b sticky top-0 z-20">
                 <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
                     <h1 className="text-xl font-bold flex items-center gap-2">
                         <CIPLogo className="w-7 h-7" />
-                        <span><code>weval.org/sandbox</code></span>
+                        <span>Sandbox Studio {isAdvancedMode && <span className="text-sm font-normal text-primary">(Advanced)</span>}</span>
                     </h1>
                     <div className="flex items-center gap-2">
-                        <AutoCreateModal onGenerated={handleYamlChange}>
+                        {isAdvancedMode && (
+                            <AutoWikiModal onGenerated={handleAutoCreate}>
+                                <Button variant="outline">
+                                    <BookOpenCheck className="w-4 h-4 mr-2" />
+                                    Auto-Wiki
+                                </Button>
+                            </AutoWikiModal>
+                        )}
+
+                        <AutoCreateModal onGenerated={handleAutoCreate}>
                             <Button variant="outline">
                                 <Wand className="w-4 h-4 mr-2" />
                                 Auto-Create
                             </Button>
                         </AutoCreateModal>
-                        <Button onClick={handleRun} disabled={isRunning} className="w-36">
-                            {isRunning ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Running</> : "🧪 Run Sandbox"}
+                        
+                        <Button onClick={handleRunClick} disabled={isRunning} variant={"default"}>
+                            {isRunning 
+                                ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Running...</>
+                                : isAdvancedMode
+                                    ? <>🚀 Run Evaluation</>
+                                    : <>🧪 Test Blueprint</>
+                            }
+                        </Button>
+                        
+                        <Button variant={isAdvancedMode ? "secondary" : "default"} onClick={handleProposeClick} disabled={isRunning}>
+                           <GitPullRequest className="w-4 h-4 mr-2" />
+                           Propose
                         </Button>
                     </div>
                 </div>
             </header>
             
-            <main className="max-w-screen-2xl mx-auto p-4 sm:p-6 lg:p-8">
-                <div className="grid grid-cols-1 lg:grid-cols-2 lg:gap-8 xl:gap-12">
+            <main className="max-w-screen-2xl mx-auto p-4 sm:p-6 lg:p-8 w-full flex-grow overflow-y-hidden">
+                <div className="grid grid-cols-1 lg:grid-cols-2 lg:gap-8 xl:gap-12 h-full">
                     {/* Left Column: Form UI */}
-                    <div className="lg:pr-4">
-                        <div className="space-y-8">
-                            <WelcomeCard />
-                            <GlobalConfigCard 
-                                blueprint={blueprint} 
-                                onUpdate={handleUpdateBlueprint} 
-                                availableModels={AVAILABLE_PLAYGROUND_MODELS}
-                            />
+                    <div className="lg:pr-4 h-full overflow-y-auto custom-scrollbar pb-12">
+                        <fieldset disabled={editMode === 'yaml'} className="disabled:opacity-70 transition-opacity">
+                            <div className="space-y-8">
+                                <WelcomeCard />
+                                <GlobalConfigCard 
+                                    blueprint={blueprint} 
+                                    onUpdate={handleUpdateBlueprint} 
+                                    availableModels={AVAILABLE_PLAYGROUND_MODELS}
+                                    isAdvanced={isAdvancedMode}
+                                    maxSelection={MAX_MODELS}
+                                />
 
-                            <div className="space-y-8" ref={promptsContainerRef}>
-                                {blueprint.prompts.map((p) => (
-                                    <PromptCard
-                                        key={p.id}
-                                        prompt={p}
-                                        onUpdate={handleUpdatePrompt}
-                                        onRemove={() => handleRemovePrompt(p.id)}
-                                    />
-                                ))}
-                            </div>
-
-                            <div className="text-center">
-                                <Button 
-                                    variant="outline" 
-                                    onClick={handleAddPrompt}
-                                    disabled={blueprint.prompts.length >= MAX_PROMPTS}
-                                >
-                                    <Plus className="h-4 w-4 mr-2" />
-                                    Add Prompt ({blueprint.prompts.length}/{MAX_PROMPTS})
-                                </Button>
-                            </div>
-
-                            <div className="text-center border-t pt-6 space-x-2">
-                                <Button variant="ghost" size="sm" onClick={handleReset} className="text-muted-foreground hover:text-destructive">
-                                    <Trash2 className="w-4 h-4 mr-2" />
-                                    Reset Form
-                                </Button>
-                                <Button variant="ghost" size="sm" onClick={handlePopulateWithExample}>
-                                    Populate with Example
-                                </Button>
-                            </div>
-
-                            <div className="py-8 border-t border-dashed">
-                                <div className="text-center">
-                                    <Button size="lg" onClick={handleRun} disabled={isRunning} className="w-full max-w-sm h-12 text-lg">
-                                        {isRunning ? (
-                                            <>
-                                                <Loader2 className="w-6 h-6 animate-spin mr-3" />
-                                                Running Evaluation...
-                                            </>
-                                        ) : (
-                                            "🧪 Run Sandbox Evaluation"
-                                        )}
-                                    </Button>
-                                    <p className="text-xs text-muted-foreground mt-2">
-                                        This will run your blueprint against a set of fast, inexpensive models to get instant feedback.
-                                    </p>
+                                <div className="space-y-8" ref={promptsContainerRef}>
+                                    {blueprint.prompts.map((p) => (
+                                        <PromptCard
+                                            key={p.id}
+                                            prompt={p}
+                                            onUpdate={handleUpdatePrompt}
+                                            onRemove={() => handleRemovePrompt(p.id)}
+                                        />
+                                    ))}
                                 </div>
-                            </div>
 
-                            <ContributionGuide />
-                        </div>
+                                <div className="text-center">
+                                    <Button 
+                                        variant="outline" 
+                                        onClick={handleAddPrompt}
+                                        disabled={blueprint.prompts.length >= MAX_PROMPTS}
+                                    >
+                                        <Plus className="h-4 w-4 mr-2" />
+                                        Add Prompt ({blueprint.prompts.length}/{MAX_PROMPTS})
+                                    </Button>
+                                </div>
+
+                                <div className="text-center border-t pt-6 space-x-2">
+                                    <Button variant="ghost" size="sm" onClick={handleReset} className="text-muted-foreground hover:text-destructive">
+                                        <Trash2 className="w-4 h-4 mr-2" />
+                                        Reset Form
+                                    </Button>
+                                    <Button variant="ghost" size="sm" onClick={handlePopulateWithExample}>
+                                        Populate with Example
+                                    </Button>
+                                </div>
+
+                                <div className="py-8 border-t border-dashed">
+                                    <div className="text-center space-y-4">
+                                         <div className="flex justify-center items-center gap-4">
+                                            <Button size="lg" onClick={handleRunClick} disabled={isRunning} variant="secondary">
+                                                {isRunning 
+                                                    ? <><Loader2 className="w-5 h-5 animate-spin mr-2" />Running...</>
+                                                    : isAdvancedMode
+                                                        ? <>🚀 Run Evaluation</>
+                                                        : <>🧪 Test Blueprint</>
+                                                }
+                                            </Button>
+                                            <Button size="lg" onClick={handleProposeClick} variant="default" disabled={isRunning}>
+                                                <GitPullRequest className="w-5 h-5 mr-3" />
+                                                Propose Blueprint
+                                            </Button>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground mt-3 max-w-md mx-auto">
+                                            {isAdvancedMode
+                                                ? "Run a full evaluation to validate your results, then propose it to the community."
+                                                : "Test your blueprint with a quick run, then open a GitHub issue to propose it."
+                                            }
+                                        </p>
+                                    </div>
+                                </div>
+                                
+                                <ContributionGuide />
+
+                            </div>
+                        </fieldset>
                     </div>
 
                     {/* Right Column: YAML Editor */}
-                    <div>
+                    <div className="flex flex-col h-full">
                         <YamlEditorCard 
                             yamlText={yamlText} 
                             yamlError={yamlError}
                             onYamlChange={handleYamlChange} 
+                            readOnly={editMode === 'form'}
+                            onToggleEditMode={handleToggleEditMode}
                         />
                     </div>
                 </div>
             </main>
+
+            <RunConfirmationDialog
+                isOpen={isRunConfirmationOpen}
+                onClose={() => setIsRunConfirmationOpen(false)}
+                onConfirm={handleRun}
+                isAdvancedMode={isAdvancedMode}
+            />
 
             <RunStatusModal
                 isOpen={isRunModalOpen}
@@ -580,6 +731,14 @@ export default function SandboxEditorClientPage() {
                 isRunning={isRunning}
                 onClose={() => setIsRunModalOpen(false)}
                 onCancel={handleCancelRun}
+            />
+
+            <ProposalModal
+                isOpen={isProposalModalOpen}
+                onClose={() => setIsProposalModalOpen(false)}
+                blueprintYaml={yamlText}
+                blueprintTitle={blueprint.title}
+                blueprintDescription={blueprint.description}
             />
         </div>
     );

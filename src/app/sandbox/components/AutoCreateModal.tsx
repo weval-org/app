@@ -34,18 +34,30 @@ export function AutoCreateModal({ onGenerated, children }: AutoCreateModalProps)
                 body: JSON.stringify({ goal }),
             });
 
+            const data = await response.json();
+
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to generate blueprint.');
+                throw new Error(data.error || 'Failed to generate blueprint from goal.');
+            }
+            
+            if (data.sanitized) {
+                toast({
+                    variant: 'default',
+                    title: 'Response Sanitized',
+                    description: "The AI's response was incomplete and has been automatically cleaned up. Please review the result carefully.",
+                    duration: 8000, 
+                    className: 'bg-amber-100 border-amber-300 text-amber-900 dark:bg-amber-900/50 dark:border-amber-700 dark:text-amber-100',
+                });
+            } else {
+                toast({
+                    title: 'Blueprint Generated!',
+                    description: 'The blueprint has been generated from your goal and loaded into the editor.',
+                });
             }
 
-            const { yaml } = await response.json();
-            onGenerated(yaml);
-            toast({
-                title: 'Blueprint Generated!',
-                description: 'The form has been updated with the AI-generated blueprint.',
-            });
+            onGenerated(data.yaml);
             setIsOpen(false);
+            setGoal('');
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Generation Failed', description: error.message });
         } finally {

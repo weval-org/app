@@ -240,9 +240,15 @@ async function aggregateSandboxResult(
         extractedKeyPoints: evaluationResults.extractedKeyPoints,
     };
     
-    const summaryResult = await generateExecutiveSummary(finalOutput, logger);
-    if (summaryResult && !('error' in summaryResult)) {
-      finalOutput.executiveSummary = summaryResult;
+    // For any run processed by this pipeline (sandbox/sandbox), skip the summary.
+    const isSandboxTestRun = true;
+    if (!isSandboxTestRun) {
+        const summaryResult = await generateExecutiveSummary(finalOutput, logger);
+        if (summaryResult && !('error' in summaryResult)) {
+          finalOutput.executiveSummary = summaryResult;
+        }
+    } else {
+        logger.info('Skipping executive summary generation for sandbox test run.');
     }
 
     return { data: finalOutput };

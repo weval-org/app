@@ -254,7 +254,7 @@ const EvaluationView: React.FC<{
 
           <div className="lg:w-3/5 flex flex-col mt-6 lg:mt-0 overflow-hidden">
             <div className="flex-1 min-h-0 flex flex-col p-3 bg-muted/10 dark:bg-slate-800/20 rounded-lg overflow-hidden border border-border/50">
-              <h3 className="font-semibold text-muted-foreground text-sm mb-1.5 pb-1 border-b border-border/30 sticky top-0 z-10">
+              <h3 className="font-semibold text-muted-foreground text-sm mb-1.5 pb-1 border-b border-border/30 top-0 z-10">
                 Criteria Evaluation ({assessments.length})
               </h3>
               <div className="flex-grow overflow-y-auto custom-scrollbar space-y-3 pr-1 pt-1">

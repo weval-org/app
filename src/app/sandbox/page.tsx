@@ -2,10 +2,12 @@ import SandboxEditorClientPage from './SandboxEditorClientPage';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Blueprint Sandbox - Weval',
-  description: 'Create, test, and share Weval evaluation blueprints in a simple, powerful editor.',
+  title: 'Sandbox Studio | Weval',
+  description: 'Create, test, and propose a new evaluation blueprint for the Weval community library.',
 };
 
-export default function CreateBlueprintPage() {
-  return <SandboxEditorClientPage />;
-}
+export default function SandboxPage() {
+  return (
+    <SandboxEditorClientPage />
+  );
+} 

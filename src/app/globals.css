@@ -14,7 +14,7 @@
     --card-foreground: 330 3% 19%; /* Same as foreground */
     --border: 0 0% 85%; /* Derived from surface */
     --input: 0 0% 85%; /* Derived from surface */
-    --primary: 229 39% 52%;
+    --primary: 167 59% 22%;
     --primary-foreground: 0 0% 100%;
     --secondary: 0 0% 95%; /* Same as muted */
     --secondary-foreground: 330 3% 19%; /* Same as foreground */
@@ -22,7 +22,7 @@
     --accent-foreground: 330 3% 19%; /* Same as foreground */
     --destructive: 8 86% 60%;
     --destructive-foreground: 0 0% 100%;
-    --ring: 229 39% 52%; /* Same as primary */
+    --ring:  167 59% 22%; /* Same as primary */
     --radius: 0.5rem;
     
     /* Custom variables */
@@ -85,7 +85,7 @@
     --border: 330 3% 29%; /* Derived from dark background */
     --input: 330 3% 29%; /* Derived from dark background */
     --primary: 166 75% 73%;
-    --primary-foreground: 340 100% 72.4%;
+    --primary-foreground: 340 100% 11.4%;
     --secondary: 330 3% 24%; /* Same as dark muted */
     --secondary-foreground: 42 63% 94%; /* Same as dark foreground */
     --accent: 52 69.2% 87.3%; /* Same as light accent */
@@ -107,7 +107,7 @@
     --chart-4: 270 80% 65%;
     --chart-5: 348 83% 60%;
     --highlight-info: 205 90% 55%;
-    --highlight-success: 167 60% 45%;
+    --highlight-success: 167 59% 45%;
     --highlight-success-foreground: 167 60% 10%;
     --highlight-error: 8 86% 60%; /* Same as destructive */
     --highlight-error-foreground: 0 0% 100%;

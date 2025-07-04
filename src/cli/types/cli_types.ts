@@ -88,7 +88,7 @@ export interface Judge {
     approach: 'standard' | 'prompt-aware' | 'holistic';
 }
 
-interface LLMCoverageEvaluationConfig {
+export interface LLMCoverageEvaluationConfig {
     judgeModels?: string[]; // Kept for backwards compatibility, but 'judges' is preferred
     judgeMode?: 'failover' | 'consensus'; // Kept for backwards compatibility
     judges?: Judge[];

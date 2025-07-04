@@ -1,6 +1,12 @@
 'use client';
 
-import { Card } from '@/components/ui/card';
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -15,12 +21,14 @@ interface GlobalConfigCardProps {
   blueprint: SandboxBlueprint;
   onUpdate: (bp: SandboxBlueprint) => void;
   availableModels: string[];
+  isAdvanced?: boolean;
+  maxSelection: number;
 }
 
-export function GlobalConfigCard({ blueprint, onUpdate, availableModels }: GlobalConfigCardProps) {
+export function GlobalConfigCard({ blueprint, onUpdate, availableModels, isAdvanced = false, maxSelection }: GlobalConfigCardProps) {
   const [isOpen, setIsOpen] = useState(false);
 
-  const setField = <K extends keyof SandboxBlueprint>(field: K, value: SandboxBlueprint[K]) => {
+  const handleFieldChange = <K extends keyof SandboxBlueprint>(field: K, value: SandboxBlueprint[K]) => {
     onUpdate({ ...blueprint, [field]: value });
   };
 
@@ -35,7 +43,7 @@ export function GlobalConfigCard({ blueprint, onUpdate, availableModels }: Globa
                   type="text" 
                   placeholder="e.g., Clinical Accuracy Test"
                   value={blueprint.title}
-                  onChange={(e) => setField('title', e.target.value)}
+                  onChange={(e) => handleFieldChange('title', e.target.value)}
                   className="text-base blueprint-input"
               />
           </div>
@@ -46,7 +54,7 @@ export function GlobalConfigCard({ blueprint, onUpdate, availableModels }: Globa
                   id="blueprint-description"
                   placeholder="e.g., Tests a model's ability to provide safe and accurate medical information."
                   value={blueprint.description}
-                  onChange={(e) => setField('description', e.target.value)}
+                  onChange={(e) => handleFieldChange('description', e.target.value)}
                   className="min-h-[100px] text-base blueprint-input"
                   rows={3}
               />
@@ -64,11 +72,17 @@ export function GlobalConfigCard({ blueprint, onUpdate, availableModels }: Globa
                   <label className="text-base font-semibold text-foreground">Models</label>
                    <p className="text-sm text-muted-foreground mb-2">The AI models you want to test.</p>
                   <ModelSelector
-                    availableModels={availableModels}
                     selectedModels={blueprint.models || []}
-                    onSelectionChange={(models) => setField('models', models)}
-                    maxSelection={5}
+                    availableModels={availableModels}
+                    onSelectionChange={(models) => handleFieldChange('models', models)}
+                    disabled={!isAdvanced}
+                    maxSelection={maxSelection}
                   />
+                  {!isAdvanced && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                        Model selection is disabled for normal test runs. To select specific models, use the <a href="/sandbox/advanced" className="underline">Advanced Sandbox Studio</a>.
+                    </p>
+                  )}
               </div>
               <div>
                   <label htmlFor="blueprint-system" className="text-sm font-medium block mb-1.5">System Prompt</label>
@@ -76,7 +90,7 @@ export function GlobalConfigCard({ blueprint, onUpdate, availableModels }: Globa
                       id="blueprint-system"
                       placeholder="You are a helpful assistant."
                       value={blueprint.system || ''}
-                      onChange={(e) => setField('system', e.target.value)}
+                      onChange={(e) => handleFieldChange('system', e.target.value)}
                       rows={3}
                       className="min-h-[100px] text-base blueprint-input"
                   />

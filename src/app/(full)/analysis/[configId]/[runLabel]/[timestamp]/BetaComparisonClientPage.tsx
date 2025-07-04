@@ -34,14 +34,26 @@ import { useModelFiltering } from '@/app/(full)/analysis/hooks/useModelFiltering
 import { usePageInteraction } from '@/app/(full)/analysis/hooks/usePageInteraction';
 import { SinglePromptView } from './SinglePromptView';
 import { AggregateAnalysisView } from './AggregateAnalysisView';
+import { SandboxAggregateView } from './SandboxAggregateView';
 import ExecutiveSummary from '@/app/(full)/analysis/components/ExecutiveSummary';
+import Breadcrumbs from '@/app/components/Breadcrumbs';
 
 const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.AlertCircle))
 const Loader2 = dynamic(() => import("lucide-react").then((mod) => mod.Loader2))
 const GitCommit = dynamic(() => import("lucide-react").then((mod) => mod.GitCommit))
 const AlertTriangle = dynamic(() => import("lucide-react").then((mod) => mod.AlertTriangle))
+const ArrowLeft = dynamic(() => import("lucide-react").then(mod => mod.ArrowLeft));
+const Download = dynamic(() => import("lucide-react").then((mod) => mod.Download));
+const FileCode2 = dynamic(() => import("lucide-react").then((mod) => mod.FileCode2));
+const FileText = dynamic(() => import("lucide-react").then((mod) => mod.FileText));
 
-export default function BetaComparisonClientPage({ data: initialData, isSandbox = false }: { data: ImportedComparisonDataV2, isSandbox?: boolean }) {
+export default function BetaComparisonClientPage({ 
+  data: initialData, 
+  isSandbox = false,
+}: { 
+  data: ImportedComparisonDataV2, 
+  isSandbox?: boolean,
+}) {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -49,6 +61,7 @@ export default function BetaComparisonClientPage({ data: initialData, isSandbox 
   const configIdFromUrl = params.configId as string;
   const runLabel = params.runLabel as string;
   const timestampFromUrl = params.timestamp as string;
+  const sandboxId = params.sandboxId as string;
 
   const currentPromptId = searchParams.get('prompt');
 
@@ -97,6 +110,8 @@ export default function BetaComparisonClientPage({ data: initialData, isSandbox 
     handleSimilarityCellClick,
     handleCoverageCellClick,
     handleSemanticExtremesClick,
+    prepareResponseComparisonModalData,
+    prepareModelEvaluationModalData,
   } = usePageInteraction(data);
 
   const handleMostDifferentiatingClick = useCallback(() => {
@@ -364,10 +379,14 @@ export default function BetaComparisonClientPage({ data: initialData, isSandbox 
 
     const handleSelectChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
       const selectedPromptId = event.target.value;
+      const basePath = isSandbox 
+        ? `/sandbox/results/${sandboxId}`
+        : `/analysis/${configIdFromUrl}/${runLabel}/${timestampFromUrl}`;
+
       if (selectedPromptId === '__ALL__') {
-        router.push(`/analysis/${configIdFromUrl}/${runLabel}/${timestampFromUrl}`);
+        router.push(basePath);
       } else {
-        router.push(`/analysis/${configIdFromUrl}/${runLabel}/${timestampFromUrl}?prompt=${selectedPromptId}`);
+        router.push(`${basePath}?prompt=${selectedPromptId}`);
       }
     };
 
@@ -428,7 +447,14 @@ export default function BetaComparisonClientPage({ data: initialData, isSandbox 
 
   const headerActions = data ? (
     <div className="flex items-center gap-2">
-        {data.sourceCommitSha ? (
+        {isSandbox ? (
+            <Button asChild variant="outline" size="sm" className="text-green-600 dark:text-green-400 border-green-600/70 dark:border-green-700/70 hover:bg-green-600/10 dark:hover:bg-green-700/30 hover:text-green-700 dark:hover:text-green-300 px-3 py-1.5 text-xs">
+                <Link href={`/api/sandbox/blueprint/${sandboxId}`} download>
+                    <FileCode2 className="w-3.5 h-3.5 mr-1.5" />
+                    Download Blueprint
+                </Link>
+            </Button>
+        ) : data.sourceCommitSha ? (
             <Button asChild variant="outline">
                 <Link href={`${BLUEPRINT_CONFIG_REPO_URL}/blob/${data.sourceCommitSha}/blueprints/${data.configId}.yml`} target="_blank" rel="noopener noreferrer" title={`View blueprint at commit ${data.sourceCommitSha.substring(0, 7)}`}>
                     <GitCommit className="w-4 h-4 mr-2" />
@@ -456,9 +482,10 @@ export default function BetaComparisonClientPage({ data: initialData, isSandbox 
             </TooltipProvider>
         )}
         <DownloadResultsButton data={data} label={`${data.configTitle || configIdFromUrl} - ${data.runLabel || runLabel}${timestampFromUrl ? ' (' + formatTimestampForDisplay(fromSafeTimestamp(timestampFromUrl)) + ')' : ''}`} />
-        <Button asChild variant="outline">
+        <Button asChild variant="outline" size="sm" className="text-green-600 dark:text-green-400 border-green-600/70 dark:border-green-700/70 hover:bg-green-600/10 dark:hover:bg-green-700/30 hover:text-green-700 dark:hover:text-green-300 px-3 py-1.5 text-xs">
             <Link href={`/api/comparison/${configIdFromUrl}/${runLabel}/${timestampFromUrl}/markdown`} download>
-                Download Markdown
+                <FileText className="w-3.5 h-3.5 mr-1.5" />
+                Download Results as Markdown
             </Link>
         </Button>
     </div>
@@ -466,25 +493,44 @@ export default function BetaComparisonClientPage({ data: initialData, isSandbox 
 
   return (
     <div className="mx-auto p-4 md:p-6 lg:p-8 space-y-8">
-        <AnalysisPageHeader 
-            breadcrumbs={breadcrumbItems}
-            pageTitle={pageTitle}
-            contextualInfo={{
-              configTitle: data.configTitle,
-              runLabel: data.runLabel,
-              timestamp: data.timestamp,
-              description: data.description,
-              tags: data.config?.tags
-            }}
-            actions={headerActions}
-            headerWidget={headerWidgetContent}
-            executiveSummary={normalizedExecutiveSummary}
-            summaryStats={summaryStats}
-            isSandbox={isSandbox}
-            onMostDifferentiatingClick={handleMostDifferentiatingClick}
-        />
+        {isSandbox && (
+          <Alert className="border-primary/50 bg-primary/5">
+            <AlertTriangle className="h-4 w-4 text-primary" />
+            <AlertTitle className="text-primary font-semibold">Sandbox Studio Test Results</AlertTitle>
+            <AlertDescription className="text-sm">
+                <p>This is a temporary result page for your test run. These results will be automatically deleted after one week.</p>
+                <Button asChild variant="link" className="p-0 h-auto mt-2 text-primary font-semibold text-sm">
+                    <Link href="/sandbox">
+                        <ArrowLeft className="w-4 h-4 mr-2" />
+                        Return to Sandbox Studio
+                    </Link>
+                </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+        {currentPromptId ? (
+            <Breadcrumbs items={breadcrumbItems} />
+        ) : (
+            <AnalysisPageHeader 
+                breadcrumbs={breadcrumbItems}
+                pageTitle={pageTitle}
+                contextualInfo={{
+                configTitle: data.configTitle,
+                runLabel: data.runLabel,
+                timestamp: data.timestamp,
+                description: data.description,
+                tags: data.config?.tags
+                }}
+                actions={headerActions}
+                headerWidget={headerWidgetContent}
+                executiveSummary={normalizedExecutiveSummary}
+                summaryStats={summaryStats}
+                isSandbox={isSandbox}
+                onMostDifferentiatingClick={handleMostDifferentiatingClick}
+            />
+        )}
 
-        {renderPromptSelector()}
+        {!isSandbox && renderPromptSelector()}
 
         {currentPromptId ? (
             <SinglePromptView
@@ -493,11 +539,19 @@ export default function BetaComparisonClientPage({ data: initialData, isSandbox 
                 currentPromptDisplayText={currentPromptDisplayText}
                 displayedModels={displayedModels}
                 canonicalModels={canonicalModelsForSinglePrompt}
-                handleSimilarityCellClick={handleSimilarityCellClick}
-                handleCoverageCellClick={handleCoverageCellClick}
-                handleSemanticExtremesClick={handleSemanticExtremesClick}
-                openModelEvaluationDetailModal={openModelEvaluationDetailModal}
+                prepareResponseComparisonModalData={prepareResponseComparisonModalData}
+                prepareModelEvaluationModalData={prepareModelEvaluationModalData}
                 resolvedTheme={resolvedTheme}
+            />
+        ) : isSandbox ? (
+            <SandboxAggregateView
+                data={data}
+                displayedModels={displayedModels}
+                openModelEvaluationDetailModal={openModelEvaluationDetailModal}
+                activeHighlights={activeHighlights}
+                handleActiveHighlightsChange={handleActiveHighlightsChange}
+                promptTextsForMacroTable={promptTextsForMacroTable}
+                permutationSensitivityMap={permutationSensitivityMap}
             />
         ) : (
             <AggregateAnalysisView
@@ -525,12 +579,25 @@ export default function BetaComparisonClientPage({ data: initialData, isSandbox 
             />
         )}
 
-        <DebugPanel 
-            data={data} 
-            configId={configIdFromUrl}
-            runLabel={runLabel}
-            timestamp={timestampFromUrl}
-        />
+        {!isSandbox && (
+            <DebugPanel 
+                data={data} 
+                configId={configIdFromUrl}
+                runLabel={runLabel}
+                timestamp={timestampFromUrl}
+            />
+        )}
+
+        {isSandbox && (
+            <div className="mt-12 text-center border-t border-border pt-8">
+                <Button asChild size="lg">
+                    <Link href="/sandbox">
+                        <ArrowLeft className="w-4 h-4 mr-2" />
+                        Return to Sandbox Studio
+                    </Link>
+                </Button>
+            </div>
+        )}
 
       {responseComparisonModal && (
         <ResponseComparisonModal 
