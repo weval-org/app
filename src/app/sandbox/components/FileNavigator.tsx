@@ -1,0 +1,355 @@
+'use client';
+
+import React, { useState } from 'react';
+import dynamic from 'next/dynamic';
+import Link from 'next/link';
+import { BlueprintFile, PRStatus } from '../hooks/useWorkspace';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/components/ui/use-toast';
+import { ToastAction } from '@/components/ui/toast';
+import CIPLogo from '@/components/icons/CIPLogo';
+import { User } from '../hooks/useAuth';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+
+const TrashIcon = dynamic(() => import('lucide-react').then(mod => mod.Trash), {
+    ssr: false,
+    loading: () => <Skeleton className="h-4 w-4" />,
+});
+const Loader2 = dynamic(() => import('lucide-react').then(mod => mod.Loader2), { ssr: false });
+const Wand = dynamic(() => import('lucide-react').then(mod => mod.Wand2));
+const BookOpenCheck = dynamic(() => import('lucide-react').then(mod => mod.BookOpenCheck));
+const Github = dynamic(() => import('lucide-react').then(mod => mod.Github), { ssr: false });
+const File = dynamic(() => import('lucide-react').then(mod => mod.File), { ssr: false });
+const GitPullRequest = dynamic(() => import('lucide-react').then(mod => mod.GitPullRequest));
+const GitMerge = dynamic(() => import('lucide-react').then(mod => mod.GitMerge));
+const GitPullRequestClosed = dynamic(() => import('lucide-react').then(mod => mod.GitPullRequestClosed));
+const Plus = dynamic(() => import('lucide-react').then(mod => mod.Plus));
+const MoreVertical = dynamic(() => import('lucide-react').then(mod => mod.MoreVertical));
+const RefreshCw = dynamic(() => import('lucide-react').then(mod => mod.RefreshCw), { ssr: false });
+
+const getPrIcon = (status: PRStatus) => {
+    if (status.merged) {
+      return <GitMerge className="w-4 h-4 text-purple-500" />;
+    }
+    if (status.state === 'open') {
+      return <GitPullRequest className="w-4 h-4 text-green-500" />;
+    }
+    return <GitPullRequestClosed className="w-4 h-4 text-red-500" />;
+};
+
+export interface FileNavigatorProps {
+    files: BlueprintFile[];
+    activeFilePath: string | null;
+    onSelectFile: (file: BlueprintFile) => void;
+    onDeleteFile: (file: BlueprintFile) => void;
+    onCreateNew: () => void;
+    onAutoCreate: () => void;
+    isLoading: boolean;
+    isSyncingWithGitHub: boolean;
+    isCreating: boolean;
+    isDeleting: boolean;
+    deletingFilePath: string | null;
+    user: User | null;
+    forkName: string | null;
+    onLogin: () => void;
+    isLoggingInWithGitHub: boolean;
+    onLogout: () => void;
+    onRefresh: () => void;
+}
+
+export function FileNavigator({ 
+    files, 
+    activeFilePath, 
+    onSelectFile, 
+    onDeleteFile,
+    onCreateNew, 
+    onAutoCreate,
+    isLoading, 
+    isSyncingWithGitHub,
+    isCreating,
+    isDeleting,
+    deletingFilePath,
+    user,
+    forkName,
+    onLogin,
+    isLoggingInWithGitHub,
+    onLogout,
+    onRefresh,
+}: FileNavigatorProps) {
+    const { toast } = useToast();
+    const [fileToDelete, setFileToDelete] = useState<BlueprintFile | null>(null);
+
+    const localFiles = files.filter(f => f.isLocal);
+    const remoteFiles = files.filter(f => !f.isLocal);
+
+    const handleDeleteClick = (file: BlueprintFile, e: React.MouseEvent) => {
+        e.stopPropagation();
+        setFileToDelete(file);
+    };
+
+    const confirmDeletion = () => {
+        if (fileToDelete) {
+            onDeleteFile(fileToDelete);
+            setFileToDelete(null);
+        }
+    };
+
+    const renderFileItem = (file: BlueprintFile) => {
+        const isActive = file.path === activeFilePath;
+        const isFileBeingDeleted = deletingFilePath === file.path;
+
+        return (
+            <div
+                key={file.path}
+                className={`flex items-center text-sm px-3 py-2.5 rounded-md cursor-pointer group transition-colors duration-150 ${
+                    isActive
+                        ? 'bg-primary/10 text-primary font-semibold'
+                        : 'hover:bg-primary/5'
+                } ${isFileBeingDeleted ? 'opacity-50' : ''}`}
+                onClick={() => onSelectFile(file)}
+            >
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <div className="flex-shrink-0">
+                        {file.isLocal ? (
+                            <File className="w-4 h-4" />
+                        ) : (
+                            file.prStatus 
+                                ? getPrIcon(file.prStatus) 
+                                : <Github className="w-4 h-4" />
+                        )}
+                    </div>
+                    <span className="truncate flex-1">{file.name}</span>
+                </div>
+                
+                {!file.isLocal && file.prStatus && (
+                    <div className="flex-shrink-0 ml-2">
+                        <a 
+                            href={file.prStatus.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="opacity-60 hover:opacity-100 px-1.5 py-0.5 rounded text-xs font-mono hover:bg-primary/10 transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            #{file.prStatus.number}
+                        </a>
+                    </div>
+                )}
+                
+                <div className="flex-shrink-0 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {isFileBeingDeleted ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                        <button
+                            onClick={(e) => handleDeleteClick(file, e)}
+                            className="p-1 hover:bg-destructive/10 rounded-md"
+                            aria-label={`Delete ${file.name}`}
+                            disabled={isDeleting}
+                        >
+                            <TrashIcon className="w-4 h-4 text-destructive" />
+                        </button>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    const renderFileList = (fileList: BlueprintFile[], showSkeletons: boolean) => {
+        if (showSkeletons) {
+            return (
+                <div className="space-y-1 px-2">
+                    <Skeleton className="h-10 w-full bg-border" />
+                    <Skeleton className="h-10 w-full bg-border" />
+                </div>
+            )
+        }
+        return (
+            <div className="space-y-1">
+                {fileList.map(renderFileItem)}
+            </div>
+        )
+    };
+
+    return (
+        <div className="h-full flex flex-col">
+            <div className="p-4 border-b">
+                <Link href="/" className="flex items-center gap-2.5 mb-3 group">
+                    <CIPLogo className="h-8 w-auto text-foreground group-hover:text-primary transition-colors" />
+                    <div>
+                        <h2 className="font-semibold leading-tight tracking-tight">Sandbox Studio</h2>
+                        <p className="text-xs text-muted-foreground leading-tight">Weval</p>
+                    </div>
+                </Link>
+                <p className="text-sm text-muted-foreground leading-snug mb-3">
+                    Create, test, and refine evaluation blueprints before proposing them to the public library. Or experiment and enlighten yourself.
+                </p>
+                
+                {user?.isLoggedIn ? (
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 overflow-hidden">
+                            <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                                <Github className="w-4 h-4 text-primary" />
+                            </div>
+                            <div className="flex-grow min-w-0">
+                                <div className="font-semibold text-sm truncate">{user.username}</div>
+                                {forkName && (
+                                    <div className="text-xs text-muted-foreground truncate">
+                                        {forkName}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0">
+                                    <MoreVertical className="h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                {forkName && (
+                                    <DropdownMenuItem asChild>
+                                        <a 
+                                            href={`https://github.com/${forkName}`} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                        >
+                                            View Fork
+                                        </a>
+                                    </DropdownMenuItem>
+                                )}
+                                 <DropdownMenuItem onClick={onLogout}>
+                                    Logout
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
+                ) : (
+                    <Button onClick={onLogin} variant="outline" size="sm" className="w-full" disabled={isLoggingInWithGitHub}>
+                        {isLoggingInWithGitHub ? (
+                            <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Connecting...</>
+                        ) : (
+                            <><Github className="w-4 h-4 mr-2" />Login with GitHub</>
+                        )}
+                    </Button>
+                )}
+            </div>
+            <div className="p-2 border-b">
+                <Button 
+                    size="sm"
+                    className="w-full mb-2"
+                    onClick={onCreateNew}
+                    disabled={isLoading || isCreating}
+                >
+                    <Plus className="w-4 h-4 mr-2" />
+                    {isCreating ? "Creating..." : "New Blank Blueprint"}
+                </Button>
+                <Button 
+                    variant="outline"
+                    size="sm"
+                    className="w-full bg-exciting text-exciting-foreground border-exciting hover:bg-exciting/90 hover:text-exciting-foreground"
+                    onClick={onAutoCreate}
+                    disabled={isLoading || isCreating}
+                >
+                    <Wand className="w-4 h-4 mr-2" />
+                    Auto-Create from Goal
+                </Button>
+            </div>
+            
+            <div className="flex-grow overflow-y-auto">
+                <div className="p-2">
+                    <div className="flex items-center justify-between px-2 mb-2">
+                        <h3 className="text-sm font-semibold text-muted-foreground">Your Blueprints</h3>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={onRefresh}
+                            disabled={isSyncingWithGitHub || isLoading}
+                            className="h-7 w-7"
+                            title="Refresh file list"
+                        >
+                            {isSyncingWithGitHub || isLoading ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <RefreshCw className="h-4 w-4" />
+                            )}
+                        </Button>
+                    </div>
+                    
+                    {isLoading && files.length === 0 ? (
+                        <div className="text-sm text-muted-foreground flex items-center justify-center gap-2 mt-4">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>Loading blueprints...</span>
+                        </div>
+                    ) : files.length === 0 ? (
+                         <div className="px-2 py-1 text-sm text-muted-foreground">
+                            No blueprints found. Create one to get started.
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            <div>
+                                <h4 className="px-2 text-xs font-semibold text-muted-foreground tracking-wider uppercase mb-1">
+                                    GitHub
+                                </h4>
+                                {remoteFiles.length > 0 ? (
+                                    renderFileList(remoteFiles, isLoading)
+                                ) : (
+                                    <p className="px-2 py-1 text-sm text-muted-foreground">No GitHub blueprints.</p>
+                                )}
+                            </div>
+                            <div>
+                                <h4 className="px-2 text-xs font-semibold text-muted-foreground tracking-wider uppercase mb-1">
+                                    Local Scratchpad
+                                </h4>
+                                {localFiles.length > 0 ? (
+                                    renderFileList(localFiles, isLoading)
+                                ) : (
+                                    <p className="px-2 py-1 text-sm text-muted-foreground">No local blueprints.</p>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {isSyncingWithGitHub && (
+                    <div className="p-2 text-xs text-muted-foreground flex items-center justify-center gap-1.5 border-t">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <span>Syncing with GitHub...</span>
+                    </div>
+                )}
+            </div>
+
+            <Dialog open={!!fileToDelete} onOpenChange={(isOpen) => !isOpen && setFileToDelete(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Are you absolutely sure?</DialogTitle>
+                        <DialogDescription>
+                            This action cannot be undone. This will permanently delete the blueprint
+                            <span className="font-semibold mx-1">{fileToDelete?.name}</span>.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setFileToDelete(null)}>Cancel</Button>
+                        <Button variant="destructive" onClick={confirmDeletion}>
+                            {isDeleting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                            Delete
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div>
+    );
+} 

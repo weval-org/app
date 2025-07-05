@@ -26,13 +26,18 @@ export interface SandboxAggregateViewProps {
     handleActiveHighlightsChange: (newHighlights: Set<ActiveHighlight>) => void;
     promptTextsForMacroTable: Record<string, string>;
     permutationSensitivityMap: Map<string, 'temp' | 'sys' | 'both'>;
+    isSandbox: boolean;
+    sandboxId: string;
 }
 
 const RenderPromptDetails: React.FC<{
     data: ImportedComparisonDataV2;
     currentPromptId: string;
     currentPromptDisplayText: string;
-}> = ({ data, currentPromptId, currentPromptDisplayText }) => {
+    permutationSensitivityMap: Map<string, 'temp' | 'sys' | 'both'>;
+    isSandbox: boolean;
+    sandboxId: string;
+}> = ({ data, currentPromptId, currentPromptDisplayText, permutationSensitivityMap, isSandbox, sandboxId }) => {
     // This is a simplified version of the one in SinglePromptView
     if (!currentPromptId || !data || !data.promptContexts) {
         return null;
@@ -88,6 +93,8 @@ export const SandboxAggregateView: React.FC<SandboxAggregateViewProps> = ({
     handleActiveHighlightsChange,
     promptTextsForMacroTable,
     permutationSensitivityMap,
+    isSandbox,
+    sandboxId,
 }) => {
     const [showMacroTable, setShowMacroTable] = useState(false);
     const { promptIds, allFinalAssistantResponses, config, evaluationResults, runLabel, timestamp } = data;
@@ -148,6 +155,8 @@ export const SandboxAggregateView: React.FC<SandboxAggregateViewProps> = ({
                             onCellClick={(promptId, modelId) => openModelEvaluationDetailModal({ promptId, modelId })}
                             onActiveHighlightsChange={handleActiveHighlightsChange}
                             permutationSensitivityMap={permutationSensitivityMap}
+                            isSandbox={isSandbox}
+                            sandboxId={sandboxId}
                         />
                     </CardContent>
                 </Card>
@@ -165,6 +174,9 @@ export const SandboxAggregateView: React.FC<SandboxAggregateViewProps> = ({
                                 data={data}
                                 currentPromptId={promptId}
                                 currentPromptDisplayText={getPromptContextDisplayString(promptId)}
+                                permutationSensitivityMap={permutationSensitivityMap}
+                                isSandbox={isSandbox}
+                                sandboxId={sandboxId}
                             />
                         </div>
                     </CardHeader>

@@ -2,41 +2,48 @@
 
 import { Button } from '@/components/ui/button';
 import dynamic from 'next/dynamic';
-import { Expectation } from './types';
+import { PointDefinition } from '@/cli/types/cli_types';
 import { ExpectationEditor } from './ExpectationEditor';
+import { produce } from 'immer';
 
 const Plus = dynamic(() => import('lucide-react').then(mod => mod.Plus));
 const CheckCircle = dynamic(() => import('lucide-react').then(mod => mod.CheckCircle));
 const XCircle = dynamic(() => import('lucide-react').then(mod => mod.XCircle));
 
-const MAX_CRITERIA = 10;
-
 interface ExpectationGroupProps {
   title: string;
-  expectations: Expectation[];
-  onUpdate: (exps: Expectation[]) => void;
+  expectations: PointDefinition[];
+  onUpdate: (exps: PointDefinition[]) => void;
   variant: 'should' | 'should-not';
+  isEditable: boolean;
 }
 
-export function ExpectationGroup({ title, expectations, onUpdate, variant }: ExpectationGroupProps) {
+export function ExpectationGroup({ title, expectations, onUpdate, variant, isEditable }: ExpectationGroupProps) {
   const handleAdd = () => {
-    if (expectations.length < MAX_CRITERIA) {
-        onUpdate([...expectations, { id: `exp-${Date.now()}`, value: '' }]);
-    }
+    const nextState = produce(expectations, draft => {
+        draft.push({ text: '', multiplier: 1.0 });
+    });
+    onUpdate(nextState);
   };
-  const handleUpdate = (id: string, updatedExp: Expectation) => {
-    onUpdate(expectations.map(exp => (exp.id === id ? updatedExp : exp)));
+
+  const handleUpdate = (index: number, updatedExp: PointDefinition) => {
+    const nextState = produce(expectations, draft => {
+        draft[index] = updatedExp;
+    });
+    onUpdate(nextState);
   };
-  const handleRemove = (id: string) => {
-    onUpdate(expectations.filter(exp => exp.id !== id));
+
+  const handleRemove = (index: number) => {
+    const nextState = produce(expectations, draft => {
+        draft.splice(index, 1);
+    });
+    onUpdate(nextState);
   };
 
   const styles = {
-    should: { Icon: CheckCircle, titleColor: 'text-green-800 dark:text-green-300' },
-    'should-not': { Icon: XCircle, titleColor: 'text-red-800 dark:text-red-300' },
+    should: { Icon: CheckCircle, titleColor: 'text-green-700 dark:text-green-400' },
+    'should-not': { Icon: XCircle, titleColor: 'text-destructive' },
   }[variant];
-
-  const isLimitReached = expectations.length >= MAX_CRITERIA;
 
   return (
     <div className="space-y-3">
@@ -45,25 +52,27 @@ export function ExpectationGroup({ title, expectations, onUpdate, variant }: Exp
         {title}
       </h4>
       <div className="pl-6 space-y-3">
-        {expectations.map(exp => (
+        {expectations.map((exp, index) => (
           <ExpectationEditor
-            key={exp.id}
+            key={index}
             expectation={exp}
-            onUpdate={(updated) => handleUpdate(exp.id, updated)}
-            onRemove={() => handleRemove(exp.id)}
+            onUpdate={(updated) => handleUpdate(index, updated)}
+            onRemove={() => handleRemove(index)}
             variant={variant}
+            isEditable={isEditable}
           />
         ))}
-        <Button 
-            size="sm" 
-            variant="ghost" 
-            onClick={handleAdd} 
-            className="text-muted-foreground"
-            disabled={isLimitReached}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Add criterion ({expectations.length}/{MAX_CRITERIA})
-        </Button>
+        {isEditable && (
+            <Button 
+                size="sm" 
+                variant="ghost" 
+                onClick={handleAdd} 
+                className="text-muted-foreground"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add criterion
+            </Button>
+        )}
       </div>
     </div>
   );

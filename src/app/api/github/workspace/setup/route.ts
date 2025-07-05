@@ -115,6 +115,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
+    const { searchParams } = new URL(req.url);
+    const shouldCreateFork = searchParams.get('createFork') === 'true';
+
     try {
         const { Octokit } = await import('@octokit/rest');
         const octokit = new Octokit({ auth: accessToken });
@@ -134,8 +137,8 @@ export async function POST(req: NextRequest) {
         if (userFork) {
             console.log(`Found existing user fork: '${userFork.full_name}'`);
             forkFullName = userFork.full_name;
-        } else {
-            console.log(`No existing fork found. Creating one...`);
+        } else if (shouldCreateFork) {
+            console.log(`No existing fork found. Creating one as requested...`);
             const newForkResponse = await octokit.repos.createFork({
                 owner: UPSTREAM_OWNER,
                 repo: UPSTREAM_REPO_NAME,
@@ -166,6 +169,9 @@ export async function POST(req: NextRequest) {
             if (!isReady) {
                 throw new Error(`Timed out waiting for fork ${forkFullName} to become available.`);
             }
+        } else {
+             console.log('No fork found and createFork is false. Informing user.');
+            return NextResponse.json({ forkCreationRequired: true });
         }
         
         const [owner, repo] = forkFullName.split('/');

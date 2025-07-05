@@ -552,6 +552,8 @@ export default function BetaComparisonClientPage({
                 handleActiveHighlightsChange={handleActiveHighlightsChange}
                 promptTextsForMacroTable={promptTextsForMacroTable}
                 permutationSensitivityMap={permutationSensitivityMap}
+                isSandbox={isSandbox}
+                sandboxId={sandboxId}
             />
         ) : (
             <AggregateAnalysisView

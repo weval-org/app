@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
-interface User {
+export interface User {
   isLoggedIn: boolean;
   username?: string;
   avatarUrl?: string;
@@ -12,6 +12,11 @@ export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+
+  const clearAuth = useCallback(() => {
+    console.log('[useAuth] Clearing auth state due to backend mismatch');
+    setUser({ isLoggedIn: false });
+  }, []);
 
   useEffect(() => {
     const fetchUserStatus = async () => {
@@ -25,6 +30,7 @@ export function useAuth() {
         setUser(data);
       } catch (e: any) {
         setError(e);
+        setUser({ isLoggedIn: false });
       } finally {
         setIsLoading(false);
       }
@@ -33,5 +39,5 @@ export function useAuth() {
     fetchUserStatus();
   }, []);
 
-  return { user, isLoading, error };
+  return { user, isLoading, error, clearAuth };
 } 

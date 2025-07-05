@@ -119,22 +119,22 @@ export const SinglePromptView: React.FC<SinglePromptViewProps> = ({
             const messagesToRender = conversationMessages;
 
             if (typeof messagesToRender === 'string') {
-                return <div className="text-card-foreground dark:text-card-foreground whitespace-pre-wrap">{messagesToRender}</div>;
+                return <div className="text-lg text-card-foreground dark:text-card-foreground whitespace-pre-wrap">{messagesToRender}</div>;
             }
 
             if (Array.isArray(messagesToRender)) {
                 if (messagesToRender.length === 1 && messagesToRender[0].role === 'user') {
-                    return <div className="text-card-foreground dark:text-card-foreground whitespace-pre-wrap">{messagesToRender[0].content}</div>;
+                    return <div className="text-lg text-card-foreground dark:text-card-foreground whitespace-pre-wrap">{messagesToRender[0].content}</div>;
                 }
                 if (messagesToRender.length > 0) {
                     return (
                         <>
-                            <p className="text-xs font-semibold text-muted-foreground mt-4">Conversation:</p>
-                            <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar p-1 rounded bg-muted/30 dark:bg-muted/20">
+                            <p className="text-sm font-semibold text-muted-foreground mt-4">Conversation:</p>
+                            <div className="space-y-2 mt-2">
                                 {messagesToRender.map((msg, index) => (
-                                    <div key={index} className={`p-2 rounded-md ${msg.role === 'user' ? 'bg-sky-100 dark:bg-sky-900/50' : 'bg-muted dark:bg-muted/50'}`}>
-                                        <p className="text-xs font-semibold text-muted-foreground dark:text-muted-foreground capitalize">{msg.role}</p>
-                                        <p className="text-sm text-card-foreground dark:text-card-foreground whitespace-pre-wrap">{msg.content}</p>
+                                    <div key={index} className={`p-3 rounded-md ${msg.role === 'user' ? 'bg-sky-100 dark:bg-sky-900/50' : 'bg-muted dark:bg-muted/50'}`}>
+                                        <p className="text-sm font-semibold text-muted-foreground dark:text-muted-foreground capitalize">{msg.role}</p>
+                                        <p className="text-base text-card-foreground dark:text-card-foreground whitespace-pre-wrap">{msg.content}</p>
                                     </div>
                                 ))}
                             </div>
@@ -142,7 +142,7 @@ export const SinglePromptView: React.FC<SinglePromptViewProps> = ({
                     );
                 }
             }
-            return <div className="text-card-foreground dark:text-card-foreground whitespace-pre-wrap">{currentPromptDisplayText}</div>;
+            return <div className="text-lg text-card-foreground dark:text-card-foreground whitespace-pre-wrap">{currentPromptDisplayText}</div>;
         }
 
         return (
@@ -158,7 +158,7 @@ export const SinglePromptView: React.FC<SinglePromptViewProps> = ({
                         {systemMessages.map((sysMsg, index) => (
                             <div key={`sys-${index}`} className="p-3 rounded-md bg-green-50 dark:bg-green-900/40 ring-1 ring-green-200 dark:ring-green-800">
                                 <h4 className="text-sm font-semibold text-green-800 dark:text-green-300">System Prompt</h4>
-                                <p className="text-sm text-green-900 dark:text-green-200 whitespace-pre-wrap mt-1">{sysMsg.content}</p>
+                                <p className="text-base text-green-900 dark:text-green-200 whitespace-pre-wrap mt-1">{sysMsg.content}</p>
                             </div>
                         ))}
                     </div>
@@ -231,7 +231,7 @@ export const SinglePromptView: React.FC<SinglePromptViewProps> = ({
                 <CardHeader>
                     <CardTitle className="text-primary text-primary">The Prompt:</CardTitle>
                 </CardHeader>
-                <CardContent className="text-sm">
+                <CardContent className="text-base">
                     {renderPromptDetails()}
                 </CardContent>
             </Card>

@@ -89,4 +89,4 @@ export default async function SandboxResultPage({ params }: SandboxResultsPagePr
   // The BetaComparisonClientPage expects the data in a specific prop.
   // We pass the fetched data directly to it.
   return <BetaComparisonClientPage data={data} isSandbox={isSandboxRun} />;
-}
+} 

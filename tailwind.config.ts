@@ -42,6 +42,10 @@ export default {
   				DEFAULT: 'hsl(var(--accent))',
   				foreground: 'hsl(var(--accent-foreground))'
   			},
+  			exciting: {
+  				DEFAULT: 'hsl(var(--exciting))',
+  				foreground: 'hsl(var(--exciting-foreground))'
+  			},
         slate: {
           50: 'hsl(var(--slate-50))',
           100: 'hsl(var(--slate-100))',

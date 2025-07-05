@@ -1,66 +1,87 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getOctokit } from '@/lib/github/github-utils';
 import { getAccessToken } from '@/lib/github/auth-utils';
 
-async function githubApiRequest(endpoint: string, token: string, options: RequestInit = {}) {
-    const response = await fetch(`https://api.github.com${endpoint}`, {
-        ...options,
-        headers: {
-            ...options.headers,
-            Authorization: `Bearer ${token}`,
-            'Accept': 'application/vnd.github.v3+json',
-            'Content-Type': 'application/json',
-        },
-    });
-    return response;
-}
+const UPSTREAM_OWNER = 'weval-org';
+const UPSTREAM_REPO = 'configs';
 
 export async function POST(req: NextRequest) {
+    const octokit = await getOctokit(req);
     const accessToken = await getAccessToken(req);
-    if (!accessToken) {
+    
+    if (!octokit || !accessToken) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
     try {
-        const { forkName, title, body } = await req.json();
+        const { forkName, title, body, blueprintPath, blueprintContent } = await req.json();
 
-        if (!forkName || !title || !body) {
+        if (!forkName || !title || !body || !blueprintPath || !blueprintContent) {
             return NextResponse.json(
-                { error: 'Fork name, title, and body are required' },
+                { error: 'forkName, title, body, blueprintPath, and blueprintContent are required' },
                 { status: 400 },
             );
         }
 
-        const userResponse = await githubApiRequest('/user', accessToken);
-        if (!userResponse.ok) {
-            throw new Error('Failed to fetch user data');
+        const userResponse = await octokit.users.getAuthenticated();
+        const userLogin = userResponse.data.login;
+        
+        const [forkOwner, forkRepoName] = forkName.split('/');
+
+        const { data: mainBranch } = await octokit.git.getRef({
+            owner: UPSTREAM_OWNER,
+            repo: UPSTREAM_REPO,
+            ref: 'heads/main',
+        });
+        const latestSha = mainBranch.object.sha;
+
+        const branchName = `proposal/${blueprintPath.split('/').pop()?.replace('.yml', '')}-${Date.now()}`;
+        await octokit.git.createRef({
+            owner: forkOwner,
+            repo: forkRepoName,
+            ref: `refs/heads/${branchName}`,
+            sha: latestSha,
+        });
+
+        let fileSha: string | undefined;
+        try {
+            const { data: existingFile } = await octokit.repos.getContent({
+                owner: forkOwner,
+                repo: forkRepoName,
+                path: blueprintPath,
+                ref: branchName,
+            });
+            if (!Array.isArray(existingFile)) {
+                fileSha = existingFile.sha;
+            }
+        } catch (error) {
+            // File doesn't exist, which is fine.
         }
-        const user = await userResponse.json();
-        const userLogin = user.login;
+
+        await octokit.repos.createOrUpdateFileContents({
+            owner: forkOwner,
+            repo: forkRepoName,
+            path: blueprintPath,
+            message: `feat(blueprints): Add or update ${blueprintPath}`,
+            content: Buffer.from(blueprintContent).toString('base64'),
+            branch: branchName,
+            sha: fileSha,
+        });
 
         const prData = {
             title,
             body,
-            head: `${userLogin}:main`,
+            head: `${userLogin}:${branchName}`,
             base: 'main',
         };
 
-        const response = await githubApiRequest(
-            '/repos/weval-org/configs/pulls',
-            accessToken,
-            {
-                method: 'POST',
-                body: JSON.stringify(prData),
-            },
-        );
+        const response = await octokit.pulls.create({
+            owner: UPSTREAM_OWNER,
+            repo: UPSTREAM_REPO,
+            ...prData,
+        });
 
-        const responseData = await response.json();
-
-        if (!response.ok) {
-            console.error('Failed to create PR:', responseData);
-            throw new Error(`Failed to create pull request: ${responseData.message}`);
-        }
-
-        return NextResponse.json(responseData);
+        return NextResponse.json(response.data);
 
     } catch (error: any) {
         console.error('Create PR failed:', error);

@@ -6,7 +6,7 @@
   :root {
     --background: 42 63% 94%;
     --foreground: 330 3% 19%;
-    --muted: 0 0% 95%; /* Derived from surface */
+    --muted: 0 0% 100%; /* Derived from surface */
     --muted-foreground: 330 3% 49%; /* Derived from foreground */
     --popover: 0 0% 100%; /* Same as surface */
     --popover-foreground: 330 3% 19%; /* Same as foreground */
@@ -20,6 +20,8 @@
     --secondary-foreground: 330 3% 19%; /* Same as foreground */
     --accent: 52 69.2% 87.3%;
     --accent-foreground: 330 3% 19%; /* Same as foreground */
+    --exciting: 320 80% 58%;
+    --exciting-foreground: 0 0% 100%;
     --destructive: 8 86% 60%;
     --destructive-foreground: 0 0% 100%;
     --ring:  167 59% 22%; /* Same as primary */
@@ -90,6 +92,8 @@
     --secondary-foreground: 42 63% 94%; /* Same as dark foreground */
     --accent: 52 69.2% 87.3%; /* Same as light accent */
     --accent-foreground: 42 63% 94%; /* Same as dark foreground */
+    --exciting: 320 75% 65%;
+    --exciting-foreground: 0 0% 100%;
     --destructive: 8 86% 60%; /* Same as light destructive */
     --destructive-foreground: 0 0% 100%;
     --ring: 166 75% 30%; /* Derived from dark primary */

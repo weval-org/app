@@ -37,6 +37,8 @@ interface MacroCoverageTableProps {
     onActiveHighlightsChange?: (activeHighlights: Set<ActiveHighlight>) => void;
     systemPromptIndex?: number;
     permutationSensitivityMap?: Map<string, 'temp' | 'sys' | 'both'>;
+    isSandbox?: boolean;
+    sandboxId?: string;
 }
 
 const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
@@ -55,6 +57,8 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
     onActiveHighlightsChange,
     systemPromptIndex,
     permutationSensitivityMap,
+    isSandbox,
+    sandboxId,
 }) => {
     const [focusedModelId, setFocusedModelId] = useState<string | null>(null);
     const [markdownModule, setMarkdownModule] = useState<{ ReactMarkdown: any, RemarkGfm: any } | null>(null);
@@ -423,13 +427,10 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                                     </td>
                                     <td className="border-x border-border dark:border-slate-700 px-3 py-2 text-left align-middle sticky left-0 z-10 bg-card/90  hover:bg-muted/60 dark:hover:bg-slate-700/50 w-96">
                                         <Link
-                                            href={`/analysis/${encodeURIComponent(configId)}/${encodeURIComponent(runLabel)}/${encodeURIComponent(safeTimestampFromParams)}?prompt=${encodeURIComponent(promptId)}`}
+                                            href={isSandbox ? `/sandbox/results/${sandboxId}?prompt=${encodeURIComponent(promptId)}` : `/analysis/${encodeURIComponent(configId)}/${encodeURIComponent(runLabel)}/${encodeURIComponent(safeTimestampFromParams)}?prompt=${encodeURIComponent(promptId)}`}
                                             className="block text-primary hover:text-primary/80 dark:hover:text-primary/80 hover:underline cursor-pointer text-xs"
-                                            title={`View details for: ${getPromptText(promptId)}`}
+                                            title={`View details for prompt ID ${promptId}: ${getPromptText(promptId)}`}
                                         >
-                                            <span className="block truncate text-xs text-muted-foreground dark:text-slate-500">
-                                                {promptId}
-                                            </span>
                                             <span className="whitespace-normal line-clamp-2" style={{ minHeight: "2.4em"}}>
                                                 {getPromptText(promptId)}
                                             </span>

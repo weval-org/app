@@ -13,9 +13,10 @@ interface AnonymousRunModalProps {
   onRun: () => void;
   onLogin: () => void;
   isSubmitting: boolean;
+  isLoggingInWithGitHub: boolean;
 }
 
-export function AnonymousRunModal({ isOpen, onClose, onRun, onLogin, isSubmitting }: AnonymousRunModalProps) {
+export function AnonymousRunModal({ isOpen, onClose, onRun, onLogin, isSubmitting, isLoggingInWithGitHub }: AnonymousRunModalProps) {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-[550px]">
@@ -36,9 +37,12 @@ export function AnonymousRunModal({ isOpen, onClose, onRun, onLogin, isSubmittin
             </p>
         </div>
         <DialogFooter className="sm:justify-between gap-2 flex-wrap">
-           <Button onClick={onLogin} variant="outline" className="w-full sm:w-auto" disabled={isSubmitting}>
-                <Github className="w-4 h-4 mr-2" />
-                Login for Full Features
+           <Button onClick={onLogin} variant="outline" className="w-full sm:w-auto" disabled={isSubmitting || isLoggingInWithGitHub}>
+                {isLoggingInWithGitHub ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Connecting...</>
+                ) : (
+                    <><Github className="w-4 h-4 mr-2" />Login for Full Features</>
+                )}
             </Button>
             <div className="flex gap-2 justify-end w-full sm:w-auto">
                  <Button variant="ghost" onClick={onClose} disabled={isSubmitting}>

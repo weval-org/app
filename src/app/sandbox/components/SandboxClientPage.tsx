@@ -7,7 +7,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useWorkspace } from '../hooks/useWorkspace';
 import { useToast } from '@/components/ui/use-toast';
 import { Toaster } from "@/components/ui/toaster";
-import { ProposeBlueprintModal } from './ProposeBlueprintModal';
+import { ProposalWizard } from './ProposalWizard';
 import { EditorPanel } from './EditorPanel';
 import { FormPanel } from './FormPanel';
 import { RunStatusModal } from './RunStatusModal';
@@ -18,21 +18,31 @@ import { FileNavigator } from './FileNavigator';
 import { Separator } from '@/components/ui/separator';
 import { ComparisonConfig } from '@/cli/types/cli_types';
 import { AutoCreateModal } from './AutoCreateModal';
-import { AutoWikiModal } from './AutoWikiModal';
 import { DEFAULT_BLUEPRINT_CONTENT } from '../hooks/useWorkspace';
 import { generateMinimalBlueprintYaml } from '../utils/yaml-generator';
 import { parseAndNormalizeBlueprint } from '@/lib/blueprint-parser';
 import { useImmer } from 'use-immer';
 import { InputModal } from './InputModal';
+import { WorkspaceSetupModal } from './WorkspaceSetupModal';
+import { RunsSidebar } from './RunsSidebar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const Loader2 = dynamic(() => import('lucide-react').then(mod => mod.Loader2), { ssr: false });
 const Save = dynamic(() => import('lucide-react').then(mod => mod.Save), { ssr: false });
 const GitPullRequest = dynamic(() => import('lucide-react').then(mod => mod.GitPullRequest), { ssr: false });
 const Github = dynamic(() => import('lucide-react').then(mod => mod.Github), { ssr: false });
 const FlaskConical = dynamic(() => import('lucide-react').then(mod => mod.FlaskConical), { ssr: false });
+const MoreVertical = dynamic(() => import('lucide-react').then(mod => mod.MoreVertical), { ssr: false });
+const History = dynamic(() => import('lucide-react').then(mod => mod.History), { ssr: false });
+const ExternalLink = dynamic(() => import('lucide-react').then(mod => mod.ExternalLink), { ssr: false });
 
-export default function SandboxV2ClientPage() {
-    const { user, isLoading: isAuthLoading } = useAuth();
+export default function SandboxClientPage() {
+    const { user, isLoading: isAuthLoading, clearAuth } = useAuth();
     const {
         status,
         files,
@@ -49,17 +59,30 @@ export default function SandboxV2ClientPage() {
         deleteBlueprint,
         createPullRequest,
         runEvaluation,
+        runHistory,
         forkName,
         setRunStatus,
         setRunId,
-    } = useWorkspace(user?.isLoggedIn ?? false, user?.username ?? null);
+        closeProposal,
+        isSyncingWithGitHub,
+        duplicateBlueprint,
+        forkCreationRequired,
+        setForkCreationRequired,
+        promoteBlueprint,
+        deletingFilePath,
+        fetchFiles,
+    } = useWorkspace(
+        user?.isLoggedIn ?? false, 
+        user?.username ?? null,
+        isAuthLoading
+    );
 
-    const [isProposalModalOpen, setIsProposalModalOpen] = useState(false);
+    const [isProposalWizardOpen, setIsProposalWizardOpen] = useState(false);
+    const [isRunsSidebarOpen, setIsRunsSidebarOpen] = useState(false);
     const [isRunModalOpen, setIsRunModalOpen] = useState(false);
     const [isRunConfigModalOpen, setIsRunConfigModalOpen] = useState(false);
     const [isAnonymousRunModalOpen, setIsAnonymousRunModalOpen] = useState(false);
     const [isAutoCreateModalOpen, setIsAutoCreateModalOpen] = useState(false);
-    const [isAutoWikiModalOpen, setIsAutoWikiModalOpen] = useState(false);
     const [isModalSubmitting, setIsModalSubmitting] = useState(false);
     const [inputModalConfig, setInputModalConfig] = useState<{
         title: string;
@@ -74,13 +97,42 @@ export default function SandboxV2ClientPage() {
     const [localBlueprintContent, setLocalBlueprintContent] = useState<string | null>(null);
     const [parsedBlueprint, setParsedBlueprint] = useImmer<ComparisonConfig | null>(null);
     const [yamlError, setYamlError] = useState<string | null>(null);
+    const [isLoggingInWithGitHub, setIsLoggingInWithGitHub] = useState(false);
     const { toast } = useToast();
 
     const isLocal = activeBlueprint?.isLocal ?? true;
 
     useEffect(() => {
-        setupWorkspace();
-    }, [setupWorkspace]);
+        const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+          // Check if there are unsaved changes
+          if (activeBlueprint && localBlueprintContent !== null && localBlueprintContent !== activeBlueprint.content) {
+            event.preventDefault();
+            // This message is often ignored by modern browsers in favor of a generic one.
+            event.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+          }
+        };
+    
+        window.addEventListener('beforeunload', handleBeforeUnload);
+    
+        return () => {
+          window.removeEventListener('beforeunload', handleBeforeUnload);
+        };
+      }, [activeBlueprint, localBlueprintContent]);
+
+    useEffect(() => {
+        const handleWorkspaceSetup = async () => {
+            const result = await setupWorkspace();
+            if (result?.authFailure) {
+                // Backend says user is not authenticated, but frontend thinks they are
+                // Sync the auth state by clearing it
+                clearAuth();
+            }
+        };
+
+        if (user?.isLoggedIn) {
+            handleWorkspaceSetup();
+        }
+    }, [setupWorkspace, user?.isLoggedIn, clearAuth]);
 
     useEffect(() => {
         if (activeBlueprint) {
@@ -121,7 +173,7 @@ export default function SandboxV2ClientPage() {
 
         const poll = async () => {
             try {
-                const response = await fetch(`/api/sandbox2/status/${runId}`);
+                const response = await fetch(`/api/sandbox/status/${runId}`);
                 if (response.ok) {
                     const newStatus = await response.json();
                     setRunStatus(newStatus);
@@ -145,24 +197,23 @@ export default function SandboxV2ClientPage() {
     }, [runStatus.status]);
 
     const handleProposeSubmit = async (data: { title: string; body: string }) => {
-        const prUrl = await createPullRequest(data);
-        if (prUrl) {
-            toast({
-                title: 'Pull Request Created!',
-                description: <a href={prUrl} target="_blank" rel="noopener noreferrer" className="underline">Click here to view it on GitHub.</a>,
-                duration: 10000,
-            });
-            setIsProposalModalOpen(false);
-        }
+        return await createPullRequest(data);
     };
     
     const handleAutoGenerated = async (yamlContent: string) => {
         try {
-            const blueprint = yaml.load(yamlContent) as { title?: string };
-            const title = blueprint?.title;
+            // Try to parse for title extraction, but don't fail if it's invalid
+            let title: string | undefined;
+            try {
+                const blueprint = yaml.load(yamlContent) as { title?: string };
+                title = blueprint?.title;
+            } catch (yamlError) {
+                console.warn("Auto-generated YAML is invalid, but will still be loaded into editor for manual fixing.");
+                // Don't extract title from invalid YAML, use default
+            }
 
             if (!title) {
-                console.warn("Auto-generated blueprint is missing a title. Using a default name.");
+                console.warn("Auto-generated blueprint is missing a title or YAML is invalid. Using a default name.");
             }
             
             const baseFilename = normalizeFilename(title || 'auto-generated-blueprint').replace(/\.yml$/, '');
@@ -184,14 +235,10 @@ export default function SandboxV2ClientPage() {
             }
         } catch (error: any) {
             console.error("Failed to handle auto-generated blueprint:", error);
-            let errorMessage = 'Could not parse or save the auto-generated blueprint.';
-            if (error instanceof yaml.YAMLException) {
-                errorMessage = `Could not parse the generated YAML: ${error.message}`;
-            }
             toast({
                 variant: 'destructive',
                 title: 'Error Processing Blueprint',
-                description: errorMessage,
+                description: 'Could not save the auto-generated blueprint.',
             });
         }
     };
@@ -214,29 +261,39 @@ export default function SandboxV2ClientPage() {
     const handleSave = async () => {
         if (localBlueprintContent === null || !activeBlueprint) return;
 
-        const isPromotionFlow = activeBlueprint.isLocal && user?.isLoggedIn;
+        const isPromotionFlow = isLocal && user?.isLoggedIn;
 
         if (isPromotionFlow) {
             const title = parsedBlueprint?.title || 'new-blueprint';
             const originalLocalBlueprint = activeBlueprint;
+
             setInputModalConfig({
                 title: "Save to GitHub",
-                description: "Enter a filename for your blueprint. It will be saved to your forked repository.",
-                inputLabel: "Filename",
+                description: "Enter a filename for your new blueprint. It will be saved to your forked repository in the 'blueprints/users/your-username/' directory.",
+                inputLabel: "Filename (.yml)",
                 initialValue: normalizeFilename(title),
-                submitButtonText: "Save",
+                submitButtonText: "Save to GitHub",
                 onSubmit: async (filename) => {
+                    if (!filename) return;
                     setIsModalSubmitting(true);
+                    
                     const finalFilename = filename.endsWith('.yml') ? filename : `${filename}.yml`;
-                    const newFile = await createBlueprintWithContent(finalFilename, localBlueprintContent);
-                    if (newFile && originalLocalBlueprint) {
+
+                    const newFile = await promoteBlueprint(finalFilename, localBlueprintContent);
+                    
+                    if (newFile) {
+                        // Promotion was successful, now delete the original local blueprint
                         await deleteBlueprint(originalLocalBlueprint);
+                        // The file list is refreshed inside promoteBlueprint, so we just need to load the new file
+                        await loadFile(newFile);
                     }
+                    
                     setInputModalConfig(null);
                     setIsModalSubmitting(false);
                 }
             });
         } else {
+            // This handles saving for already remote blueprints or non-logged-in local saves
             saveBlueprint(localBlueprintContent);
         }
     };
@@ -250,8 +307,30 @@ export default function SandboxV2ClientPage() {
             submitButtonText: "Create",
             onSubmit: async (filename) => {
                 setIsModalSubmitting(true);
-                if (filename && createBlueprintWithContent) {
-                    const finalFilename = filename.endsWith('.yml') ? filename : `${filename}.yml`;
+
+                if (!filename.trim()) {
+                    toast({
+                        variant: "destructive",
+                        title: "Invalid Filename",
+                        description: "Filename cannot be empty.",
+                    });
+                    setIsModalSubmitting(false);
+                    return;
+                }
+
+                const finalFilename = filename.trim().endsWith('.yml') ? filename.trim() : `${filename.trim()}.yml`;
+
+                if (files.some(f => f.name === finalFilename)) {
+                    toast({
+                        variant: "destructive",
+                        title: "File already exists",
+                        description: `A blueprint with the name '${finalFilename}' already exists. Please choose another name.`,
+                    });
+                    setIsModalSubmitting(false);
+                    return; // Keep the modal open
+                }
+
+                if (createBlueprintWithContent) {
                     await createBlueprintWithContent(finalFilename, DEFAULT_BLUEPRINT_CONTENT);
                 }
                 setInputModalConfig(null);
@@ -260,7 +339,13 @@ export default function SandboxV2ClientPage() {
         });
     };
 
-    const handleLogin = () => { window.location.href = '/api/github/auth/request'; };
+    const handleLogin = () => { 
+        setIsLoggingInWithGitHub(true);
+        // Give immediate visual feedback before redirect
+        setTimeout(() => {
+            window.location.href = '/api/github/auth/request';
+        }, 100);
+    };
     
     const isLoading = status === 'setting_up' || isFetchingFileContent;
     const isSaving = status === 'saving';
@@ -268,9 +353,12 @@ export default function SandboxV2ClientPage() {
     const isCreating = status === 'saving'; // Re-use saving state for creation
     const isDeleting = status === 'deleting';
     const isCreatingPr = status === 'creating_pr';
-    const isEditable = !isLoading && !isSaving && !!activeBlueprint;
+    const isClosingPr = status === 'closing_pr';
+    const hasOpenPr = activeBlueprint?.prStatus?.state === 'open';
+    const isEditable = !isLoading && !isSaving && !!activeBlueprint && !hasOpenPr;
 
     const handleActivateFormEditor = () => {
+        if (hasOpenPr) return;
         if (!hasShownFormWarning) {
             toast({
                 title: "Heads Up: Formatting",
@@ -280,6 +368,14 @@ export default function SandboxV2ClientPage() {
             setHasShownFormWarning(true);
         }
         setActiveEditor('form');
+    };
+
+    const handleLogout = () => {
+        clearAuth();
+        toast({
+            title: "Logged Out",
+            description: "You have been successfully logged out.",
+        });
     };
 
     const handleRunRequest = () => {
@@ -300,14 +396,27 @@ export default function SandboxV2ClientPage() {
     };
 
     const renderHeader = () => {
-        const isPromotionFlow = activeBlueprint?.isLocal && user?.isLoggedIn;
+        const isPromotionFlow = isLocal && user?.isLoggedIn;
         const isContentUnchanged = localBlueprintContent === activeBlueprint?.content;
         const isSaveDisabled = isSaving || isLoading || !activeBlueprint || (isContentUnchanged && !isPromotionFlow);
 
         return (
             <header className="flex-shrink-0 border-b h-14 flex items-center justify-between px-4">
-                <div className="text-sm font-medium text-muted-foreground truncate pr-4">
-                    {activeBlueprint ? activeBlueprint.name : 'No file selected'}
+                <div className="flex items-center gap-2 font-mono text-m font-bold text-muted-foreground truncate pr-4">
+                    <span className="truncate">
+                        {activeBlueprint ? activeBlueprint.name : 'No file selected'}
+                    </span>
+                    {!isLocal && activeBlueprint && forkName && (
+                        <a
+                            href={`https://github.com/${forkName}/blob/main/${activeBlueprint.path}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-muted-foreground hover:text-foreground transition-colors"
+                            title="View on GitHub"
+                        >
+                            <ExternalLink className="w-4 h-4" />
+                        </a>
+                    )}
                 </div>
                 <div className="flex items-center gap-3">
                     <Button 
@@ -318,7 +427,12 @@ export default function SandboxV2ClientPage() {
                         {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
                         {isPromotionFlow ? 'Save to GitHub' : 'Save'}
                     </Button>
-                    <Button onClick={handleRunRequest} disabled={isRunning || !activeBlueprint} size="sm">
+                    <Button 
+                        onClick={handleRunRequest} 
+                        disabled={isRunning || !activeBlueprint || isLoading} 
+                        size="sm"
+                        className="bg-exciting text-exciting-foreground border-exciting hover:bg-exciting/90 hover:text-exciting-foreground"
+                    >
                          {isRunning ? (
                             <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Running...</>
                         ) : (
@@ -326,33 +440,66 @@ export default function SandboxV2ClientPage() {
                         )}
                     </Button>
                     
-                    <Separator orientation="vertical" className="h-6" />
+                    {
+                        (
+                            (!isLocal && !activeBlueprint?.prStatus) ||
+                            (isLocal && activeBlueprint?.prStatus)
+                        ) && (
+                            <Separator orientation="vertical" className="h-6" />
+                        )
+                    }
 
-                    {user?.isLoggedIn ? (
-                        <>
-                            {!isLocal && (
-                                <Button onClick={() => setIsProposalModalOpen(true)} disabled={isCreatingPr || !activeBlueprint} size="sm" variant="outline">
-                                    <Github className="w-4 h-4 mr-2" />
-                                    {isCreatingPr ? 'Proposing...' : 'Propose'}
-                                </Button>
-                            )}
-                            <div className="text-sm text-right">
-                                <span className="font-semibold">{user.username}</span>
-                                {forkName && (
-                                    <div className="text-xs text-muted-foreground">
-                                        <a href={`https://github.com/${user.username}/${forkName}`} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                                            {forkName}
-                                        </a>
-                                    </div>
-                                )}
-                            </div>
-                        </>
-                    ) : (
-                        <Button onClick={handleLogin} variant="outline" size="sm">
-                            <Github className="w-4 h-4 mr-2" />
-                            Login with GitHub
+                    {!isLocal && !activeBlueprint?.prStatus && (
+                        <Button onClick={() => setIsProposalWizardOpen(true)} disabled={isCreatingPr || !activeBlueprint || isLoading} size="sm" variant="outline">
+                            <GitPullRequest className="w-4 h-4 mr-2" />
+                            {isCreatingPr ? 'Proposing...' : 'Propose'}
                         </Button>
                     )}
+                    
+                    {activeBlueprint?.prStatus && (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="sm" disabled={isClosingPr || isLoading}>
+                                    {isClosingPr 
+                                        ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Closing...</>
+                                        : <><GitPullRequest className="w-4 h-4 mr-2" /> PR #{activeBlueprint.prStatus.number}: {activeBlueprint.prStatus.state}</>
+                                    }
+                                    <MoreVertical className="w-4 h-4 ml-2" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuItem asChild>
+                                    <a href={activeBlueprint.prStatus.url} target="_blank" rel="noopener noreferrer">
+                                        View on GitHub
+                                    </a>
+                                </DropdownMenuItem>
+                                {activeBlueprint.prStatus.state === 'open' && (
+                                    <>
+                                        <DropdownMenuItem 
+                                            onClick={() => activeBlueprint && duplicateBlueprint(activeBlueprint)}
+                                        >
+                                            Duplicate and Edit
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem 
+                                            onClick={() => activeBlueprint.prStatus && closeProposal(activeBlueprint.prStatus.number)} 
+                                            disabled={isClosingPr}
+                                        >
+                                            Close Proposal
+                                        </DropdownMenuItem>
+                                    </>
+                                )}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    )}
+
+                    <Separator orientation="vertical" className="h-6" />
+
+                    <Button onClick={() => setIsRunsSidebarOpen(true)} size="icon" variant="ghost" className="relative" disabled={isLoading}>
+                        <History className="w-5 h-5" />
+                        {isRunning && (
+                             <span className="absolute top-0 right-0 block h-2 w-2 rounded-full bg-sky-500 ring-2 ring-background" />
+                        )}
+                    </Button>
                 </div>
             </header>
         );
@@ -368,18 +515,41 @@ export default function SandboxV2ClientPage() {
                     onDeleteFile={deleteBlueprint}
                     onCreateNew={handleCreateNew}
                     onAutoCreate={() => setIsAutoCreateModalOpen(true)}
-                    onAutoWiki={() => setIsAutoWikiModalOpen(true)}
                     isLoading={status === 'setting_up' || isFetchingFiles}
+                    isSyncingWithGitHub={isSyncingWithGitHub}
                     isCreating={isCreating}
-                    isDeleting={isDeleting}
+                    isDeleting={!!deletingFilePath || status === 'deleting'}
+                    deletingFilePath={deletingFilePath}
+                    user={user}
+                    forkName={forkName}
+                    onLogin={handleLogin}
+                    isLoggingInWithGitHub={isLoggingInWithGitHub}
+                    onLogout={handleLogout}
+                    onRefresh={fetchFiles}
                 />
             </div>
             <main className="flex-1 flex flex-col overflow-hidden">
                 {renderHeader()}
                 <div className="flex-grow flex flex-row gap-px bg-border relative min-h-0">
-                    {isFetchingFileContent && (
-                        <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10">
-                            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                    {(isFetchingFileContent || hasOpenPr) && (
+                        <div className="absolute inset-0 bg-background flex flex-col items-center justify-center z-10">
+                            {isFetchingFileContent ? (
+                                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                            ) : (
+                                <div className="text-center p-4 bg-secondary rounded-lg shadow">
+                                    <GitPullRequest className="w-8 h-8 mx-auto mb-2 text-primary" />
+                                    <h3 className="font-semibold">This blueprint is under review.</h3>
+                                    <p className="text-sm text-muted-foreground">Editing is locked while a pull request is open.</p>
+                                    <Button 
+                                        size="sm" 
+                                        variant="outline"
+                                        className="mt-4"
+                                        onClick={() => activeBlueprint && duplicateBlueprint(activeBlueprint)}
+                                    >
+                                        Duplicate and Edit
+                                    </Button>
+                                </div>
+                            )}
                         </div>
                     )}
                     <div
@@ -417,7 +587,7 @@ export default function SandboxV2ClientPage() {
         if (!isAuthLoading) {
             switch (status) {
                 case 'setting_up':
-                    loadingMessage = 'Setting up your workspace (checking or creating fork)...';
+                    loadingMessage = 'Setting up your workspace...';
                     break;
                 case 'loading':
                     loadingMessage = 'Loading your blueprints...';
@@ -452,21 +622,37 @@ export default function SandboxV2ClientPage() {
         <>
             {renderMainContent()}
             <Toaster />
-            <ProposeBlueprintModal 
-                isOpen={isProposalModalOpen} 
-                onClose={() => setIsProposalModalOpen(false)} 
-                onSubmit={handleProposeSubmit} 
-                isSubmitting={isCreatingPr}
+            {isLoggingInWithGitHub && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div className="bg-exciting text-exciting-foreground px-8 py-6 rounded-lg shadow-2xl flex items-center gap-4 max-w-md mx-4">
+                        <Loader2 className="w-8 h-8 animate-spin" />
+                        <div>
+                            <h3 className="font-bold text-lg">Connecting to GitHub</h3>
+                            <p className="text-sm opacity-90">Redirecting to GitHub authentication...</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+            <RunsSidebar
+                isOpen={isRunsSidebarOpen}
+                onClose={() => setIsRunsSidebarOpen(false)}
+                runStatus={runStatus}
+                runHistory={runHistory}
+                activeBlueprintName={activeBlueprint?.name ?? null}
             />
+            {activeBlueprint && (
+                <ProposalWizard
+                    isOpen={isProposalWizardOpen}
+                    onClose={() => setIsProposalWizardOpen(false)}
+                    onSubmit={handleProposeSubmit}
+                    blueprintName={activeBlueprint.name}
+                    isSubmitting={isCreatingPr}
+                />
+            )}
             <AutoCreateModal 
                 onGenerated={handleAutoGenerated}
                 isOpen={isAutoCreateModalOpen}
                 onOpenChange={setIsAutoCreateModalOpen}
-            />
-            <AutoWikiModal 
-                onGenerated={handleAutoGenerated}
-                isOpen={isAutoWikiModalOpen}
-                onOpenChange={setIsAutoWikiModalOpen}
             />
             {inputModalConfig && (
                 <InputModal
@@ -488,6 +674,7 @@ export default function SandboxV2ClientPage() {
                 onRun={handleAnonymousRunConfirm}
                 onLogin={handleLogin}
                 isSubmitting={isRunning}
+                isLoggingInWithGitHub={isLoggingInWithGitHub}
             />
             <RunStatusModal 
                 isOpen={isRunModalOpen} 
@@ -499,6 +686,17 @@ export default function SandboxV2ClientPage() {
                     }
                 }}
                 status={runStatus}
+            />
+            <WorkspaceSetupModal
+                isOpen={forkCreationRequired}
+                onClose={() => setForkCreationRequired(false)}
+                onConfirm={async () => {
+                    const result = await setupWorkspace(true);
+                    if (result?.authFailure) {
+                        clearAuth();
+                    }
+                }}
+                isConfirming={status === 'setting_up'}
             />
         </>
     );

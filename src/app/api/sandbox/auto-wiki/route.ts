@@ -63,6 +63,33 @@ A potent prompt would be: "Explain the Stoic concept of 'apatheia' and how it di
 Now, analyze the following article text and generate the YAML blueprint.
 `;
 
+// Function to extract the article title and language from a Wikipedia URL
+function extractWikipediaInfo(url: string): { title: string; lang: string } | null {
+  try {
+    const urlObject = new URL(url);
+    const hostnameParts = urlObject.hostname.split('.');
+    
+    let lang = 'en'; // Default to English
+    // Handles subdomains like `en.wikipedia.org`
+    if (hostnameParts.length >= 3 && hostnameParts[1] === 'wikipedia' && hostnameParts[2] === 'org') {
+      lang = hostnameParts[0];
+    }
+
+    const pathParts = urlObject.pathname.split('/');
+    const wikiIndex = pathParts.findIndex(part => part === 'wiki');
+    
+    if (wikiIndex !== -1 && wikiIndex + 1 < pathParts.length) {
+      const title = decodeURIComponent(pathParts.slice(wikiIndex + 1).join('/'));
+      return { title, lang };
+    }
+    
+    return null;
+  } catch (e) {
+    console.error('Invalid URL:', e);
+    return null;
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     // Dynamically import ESM modules
@@ -80,12 +107,21 @@ export async function POST(req: NextRequest) {
     }
 
     const { wikiUrl } = validation.data;
-    const pageTitle = new URL(wikiUrl).pathname.split('/').pop()?.replace(/_/g, ' ') || 'Unknown Page';
+    const wikiInfo = extractWikipediaInfo(wikiUrl);
+
+    if (!wikiInfo) {
+      return NextResponse.json({ error: 'Could not extract a valid Wikipedia article title from the URL.' }, { status: 400 });
+    }
     
+    const { title: articleTitle, lang } = wikiInfo;
+
+    // URL-encode forward slashes in the title to prevent wtf_wikipedia from treating it as a path
+    const encodedArticleTitle = articleTitle.replace(/\//g, '%2F');
+
     // 1. Fetch and parse the wikipedia article
-    let doc = await wtf.fetch(pageTitle, { lang: 'en' });
+    let doc = await wtf.fetch(encodedArticleTitle, { lang: lang });
     if (!doc) {
-      return NextResponse.json({ error: `Could not find or parse the Wikipedia page for "${pageTitle}".` }, { status: 404 });
+      return NextResponse.json({ error: `Could not find or parse the Wikipedia page for "${articleTitle}".` }, { status: 404 });
     }
     
     // wtf.fetch can return an array if it follows redirects, take the last one.
@@ -95,7 +131,7 @@ export async function POST(req: NextRequest) {
 
     const articleText = doc.text();
     const articleSummary = (doc as any).summary() || 'No summary available.';
-    const title = doc.title() || pageTitle;
+    const title = doc.title() || articleTitle;
 
     if (!articleText || articleText.length < 100) {
         return NextResponse.json({ error: 'The article content is too short to generate a meaningful blueprint.' }, { status: 400 });
@@ -134,6 +170,7 @@ export async function POST(req: NextRequest) {
     const cleanedYaml = match[1].trim();
     let finalYaml = cleanedYaml;
     let wasSanitized = false;
+    let validationError: string | null = null;
     
     try {
         const parsed = yaml.loadAll(cleanedYaml);
@@ -141,35 +178,69 @@ export async function POST(req: NextRequest) {
             throw new Error('Generated YAML is empty or invalid after parsing.');
         }
     } catch (e: any) {
-        if (e.message && typeof e.message === 'string' && e.message.includes('unexpected end of the stream')) {
-            const lines = cleanedYaml.trim().split('\n');
-            if (lines.length > 1) {
-                const sanitizedYaml = lines.slice(0, -1).join('\n');
-                try {
-                    const parsed = yaml.loadAll(sanitizedYaml);
-                     if (parsed.filter(p => p !== null).length === 0) {
-                        throw new Error('Generated YAML is empty or invalid after parsing.');
-                    }
-                    wasSanitized = true;
-                    finalYaml = sanitizedYaml;
-                } catch (e2) {
-                    throw new Error(`YAML generation failed and could not be automatically repaired. Original error: ${e.message}`);
+        if (e instanceof yaml.YAMLException) {
+            console.warn('[Auto-Wiki] Initial YAML parsing failed. Attempting self-correction.', e.message);
+
+            // Attempt to self-correct the YAML by re-prompting the LLM
+            const selfCorrectionSystemPrompt = `You are an expert YAML debugger. The user will provide you with a piece of YAML that has a syntax error, along with the error message. Your task is to fix the YAML and return only the corrected, valid YAML code block. Do not add any explanation, apologies, or surrounding text. Output only the raw, corrected YAML.`;
+            
+            const selfCorrectionUserPrompt = `The following YAML is invalid.\nError: ${e.message}\n\nInvalid YAML:\n${cleanedYaml}\n\nPlease provide the corrected YAML.`;
+
+            try {
+                const correctedYamlResponse = await getModelResponse({
+                    modelId: WIKI_GENERATOR_MODEL,
+                    messages: [{ role: 'user', content: selfCorrectionUserPrompt }],
+                    systemPrompt: selfCorrectionSystemPrompt,
+                    temperature: 0.0,
+                    useCache: false,
+                    maxTokens: 5000
+                });
+
+                if (checkForErrors(correctedYamlResponse)) {
+                    throw new Error(`The self-correction model returned an error: ${correctedYamlResponse}`);
                 }
-            } else {
-                throw e; // Can't sanitize a single broken line
+                
+                // The model might wrap the corrected YAML in markdown fences, so we need to strip them.
+                const markdownYamlRegex = /```(?:yaml\n)?([\s\S]*?)```/;
+                const match = correctedYamlResponse.match(markdownYamlRegex);
+                finalYaml = (match ? match[1] : correctedYamlResponse).trim();
+
+                try {
+                    // Try parsing the corrected YAML
+                    const parsed = yaml.loadAll(finalYaml);
+                    if (parsed.filter(p => p !== null).length === 0) {
+                        throw new Error('Self-corrected YAML is empty or invalid after parsing.');
+                    }
+                    console.log('[Auto-Wiki] Self-correction successful.');
+                    wasSanitized = true; // Use 'sanitized' flag to indicate correction happened
+                } catch (e2: any) {
+                    // If correction fails, return original with error info
+                    console.error('[Auto-Wiki] Self-correction failed.', e2.message);
+                    validationError = `YAML validation failed: ${e.message}. Self-correction also failed: ${e2.message}`;
+                    finalYaml = cleanedYaml; // Return original invalid YAML
+                }
+            } catch (correctionError: any) {
+                // If self-correction request fails, return original with error
+                console.error('[Auto-Wiki] Self-correction request failed.', correctionError.message);
+                validationError = `YAML validation failed: ${e.message}. Could not attempt self-correction: ${correctionError.message}`;
+                finalYaml = cleanedYaml; // Return original invalid YAML
             }
         } else {
-            // A different kind of YAML error
-            throw e;
+          // Re-throw other errors not related to YAML parsing for now
+          // But we could also handle these more gracefully in the future
+          validationError = `YAML validation failed: ${e.message}`;
         }
     }
 
-    return NextResponse.json({ yaml: finalYaml, truncated: wasTruncated, sanitized: wasSanitized });
+    return NextResponse.json({ 
+        yaml: finalYaml, 
+        truncated: wasTruncated, 
+        sanitized: wasSanitized,
+        validationError: validationError
+    });
 
   } catch (error: any) {
     console.error('[Auto-Wiki Error]', error);
     return NextResponse.json({ error: 'An unexpected error occurred.', details: error.message }, { status: 500 });
   }
 }
-
-export const dynamic = 'force-dynamic'; 

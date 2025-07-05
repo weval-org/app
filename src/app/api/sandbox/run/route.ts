@@ -4,54 +4,28 @@ import { z } from 'zod';
 import { fromZodError } from 'zod-validation-error';
 import * as yaml from 'js-yaml';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { ComparisonConfig, PromptConfig, LLMCoverageEvaluationConfig } from '@/cli/types/cli_types';
+import { ComparisonConfig } from '@/cli/types/cli_types';
+import { parseAndNormalizeBlueprint } from '@/lib/blueprint-parser';
 
-// --- Zod Validation Schema for incoming data ---
-const ExpectationSchema = z.object({
-  id: z.string(),
-  value: z.string(),
+// Zod schema for the incoming request body
+const RunRequestSchema = z.object({
+  blueprintContent: z.string().min(1, 'Blueprint content cannot be empty.'),
+  isAdvanced: z.boolean().default(false),
+  models: z.array(z.string()).optional(),
 });
 
-const PromptSchema = z.object({
-  id: z.string(),
-  prompt: z.string().min(1, 'Prompt content cannot be empty.'),
-  ideal: z.string().optional(),
-  should: z.array(ExpectationSchema),
-  should_not: z.array(ExpectationSchema),
-});
-
-const SandboxBlueprintSchema = z.object({
-  title: z.string().min(1, 'Title cannot be empty.'),
-  description: z.string().optional(),
-  models: z.array(z.string()).max(10, "You can select a maximum of 10 models.").optional(),
-  prompts: z.array(PromptSchema).min(1, 'At least one prompt is required.'),
-  advanced: z.boolean().default(false),
-});
-
-// --- Hardcoded settings for runs ---
-const QUICK_RUN_MODEL = 'openrouter:google/gemini-2.5-flash-preview-05-20';
+// Hardcoded settings for different run modes
+const QUICK_RUN_MODEL = 'openai:gpt-4.1-nano';
 const QUICK_RUN_JUDGE = 'openrouter:google/gemini-2.5-flash-preview-05-20';
-
-const AVAILABLE_PLAYGROUND_MODELS = [
-  "openrouter:openai/gpt-4.1-nano",
-  "openrouter:anthropic/claude-3.5-haiku",
-  "openrouter:mistralai/mistral-large-2411",
-  "openrouter:x-ai/grok-3-mini-beta",
-  "openrouter:qwen/qwen3-30b-a3b",
-  "openrouter:mistralai/mistral-medium-3",
-  "openrouter:deepseek/deepseek-chat-v3-0324"
+const DEFAULT_ADVANCED_MODELS = [
+    "openai:gpt-4.1-nano",
+    "anthropic:claude-3-haiku-20240307",
+    'openrouter:google/gemini-flash-1.5'
 ];
 
-const DEFAULT_PLAYGROUND_MODELS = [
-  "openrouter:openai/gpt-4.1-nano",
-  "openrouter:anthropic/claude-3.5-haiku",
-  "openrouter:x-ai/grok-3-mini-beta",
-  "openrouter:qwen/qwen3-30b-a3b"
-];
+const SANDBOX_V2_TEMP_DIR = 'sandbox'; // New directory for V2 runs
 
-const PLAYGROUND_TEMP_DIR = 'sandbox'; // Both run types use the same temp dir
-
-// --- S3 Client Initialization ---
+// S3 Client Initialization
 const s3Client = new S3Client({
   region: process.env.APP_S3_REGION!,
   credentials: {
@@ -64,80 +38,70 @@ export async function POST(req: NextRequest) {
   const runId = `${Date.now()}-${uuidv4()}`;
 
   try {
-    // 1. Read and validate the request body
+    // 1. Validate request body
     const body = await req.json();
-    const validation = SandboxBlueprintSchema.safeParse(body);
+    const validation = RunRequestSchema.safeParse(body);
 
     if (!validation.success) {
       const friendlyError = fromZodError(validation.error);
-      return NextResponse.json({ error: 'Invalid blueprint data.', details: friendlyError.message }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid request data.', details: friendlyError.message }, { status: 400 });
     }
-    const sandboxBlueprint = validation.data;
-    const { advanced } = sandboxBlueprint;
+    const { blueprintContent, isAdvanced, models: selectedModels } = validation.data;
 
-    let modelsToUse;
-    let evalMethods;
+    // 2. Parse and normalize blueprint from YAML content
+    let parsedConfig: ComparisonConfig;
+    try {
+        parsedConfig = parseAndNormalizeBlueprint(blueprintContent, 'yaml');
+    } catch (e: any) {
+        return NextResponse.json({ error: 'Invalid blueprint YAML.', details: e.message }, { status: 400 });
+    }
+    
+    // 3. Configure run based on mode (Advanced vs. Quick)
+    let finalModels: string[];
     let evaluationConfig: Record<string, any> = {};
 
-    if (advanced) {
-      // --- Advanced Mode ---
-      modelsToUse = (sandboxBlueprint.models && sandboxBlueprint.models.length > 0)
-        ? sandboxBlueprint.models
-        : DEFAULT_PLAYGROUND_MODELS;
-      
-      const allModelsAreValid = modelsToUse.every(m => AVAILABLE_PLAYGROUND_MODELS.includes(m));
-      if (!allModelsAreValid) {
-          return NextResponse.json({ error: 'Invalid models selected. Please only use models from the allowed list.' }, { status: 400 });
-      }
-      
-      evalMethods = ['llm-coverage', 'embedding'];
-      evaluationConfig = evalMethods.reduce((acc, method) => {
-        acc[method] = {};
-        return acc;
-      }, {} as Record<string, any>);
+    if (isAdvanced) {
+      // For advanced (logged-in) users, use the models they selected in the modal.
+      // Fallback to blueprint's models or default if none are provided.
+      finalModels = (selectedModels && selectedModels.length > 0)
+        ? selectedModels
+        : (parsedConfig.models && parsedConfig.models.length > 0)
+            ? parsedConfig.models
+            : DEFAULT_ADVANCED_MODELS;
 
+      evaluationConfig = {
+        'embedding': {},
+        'llm-coverage': {},
+      };
     } else {
-      // --- Normal (Quick Run) Mode ---
-      modelsToUse = [QUICK_RUN_MODEL];
-      evalMethods = ['llm-coverage']; // No embeddings for quick run
+      finalModels = [QUICK_RUN_MODEL];
       evaluationConfig = {
         'llm-coverage': {
           judges: [{ model: QUICK_RUN_JUDGE, approach: 'standard' }]
         }
       };
     }
-
-    // 2. Transform into a full ComparisonConfig object
-    const config: ComparisonConfig = {
+    
+    // 4. Construct the final ComparisonConfig
+    const finalConfig: ComparisonConfig = {
+      ...parsedConfig,
       id: `sandbox-${runId}`,
-      title: sandboxBlueprint.title,
-      description: sandboxBlueprint.description,
-      models: modelsToUse,
-      tags: ['_sandbox_test'], // Tag all sandbox runs for the special UI
-      prompts: sandboxBlueprint.prompts.map(p => ({
-        id: p.id,
-        prompt: p.prompt,
-        ideal: p.ideal,
-        should: p.should.map(s => s.value).filter(Boolean),
-        should_not: p.should_not.map(s => s.value).filter(Boolean),
-      })),
+      models: finalModels,
+      tags: ['_sandbox_test'],
       evaluationConfig,
     };
 
-    // 3. Convert to YAML
-    const yamlContent = yaml.dump(config);
+    // 5. Save final blueprint and initial status to S3
+    const blueprintKey = `${SANDBOX_V2_TEMP_DIR}/runs/${runId}/blueprint.yml`;
+    const statusKey = `${SANDBOX_V2_TEMP_DIR}/runs/${runId}/status.json`;
 
-    // 4. Save YAML to S3
-    const blueprintKey = `${PLAYGROUND_TEMP_DIR}/runs/${runId}/blueprint.yml`;
     await s3Client.send(new PutObjectCommand({
       Bucket: process.env.APP_S3_BUCKET_NAME!,
       Key: blueprintKey,
-      Body: yamlContent,
+      Body: yaml.dump(finalConfig),
       ContentType: 'application/yaml',
     }));
     
-    // 5. Create initial status file
-    const statusKey = `${PLAYGROUND_TEMP_DIR}/runs/${runId}/status.json`;
     await s3Client.send(new PutObjectCommand({
         Bucket: process.env.APP_S3_BUCKET_NAME!,
         Key: statusKey,
@@ -145,35 +109,31 @@ export async function POST(req: NextRequest) {
         ContentType: 'application/json',
     }));
 
-    // 6. Invoke background function.
-    const functionUrl = new URL(
-      '/.netlify/functions/execute-sandbox-pipeline-background',
-      process.env.URL || 'http://localhost:8888'
-    );
-
-    // Fire-and-forget the background task
+  // 6. Invoke the background Netlify function (fire-and-forget)
+    const functionUrl = new URL('/.netlify/functions/execute-sandbox-pipeline-background', process.env.URL || 'http://localhost:8888');
+    
     fetch(functionUrl.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ runId, blueprintKey }),
-    }).catch(error => {
-      console.error('Failed to invoke background function:', error);
-    });
+      body: JSON.stringify({ runId, blueprintKey, sandboxVersion: 'v2' }),
+    }).catch(console.error);
 
-    // 7. Return the runId
+    // 7. Return the runId to the client
     return NextResponse.json({ runId });
 
   } catch (error: any) {
-    console.error('Sandbox run failed:', error);
-    const statusKey = `${PLAYGROUND_TEMP_DIR}/runs/${runId}/status.json`;
+    console.error('Sandbox v2 run failed to start:', error);
+    // Attempt to update status to error
+    const statusKey = `${SANDBOX_V2_TEMP_DIR}/runs/${runId}/status.json`;
      await s3Client.send(new PutObjectCommand({
         Bucket: process.env.APP_S3_BUCKET_NAME!,
         Key: statusKey,
         Body: JSON.stringify({ status: 'error', message: 'Failed to start the evaluation pipeline.', details: error.message }),
         ContentType: 'application/json',
-    }));
+    })).catch(console.error); // Best-effort error reporting
+
     return NextResponse.json({ error: 'Failed to start evaluation run.', details: error.message }, { status: 500 });
   }
 }
 
-export const dynamic = 'force-dynamic';
+export const dynamic = 'force-dynamic'; 

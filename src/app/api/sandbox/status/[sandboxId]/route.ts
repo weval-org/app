@@ -1,11 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
 
-export const dynamic = 'force-dynamic';
+const SANDBOX_V2_TEMP_DIR = 'sandbox';
 
-const PLAYGROUND_TEMP_DIR = 'sandbox';
-
+// S3 Client Initialization
 const s3Client = new S3Client({
   region: process.env.APP_S3_REGION!,
   credentials: {
@@ -14,50 +13,53 @@ const s3Client = new S3Client({
   },
 });
 
+// Helper to stream S3 object body to a string
 const streamToString = (stream: Readable): Promise<string> =>
   new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
+    const chunks: Uint8Array[] = [];
     stream.on('data', (chunk) => chunks.push(chunk));
     stream.on('error', reject);
-    stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
+    stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
   });
 
 export async function GET(
-  request: Request,
+  req: NextRequest,
   { params }: { params: Promise<{ sandboxId: string }> }
 ) {
   const { sandboxId } = await params;
+
   if (!sandboxId) {
-    return NextResponse.json({ error: 'sandboxId is required' }, { status: 400 });
+    return NextResponse.json({ error: 'Sandbox ID is required.' }, { status: 400 });
   }
 
-  const statusKey = `${PLAYGROUND_TEMP_DIR}/runs/${sandboxId}/status.json`;
-  console.log(`[Status API] Attempting to fetch status for key: ${statusKey}`);
+  const statusKey = `${SANDBOX_V2_TEMP_DIR}/runs/${sandboxId}/status.json`;
 
   try {
     const command = new GetObjectCommand({
       Bucket: process.env.APP_S3_BUCKET_NAME!,
       Key: statusKey,
     });
+
     const { Body } = await s3Client.send(command);
-    
-    if (Body) {
-      const content = await streamToString(Body as Readable);
-      console.log(`[Status API] Found status for ${sandboxId}:`, content);
-      return NextResponse.json(JSON.parse(content));
-    } else {
-      // This case is unlikely but handled
-      console.warn(`[Status API] Status file not found for ${sandboxId}, but no error was thrown.`);
-      return NextResponse.json({ status: 'pending', message: 'Status file not found.' }, { status: 404 });
+
+    if (!Body) {
+      return NextResponse.json({ error: 'Status file not found or is empty.' }, { status: 404 });
     }
+
+    const statusContent = await streamToString(Body as Readable);
+    const statusJson = JSON.parse(statusContent);
+
+    return NextResponse.json(statusJson);
+
   } catch (error: any) {
-    console.error(`[Status API] Error fetching status for ${sandboxId}. Key: ${statusKey}`, error);
     if (error.name === 'NoSuchKey') {
-      // If the status file doesn't exist yet, it means the run is pending initialization
-      console.log(`[Status API] 'NoSuchKey' error for ${sandboxId}, returning 202.`);
-      return NextResponse.json({ status: 'pending', message: 'Run is initializing...' }, { status: 202 });
+      // This is a common case when polling starts before the file is created.
+      // We return a 202 Accepted to indicate the process is likely still initializing.
+      return new NextResponse(null, { status: 202 });
     }
-    console.error(`Error fetching status for ${sandboxId}:`, error);
-    return NextResponse.json({ error: 'Failed to fetch run status.' }, { status: 500 });
+    console.error(`Failed to fetch status for sandbox run ${sandboxId}:`, error);
+    return NextResponse.json({ error: 'Failed to retrieve run status.', details: error.message }, { status: 500 });
   }
 }
+
+export const dynamic = 'force-dynamic'; 

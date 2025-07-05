@@ -104,6 +104,7 @@ export async function POST(req: NextRequest) {
         const cleanedYaml = match[1].trim();
         let finalYaml = cleanedYaml;
         let wasSanitized = false;
+        let validationError: string | null = null;
 
         try {
             const parsed = yaml.loadAll(cleanedYaml);
@@ -122,19 +123,25 @@ export async function POST(req: NextRequest) {
                         }
                         wasSanitized = true;
                         finalYaml = sanitizedYaml;
-                    } catch (e2) {
-                        throw new Error(`YAML generation failed and could not be automatically repaired. Original error: ${e.message}`);
+                    } catch (e2: any) {
+                        // Sanitization failed, return original with error info
+                        validationError = `YAML validation failed: ${e.message}. Auto-sanitization also failed: ${e2.message}`;
                     }
                 } else {
-                    throw e; // Can't sanitize a single broken line
+                    // Can't sanitize a single broken line, return original with error
+                    validationError = `YAML validation failed: ${e.message}`;
                 }
             } else {
-                // A different kind of YAML error
-                throw e;
+                // A different kind of YAML error, return original with error
+                validationError = `YAML validation failed: ${e.message}`;
             }
         }
 
-        return NextResponse.json({ yaml: finalYaml, sanitized: wasSanitized });
+        return NextResponse.json({ 
+            yaml: finalYaml, 
+            sanitized: wasSanitized,
+            validationError: validationError
+        });
 
     } catch (error: any) {
         console.error('[Auto-Create Error]', error);

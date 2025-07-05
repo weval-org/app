@@ -19,11 +19,11 @@ export async function GET(req: NextRequest) {
   const error = req.nextUrl.searchParams.get('error');
 
   if (error) {
-    return NextResponse.redirect(new URL('/sandbox2?error=' + encodeURIComponent(error), req.nextUrl.origin));
+    return NextResponse.redirect(new URL('/sandbox?error=' + encodeURIComponent(error), req.nextUrl.origin));
   }
 
   if (!code) {
-    return NextResponse.redirect(new URL('/sandbox2?error=' + encodeURIComponent('Authorization code not provided.'), req.nextUrl.origin));
+    return NextResponse.redirect(new URL('/sandbox?error=' + encodeURIComponent('Authorization code not provided.'), req.nextUrl.origin));
   }
 
   const clientId = process.env.GITHUB_CLIENT_ID;
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
 
   if (!clientId || !clientSecret || !sessionSecret) {
     console.error("GitHub App credentials or session secret not configured.");
-    return NextResponse.redirect(new URL('/sandbox2?error=' + encodeURIComponent('Server configuration error.'), req.nextUrl.origin));
+    return NextResponse.redirect(new URL('/sandbox?error=' + encodeURIComponent('Server configuration error.'), req.nextUrl.origin));
   }
 
   try {
@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
     // Encrypt the token before storing it in the cookie
     const encryptedToken = await encryptToken(accessToken, sessionSecret);
 
-    const nextResponse = NextResponse.redirect(new URL('/sandbox2', req.nextUrl.origin));
+    const nextResponse = NextResponse.redirect(new URL('/sandbox', req.nextUrl.origin));
     
     nextResponse.cookies.set('github_session', encryptedToken, {
         httpOnly: true,
@@ -73,6 +73,6 @@ export async function GET(req: NextRequest) {
 
   } catch (err: any) {
     console.error('GitHub auth callback failed:', err);
-    return NextResponse.redirect(new URL('/sandbox2?error=' + encodeURIComponent(err.message), req.nextUrl.origin));
+    return NextResponse.redirect(new URL('/sandbox?error=' + encodeURIComponent(err.message), req.nextUrl.origin));
   }
 } 

@@ -138,9 +138,19 @@ export function parseAndNormalizeBlueprint(content: string, fileType: 'json' | '
              configHeader = { ...firstDoc };
              rawPrompts = configHeader.prompts || [];
              delete configHeader.prompts;
-        }
-        else {
-             throw new Error('Invalid YAML format: A single YAML document must be an array of prompts, or an object with a "prompts" key.');
+        } else if (typeof firstDoc === 'object' && firstDoc !== null) {
+            // Check if this looks like a single prompt document
+            if (firstDoc.prompt || firstDoc.messages || firstDoc.should || firstDoc.ideal || firstDoc.points) {
+                // This is a single prompt document, treat it as such
+                rawPrompts = [firstDoc];
+            } else {
+                // This might be a config header without prompts, or an invalid format
+                // Let's be more permissive and treat it as a config header
+                configHeader = { ...firstDoc };
+                rawPrompts = [];
+            }
+        } else {
+             throw new Error('Invalid YAML format: Document must be an object or array. Found: ' + typeof firstDoc);
         }
     } else { // Multiple YAML documents
         const firstDocIsConfig = 

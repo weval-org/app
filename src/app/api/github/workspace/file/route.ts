@@ -65,22 +65,21 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    const { path, content, sha, forkName } = await req.json();
+    const { path, content, sha, forkName, isNew } = await req.json();
     if (!path || content === undefined || !forkName) {
         return NextResponse.json({ error: 'File path, content, and fork name are required' }, { status: 400 });
     }
 
     try {
-        const userResponse = await githubApiRequest('/user', accessToken);
-        if (!userResponse.ok) throw new Error('Failed to fetch user data');
-        const user = await userResponse.json();
-        const userLogin = user.login;
-
         const body: { message: string; content: string; sha?: string } = {
-            message: `feat(blueprints): update ${path}`,
+            message: isNew 
+                ? `feat(blueprints): create ${path}`
+                : `feat(blueprints): update ${path}`,
             content: Buffer.from(content).toString('base64'),
         };
         
+        // For updates, the SHA of the file being updated is required.
+        // For new files, it must be omitted.
         if (sha) {
             body.sha = sha;
         }
@@ -96,11 +95,19 @@ export async function POST(req: NextRequest) {
 
         if (!response.ok) {
             const errorBody = await response.json();
-            throw new Error(`Failed to save file: ${errorBody.message}`);
+            throw new Error(`Failed to save file to GitHub: ${errorBody.message}`);
         }
 
         const data = await response.json();
-        return NextResponse.json(data.content);
+        const createdFile = data.content;
+
+        return NextResponse.json({
+            name: createdFile.name,
+            path: createdFile.path,
+            sha: createdFile.sha,
+            isLocal: false,
+            lastModified: data.commit.committer.date,
+        });
 
     } catch (error: any) {
         console.error('Save file failed:', error);
