@@ -283,7 +283,7 @@ export default function SandboxClientPage() {
                     
                     if (newFile) {
                         // Promotion was successful, now delete the original local blueprint
-                        await deleteBlueprint(originalLocalBlueprint);
+                        await deleteBlueprint(originalLocalBlueprint, { silent: true });
                         // The file list is refreshed inside promoteBlueprint, so we just need to load the new file
                         await loadFile(newFile);
                     }
@@ -530,26 +530,39 @@ export default function SandboxClientPage() {
             </div>
             <main className="flex-1 flex flex-col overflow-hidden">
                 {renderHeader()}
-                <div className="flex-grow flex flex-row gap-px bg-border relative min-h-0">
-                    {(isFetchingFileContent || hasOpenPr) && (
-                        <div className="absolute inset-0 bg-background flex flex-col items-center justify-center z-10">
-                            {isFetchingFileContent ? (
-                                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-                            ) : (
-                                <div className="text-center p-4 bg-secondary rounded-lg shadow">
-                                    <GitPullRequest className="w-8 h-8 mx-auto mb-2 text-primary" />
+                {hasOpenPr && (
+                    <div className="flex-shrink-0 border-b bg-primary/10 p-3 text-sm">
+                        <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                                <GitPullRequest className="h-5 w-5 text-primary flex-shrink-0" />
+                                <div>
                                     <h3 className="font-semibold">This blueprint is under review.</h3>
-                                    <p className="text-sm text-muted-foreground">Editing is locked while a pull request is open.</p>
-                                    <Button 
-                                        size="sm" 
-                                        variant="outline"
-                                        className="mt-4"
-                                        onClick={() => activeBlueprint && duplicateBlueprint(activeBlueprint)}
-                                    >
-                                        Duplicate and Edit
-                                    </Button>
+                                    <p className="text-muted-foreground">Editing is locked while a pull request is open.</p>
                                 </div>
-                            )}
+                            </div>
+                            <div className="flex items-center gap-3 flex-shrink-0">
+                                {activeBlueprint?.prStatus?.url && (
+                                    <Button variant="outline" size="sm" asChild>
+                                        <a href={activeBlueprint.prStatus.url} target="_blank" rel="noopener noreferrer">
+                                            View PR
+                                        </a>
+                                    </Button>
+                                )}
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => activeBlueprint && duplicateBlueprint(activeBlueprint)}
+                                >
+                                    Duplicate and Edit
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                <div className="flex-grow flex flex-row gap-px bg-border relative min-h-0">
+                    {isFetchingFileContent && (
+                        <div className="absolute inset-0 bg-background flex flex-col items-center justify-center z-10">
+                            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
                         </div>
                     )}
                     <div

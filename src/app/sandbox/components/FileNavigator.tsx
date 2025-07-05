@@ -168,22 +168,6 @@ export function FileNavigator({
         );
     };
 
-    const renderFileList = (fileList: BlueprintFile[], showSkeletons: boolean) => {
-        if (showSkeletons) {
-            return (
-                <div className="space-y-1 px-2">
-                    <Skeleton className="h-10 w-full bg-border" />
-                    <Skeleton className="h-10 w-full bg-border" />
-                </div>
-            )
-        }
-        return (
-            <div className="space-y-1">
-                {fileList.map(renderFileItem)}
-            </div>
-        )
-    };
-
     return (
         <div className="h-full flex flex-col">
             <div className="p-4 border-b">
@@ -294,18 +278,21 @@ export function FileNavigator({
                             <Loader2 className="h-4 w-4 animate-spin" />
                             <span>Loading blueprints...</span>
                         </div>
-                    ) : files.length === 0 ? (
-                         <div className="px-2 py-1 text-sm text-muted-foreground">
-                            No blueprints found. Create one to get started.
-                        </div>
                     ) : (
                         <div className="space-y-4">
                             <div>
                                 <h4 className="px-2 text-xs font-semibold text-muted-foreground tracking-wider uppercase mb-1">
                                     GitHub
                                 </h4>
-                                {remoteFiles.length > 0 ? (
-                                    renderFileList(remoteFiles, isLoading)
+                                {isSyncingWithGitHub ? (
+                                    <div className="space-y-1 px-2">
+                                        <Skeleton className="h-10 w-full bg-border" />
+                                        <Skeleton className="h-10 w-full bg-border" />
+                                    </div>
+                                ) : remoteFiles.length > 0 ? (
+                                    <div className="space-y-1">
+                                        {remoteFiles.map(renderFileItem)}
+                                    </div>
                                 ) : (
                                     <p className="px-2 py-1 text-sm text-muted-foreground">No GitHub blueprints.</p>
                                 )}
@@ -315,7 +302,9 @@ export function FileNavigator({
                                     Local Scratchpad
                                 </h4>
                                 {localFiles.length > 0 ? (
-                                    renderFileList(localFiles, isLoading)
+                                    <div className="space-y-1">
+                                        {localFiles.map(renderFileItem)}
+                                    </div>
                                 ) : (
                                     <p className="px-2 py-1 text-sm text-muted-foreground">No local blueprints.</p>
                                 )}

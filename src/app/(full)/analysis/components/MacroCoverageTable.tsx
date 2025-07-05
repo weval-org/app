@@ -344,7 +344,7 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                             })}
                         </tr>
                         <tr className="bg-muted">
-                            <th className={cn(firstColStickyHeader, "border-t-0")}>Avg %</th>
+                            <th className={cn(firstColStickyHeader, "border-t-0")}></th>
                             <th className={cn(secondColStickyHeader, "border-t-0")}>Prompt</th>
                             {localSortedModels.map(modelId => {
                                 const parsed = parsedModelsMap[modelId];
@@ -363,7 +363,7 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                             })}
                         </tr>
                         <tr className="bg-muted/70">
-                            <th className={firstColModelAvgSticky}>Model Avg</th>
+                            <th className={firstColModelAvgSticky}>Avg %</th>
                             <th className={secondColModelAvgSticky}></th>
                             {localSortedModels.map(modelId => {
                                 const modelAvgCoverage = calculateModelAverageCoverage(modelId);
@@ -431,7 +431,7 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                                             className="block text-primary hover:text-primary/80 dark:hover:text-primary/80 hover:underline cursor-pointer text-xs"
                                             title={`View details for prompt ID ${promptId}: ${getPromptText(promptId)}`}
                                         >
-                                            <span className="whitespace-normal line-clamp-2" style={{ minHeight: "2.4em"}}>
+                                            <span className="whitespace-normal line-clamp-3" style={{ minHeight: "3.5em"}}>
                                                 {getPromptText(promptId)}
                                             </span>
                                         </Link>

@@ -241,7 +241,7 @@ export default function BetaComparisonClientPage({
     if (Array.isArray(context) && context.length > 0) {
       const lastUserMessage = [...context].reverse().find(msg => msg.role === 'user');
       if (lastUserMessage) {
-        return `User: ${lastUserMessage.content.substring(0, 100)}${lastUserMessage.content.length > 100 ? '...' : ''}`;
+        return `User: ${lastUserMessage.content.substring(0, 300)}${lastUserMessage.content.length > 300 ? '...' : ''}`;
       }
       return `Multi-turn context (${context.length} messages)`;
     }

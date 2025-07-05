@@ -367,6 +367,7 @@ export function useWorkspace(
     }
     setIsFetchingFiles(false);
     console.log(`[fetchFiles] Finished.`);
+    return allFiles;
   }, [isLoggedIn, forkName, toast, loadFile, loadFilesFromLocalStorage, fetchPrStatuses, saveCache, loadCache, initializeDefaultBlueprint]);
 
   const setupWorkspace = useCallback(async (createFork = false) => {
@@ -626,7 +627,11 @@ export function useWorkspace(
       const prData = await response.json();
       
       // Refresh state to show the new PR status
-      await fetchFiles();
+      const newFiles = await fetchFiles();
+      const updatedFile = newFiles.find(f => f.path === activeBlueprint.path);
+      if (updatedFile) {
+        setActiveBlueprint(prev => prev ? { ...prev, ...updatedFile } : null);
+      }
 
       return prData.html_url;
 
@@ -642,7 +647,7 @@ export function useWorkspace(
     }
   }, [isLoggedIn, forkName, activeBlueprint, toast, fetchFiles]);
 
-  const deleteBlueprint = useCallback(async (file: BlueprintFile) => {
+  const deleteBlueprint = useCallback(async (file: BlueprintFile, options?: { silent?: boolean }) => {
     // Prevent multiple deletions at the same time
     if (deletingFilePath) return;
 
@@ -660,7 +665,9 @@ export function useWorkspace(
             if (activeBlueprintRef.current?.path === file.path) {
                 setActiveBlueprint(null);
             }
-            toast({ title: "Blueprint Deleted", description: `Blueprint '${file.name}' was deleted.` });
+            if (!options?.silent) {
+                toast({ title: "Blueprint Deleted", description: `Blueprint '${file.name}' was deleted.` });
+            }
         } catch (e: any) {
             toast({ variant: 'destructive', title: 'Error deleting local file', description: e.message });
         } finally {
@@ -734,7 +741,11 @@ export function useWorkspace(
         toast({ title: "Proposal Closed", description: `Pull Request #${prNumber} has been closed.` });
         
         // Refresh the state
-        await fetchFiles();
+        const newFiles = await fetchFiles();
+        const updatedFile = newFiles.find(f => f.path === activeBlueprint?.path);
+        if (updatedFile) {
+            setActiveBlueprint(prev => prev ? { ...prev, ...updatedFile } : null);
+        }
 
     } catch (err: any) {
         toast({
