@@ -56,29 +56,29 @@ export function PromptCard({ prompt, onUpdate, onRemove, isEditable }: PromptCar
   };
 
   return (
-    <Card className="relative p-6" id={prompt.id}>
+    <Card className="relative p-4" id={prompt.id}>
         {isEditable && (
             <Button
                 variant="ghost"
                 size="icon"
                 onClick={onRemove}
-                className="absolute top-2 right-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-8 w-8"
+                className="absolute top-1.5 right-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-7 w-7"
                 title="Remove Prompt"
             >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-3.5 w-3.5" />
             </Button>
         )}
-        <div className="space-y-6">
+        <div className="space-y-4">
             <div>
-            <label className="text-base font-semibold text-foreground">Prompt</label>
-            <p className="text-sm text-muted-foreground mb-2">The exact question or instruction for the AI. Be specific.</p>
+            <label className="text-sm font-semibold text-foreground">Prompt</label>
+            <p className="text-xs text-muted-foreground mb-1.5">The exact question or instruction for the AI. Be specific.</p>
             
             {prompt.messages && prompt.messages.length > 1 ? (
-                <div className="space-y-2 rounded-md border p-4 bg-muted/50">
+                <div className="space-y-2 rounded-md border p-3 bg-muted/50">
                     {prompt.messages.map((message, index) => (
                         <div key={index} className="flex flex-col">
                             <span className="text-xs font-semibold capitalize text-muted-foreground">{message.role}</span>
-                            <p className="text-base whitespace-pre-wrap">{message.content}</p>
+                            <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                         </div>
                     ))}
                     <p className="text-xs text-center text-muted-foreground pt-2">Multi-turn prompts are currently read-only in the form view.</p>
@@ -88,23 +88,23 @@ export function PromptCard({ prompt, onUpdate, onRemove, isEditable }: PromptCar
                     placeholder="e.g., Write a short story about a robot who discovers music."
                     value={getPromptText()}
                     onChange={e => handlePromptTextChange(e.target.value)}
-                    className="min-h-[100px] text-base"
+                    className="min-h-[80px] text-sm"
                     readOnly={!isEditable}
                 />
             )}
             </div>
             <div>
-            <label className="text-base font-semibold text-foreground">Ideal Response <span className="text-sm font-normal text-muted-foreground">(Optional)</span></label>
-            <p className="text-sm text-muted-foreground mb-2">A "gold-standard" answer to compare against for semantic similarity.</p>
+            <label className="text-sm font-semibold text-foreground">Ideal Response <span className="text-xs font-normal text-muted-foreground">(Optional)</span></label>
+            <p className="text-xs text-muted-foreground mb-1.5">A "gold-standard" answer to compare against for semantic similarity.</p>
             <Textarea
                 placeholder="e.g., Unit 734 processed the auditory input..."
                 value={prompt.idealResponse || ''}
                 onChange={e => handleIdealResponseChange(e.target.value)}
-                className="min-h-[100px] text-base"
+                className="min-h-[80px] text-sm"
                 readOnly={!isEditable}
             />
             </div>
-            <div className="space-y-4">
+            <div className="space-y-3">
             <ExpectationGroup
                 title="The response SHOULD..."
                 expectations={prompt.points || []}

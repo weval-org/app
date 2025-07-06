@@ -46,12 +46,12 @@ export function ExpectationGroup({ title, expectations, onUpdate, variant, isEdi
   }[variant];
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <h4 className={`font-semibold text-sm flex items-center gap-2 ${styles.titleColor}`}>
         <styles.Icon className="w-4 h-4" />
         {title}
       </h4>
-      <div className="pl-6 space-y-3">
+      <div className="pl-5 space-y-2">
         {expectations.map((exp, index) => (
           <ExpectationEditor
             key={index}
@@ -67,9 +67,9 @@ export function ExpectationGroup({ title, expectations, onUpdate, variant, isEdi
                 size="sm" 
                 variant="ghost" 
                 onClick={handleAdd} 
-                className="text-muted-foreground"
+                className="text-muted-foreground h-8"
             >
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
               Add criterion
             </Button>
         )}

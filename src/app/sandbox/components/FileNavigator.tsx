@@ -222,13 +222,29 @@ export function FileNavigator({
                         </DropdownMenu>
                     </div>
                 ) : (
-                    <Button onClick={onLogin} variant="outline" size="sm" className="w-full" disabled={isLoggingInWithGitHub}>
-                        {isLoggingInWithGitHub ? (
-                            <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Connecting...</>
-                        ) : (
-                            <><Github className="w-4 h-4 mr-2" />Login with GitHub</>
-                        )}
-                    </Button>
+                    <div className="p-0 pt-3 border-t">
+                        <div className="bg-background rounded-lg p-3 text-center">
+                            <Github className="w-6 h-6 mx-auto text-muted-foreground mb-2" />
+                            <h4 className="font-semibold text-sm mb-1">Connect your GitHub</h4>
+                            <p className="text-xs text-muted-foreground mb-3">
+                                Save blueprints, create proposals, and sync your work.
+                            </p>
+                            <Button 
+                                onClick={onLogin} 
+                                size="sm"
+                                className="w-full" 
+                                disabled={isLoggingInWithGitHub}
+                                data-tour="login-button"
+                            >
+                                {isLoggingInWithGitHub ? (
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                ) : (
+                                    <Github className="w-4 h-4 mr-2" />
+                                )}
+                                Login with GitHub
+                            </Button>
+                        </div>
+                    </div>
                 )}
             </div>
             <div className="p-2 border-b">

@@ -33,7 +33,7 @@ function isHeaderMeaningful(header: any): boolean {
 }
 
 export function generateMinimalBlueprintYaml(config: ComparisonConfig): string {
-    const { prompts, ...header } = config;
+    const { prompts, models, ...header } = config;
 
     const deNormalizedPrompts = prompts.map(p => {
         const newPrompt: any = {};

@@ -129,7 +129,8 @@ describe('generateMinimalBlueprintYaml', () => {
             prompts: []
         };
         const result = generateMinimalBlueprintYaml(config);
-        expect(result).toBe('title: Header Only\nmodels: []\n');
+        expect(result).toBe('title: Header Only\n');
+        // Note: models are intentionally not included.
         expect(result).not.toContain('---');
     });
 

@@ -32,13 +32,13 @@ export function ExpectationEditor({ expectation, onUpdate, onRemove, variant, is
         placeholder={variant === 'should' ? 'e.g., The response is polite.' : 'e.g., Avoids technical jargon.'}
         value={value}
         onChange={(e) => handleUpdate(e.target.value)}
-        className="h-auto resize-y"
+        className="h-auto resize-y text-sm"
         rows={1}
         readOnly={!isEditable}
       />
       {isEditable && (
-        <Button size="icon" variant="ghost" onClick={onRemove} className="h-8 w-8 flex-shrink-0" title="Remove Criterion">
-            <Trash2 className="h-4 w-4 text-muted-foreground" />
+        <Button size="icon" variant="ghost" onClick={onRemove} className="h-7 w-7 flex-shrink-0" title="Remove Criterion">
+            <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
         </Button>
       )}
     </div>

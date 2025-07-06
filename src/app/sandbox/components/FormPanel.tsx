@@ -58,29 +58,29 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
 
     if (isLoading) {
         return (
-            <div className="p-4 space-y-4 h-full bg-background">
+            <div className="p-3 space-y-3 h-full bg-background">
+                <Skeleton className="h-40 w-full" />
                 <Skeleton className="h-48 w-full" />
-                <Skeleton className="h-64 w-full" />
             </div>
         );
     }
 
     if (!parsedBlueprint) {
         return (
-            <div className="p-4 h-full bg-background flex items-center justify-center text-muted-foreground">
+            <div className="p-3 h-full bg-background flex items-center justify-center text-muted-foreground">
                 <p>{'Select a blueprint to begin or fix the errors in the YAML.'}</p>
             </div>
         );
     }
 
     return (
-        <div className="p-4 space-y-4 bg-background">
+        <div className="p-3 space-y-3 bg-background">
             <GlobalConfigCard 
                 blueprint={parsedBlueprint}
                 onUpdate={handleUpdate}
                 isEditable={isEditable}
             />
-            <div className="space-y-4">
+            <div className="space-y-3">
                 {parsedBlueprint.prompts.map((prompt, index) => (
                     <PromptCard
                         key={index}
@@ -92,9 +92,10 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
                 ))}
             </div>
              {isEditable && (
-                <div className="text-center">
+                <div className="text-center pt-2">
                     <Button 
                         variant="outline" 
+                        size="sm"
                         onClick={handleAddPrompt}
                     >
                         <Plus className="h-4 w-4 mr-2" />

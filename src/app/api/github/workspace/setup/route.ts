@@ -125,14 +125,38 @@ export async function POST(req: NextRequest) {
         const userResponse = await octokit.users.getAuthenticated();
         const userLogin = userResponse.data.login;
         
+        // Quick check: if we already have a fork, we can skip most of the work
+        let userFork;
+        try {
+            userFork = await octokit.repos.get({
+                owner: userLogin,
+                repo: 'configs'
+            });
+            
+            // If we get here, the fork exists, so we can return early
+            if (userFork.data) {
+                console.log(`Found existing user fork: '${userFork.data.full_name}' (quick check)`);
+                await ensurePlaceholderFile(octokit, userLogin, 'configs');
+                return NextResponse.json({ 
+                    message: 'Workspace setup completed successfully',
+                    forkName: userFork.data.full_name,
+                    forkCreated: false 
+                });
+            }
+        } catch (error: any) {
+            // Fork doesn't exist, continue with the full setup process
+            console.log('Fork not found via quick check, proceeding with full setup...');
+        }
+        
         const forks = await octokit.repos.listForks({
             owner: UPSTREAM_OWNER,
             repo: UPSTREAM_REPO_NAME,
         });
         
-        const userFork = forks.data.find(fork => fork.owner.login === userLogin);
+        userFork = forks.data.find(fork => fork.owner.login === userLogin);
 
         let forkFullName: string;
+        let forkCreated = false;
 
         if (userFork) {
             console.log(`Found existing user fork: '${userFork.full_name}'`);
@@ -144,6 +168,7 @@ export async function POST(req: NextRequest) {
                 repo: UPSTREAM_REPO_NAME,
             });
             forkFullName = newForkResponse.data.full_name;
+            forkCreated = true;
 
             // Poll to wait for the fork to be ready, as it's an async operation
             let isReady = false;
@@ -180,7 +205,8 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ 
             message: 'Workspace setup completed successfully',
-            forkName: forkFullName 
+            forkName: forkFullName,
+            forkCreated 
         });
 
     } catch (error: any) {

@@ -23,30 +23,30 @@ export function GlobalConfigCard({ blueprint, onUpdate, isEditable }: GlobalConf
   };
 
   return (
-    <Card className="p-6">
-        <div className="space-y-6">
+    <Card className="p-4">
+        <div className="space-y-4">
             <div>
-                <label className="text-base font-semibold text-foreground" htmlFor="blueprint-title">Blueprint Title</label>
-                <p className="text-sm text-muted-foreground mb-2">A short, descriptive title for your evaluation.</p>
+                <label className="text-sm font-semibold text-foreground" htmlFor="blueprint-title">Blueprint Title</label>
+                <p className="text-xs text-muted-foreground mb-1.5">A short, descriptive title for your evaluation.</p>
                 <Input
                     id="blueprint-title"
                     type="text" 
                     placeholder="e.g., Clinical Accuracy Test"
                     value={blueprint.title}
                     onChange={(e) => handleFieldChange('title', e.target.value)}
-                    className="text-base"
+                    className="text-sm"
                     readOnly={!isEditable}
                 />
             </div>
             <div>
-                <label className="text-base font-semibold text-foreground" htmlFor="blueprint-description">Description</label>
-                <p className="text-sm text-muted-foreground mb-2">A brief explanation of what this blueprint is designed to test.</p>
+                <label className="text-sm font-semibold text-foreground" htmlFor="blueprint-description">Description</label>
+                <p className="text-xs text-muted-foreground mb-1.5">A brief explanation of what this blueprint is designed to test.</p>
                 <Textarea
                     id="blueprint-description"
                     placeholder="e.g., Tests a model's ability to provide safe and accurate medical information."
                     value={blueprint.description || ''}
                     onChange={(e) => handleFieldChange('description', e.target.value)}
-                    className="min-h-[100px] text-base"
+                    className="min-h-[80px] text-sm"
                     rows={3}
                     readOnly={!isEditable}
                 />
@@ -56,7 +56,7 @@ export function GlobalConfigCard({ blueprint, onUpdate, isEditable }: GlobalConf
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle>Models Will Be Ignored</AlertTitle>
                     <AlertDescription>
-                        Defining models in the blueprint is not supported. Models for evaluation are selected when you click &quot;Run Evaluation.&quot; Please remove the <code>models</code> field before proposing this blueprint.
+                        Defining models in the blueprint is not supported within the sandbox. Models for evaluation are selected when you click &quot;Run Evaluation.&quot; If you want to submit this as a proposal, please remove the <code>models</code> field.
                     </AlertDescription>
                 </Alert>
             )}
@@ -71,17 +71,17 @@ export function GlobalConfigCard({ blueprint, onUpdate, isEditable }: GlobalConf
             </div>
             */}
             <div>
-                <label htmlFor="blueprint-system" className="text-sm font-medium block mb-1.5">System Prompt (Optional)</label>
+                <label htmlFor="blueprint-system" className="text-sm font-semibold block mb-1">System Prompt (Optional)</label>
                 <Textarea
                     id="blueprint-system"
                     placeholder="You are a helpful assistant."
                     value={blueprint.system || ''}
                     onChange={(e) => handleFieldChange('system', e.target.value)}
                     rows={3}
-                    className="min-h-[100px] text-base"
+                    className="min-h-[80px] text-sm"
                     readOnly={!isEditable}
                 />
-                <p className="text-xs text-muted-foreground mt-1.5">A global system prompt to be used for all test cases in this blueprint.</p>
+                <p className="text-xs text-muted-foreground mt-1">A global system prompt to be used for all test cases in this blueprint.</p>
             </div>
         </div>
     </Card>

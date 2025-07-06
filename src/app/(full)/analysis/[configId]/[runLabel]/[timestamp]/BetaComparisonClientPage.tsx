@@ -37,7 +37,11 @@ import { AggregateAnalysisView } from './AggregateAnalysisView';
 import { SandboxAggregateView } from './SandboxAggregateView';
 import ExecutiveSummary from '@/app/(full)/analysis/components/ExecutiveSummary';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
+import { useToast } from '@/components/ui/use-toast';
+import { generateMinimalBlueprintYaml } from '@/app/sandbox/utils/yaml-generator';
+import { useLocalStorage } from 'usehooks-ts';
 
+const FlaskConical = dynamic(() => import('lucide-react').then(mod => mod.FlaskConical));
 const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.AlertCircle))
 const Loader2 = dynamic(() => import("lucide-react").then((mod) => mod.Loader2))
 const GitCommit = dynamic(() => import("lucide-react").then((mod) => mod.GitCommit))
@@ -47,13 +51,12 @@ const Download = dynamic(() => import("lucide-react").then((mod) => mod.Download
 const FileCode2 = dynamic(() => import("lucide-react").then((mod) => mod.FileCode2));
 const FileText = dynamic(() => import("lucide-react").then((mod) => mod.FileText));
 
-export default function BetaComparisonClientPage({ 
-  data: initialData, 
-  isSandbox = false,
-}: { 
-  data: ImportedComparisonDataV2, 
-  isSandbox?: boolean,
-}) {
+export interface BetaComparisonClientPageProps {
+  data: ImportedComparisonDataV2;
+  isSandbox?: boolean;
+}
+
+const BetaComparisonClientPage: React.FC<BetaComparisonClientPageProps> = ({ data, isSandbox = false }) => {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -66,8 +69,8 @@ export default function BetaComparisonClientPage({
   const currentPromptId = searchParams.get('prompt');
 
   // The hook now takes the initial data directly.
-  const { data, loading, error, promptNotFound, excludedModelsList } = useComparisonData({
-    initialData,
+  const { data: comparisonData, loading, error, promptNotFound, excludedModelsList } = useComparisonData({
+    initialData: data,
     currentPromptId,
   });
 
@@ -77,16 +80,21 @@ export default function BetaComparisonClientPage({
   const [activeHighlights, setActiveHighlights] = useState<Set<ActiveHighlight>>(new Set());
   const { resolvedTheme } = useTheme();
 
+  const { toast } = useToast();
+  const [activeTab, setActiveTab] = useLocalStorage<string>('activeAnalysisTab', 'aggregate');
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [selectedEvaluation, setSelectedEvaluation] = useState<{ promptId: string, modelId: string } | null>(null);
+
   useEffect(() => {
-    if (data?.config?.temperatures) {
-      setSelectedTemperatures(data.config.temperatures);
+    if (comparisonData?.config?.temperatures) {
+      setSelectedTemperatures(comparisonData.config.temperatures);
     } else {
       setSelectedTemperatures([]);
     }
-  }, [data]);
+  }, [comparisonData]);
 
   const { displayedModels, modelsForMacroTable, modelsForAggregateView } = useModelFiltering({
-    data,
+    data: comparisonData,
     currentPromptId,
     forceIncludeExcludedModels,
     excludedModelsList,
@@ -94,12 +102,12 @@ export default function BetaComparisonClientPage({
     selectedTemperatures,
   });
   
-  const analysisStats = useAnalysisStats(data);
+  const analysisStats = useAnalysisStats(comparisonData);
 
   const canonicalModelsForSinglePrompt = useMemo(() => {
-    if (!data || !currentPromptId) return displayedModels;
-    return getCanonicalModels(displayedModels, data.config);
-  }, [data, currentPromptId, displayedModels]);
+    if (!comparisonData || !currentPromptId) return displayedModels;
+    return getCanonicalModels(displayedModels, comparisonData.config);
+  }, [comparisonData, currentPromptId, displayedModels]);
 
   const {
     responseComparisonModal,
@@ -112,7 +120,7 @@ export default function BetaComparisonClientPage({
     handleSemanticExtremesClick,
     prepareResponseComparisonModalData,
     prepareModelEvaluationModalData,
-  } = usePageInteraction(data);
+  } = usePageInteraction(comparisonData);
 
   const handleMostDifferentiatingClick = useCallback(() => {
     if (analysisStats?.mostDifferentiatingPrompt?.id) {
@@ -132,9 +140,9 @@ export default function BetaComparisonClientPage({
 
   const permutationSensitivityMap = useMemo(() => {
     const sensitivityMap = new Map<string, 'temp' | 'sys' | 'both'>();
-    if (!data || !data.effectiveModels || !data.evaluationResults?.llmCoverageScores) return sensitivityMap;
+    if (!comparisonData || !comparisonData.effectiveModels || !comparisonData.evaluationResults?.llmCoverageScores) return sensitivityMap;
 
-    const { effectiveModels, promptIds, evaluationResults, config } = data;
+    const { effectiveModels, promptIds, evaluationResults, config } = comparisonData;
     const llmCoverageScores = evaluationResults.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>>;
 
     const baseModelGroups = new Map<string, string[]>();
@@ -223,18 +231,18 @@ export default function BetaComparisonClientPage({
         });
     }
     return sensitivityMap;
-  }, [data]);
+  }, [comparisonData]);
 
   const normalizedExecutiveSummary = useMemo(() => {
-    if (!data?.executiveSummary) return null;
-    const content = typeof data.executiveSummary === 'string' ? data.executiveSummary : data.executiveSummary.content;
+    if (!comparisonData?.executiveSummary) return null;
+    const content = typeof comparisonData.executiveSummary === 'string' ? comparisonData.executiveSummary : comparisonData.executiveSummary.content;
     // Replace all headings (h1, h3, h4, etc.) with h2 headings.
     return content.replace(/^#+\s/gm, '## ');
-  }, [data?.executiveSummary]);
+  }, [comparisonData?.executiveSummary]);
 
   const getPromptContextDisplayString = useMemo(() => (promptId: string): string => {
-    if (!data || !data.promptContexts) return promptId;
-    const context = data.promptContexts[promptId];
+    if (!comparisonData || !comparisonData.promptContexts) return promptId;
+    const context = comparisonData.promptContexts[promptId];
     if (typeof context === 'string') {
       return context;
     }
@@ -246,10 +254,10 @@ export default function BetaComparisonClientPage({
       return `Multi-turn context (${context.length} messages)`;
     }
     return promptId;
-  }, [data]);
+  }, [comparisonData]);
 
   const summaryStats = useMemo(() => {
-    if (!data || !analysisStats) return undefined;
+    if (!comparisonData || !analysisStats) return undefined;
 
     const mdpFromStats = analysisStats.mostDifferentiatingPrompt;
 
@@ -300,30 +308,30 @@ export default function BetaComparisonClientPage({
       worstPerformingModel: worstPerformer,
       mostDifferentiatingPrompt,
     };
-  }, [isSandbox, data, analysisStats, getPromptContextDisplayString]);
+  }, [isSandbox, comparisonData, analysisStats, getPromptContextDisplayString]);
 
   const headerWidgetContent = useMemo(() => {
-    if (currentPromptId || !data?.evaluationResults?.llmCoverageScores || !data.promptIds || displayedModels.filter(m => m !== IDEAL_MODEL_ID).length === 0) {
+    if (currentPromptId || !comparisonData?.evaluationResults?.llmCoverageScores || !comparisonData.promptIds || displayedModels.filter(m => m !== IDEAL_MODEL_ID).length === 0) {
       return null;
     }
     return (
       <CoverageHeatmapCanvas
-        allCoverageScores={data.evaluationResults.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>>} 
-        promptIds={data.promptIds}
+        allCoverageScores={comparisonData.evaluationResults.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>>} 
+        promptIds={comparisonData.promptIds}
         models={displayedModels.filter(m => m !== IDEAL_MODEL_ID)}
         width={100}
         height={50}
         className="rounded-md border border-border dark:border-border shadow-sm"
       />
     );
-  }, [currentPromptId, data, displayedModels]);
+  }, [currentPromptId, comparisonData, displayedModels]);
 
   const currentPromptDisplayText = useMemo(() => currentPromptId ? getPromptContextDisplayString(currentPromptId) : 'All Prompts', [currentPromptId, getPromptContextDisplayString]);
   
   const pageTitle = useMemo(() => {
     let title = "Analysis";
-    if (data) {
-      title = `${data.configTitle || configIdFromUrl}`;
+    if (comparisonData) {
+      title = `${comparisonData.configTitle || configIdFromUrl}`;
     } else if (configIdFromUrl && runLabel && timestampFromUrl) {
       title = `${configIdFromUrl} - ${runLabel}`;
       title += ` (${formatTimestampForDisplay(fromSafeTimestamp(timestampFromUrl))})`;
@@ -332,17 +340,17 @@ export default function BetaComparisonClientPage({
       title += ` - Prompt: ${currentPromptDisplayText}`;
     }
     return title;
-  }, [data, configIdFromUrl, runLabel, timestampFromUrl, currentPromptId, currentPromptDisplayText]);
+  }, [comparisonData, configIdFromUrl, runLabel, timestampFromUrl, currentPromptId, currentPromptDisplayText]);
 
   const breadcrumbItems = useMemo(() => {
     const items: AnalysisPageHeaderProps['breadcrumbs'] = [
       { label: 'Home', href: '/' },
       {
-        label: data?.configTitle || configIdFromUrl,
+        label: comparisonData?.configTitle || configIdFromUrl,
         href: `/analysis/${configIdFromUrl}`,
       },
       {
-        label: data?.runLabel || runLabel,
+        label: comparisonData?.runLabel || runLabel,
         href: `/analysis/${configIdFromUrl}/${runLabel}`,
       },
       {
@@ -358,24 +366,24 @@ export default function BetaComparisonClientPage({
       });
     }
     return items;
-  }, [data, configIdFromUrl, runLabel, timestampFromUrl, currentPromptId, currentPromptDisplayText]);
+  }, [comparisonData, configIdFromUrl, runLabel, timestampFromUrl, currentPromptId, currentPromptDisplayText]);
 
   const promptTextsForMacroTable = useMemo(() => {
-    if (!data?.promptContexts) return {};
+    if (!comparisonData?.promptContexts) return {};
     return Object.fromEntries(
-      Object.entries(data.promptContexts).map(([promptId, context]) => [
+      Object.entries(comparisonData.promptContexts).map(([promptId, context]) => [
         promptId,
         typeof context === 'string' ? context : getPromptContextDisplayString(promptId)
       ])
     );
-  }, [data?.promptContexts, getPromptContextDisplayString]);
+  }, [comparisonData?.promptContexts, getPromptContextDisplayString]);
 
   useEffect(() => {
     document.title = pageTitle;
   }, [pageTitle]);
 
   const renderPromptSelector = () => {
-    if (!data || !data.promptIds) return null;
+    if (!comparisonData || !comparisonData.promptIds) return null;
 
     const handleSelectChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
       const selectedPromptId = event.target.value;
@@ -400,7 +408,7 @@ export default function BetaComparisonClientPage({
           className="block w-full p-2 border border-border dark:border-border rounded-md shadow-sm focus:ring-primary focus:border-primary bg-card dark:bg-card text-card-foreground dark:text-card-foreground text-sm"
         >
           <option value="__ALL__" className="bg-background text-foreground dark:bg-background dark:text-foreground">All Prompts (Overall Analysis)</option>
-          {data.promptIds.map(promptId => (
+          {comparisonData.promptIds.map(promptId => (
             <option key={promptId} value={promptId} title={getPromptContextDisplayString(promptId)} className="bg-background text-foreground dark:bg-background dark:text-foreground">
               {promptId} - {getPromptContextDisplayString(promptId)}
             </option>
@@ -408,6 +416,39 @@ export default function BetaComparisonClientPage({
         </select>
       </div>
     );
+  };
+
+  const handleExploreInSandbox = () => {
+    try {
+      if (!comparisonData?.config) {
+        throw new Error('Blueprint configuration is not available in the results data.');
+      }
+
+      const yamlContent = generateMinimalBlueprintYaml(comparisonData.config);
+      const blueprintName = `Copy of ${comparisonData.configTitle || 'Untitled Blueprint'}.yml`;
+
+      const importData = {
+        name: blueprintName,
+        content: yamlContent,
+      };
+
+      localStorage.setItem('weval_sandbox_import_v2', JSON.stringify(importData));
+      
+      toast({
+        title: "Blueprint prepared!",
+        description: `Opening "${blueprintName}" in the Sandbox Studio...`,
+      });
+
+      window.open('/sandbox', '_blank');
+
+    } catch (error) {
+      console.error("Failed to prepare blueprint for Sandbox:", error);
+      toast({
+        variant: 'destructive',
+        title: 'Operation Failed',
+        description: 'Could not prepare the blueprint for the Sandbox Studio.',
+      });
+    }
   };
 
   if (loading) {
@@ -443,9 +484,9 @@ export default function BetaComparisonClientPage({
       </Alert>
     )
   }
-  if (!data) return null; 
+  if (!comparisonData) return null; 
 
-  const headerActions = data ? (
+  const headerActions = comparisonData ? (
     <div className="flex items-center gap-2">
         {isSandbox ? (
             <Button asChild variant="outline" size="sm" className="text-green-600 dark:text-green-400 border-green-600/70 dark:border-green-700/70 hover:bg-green-600/10 dark:hover:bg-green-700/30 hover:text-green-700 dark:hover:text-green-300 px-3 py-1.5 text-xs">
@@ -454,9 +495,9 @@ export default function BetaComparisonClientPage({
                     Download Blueprint
                 </Link>
             </Button>
-        ) : data.sourceCommitSha ? (
+        ) : comparisonData.sourceCommitSha ? (
             <Button asChild variant="outline">
-                <Link href={`${BLUEPRINT_CONFIG_REPO_URL}/blob/${data.sourceCommitSha}/blueprints/${data.configId}.yml`} target="_blank" rel="noopener noreferrer" title={`View blueprint at commit ${data.sourceCommitSha.substring(0, 7)}`}>
+                <Link href={`${BLUEPRINT_CONFIG_REPO_URL}/blob/${comparisonData.sourceCommitSha}/blueprints/${comparisonData.configId}.yml`} target="_blank" rel="noopener noreferrer" title={`View blueprint at commit ${comparisonData.sourceCommitSha.substring(0, 7)}`}>
                     <GitCommit className="w-4 h-4 mr-2" />
                     View Blueprint on GitHub
                 </Link>
@@ -466,7 +507,7 @@ export default function BetaComparisonClientPage({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button asChild variant="outline">
-                      <Link href={`${BLUEPRINT_CONFIG_REPO_URL}/blob/main/blueprints/${data.configId}.json`} target="_blank" rel="noopener noreferrer">
+                      <Link href={`${BLUEPRINT_CONFIG_REPO_URL}/blob/main/blueprints/${comparisonData.configId}.json`} target="_blank" rel="noopener noreferrer">
                           <GitCommit className="w-4 h-4 mr-2" />
                           View Latest Blueprint
                       </Link>
@@ -481,12 +522,16 @@ export default function BetaComparisonClientPage({
               </Tooltip>
             </TooltipProvider>
         )}
-        <DownloadResultsButton data={data} label={`${data.configTitle || configIdFromUrl} - ${data.runLabel || runLabel}${timestampFromUrl ? ' (' + formatTimestampForDisplay(fromSafeTimestamp(timestampFromUrl)) + ')' : ''}`} />
+        <DownloadResultsButton data={comparisonData} label={`${comparisonData.configTitle || configIdFromUrl} - ${comparisonData.runLabel || runLabel}${timestampFromUrl ? ' (' + formatTimestampForDisplay(fromSafeTimestamp(timestampFromUrl)) + ')' : ''}`} />
         <Button asChild variant="outline" size="sm" className="text-green-600 dark:text-green-400 border-green-600/70 dark:border-green-700/70 hover:bg-green-600/10 dark:hover:bg-green-700/30 hover:text-green-700 dark:hover:text-green-300 px-3 py-1.5 text-xs">
             <Link href={`/api/comparison/${configIdFromUrl}/${runLabel}/${timestampFromUrl}/markdown`} download>
                 <FileText className="w-3.5 h-3.5 mr-1.5" />
                 Download Results as Markdown
             </Link>
+        </Button>
+        <Button onClick={handleExploreInSandbox} variant="outline" size="sm" className="bg-exciting text-exciting-foreground border-exciting hover:bg-exciting/90 hover:text-exciting-foreground">
+          <FlaskConical className="w-4 h-4 mr-2" />
+          Run in Sandbox Studio
         </Button>
     </div>
   ) : null;
@@ -515,11 +560,11 @@ export default function BetaComparisonClientPage({
                 breadcrumbs={breadcrumbItems}
                 pageTitle={pageTitle}
                 contextualInfo={{
-                configTitle: data.configTitle,
-                runLabel: data.runLabel,
-                timestamp: data.timestamp,
-                description: data.description,
-                tags: data.config?.tags
+                configTitle: comparisonData.configTitle,
+                runLabel: comparisonData.runLabel,
+                timestamp: comparisonData.timestamp,
+                description: comparisonData.description,
+                tags: comparisonData.config?.tags
                 }}
                 actions={headerActions}
                 headerWidget={headerWidgetContent}
@@ -534,7 +579,7 @@ export default function BetaComparisonClientPage({
 
         {currentPromptId ? (
             <SinglePromptView
-                data={data}
+                data={comparisonData}
                 currentPromptId={currentPromptId}
                 currentPromptDisplayText={currentPromptDisplayText}
                 displayedModels={displayedModels}
@@ -545,7 +590,7 @@ export default function BetaComparisonClientPage({
             />
         ) : isSandbox ? (
             <SandboxAggregateView
-                data={data}
+                data={comparisonData}
                 displayedModels={displayedModels}
                 openModelEvaluationDetailModal={openModelEvaluationDetailModal}
                 activeHighlights={activeHighlights}
@@ -557,7 +602,7 @@ export default function BetaComparisonClientPage({
             />
         ) : (
             <AggregateAnalysisView
-                data={data}
+                data={comparisonData}
                 configId={configIdFromUrl}
                 runLabel={runLabel}
                 timestamp={timestampFromUrl}
@@ -583,7 +628,7 @@ export default function BetaComparisonClientPage({
 
         {!isSandbox && (
             <DebugPanel 
-                data={data} 
+                data={comparisonData} 
                 configId={configIdFromUrl}
                 runLabel={runLabel}
                 timestamp={timestampFromUrl}
@@ -617,4 +662,6 @@ export default function BetaComparisonClientPage({
       )}
     </div>
   );
-} 
+}
+
+export default BetaComparisonClientPage; 

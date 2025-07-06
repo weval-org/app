@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import * as yaml from 'js-yaml';
 import { useAuth } from '../hooks/useAuth';
@@ -31,6 +31,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { TourProvider, useTour, StepType } from '@reactour/tour';
+import { ActiveBlueprint } from '../hooks/useWorkspace';
 
 const Loader2 = dynamic(() => import('lucide-react').then(mod => mod.Loader2), { ssr: false });
 const Save = dynamic(() => import('lucide-react').then(mod => mod.Save), { ssr: false });
@@ -40,11 +42,66 @@ const FlaskConical = dynamic(() => import('lucide-react').then(mod => mod.FlaskC
 const MoreVertical = dynamic(() => import('lucide-react').then(mod => mod.MoreVertical), { ssr: false });
 const History = dynamic(() => import('lucide-react').then(mod => mod.History), { ssr: false });
 const ExternalLink = dynamic(() => import('lucide-react').then(mod => mod.ExternalLink), { ssr: false });
+const HelpCircle = dynamic(() => import('lucide-react').then(mod => mod.HelpCircle), { ssr: false });
 
-export default function SandboxClientPage() {
+const getTourSteps = (isLoggedIn: boolean, activeBlueprint: ActiveBlueprint | null): StepType[] => {
+    const steps: StepType[] = [
+        {
+          selector: '[data-tour="file-navigator"]',
+          content: 'This is the File Navigator. You can manage your local and GitHub-synced blueprints here. Create new files, or generate one with AI.',
+        },
+    ];
+
+    if (!isLoggedIn) {
+        steps.push({
+            selector: '[data-tour="login-button"]',
+            content: 'Connect your GitHub account to save your work, create proposals, and sync blueprints to your own repository.',
+        });
+    }
+
+    steps.push(
+        {
+          selector: '[data-tour="form-panel"]',
+          content: 'This is the Form Panel. It provides a structured, user-friendly way to build your blueprint without writing YAML by hand.',
+        },
+        {
+            selector: '[data-tour="yaml-panel"]',
+            content: 'This is the YAML editor. For advanced use, you can directly edit the raw blueprint source code here. The form and YAML are kept in sync.',
+        },
+        {
+          selector: '[data-tour="run-evaluation-button"]',
+          content: 'When your blueprint is ready, run it against a suite of models to see how they perform.',
+        },
+        {
+            selector: '[data-tour="runs-history-button"]',
+            content: "View the history of your past runs for this blueprint in the Runs Sidebar.",
+        }
+    );
+
+    if (isLoggedIn && activeBlueprint && !activeBlueprint.isLocal && !activeBlueprint.prStatus) {
+        steps.push({
+            selector: '[data-tour="proposal-button"]',
+            content: 'Since you are signed in with GitHub and this blueprint is in your repository, you can propose to add it to the public library.',
+        });
+    }
+
+    return steps;
+};
+
+const TourButton = () => {
+    const { setIsOpen } = useTour();
+    return (
+        <Button onClick={() => setIsOpen(true)} size="icon" variant="ghost" className="relative" title="Show Tour">
+            <HelpCircle className="w-5 h-5" />
+        </Button>
+    );
+};
+
+function SandboxClientPageInternal() {
     const { user, isLoading: isAuthLoading, clearAuth } = useAuth();
     const {
         status,
+        setupMessage,
         files,
         activeBlueprint,
         isFetchingFiles,
@@ -77,6 +134,9 @@ export default function SandboxClientPage() {
         isAuthLoading
     );
 
+    const { setIsOpen, setSteps } = useTour();
+    const setupInitiatedRef = useRef(false);
+
     const [isProposalWizardOpen, setIsProposalWizardOpen] = useState(false);
     const [isRunsSidebarOpen, setIsRunsSidebarOpen] = useState(false);
     const [isRunModalOpen, setIsRunModalOpen] = useState(false);
@@ -101,6 +161,25 @@ export default function SandboxClientPage() {
     const { toast } = useToast();
 
     const isLocal = activeBlueprint?.isLocal ?? true;
+    const isLoggedIn = user?.isLoggedIn ?? false;
+
+    useEffect(() => {
+        const newSteps = getTourSteps(isLoggedIn, activeBlueprint);
+        if (setSteps) {
+            setSteps(newSteps);
+        }
+    }, [isLoggedIn, activeBlueprint, setSteps]);
+
+    useEffect(() => {
+        const hasSeenTour = localStorage.getItem('hasSeenSandboxTour');
+        if (!hasSeenTour && !isAuthLoading && status !== 'idle' && status !== 'setting_up') {
+            const timer = setTimeout(() => {
+                setIsOpen(true);
+                localStorage.setItem('hasSeenSandboxTour', 'true');
+            }, 1000); // Small delay to allow UI to settle
+            return () => clearTimeout(timer);
+        }
+    }, [isAuthLoading, status, setIsOpen]);
 
     useEffect(() => {
         const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -121,7 +200,15 @@ export default function SandboxClientPage() {
 
     useEffect(() => {
         const handleWorkspaceSetup = async () => {
+            if (setupInitiatedRef.current) {
+                console.log('[SandboxClientPage] setupWorkspace already initiated, skipping');
+                return; // Prevent multiple calls
+            }
+            console.log('[SandboxClientPage] Initiating workspace setup');
+            setupInitiatedRef.current = true;
+            
             const result = await setupWorkspace();
+            console.log('[SandboxClientPage] setupWorkspace result:', result);
             if (result?.authFailure) {
                 // Backend says user is not authenticated, but frontend thinks they are
                 // Sync the auth state by clearing it
@@ -129,10 +216,18 @@ export default function SandboxClientPage() {
             }
         };
 
-        if (user?.isLoggedIn) {
+        console.log(`[SandboxClientPage useEffect] isLoggedIn: ${user?.isLoggedIn}, setupInitiated: ${setupInitiatedRef.current}`);
+        if (user?.isLoggedIn && !setupInitiatedRef.current) {
             handleWorkspaceSetup();
         }
-    }, [setupWorkspace, user?.isLoggedIn, clearAuth]);
+    }, [user?.isLoggedIn, clearAuth]);
+
+    // Reset setup flag when user logs out
+    useEffect(() => {
+        if (!user?.isLoggedIn) {
+            setupInitiatedRef.current = false;
+        }
+    }, [user?.isLoggedIn]);
 
     useEffect(() => {
         if (activeBlueprint) {
@@ -166,29 +261,6 @@ export default function SandboxClientPage() {
             setIsRunModalOpen(true);
         }
     }, [runId, runStatus.status]);
-
-    useEffect(() => {
-        const inProgressStatuses = ['pending', 'generating_responses', 'evaluating', 'saving'];
-        if (!runId || !inProgressStatuses.includes(runStatus.status)) return;
-
-        const poll = async () => {
-            try {
-                const response = await fetch(`/api/sandbox/status/${runId}`);
-                if (response.ok) {
-                    const newStatus = await response.json();
-                    setRunStatus(newStatus);
-                } else if (response.status !== 404 && response.status !== 202) {
-                     setRunStatus({ status: 'error', message: `Failed to get status (HTTP ${response.status}).` });
-                }
-            } catch (error: any) {
-                 setRunStatus({ status: 'error', message: 'Polling failed.' });
-            }
-        };
-
-        const intervalId = setInterval(poll, 3000);
-        poll(); // Initial poll
-        return () => clearInterval(intervalId);
-    }, [runId, runStatus.status, setRunStatus]);
 
     useEffect(() => {
         if (runStatus.status === 'complete' || runStatus.status === 'error') {
@@ -432,6 +504,7 @@ export default function SandboxClientPage() {
                         disabled={isRunning || !activeBlueprint || isLoading} 
                         size="sm"
                         className="bg-exciting text-exciting-foreground border-exciting hover:bg-exciting/90 hover:text-exciting-foreground"
+                        data-tour="run-evaluation-button"
                     >
                          {isRunning ? (
                             <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Running...</>
@@ -450,7 +523,7 @@ export default function SandboxClientPage() {
                     }
 
                     {!isLocal && !activeBlueprint?.prStatus && (
-                        <Button onClick={() => setIsProposalWizardOpen(true)} disabled={isCreatingPr || !activeBlueprint || isLoading} size="sm" variant="outline">
+                        <Button onClick={() => setIsProposalWizardOpen(true)} disabled={isCreatingPr || !activeBlueprint || isLoading} size="sm" variant="outline" data-tour="proposal-button">
                             <GitPullRequest className="w-4 h-4 mr-2" />
                             {isCreatingPr ? 'Proposing...' : 'Propose'}
                         </Button>
@@ -494,12 +567,13 @@ export default function SandboxClientPage() {
 
                     <Separator orientation="vertical" className="h-6" />
 
-                    <Button onClick={() => setIsRunsSidebarOpen(true)} size="icon" variant="ghost" className="relative" disabled={isLoading}>
+                    <Button onClick={() => setIsRunsSidebarOpen(true)} size="icon" variant="ghost" className="relative" disabled={isLoading} data-tour="runs-history-button">
                         <History className="w-5 h-5" />
                         {isRunning && (
                              <span className="absolute top-0 right-0 block h-2 w-2 rounded-full bg-sky-500 ring-2 ring-background" />
                         )}
                     </Button>
+                    <TourButton />
                 </div>
             </header>
         );
@@ -507,7 +581,7 @@ export default function SandboxClientPage() {
 
     const renderMainContent = () => (
         <div className="flex h-screen bg-background">
-             <div className="flex-shrink-0 border-r bg-muted w-72 flex flex-col">
+             <div className="flex-shrink-0 border-r bg-muted w-72 flex flex-col" data-tour="file-navigator">
                 <FileNavigator
                     files={files}
                     activeFilePath={activeBlueprint?.path || null}
@@ -525,7 +599,7 @@ export default function SandboxClientPage() {
                     onLogin={handleLogin}
                     isLoggingInWithGitHub={isLoggingInWithGitHub}
                     onLogout={handleLogout}
-                    onRefresh={fetchFiles}
+                    onRefresh={() => fetchFiles(true)}
                 />
             </div>
             <main className="flex-1 flex flex-col overflow-hidden">
@@ -559,7 +633,7 @@ export default function SandboxClientPage() {
                         </div>
                     </div>
                 )}
-                <div className="flex-grow flex flex-row gap-px bg-border relative min-h-0">
+                <div className="flex-grow flex flex-row gap-px bg-border relative min-h-0" data-tour="editor-panels">
                     {isFetchingFileContent && (
                         <div className="absolute inset-0 bg-background flex flex-col items-center justify-center z-10">
                             <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
@@ -568,6 +642,7 @@ export default function SandboxClientPage() {
                     <div
                         className={`flex-1 relative overflow-y-auto transition-all duration-200 ease-in-out ${activeEditor === 'form' ? 'border-t-2 border-primary' : 'border-t-2 border-transparent'}`}
                         onClick={handleActivateFormEditor}
+                        data-tour="form-panel"
                     >
                         <FormPanel
                             parsedBlueprint={parsedBlueprint}
@@ -580,6 +655,7 @@ export default function SandboxClientPage() {
                     <div
                         className={`flex-1 relative overflow-y-auto transition-all duration-200 ease-in-out ${activeEditor === 'yaml' ? 'border-t-2 border-primary' : 'border-t-2 border-transparent'}`}
                         onClick={() => setActiveEditor('yaml')}
+                        data-tour="yaml-panel"
                     >
                        <EditorPanel
                             rawContent={localBlueprintContent}
@@ -600,7 +676,7 @@ export default function SandboxClientPage() {
         if (!isAuthLoading) {
             switch (status) {
                 case 'setting_up':
-                    loadingMessage = 'Setting up your workspace...';
+                    loadingMessage = setupMessage || 'Setting up your workspace...';
                     break;
                 case 'loading':
                     loadingMessage = 'Loading your blueprints...';
@@ -712,5 +788,13 @@ export default function SandboxClientPage() {
                 isConfirming={status === 'setting_up'}
             />
         </>
+    );
+}
+
+export default function SandboxClientPage() {
+    return (
+        <TourProvider steps={[]}>
+            <SandboxClientPageInternal />
+        </TourProvider>
     );
 }
