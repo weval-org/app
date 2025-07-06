@@ -248,25 +248,27 @@ export function FileNavigator({
                 )}
             </div>
             <div className="p-2 border-b">
-                <Button 
-                    size="sm"
-                    className="w-full mb-2"
-                    onClick={onCreateNew}
-                    disabled={isLoading || isCreating}
-                >
-                    <Plus className="w-4 h-4 mr-2" />
-                    {isCreating ? "Creating..." : "New Blank Blueprint"}
-                </Button>
-                <Button 
-                    variant="outline"
-                    size="sm"
-                    className="w-full bg-exciting text-exciting-foreground border-exciting hover:bg-exciting/90 hover:text-exciting-foreground"
-                    onClick={onAutoCreate}
-                    disabled={isLoading || isCreating}
-                >
-                    <Wand className="w-4 h-4 mr-2" />
-                    Auto-Create from Goal
-                </Button>
+                <div className="flex gap-2">
+                    <Button 
+                        size="sm"
+                        className="flex-1"
+                        onClick={onCreateNew}
+                        disabled={isLoading || isCreating}
+                    >
+                        <Plus className="w-4 h-4 mr-1" />
+                        {isCreating ? "Creating..." : "New"}
+                    </Button>
+                    <Button 
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 bg-exciting text-exciting-foreground border-exciting hover:bg-exciting/90 hover:text-exciting-foreground"
+                        onClick={onAutoCreate}
+                        disabled={isLoading || isCreating}
+                    >
+                        <Wand className="w-4 h-4 mr-1" />
+                        Auto-create
+                    </Button>
+                </div>
             </div>
             
             <div className="flex-grow overflow-y-auto">
