@@ -12,11 +12,13 @@ export const useMacroCoverageData = (
     promptIds: string[],
     models: string[]
 ) => {
+    const sortedPromptIds = React.useMemo(() => [...promptIds].sort((a,b) => a.localeCompare(b)), [promptIds]);
+    
     const calculateModelAverageCoverage = React.useCallback((modelId: string): number | null => {
         if (!allCoverageScores) return null;
         let totalAvgExtent = 0;
         let validPromptsCount = 0;
-        promptIds.forEach(promptId => {
+        sortedPromptIds.forEach(promptId => {
             const result = allCoverageScores[promptId]?.[modelId];
             if (result && !('error' in result) && typeof result.avgCoverageExtent === 'number' && !isNaN(result.avgCoverageExtent)) {
                 totalAvgExtent += result.avgCoverageExtent;
@@ -24,7 +26,7 @@ export const useMacroCoverageData = (
             }
         });
         return validPromptsCount > 0 ? (totalAvgExtent / validPromptsCount) : null;
-    }, [allCoverageScores, promptIds]);
+    }, [allCoverageScores, sortedPromptIds]);
 
     const calculatePromptAverage = React.useCallback((promptId: string): number | null => {
         const promptScores = allCoverageScores?.[promptId];
@@ -120,11 +122,9 @@ export const useMacroCoverageData = (
         };
     }, [models, calculateModelAverageCoverage]);
 
-    const sortedPromptIds = React.useMemo(() => [...promptIds].sort((a,b) => a.localeCompare(b)), [promptIds]);
-
-    const { promptStats } = React.useMemo(() => {
+    const promptStats = React.useMemo(() => {
         const newPromptStats = new Map<string, { avg: number | null, stdDev: number | null }>();
-        if (!allCoverageScores) return { promptStats: newPromptStats };
+        if (!allCoverageScores) return newPromptStats;
 
         promptIds.forEach(promptId => {
             const scoresForPrompt: number[] = [];
@@ -150,7 +150,7 @@ export const useMacroCoverageData = (
                 newPromptStats.set(promptId, { avg: null, stdDev: null });
             }
         });
-        return { promptStats: newPromptStats };
+        return newPromptStats;
     }, [allCoverageScores, promptIds, models]);
 
     return {

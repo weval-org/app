@@ -3,7 +3,7 @@ import { S3Client, ListObjectsV2Command, DeleteObjectsCommand, ObjectIdentifier,
 
 const PLAYGROUND_TEMP_DIR = 'sandbox';
 const RUNS_PREFIX = `${PLAYGROUND_TEMP_DIR}/runs/`;
-const CLEANUP_AGE_HOURS = 24; // Delete runs older than 24 hours
+const CLEANUP_AGE_DAYS = 7; // Delete runs older than 7 days
 
 const s3Client = new S3Client({
   region: process.env.APP_S3_REGION!,
@@ -20,10 +20,10 @@ const logger = {
 };
 
 const cleanupHandler: Handler = async () => {
-  logger.info(`Starting cleanup job. Deleting runs older than ${CLEANUP_AGE_HOURS} hours.`);
+  logger.info(`Starting cleanup job. Deleting runs older than ${CLEANUP_AGE_DAYS} days.`);
   
   const now = new Date();
-  const cutoffTime = now.getTime() - CLEANUP_AGE_HOURS * 60 * 60 * 1000;
+  const cutoffTime = now.getTime() - CLEANUP_AGE_DAYS * 24 * 60 * 60 * 1000;
   const objectsToDelete: ObjectIdentifier[] = [];
 
   try {

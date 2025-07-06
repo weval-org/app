@@ -11,8 +11,6 @@ import { toSafeTimestamp } from '@/lib/timestampUtils';
 import { generateExecutiveSummary } from '@/cli/services/executive-summary-service';
 import { ConversationMessage } from '@/types/shared';
 
-const PLAYGROUND_TEMP_DIR = 'sandbox';
-
 const s3Client = new S3Client({
   region: process.env.APP_S3_REGION!,
   credentials: {
@@ -37,20 +35,26 @@ const logger = {
 };
 type SandboxLogger = typeof logger;
 
-const updateStatus = async (runId: string, status: string, message: string, extraData: object = {}) => {
-  logger.info(`Updating status for ${runId}: ${status} - ${message}`);
-  const statusKey = `${PLAYGROUND_TEMP_DIR}/runs/${runId}/status.json`;
-  await s3Client.send(new PutObjectCommand({
-    Bucket: process.env.APP_S3_BUCKET_NAME!,
-    Key: statusKey,
-    Body: JSON.stringify({ status, message, ...extraData }),
-    ContentType: 'application/json',
-  }));
+const getStatusUpdater = (runId: string, sandboxVersion: 'v1' | 'v2' = 'v1') => {
+  const directory = sandboxVersion === 'v2' ? 'sandbox' : 'sandbox';
+  return async (status: string, message: string, extraData: object = {}) => {
+    logger.info(`Updating status for ${runId} (v: ${sandboxVersion}): ${status} - ${message}`);
+    const statusKey = `${directory}/runs/${runId}/status.json`;
+    await s3Client.send(new PutObjectCommand({
+      Bucket: process.env.APP_S3_BUCKET_NAME!,
+      Key: statusKey,
+      Body: JSON.stringify({ status, message, ...extraData }),
+      ContentType: 'application/json',
+    }));
+  };
 };
 
 export const handler: BackgroundHandler = async (event) => {
   const body = event.body ? JSON.parse(event.body) : {};
-  const { runId, blueprintKey } = body;
+  const { runId, blueprintKey, sandboxVersion } = body;
+  
+  const updateStatus = getStatusUpdater(runId, sandboxVersion);
+  const directory = sandboxVersion === 'v2' ? 'sandbox' : 'sandbox';
 
   if (!runId || !blueprintKey) {
     logger.error('Missing runId or blueprintKey in invocation.');
@@ -58,7 +62,7 @@ export const handler: BackgroundHandler = async (event) => {
   }
 
   try {
-    await updateStatus(runId, 'pending', 'Fetching blueprint...');
+    await updateStatus('pending', 'Fetching blueprint...');
 
     const blueprintContent = await streamToString(
       (await s3Client.send(new GetObjectCommand({
@@ -68,17 +72,17 @@ export const handler: BackgroundHandler = async (event) => {
     );
     const config = parseAndNormalizeBlueprint(blueprintContent, 'yaml');
 
-    await updateStatus(runId, 'generating_responses', 'Generating model responses...');
+    await updateStatus('generating_responses', 'Generating model responses...');
     
     const generationProgressCallback = async (completed: number, total: number) => {
-        await updateStatus(runId, 'generating_responses', 'Generating model responses...', {
+        await updateStatus('generating_responses', 'Generating model responses...', {
             progress: { completed, total },
         });
     };
 
     const allResponsesMap = await generateAllResponses(config, logger, true, generationProgressCallback);
 
-    await updateStatus(runId, 'evaluating', 'Running evaluations...');
+    await updateStatus('evaluating', 'Running evaluations...');
     
     const embeddingEval = new EmbeddingEvaluator(logger);
     const coverageEval = new LLMCoverageEvaluator(logger, false);
@@ -129,7 +133,7 @@ export const handler: BackgroundHandler = async (event) => {
         // Note: This callback will be called by each evaluator separately.
         // We need a way to track overall progress if they run sequentially.
         // For now, we just pass the progress from the current step.
-         await updateStatus(runId, 'evaluating', 'Running evaluations...', {
+         await updateStatus('evaluating', 'Running evaluations...', {
             progress: { completed: completedInStep, total: totalInStep },
         });
     };
@@ -146,7 +150,7 @@ export const handler: BackgroundHandler = async (event) => {
         evaluationResults.extractedKeyPoints = result.extractedKeyPoints;
     }
     
-    await updateStatus(runId, 'saving', 'Aggregating and saving results...');
+    await updateStatus('saving', 'Aggregating and saving results...');
 
     const { data: finalOutput } = await aggregateSandboxResult(
         config,
@@ -157,7 +161,7 @@ export const handler: BackgroundHandler = async (event) => {
         logger
     );
 
-    const resultKey = `${PLAYGROUND_TEMP_DIR}/runs/${runId}/_comparison.json`;
+    const resultKey = `${directory}/runs/${runId}/_comparison.json`;
     await s3Client.send(new PutObjectCommand({
         Bucket: process.env.APP_S3_BUCKET_NAME!,
         Key: resultKey,
@@ -165,11 +169,12 @@ export const handler: BackgroundHandler = async (event) => {
         ContentType: 'application/json',
     }));
 
-    await updateStatus(runId, 'complete', 'Run finished!', { resultUrl: `/sandbox/results/${runId}` });
+    const resultUrl = `/${directory}/results/${runId}`;
+    await updateStatus('complete', 'Run finished!', { resultUrl });
 
   } catch (error: any) {
     logger.error(`Pipeline failed for runId ${runId}: ${error.message}`);
-    await updateStatus(runId, 'error', 'An error occurred during the evaluation.', { details: error.message });
+    await updateStatus('error', 'An error occurred during the evaluation.', { details: error.message });
   }
 };
 
@@ -240,9 +245,15 @@ async function aggregateSandboxResult(
         extractedKeyPoints: evaluationResults.extractedKeyPoints,
     };
     
-    const summaryResult = await generateExecutiveSummary(finalOutput, logger);
-    if (summaryResult && !('error' in summaryResult)) {
-      finalOutput.executiveSummary = summaryResult;
+    // For any run processed by this pipeline (sandbox/sandbox), skip the summary.
+    const isSandboxTestRun = true;
+    if (!isSandboxTestRun) {
+        const summaryResult = await generateExecutiveSummary(finalOutput, logger);
+        if (summaryResult && !('error' in summaryResult)) {
+          finalOutput.executiveSummary = summaryResult;
+        }
+    } else {
+        logger.info('Skipping executive summary generation for sandbox test run.');
     }
 
     return { data: finalOutput };

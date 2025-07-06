@@ -59,8 +59,10 @@ The Weval framework is open-source ([MIT licensed](LICENSE)), and all evaluation
 
 You have two main ways to use Weval:
 
-1.  **Contribute to the Public Commons**: We welcome contributions from everyone, especially domain experts who are not programmers. To contribute a blueprint to be run on [weval.org](https://weval.org), please follow the guidance in the [configs repository](https://github.com/weval-org/configs) and submit a pull request. The easiest way to propose a new evaluation is to start by [opening a GitHub Issue](https://github.com/weval-org/configs/issues/new/choose) using a template to describe your idea.
+1.  **Contribute to the Public Commons**: We welcome contributions from everyone, especially domain experts who are not programmers. The easiest way to contribute is to first use our **[Sandbox Studio](https://weval.org/sandbox)** on the website. This user-friendly editor allows you to build a blueprint, test it against live models for free, and then you can propose it for inclusion in the public library via Github.
 2.  **Run Your Own Instance**: You are free to run your own version of Weval for any purpose allowable under the MIT license, public or private. Use the public blueprints as inspiration, or build your own evaluation suite from scratch for your specific niche.
+
+For more advanced users, you can still contribute by directly [submitting a pull request](https://github.com/weval-org/configs/pulls) to the `weval-org/configs` repository.
 
 ## Getting Started
 
@@ -271,3 +273,4 @@ If you use Weval in your research, please cite it as follows:
   journal      = {GitHub repository},
   howpublished = {\\url{https://github.com/weval-org/app}}
 }
+```

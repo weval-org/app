@@ -1,0 +1,185 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Weval Blueprint Schema",
+  "description": "Schema for Weval evaluation blueprint files (YAML or JSON).",
+  "oneOf": [
+    {
+      "title": "Header + Prompts (Multi-document YAML style)",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "A unique identifier for the blueprint. If omitted, it will be derived from the filename."
+        },
+        "title": {
+          "type": "string",
+          "description": "A human-readable title for the blueprint. If omitted, it defaults to the 'id'."
+        },
+        "description": {
+          "type": "string",
+          "description": "A longer description of the blueprint's purpose. Supports Markdown."
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "An array of tags for categorizing and filtering blueprints."
+        },
+        "models": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "An array of model identifiers (e.g., 'openai:gpt-4o-mini') or collection placeholders (e.g., 'CORE')."
+        },
+        "system": {
+          "type": ["string", "array"],
+          "description": "A global system prompt (string) or an array of system prompts for permutation."
+        },
+        "concurrency": {
+          "type": "number",
+          "default": 10
+        },
+        "temperature": {
+          "type": "number",
+          "description": "A single temperature setting. Overridden by 'temperatures'."
+        },
+        "temperatures": {
+          "type": "array",
+          "items": { "type": "number" },
+          "description": "An array of temperature settings to run for each model."
+        },
+        "prompts": {
+          "$ref": "#/definitions/promptList"
+        }
+      },
+      "required": ["prompts"]
+    },
+    {
+      "title": "Prompts List Only",
+      "$ref": "#/definitions/promptList"
+    }
+  ],
+  "definitions": {
+    "pointItem": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "A plain language rubric point to be evaluated by an AI judge."
+        },
+        {
+          "type": "object",
+          "patternProperties": {
+            "^\\$.*": {
+              "description": "A deterministic check using an idiomatic function (e.g., $contains, $match).",
+              "oneOf": [
+                { "type": "string" },
+                { "type": "number" },
+                { "type": "array" }
+              ]
+            },
+            ".*": {
+              "description": "A plain language rubric point with a citation as the value.",
+              "type": "string"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "point": {
+              "type": "string",
+              "description": "The rubric point text."
+            },
+            "fn": {
+              "type": "string",
+              "description": "The deterministic function to call (e.g., 'contains')."
+            },
+            "arg": {
+              "description": "The argument for the function."
+            },
+            "weight": {
+              "type": "number",
+              "description": "A multiplier for the point's score."
+            },
+            "citation": {
+              "type": "string",
+              "description": "A citation for the point."
+            }
+          },
+          "oneOf": [
+            { "required": ["point"] },
+            { "required": ["fn", "arg"] }
+          ]
+        }
+      ]
+    },
+    "messageItem": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "role": { "enum": ["user", "assistant", "system"] },
+            "content": { "type": "string" }
+          },
+          "required": ["role", "content"]
+        },
+        {
+          "type": "object",
+          "properties": { "user": { "type": "string" } },
+          "required": ["user"]
+        },
+        {
+          "type": "object",
+          "properties": { "assistant": { "type": "string" } },
+          "required": ["assistant"]
+        },
+        {
+            "type": "object",
+            "properties": { "ai": { "type": "string" } },
+            "required": ["ai"]
+        }
+      ]
+    },
+    "prompt": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "A unique identifier for the prompt within the blueprint."
+        },
+        "prompt": {
+          "type": "string",
+          "description": "The prompt text for a single-turn conversation."
+        },
+        "messages": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/messageItem" }
+        },
+        "ideal": {
+          "type": "string",
+          "description": "A 'gold-standard' answer for semantic similarity comparison."
+        },
+        "system": {
+          "type": "string",
+          "description": "A prompt-specific system prompt override."
+        },
+        "should": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/pointItem" },
+          "description": "A list of rubric points defining a successful response."
+        },
+        "should_not": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/pointItem" },
+          "description": "A list of rubric points defining what a response should not contain."
+        }
+      },
+      "oneOf": [
+        { "required": ["prompt"] },
+        { "required": ["messages"] }
+      ]
+    },
+    "promptList": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/prompt" }
+    }
+  }
+} 

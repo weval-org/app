@@ -1,7 +1,6 @@
 'use client'
 
 import { create } from 'zustand'
-import type { StateCreator } from 'zustand'
 
 type ErrorStore = {
   showError: ((message: string) => void) | null
