@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import * as yaml from 'js-yaml';
 import { useAuth } from '../hooks/useAuth';
-import { useWorkspace } from '../hooks/useWorkspace';
+import { useWorkspace, ActiveBlueprint } from '../hooks/useWorkspace';
 import { useToast } from '@/components/ui/use-toast';
 import { Toaster } from "@/components/ui/toaster";
 import { ProposalWizard } from './ProposalWizard';
@@ -32,7 +32,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { TourProvider, useTour, StepType } from '@reactour/tour';
-import { ActiveBlueprint } from '../hooks/useWorkspace';
 
 const Loader2 = dynamic(() => import('lucide-react').then(mod => mod.Loader2), { ssr: false });
 const Save = dynamic(() => import('lucide-react').then(mod => mod.Save), { ssr: false });
@@ -104,13 +103,16 @@ function SandboxClientPageInternal() {
         setupMessage,
         files,
         activeBlueprint,
+        editorContent,
+        isDirty,
         isFetchingFiles,
         isFetchingFileContent,
         runId,
         runStatus,
         setupWorkspace,
         loadFile,
-        saveBlueprint,
+        setEditorContent,
+        handleSave,
         createBlueprint,
         createBlueprintWithContent,
         deleteBlueprint,
@@ -154,7 +156,6 @@ function SandboxClientPageInternal() {
     } | null>(null);
     const [activeEditor, setActiveEditor] = useState<'form' | 'yaml'>('form');
     const [hasShownFormWarning, setHasShownFormWarning] = useState(false);
-    const [localBlueprintContent, setLocalBlueprintContent] = useState<string | null>(null);
     const [parsedBlueprint, setParsedBlueprint] = useImmer<ComparisonConfig | null>(null);
     const [yamlError, setYamlError] = useState<string | null>(null);
     const [isLoggingInWithGitHub, setIsLoggingInWithGitHub] = useState(false);
@@ -183,10 +184,8 @@ function SandboxClientPageInternal() {
 
     useEffect(() => {
         const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-          // Check if there are unsaved changes
-          if (activeBlueprint && localBlueprintContent !== null && localBlueprintContent !== activeBlueprint.content) {
+          if (isDirty) {
             event.preventDefault();
-            // This message is often ignored by modern browsers in favor of a generic one.
             event.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
           }
         };
@@ -196,7 +195,7 @@ function SandboxClientPageInternal() {
         return () => {
           window.removeEventListener('beforeunload', handleBeforeUnload);
         };
-      }, [activeBlueprint, localBlueprintContent]);
+      }, [isDirty]);
 
     useEffect(() => {
         const handleWorkspaceSetup = async () => {
@@ -230,19 +229,9 @@ function SandboxClientPageInternal() {
     }, [user?.isLoggedIn]);
 
     useEffect(() => {
-        if (activeBlueprint) {
-            setLocalBlueprintContent(activeBlueprint.content);
-            setYamlError(null);
-        } else {
-            setLocalBlueprintContent(null);
-            setYamlError(null);
-        }
-    }, [activeBlueprint]);
-
-    useEffect(() => {
-        if (localBlueprintContent) {
+        if (editorContent) {
             try {
-                const parsed = parseAndNormalizeBlueprint(localBlueprintContent, 'yaml');
+                const parsed = parseAndNormalizeBlueprint(editorContent, 'yaml');
                 setParsedBlueprint(parsed);
                 setYamlError(null);
             } catch (error: any) {
@@ -253,7 +242,7 @@ function SandboxClientPageInternal() {
             setYamlError(null);
             setParsedBlueprint(null);
         }
-    }, [localBlueprintContent, setParsedBlueprint]);
+    }, [editorContent, setParsedBlueprint]);
 
     useEffect(() => {
         const inProgressStatuses = ['pending', 'generating_responses', 'evaluating', 'saving'];
@@ -319,55 +308,49 @@ function SandboxClientPageInternal() {
         setParsedBlueprint(newConfig);
         try {
             const finalYaml = generateMinimalBlueprintYaml(newConfig);
-            setLocalBlueprintContent(finalYaml);
+            setEditorContent(finalYaml);
         } catch (error) {
             console.error("Failed to generate YAML from updated config", error);
             toast({ variant: 'destructive', title: 'YAML Generation Error', description: 'Could not serialize form content to YAML.' });
         }
-    }, [toast, setParsedBlueprint]);
+    }, [toast, setParsedBlueprint, setEditorContent]);
 
     const handleYamlUpdate = (newContent: string) => {
-        setLocalBlueprintContent(newContent);
+        setEditorContent(newContent);
     };
 
-    const handleSave = async () => {
-        if (localBlueprintContent === null || !activeBlueprint) return;
+    const handlePromotion = async () => {
+        if (!editorContent || !activeBlueprint) return;
 
-        const isPromotionFlow = isLocal && user?.isLoggedIn;
+        const title = parsedBlueprint?.title || 'new-blueprint';
+        const originalLocalBlueprint = activeBlueprint;
 
-        if (isPromotionFlow) {
-            const title = parsedBlueprint?.title || 'new-blueprint';
-            const originalLocalBlueprint = activeBlueprint;
+        setInputModalConfig({
+            title: "Save to GitHub",
+            description: "Enter a filename for your new blueprint. It will be saved to your forked repository in the 'blueprints/users/your-username/' directory.",
+            inputLabel: "Filename (.yml)",
+            initialValue: normalizeFilename(title),
+            submitButtonText: "Save to GitHub",
+            onSubmit: async (filename) => {
+                if (!filename) return;
+                setIsModalSubmitting(true);
+                
+                const finalFilename = filename.endsWith('.yml') ? filename : `${filename}.yml`;
 
-            setInputModalConfig({
-                title: "Save to GitHub",
-                description: "Enter a filename for your new blueprint. It will be saved to your forked repository in the 'blueprints/users/your-username/' directory.",
-                inputLabel: "Filename (.yml)",
-                initialValue: normalizeFilename(title),
-                submitButtonText: "Save to GitHub",
-                onSubmit: async (filename) => {
-                    if (!filename) return;
-                    setIsModalSubmitting(true);
-                    
-                    const finalFilename = filename.endsWith('.yml') ? filename : `${filename}.yml`;
-
-                    const newFile = await promoteBlueprint(finalFilename, localBlueprintContent);
-                    
-                    if (newFile) {
-                        // Promotion was successful, now delete the original local blueprint
-                        await deleteBlueprint(originalLocalBlueprint, { silent: true });
-                        // The file list is refreshed inside promoteBlueprint, so we just need to load the new file
-                        await loadFile(newFile);
-                    }
-                    
-                    setInputModalConfig(null);
-                    setIsModalSubmitting(false);
+                const newFile = await promoteBlueprint(finalFilename, editorContent);
+                
+                if (newFile) {
+                    // Force load the new file, which will bypass the 'isDirty' check
+                    // and correctly set the new active blueprint, clearing the dirty state.
+                    await loadFile(newFile, { force: true });
+                    // Now that the state is clean, we can safely delete the old local blueprint.
+                    await deleteBlueprint(originalLocalBlueprint, { silent: true });
                 }
-            });
-        } else {
-            // This handles saving for already remote blueprints or non-logged-in local saves
-            saveBlueprint(localBlueprintContent);
-        }
+                
+                setInputModalConfig(null);
+                setIsModalSubmitting(false);
+            }
+        });
     };
 
     const handleCreateNew = () => {
@@ -468,15 +451,14 @@ function SandboxClientPageInternal() {
     };
 
     const renderHeader = () => {
-        const isPromotionFlow = isLocal && user?.isLoggedIn;
-        const isContentUnchanged = localBlueprintContent === activeBlueprint?.content;
-        const isSaveDisabled = isSaving || isLoading || !activeBlueprint || (isContentUnchanged && !isPromotionFlow);
+        const isSaveDisabled = isSaving || isLoading || !activeBlueprint || !isDirty;
+        const showPromoteButton = isLocal && isLoggedIn;
 
         return (
             <header className="flex-shrink-0 border-b h-14 flex items-center justify-between px-4">
                 <div className="flex items-center gap-2 font-mono text-m font-bold text-muted-foreground truncate pr-4">
                     <span className="truncate">
-                        {activeBlueprint ? activeBlueprint.name : 'No file selected'}
+                        {activeBlueprint ? `${activeBlueprint.name}${isDirty ? '*' : ''}` : 'No file selected'}
                     </span>
                     {!isLocal && activeBlueprint && forkName && (
                         <a
@@ -497,11 +479,24 @@ function SandboxClientPageInternal() {
                         size="sm"
                     >
                         {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                        {isPromotionFlow ? 'Save to GitHub' : 'Save'}
+                        Save Changes
                     </Button>
+
+                    {showPromoteButton && (
+                         <Button 
+                            onClick={handlePromotion} 
+                            disabled={isSaving || isLoading || !activeBlueprint}
+                            size="sm"
+                            variant="outline"
+                        >
+                            <Github className="w-4 h-4 mr-2" />
+                            Save to GitHub...
+                        </Button>
+                    )}
+
                     <Button 
                         onClick={handleRunRequest} 
-                        disabled={isRunning || !activeBlueprint || isLoading} 
+                        disabled={isRunning || !activeBlueprint || isLoading || isDirty} 
                         size="sm"
                         className="bg-exciting text-exciting-foreground border-exciting hover:bg-exciting/90 hover:text-exciting-foreground"
                         data-tour="run-evaluation-button"
@@ -523,7 +518,7 @@ function SandboxClientPageInternal() {
                     }
 
                     {!isLocal && !activeBlueprint?.prStatus && (
-                        <Button onClick={() => setIsProposalWizardOpen(true)} disabled={isCreatingPr || !activeBlueprint || isLoading} size="sm" variant="outline" data-tour="proposal-button">
+                        <Button onClick={() => setIsProposalWizardOpen(true)} disabled={isCreatingPr || !activeBlueprint || isLoading || isDirty} size="sm" variant="outline" data-tour="proposal-button">
                             <GitPullRequest className="w-4 h-4 mr-2" />
                             {isCreatingPr ? 'Proposing...' : 'Propose'}
                         </Button>
@@ -658,7 +653,7 @@ function SandboxClientPageInternal() {
                         data-tour="yaml-panel"
                     >
                        <EditorPanel
-                            rawContent={localBlueprintContent}
+                            rawContent={editorContent}
                             onChange={handleYamlUpdate}
                             isLoading={isLoading}
                             isSaving={isSaving}

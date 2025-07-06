@@ -116,8 +116,44 @@ export function useGitHub(isLoggedIn: boolean, username: string | null) {
     }
   }, [toast, forkName]);
 
-  const promoteBlueprint = useCallback(async (filename: string, content: string): Promise<BlueprintFile | null> => {
+  const updateFileOnGitHub = useCallback(async (path: string, content: string, sha: string): Promise<BlueprintFile | null> => {
     if (!isLoggedIn || !forkName) {
+      throw new Error('User not logged in or fork not available.');
+    }
+
+    try {
+      const response = await fetch('/api/github/workspace/file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          path,
+          content,
+          sha,
+          forkName,
+          isNew: false,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update blueprint on GitHub.');
+      }
+
+      const updatedFile = await response.json();
+      toast({ title: "Saved to GitHub", description: `Successfully updated ${updatedFile.name}.` });
+      return updatedFile;
+    } catch (e: any) {
+      toast({
+        variant: "destructive",
+        title: "Error Updating on GitHub",
+        description: e.message,
+      });
+      return null;
+    }
+  }, [isLoggedIn, forkName, toast]);
+
+  const createFileOnGitHub = useCallback(async (filename: string, content: string): Promise<BlueprintFile | null> => {
+    if (!isLoggedIn || !forkName || !username) {
       throw new Error('User not logged in or fork not available.');
     }
 
@@ -203,92 +239,61 @@ export function useGitHub(isLoggedIn: boolean, username: string | null) {
   }, [forkName, toast]);
 
   const closeProposal = useCallback(async (prNumber: number) => {
-    try {
-        const response = await fetch('/api/github/pr/close', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prNumber }),
-        });
+      if (!isLoggedIn) return { updatedPrStatuses: prStatuses, closedPath: null };
+      
+      try {
+          const response = await fetch('/api/github/pr/close', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prNumber }),
+          });
 
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.error || 'Failed to close pull request.');
-        }
+          if (!response.ok) {
+              const err = await response.json();
+              throw new Error(err.error || 'Failed to close PR.');
+          }
+          
+          const { closedPath } = await response.json();
 
-        // Update PR status in state
-        const updatedPrStatuses = { ...prStatuses };
-        let closedPath: string | null = null;
-        Object.keys(updatedPrStatuses).forEach(path => {
-            if (updatedPrStatuses[path].number === prNumber) {
-                updatedPrStatuses[path] = { ...updatedPrStatuses[path], state: 'closed' };
-                closedPath = path;
-            }
-        });
-        setPrStatuses(updatedPrStatuses);
+          const newStatuses = { ...prStatuses };
+          if (closedPath && newStatuses[closedPath]) {
+              newStatuses[closedPath].state = 'closed';
+          }
+          
+          setPrStatuses(newStatuses);
+          saveCache([], newStatuses);
 
-        toast({
-            title: "Pull Request Closed",
-            description: `PR #${prNumber} has been closed.`,
-        });
+          toast({ title: "Proposal Closed", description: `Successfully closed PR #${prNumber}` });
+          return { updatedPrStatuses: newStatuses, closedPath };
+      } catch (error: any) {
+          toast({
+              variant: 'destructive',
+              title: 'Failed to Close PR',
+              description: error.message,
+          });
+          return { updatedPrStatuses: prStatuses, closedPath: null };
+      }
+  }, [isLoggedIn, prStatuses, saveCache, toast]);
 
-        return { updatedPrStatuses, closedPath };
-    } catch (error: any) {
-        toast({
-            variant: 'destructive',
-            title: 'Failed to Close PR',
-            description: error.message,
-        });
-        throw error;
+  const deleteFileFromGitHub = useCallback(async (path: string, sha: string) => {
+    if (!forkName) {
+        throw new Error("Fork name not available");
     }
-  }, [prStatuses, toast]);
-
-  const createFileOnGitHub = useCallback(async (
-    path: string,
-    content: string,
-  ) => {
-    if (!forkName) throw new Error('Fork name is not available.');
-    const response = await fetch('/api/github/workspace/file', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        path,
-        content,
-        sha: null,
-        forkName: forkName,
-        isNew: true,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to save blueprint to GitHub.');
-    }
-    return response.json();
-  }, [forkName]);
-
-  const deleteFileFromGitHub = useCallback(async (path: string) => {
-    if (!forkName) throw new Error('Fork name is not available.');
-    const response = await fetch('/api/github/workspace/file', {
+    await fetch('/api/github/workspace/file', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-            path: path,
-            forkName: forkName,
-        }),
+        body: JSON.stringify({ path, sha, forkName }),
     });
-
-    if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || 'Failed to delete file from GitHub.');
-    }
   }, [forkName]);
-
+  
   const loadFileContentFromGitHub = useCallback(async (path: string) => {
-    if (!forkName) throw new Error('Fork name is not available.');
-    const response = await fetch(`/api/github/workspace/file?path=${encodeURIComponent(path)}&forkName=${forkName}`);
+    if (!forkName) {
+      throw new Error("Fork name not available");
+    }
+    const response = await fetch(`/api/github/workspace/file?path=${encodeURIComponent(path)}&forkName=${encodeURIComponent(forkName)}`);
     if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || `Failed to load file content`);
+      const err = await response.json();
+      throw new Error(err.error || 'Failed to load file content.');
     }
     return response.json();
   }, [forkName]);
@@ -307,10 +312,11 @@ export function useGitHub(isLoggedIn: boolean, username: string | null) {
     saveCache,
     fetchPrStatuses,
     setupWorkspace,
-    promoteBlueprint,
+    updateFileOnGitHub,
+    createFileOnGitHub,
+    promoteBlueprint: createFileOnGitHub,
     createPullRequest,
     closeProposal,
-    createFileOnGitHub,
     deleteFileFromGitHub,
     loadFileContentFromGitHub,
   };
