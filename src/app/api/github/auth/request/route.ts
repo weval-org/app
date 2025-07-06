@@ -10,7 +10,7 @@ export async function GET(request: Request) {
 
   // The 'public_repo' scope allows creating forks and PRs for public repositories.
   // The 'read:org' scope allows reading organization membership, which helps
-  // ensure the app can see the organization the user is granting access to.
+  // ensure the app can see the organization the user is granting access to..
   const scopes = ['public_repo', 'read:org'];
   const scopeString = scopes.join(' ');
 
