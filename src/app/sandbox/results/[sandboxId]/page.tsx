@@ -7,14 +7,14 @@ import { Readable } from 'stream';
 
 interface SandboxResultsPageProps {
   params: Promise<{
-    sandboxId: string;
+    sandboxId: string; // This is the runId
   }>;
 }
 
 // Ensure the page is not cached and rendered dynamically
 export const revalidate = 0;
 
-const PLAYGROUND_TEMP_DIR = 'sandbox';
+const CREATOR_TEMP_DIR = 'sandbox';
 
 const s3Client = new S3Client({
   region: process.env.APP_S3_REGION!,
@@ -33,8 +33,8 @@ const streamToString = (stream: Readable): Promise<string> =>
   });
 
 
-async function getSandboxResult(sandboxId: string): Promise<ComparisonDataV2 | null> {
-    const resultKey = `${PLAYGROUND_TEMP_DIR}/runs/${sandboxId}/_comparison.json`;
+async function getSandboxResult(runId: string): Promise<ComparisonDataV2 | null> {
+    const resultKey = `${CREATOR_TEMP_DIR}/runs/${runId}/_comparison.json`;
 
     try {
         const command = new GetObjectCommand({
@@ -53,17 +53,17 @@ async function getSandboxResult(sandboxId: string): Promise<ComparisonDataV2 | n
         if (error.name !== 'NoSuchKey') {
             // We log the error but don't expose details to the client.
             // NoSuchKey is an expected error if the file isn't ready.
-            console.error(`Failed to fetch sandbox result for ${sandboxId}`, error);
+            console.error(`Failed to fetch sandbox result for ${runId}`, error);
         }
         return null;
     }
 }
 
 export async function generateMetadata({ params }: SandboxResultsPageProps): Promise<Metadata> {
-    const { sandboxId } = await params;
-    const data = await getSandboxResult(sandboxId);
-    const title = data?.configTitle ? `${data.configTitle} (Sandbox)` : 'Sandbox Result';
-    const description = data?.config?.description || 'A custom blueprint evaluation run in the sandbox.';
+    const { sandboxId: runId } = await params;
+    const data = await getSandboxResult(runId);
+    const title = data?.configTitle ? `${data.configTitle} (Sandbox Run)` : 'Sandbox Run Result';
+    const description = data?.config?.description || 'A custom blueprint evaluation run from the Sandbox Studio.';
 
     return {
         title: title,
@@ -77,14 +77,16 @@ export async function generateMetadata({ params }: SandboxResultsPageProps): Pro
 
 
 export default async function SandboxResultPage({ params }: SandboxResultsPageProps) {
-  const { sandboxId } = await params;
-  const data = await getSandboxResult(sandboxId);
+  const { sandboxId: runId } = await params;
+  const data = await getSandboxResult(runId);
 
   if (!data) {
     return notFound();
   }
+  
+  const isSandboxRun = true;
 
   // The BetaComparisonClientPage expects the data in a specific prop.
   // We pass the fetched data directly to it.
-  return <BetaComparisonClientPage data={data} isSandbox={true} />;
-}
+  return <BetaComparisonClientPage data={data} isSandbox={isSandboxRun} />;
+} 

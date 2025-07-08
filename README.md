@@ -59,8 +59,10 @@ The Weval framework is open-source ([MIT licensed](LICENSE)), and all evaluation
 
 You have two main ways to use Weval:
 
-1.  **Contribute to the Public Commons**: We welcome contributions from everyone, especially domain experts who are not programmers. To contribute a blueprint to be run on [weval.org](https://weval.org), please follow the guidance in the [configs repository](https://github.com/weval-org/configs) and submit a pull request. The easiest way to propose a new evaluation is to start by [opening a GitHub Issue](https://github.com/weval-org/configs/issues/new/choose) using a template to describe your idea.
+1.  **Contribute to the Public Commons**: We welcome contributions from everyone, especially domain experts who are not programmers. The easiest way to contribute is to first use our **[Sandbox Studio](https://weval.org/sandbox)** on the website. This user-friendly editor allows you to build a blueprint, test it against live models for free, and then you can propose it for inclusion in the public library via Github.
 2.  **Run Your Own Instance**: You are free to run your own version of Weval for any purpose allowable under the MIT license, public or private. Use the public blueprints as inspiration, or build your own evaluation suite from scratch for your specific niche.
+
+For more advanced users, you can still contribute by directly [submitting a pull request](https://github.com/weval-org/configs/pulls) to the `weval-org/configs` repository.
 
 ## Getting Started
 
@@ -251,12 +253,29 @@ The application can access models from multiple providers, specified by a prefix
 **Environment Variables:**
 Update your `.env` file for local development.
 
--   **LLM API Keys:**
-    -   `OPENROUTER_API_KEY`: **Essential** for all LLM interactions.
-    -   `OPENAI_API_KEY`: Required **specifically for generating text embeddings**.
--   **Storage Configuration:**
-    -   `STORAGE_PROVIDER`: Set to `s3` to use AWS S3. Defaults to `local`.
-    -   `APP_S3_BUCKET_NAME`, `APP_S3_REGION`, `APP_AWS_ACCESS_KEY_ID`, `APP_AWS_SECRET_ACCESS_KEY`: Required if using S3.
+### LLM & Storage Configuration
+
+-   `OPENROUTER_API_KEY`: **Essential** for most LLM interactions.
+-   `OPENAI_API_KEY`: Required **specifically for generating text embeddings**.
+-   `STORAGE_PROVIDER`: Set to `s3` to use AWS S3. Defaults to `local`.
+-   `APP_S3_BUCKET_NAME`, `APP_S3_REGION`, `APP_AWS_ACCESS_KEY_ID`, `APP_AWS_SECRET_ACCESS_KEY`: Required if using S3.
+
+### GitHub & Web App Configuration
+
+To enable user authentication and the full functionality of the Sandbox Studio for local development, you must create a GitHub OAuth App and configure the following variables:
+
+-   `NEXT_PUBLIC_APP_URL`: The canonical URL for your application. For local development, this will probably be `http://localhost:3000` or `http://localhost:8888` if you are using `netlify dev`.
+-   `GITHUB_CLIENT_ID`: The Client ID of your GitHub OAuth App.
+-   `GITHUB_CLIENT_SECRET`: The Client Secret of your GitHub OAuth App.
+-   `SESSION_SECRET`: A secret key used to encrypt user sessions. It should be a random string of at least 32 characters. You can generate one with `openssl rand -hex 32`.
+
+#### Setting up Your GitHub OAuth App for Local Development
+
+1.  Navigate to **Settings** > **Developer settings** > **OAuth Apps** on GitHub and click **"New OAuth App"**.
+2.  **Application name**: Choose a name, e.g., "Weval (Local Dev)".
+3.  **Homepage URL**: Set this to `http://localhost:3000`.
+4.  **Authorization callback URL**: Set this to `http://localhost:3000/api/github/auth/callback`.
+5.  After creating the app, generate a new client secret. Use the "Client ID" and the new "Client secret" for the environment variables above.
 
 ## Citing this Work
 
@@ -271,3 +290,4 @@ If you use Weval in your research, please cite it as follows:
   journal      = {GitHub repository},
   howpublished = {\\url{https://github.com/weval-org/app}}
 }
+```

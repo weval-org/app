@@ -38,6 +38,7 @@ import { SimpleLogger } from '@/lib/blueprint-service';
 import { fromSafeTimestamp } from '@/lib/timestampUtils';
 import { ModelRunPerformance, ModelSummary } from '@/types/shared';
 import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelIdUtils';
+import { populatePairwiseQueue } from '../services/pairwise-task-queue-service';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
@@ -731,6 +732,18 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions, commi
                     loggerInstance.error(`Failed to update model summaries: ${modelSummaryError.message}`);
                 }
                 // --- END: Update Model Summaries (Incremental) ---
+
+                // --- BEGIN: Populate Pairwise Task Queue ---
+                if (newResultData.config?.tags?.includes('_get_human_prefs')) {
+                    try {
+                        loggerInstance.info('Found _get_human_prefs tag. Attempting to populate pairwise comparison task queue...');
+                        const queueResult = await populatePairwiseQueue(newResultData, { logger: loggerInstance });
+                        loggerInstance.info(`Pairwise task queue processed. Added: ${queueResult.tasksAdded}, Total in queue: ${queueResult.totalTasksInQueue}`);
+                    } catch (pairwiseError: any) {
+                        loggerInstance.error(`Failed to populate pairwise task queue: ${pairwiseError.message}`);
+                    }
+                }
+                // --- END: Populate Pairwise Task Queue ---
 
             } catch (summaryError: any) {
                 loggerInstance.error(`Failed to update homepage summary manifest: ${summaryError.message}`);

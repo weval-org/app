@@ -55,31 +55,41 @@ export async function fetchBlueprintContentByName(
     logger.error(`[blueprint-service] Failed to fetch latest commit SHA: ${commitError.message}. Proceeding without it.`);
   }
   
-  // 2. Now fetch the blueprint file content
-  const extensions = ['yml', 'yaml', 'json'];
-  for (const ext of extensions) {
-    const fileName = `${blueprintName}.${ext}`;
-    const url = `${BLUEPRINTS_API_URL}/${fileName}`;
-    logger.info(`[blueprint-service] Attempting to fetch blueprint from: ${url}`);
-    
-    try {
-      const response = await axios.get(url, { headers: rawContentHeaders });
-      if (response.status === 200 && response.data) {
-        logger.info(`[blueprint-service] Successfully fetched blueprint '${fileName}'`);
-        const content = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
-        const fileType = ext === 'json' ? 'json' : 'yaml';
-        return { content, fileType, fileName, commitSha: latestCommitSha };
-      }
-    } catch (error: any) {
-      if (error.response?.status === 404) {
-        logger.info(`[blueprint-service] Blueprint '${fileName}' not found. Trying next extension.`);
-      } else {
-        logger.error(`[blueprint-service] Error fetching blueprint '${fileName}' from ${url}: ${error.message}`);
+  // 2. Now, fetch the file list recursively.
+  const treeApiUrl = `https://api.github.com/repos/${BLUEPRINT_CONFIG_REPO_SLUG}/git/trees/main?recursive=1`;
+  logger.info(`[blueprint-service] Fetching file tree from: ${treeApiUrl}`);
+
+  try {
+    const treeResponse = await axios.get(treeApiUrl, { headers: apiHeaders });
+    const blueprintFiles = treeResponse.data.tree.filter(
+      (node: any) => node.type === 'blob' && node.path.startsWith('blueprints/')
+    );
+
+    const extensions = ['yml', 'yaml', 'json'];
+    for (const ext of extensions) {
+      const targetFileName = `${blueprintName}.${ext}`;
+      const foundFile = blueprintFiles.find(
+        (node: any) => node.path.endsWith(`/${targetFileName}`) || node.path === `blueprints/${targetFileName}`
+      );
+
+      if (foundFile) {
+        logger.info(`[blueprint-service] Found blueprint in tree: ${foundFile.path}. Fetching content...`);
+        const response = await axios.get(foundFile.url, { headers: rawContentHeaders });
+        
+        if (response.status === 200 && response.data) {
+          logger.info(`[blueprint-service] Successfully fetched blueprint '${foundFile.path}'`);
+          const content = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+          const fileType = ext === 'json' ? 'json' : 'yaml';
+          return { content, fileType, fileName: foundFile.path.split('/').pop()!, commitSha: latestCommitSha };
+        }
       }
     }
+  } catch (error: any) {
+    logger.error(`[blueprint-service] Error fetching or searching blueprint tree: ${error.message}`);
+    return null;
   }
-
-  logger.warn(`[blueprint-service] Could not find blueprint named '${blueprintName}' with any of the extensions (.yml, .yaml, .json) in the GitHub repository.`);
+  
+  logger.warn(`[blueprint-service] Could not find blueprint named '${blueprintName}' with any extension in the repository tree.`);
   return null;
 }
 

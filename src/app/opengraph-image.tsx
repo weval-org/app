@@ -49,7 +49,7 @@ export default async function Image() {
           Weval
         </div>
         <div style={{ marginTop: 30, fontSize: 42, color: '#E0E0E0', lineHeight: 1.4, fontFamily: '"GeistRegular"' }}>
-          Measuring AI's fitness
+          Open AI Evaluation Platform
         </div>
         <div style={{ position: 'absolute', bottom: 30, fontSize: 24, color: '#A0A0A0', fontFamily: '"GeistRegular"' }}>
           weval.org

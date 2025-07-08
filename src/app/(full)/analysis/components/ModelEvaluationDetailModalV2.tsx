@@ -14,19 +14,19 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 
-const AlertTriangle = dynamic(() => import('lucide-react').then(mod => mod.AlertTriangle));
-const MessageSquare = dynamic(() => import('lucide-react').then(mod => mod.MessageSquare));
-const ChevronDown = dynamic(() => import('lucide-react').then(mod => mod.ChevronDown));
-const ChevronUp = dynamic(() => import('lucide-react').then(mod => mod.ChevronUp));
-const ChevronsUpDown = dynamic(() => import('lucide-react').then(mod => mod.ChevronsUpDown));
-const Quote = dynamic(() => import('lucide-react').then(mod => mod.Quote));
-const Server = dynamic(() => import('lucide-react').then(mod => mod.Server));
-const CheckCircle = dynamic(() => import('lucide-react').then(mod => mod.CheckCircle));
-const XCircle = dynamic(() => import('lucide-react').then(mod => mod.XCircle));
-const ThumbsDown = dynamic(() => import('lucide-react').then(mod => mod.ThumbsDown));
-const User = dynamic(() => import('lucide-react').then(mod => mod.User));
-const Bot = dynamic(() => import('lucide-react').then(mod => mod.Bot));
-const Terminal = dynamic(() => import('lucide-react').then(mod => mod.Terminal));
+const AlertTriangle = dynamic(() => import('lucide-react').then(mod => mod.AlertTriangle), { ssr: false });
+const MessageSquare = dynamic(() => import('lucide-react').then(mod => mod.MessageSquare), { ssr: false });
+const ChevronDown = dynamic(() => import('lucide-react').then(mod => mod.ChevronDown), { ssr: false });
+const ChevronUp = dynamic(() => import('lucide-react').then(mod => mod.ChevronUp), { ssr: false });
+const ChevronsUpDown = dynamic(() => import('lucide-react').then(mod => mod.ChevronsUpDown), { ssr: false });
+const Quote = dynamic(() => import('lucide-react').then(mod => mod.Quote), { ssr: false });
+const Server = dynamic(() => import('lucide-react').then(mod => mod.Server), { ssr: false });
+const CheckCircle = dynamic(() => import('lucide-react').then(mod => mod.CheckCircle), { ssr: false });
+const XCircle = dynamic(() => import('lucide-react').then(mod => mod.XCircle), { ssr: false });
+const ThumbsDown = dynamic(() => import('lucide-react').then(mod => mod.ThumbsDown), { ssr: false });
+const User = dynamic(() => import('lucide-react').then(mod => mod.User), { ssr: false });
+const Bot = dynamic(() => import('lucide-react').then(mod => mod.Bot), { ssr: false });
+const Terminal = dynamic(() => import('lucide-react').then(mod => mod.Terminal), { ssr: false });
 
 const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
 const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });

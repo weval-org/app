@@ -39,12 +39,18 @@ export function calculateHeadlineStats(
 
   filteredConfigs.forEach(config => {
     const configTitle = config.title || config.configTitle || config.id || config.configId;
+    const latestRun = config.runs?.reduce((latest, current) => 
+      new Date(fromSafeTimestamp(current.timestamp)) > new Date(fromSafeTimestamp(latest.timestamp)) ? current : latest
+    , config.runs[0]);
+
     if (config.overallAverageHybridScore !== null && config.overallAverageHybridScore !== undefined) {
       if (!bestPerformingConfig || config.overallAverageHybridScore > bestPerformingConfig.value) {
         bestPerformingConfig = {
           configId: config.id || config.configId,
           configTitle: configTitle,
           value: config.overallAverageHybridScore,
+          latestRunLabel: latestRun?.runLabel,
+          latestRunTimestamp: latestRun?.timestamp,
         };
       }
       if (!worstPerformingConfig || config.overallAverageHybridScore < worstPerformingConfig.value) {
@@ -52,6 +58,8 @@ export function calculateHeadlineStats(
           configId: config.id || config.configId,
           configTitle: configTitle,
           value: config.overallAverageHybridScore,
+          latestRunLabel: latestRun?.runLabel,
+          latestRunTimestamp: latestRun?.timestamp,
         };
       }
     }
@@ -106,11 +114,17 @@ export function calculateHeadlineStats(
       const differentiationScore = calculateStandardDeviation(averageModelScores);
       if (differentiationScore !== null) {
         const configTitle = config.title || config.configTitle || config.id || config.configId;
+        const latestRun = config.runs?.reduce((latest, current) => 
+            new Date(fromSafeTimestamp(current.timestamp)) > new Date(fromSafeTimestamp(latest.timestamp)) ? current : latest
+        , config.runs[0]);
+
         if (!leastConsistentConfig || differentiationScore > leastConsistentConfig.value) {
           leastConsistentConfig = {
             configId: config.id || config.configId,
             configTitle: configTitle,
             value: differentiationScore,
+            latestRunLabel: latestRun?.runLabel,
+            latestRunTimestamp: latestRun?.timestamp,
           };
         }
       }

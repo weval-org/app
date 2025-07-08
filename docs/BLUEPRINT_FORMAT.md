@@ -97,7 +97,6 @@ The following fields can be included in the header section (Structure 1) or the 
 | `tags` | `string[]` | **(Optional)** An array of tags for categorizing and filtering blueprints on the homepage. |
 | `models` | `string[]` | **(Optional)** An array of model identifiers to run the evaluation against. Model identifiers must be a single string in the format `provider:model` with no spaces (e.g., `openai:gpt-4o-mini`). The system will attempt to gracefully correct common formatting errors, but adhering to the standard format is recommended. If omitted, defaults to `["CORE"]`. |
 | `system` | `string` | **(Optional)** A global system prompt to be used for all prompts in the blueprint, unless overridden at the prompt level. Aliased as `systemPrompt`. |
-| `concurrency` | `number` | **(Optional)** The number of parallel requests to make to the LLM APIs. Defaults to 10. |
 | `temperature` | `number` | **(Optional)** A single temperature setting to run for each model. This is overridden if the `temperatures` array is present. |
 | `temperatures`| `number[]` | **(Optional)** An array of temperature settings to run for each model. This will create separate evaluations for each temperature. **Note:** Using this feature will append a suffix like `[temp:0.5]` to the model ID in the final output file, creating a unique identifier for each run variant. |
 | `evaluationConfig` | `object` | **(Optional)** Advanced configuration for evaluation methods. For example, you can specify judge models for `llm-coverage`. |
@@ -183,10 +182,10 @@ Each item in these arrays is a point definition, processed in the following orde
       - $contains_at_least_n_of: [2, ["apples", "oranges", "pears"]]
 
       # Regex checks
-      - $match: "^The ruling states" # Case-sensitive regex
-      - $imatch: "^the ruling"       # Case-insensitive regex
-      - $match_all_of: ["^The ruling", "states that$"] # Graded regex
-      - $imatch_all_of: ["^the ruling", "states that$"] # Case-insensitive graded regex
+      - $matches: "^The ruling states" # Case-sensitive regex
+      - $imatches: "^the ruling"       # Case-insensitive regex
+      - $matches_all_of: ["^The ruling", "states that$"] # Graded regex
+      - $imatches_all_of: ["^the ruling", "states that$"] # Case-insensitive graded regex
 
       # Other checks
       - $word_count_between: [50, 100]

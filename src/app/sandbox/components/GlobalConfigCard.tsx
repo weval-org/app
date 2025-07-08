@@ -1,90 +1,89 @@
 'use client';
 
 import { Card } from '@/components/ui/card';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { ComparisonConfig } from '@/cli/types/cli_types';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import dynamic from 'next/dynamic';
-import { useState } from 'react';
-import { SandboxBlueprint } from './types';
-import { ModelSelector } from './ModelSelector';
+// import { ModelSelector } from './ModelSelector'; // To be created
 
-const ChevronsUpDown = dynamic(() => import('lucide-react').then(mod => mod.ChevronsUpDown));
+const AlertTriangle = dynamic(() => import('lucide-react').then(mod => mod.AlertTriangle));
 
 interface GlobalConfigCardProps {
-  blueprint: SandboxBlueprint;
-  onUpdate: (bp: SandboxBlueprint) => void;
-  availableModels: string[];
+  blueprint: ComparisonConfig;
+  onUpdate: (bp: ComparisonConfig) => void;
+  isEditable: boolean; // Controls if the form fields are interactive
 }
 
-export function GlobalConfigCard({ blueprint, onUpdate, availableModels }: GlobalConfigCardProps) {
-  const [isOpen, setIsOpen] = useState(false);
+export function GlobalConfigCard({ blueprint, onUpdate, isEditable }: GlobalConfigCardProps) {
 
-  const setField = <K extends keyof SandboxBlueprint>(field: K, value: SandboxBlueprint[K]) => {
+  const handleFieldChange = <K extends keyof ComparisonConfig>(field: K, value: ComparisonConfig[K]) => {
     onUpdate({ ...blueprint, [field]: value });
   };
 
   return (
-    <Card className="p-6 sm:p-8">
-      <div className="space-y-6">
-          <div>
-              <label className="text-base font-semibold text-foreground" htmlFor="blueprint-title">Blueprint Title</label>
-              <p className="text-sm text-muted-foreground mb-2">A short, descriptive title for your evaluation.</p>
-              <Input
-                  id="blueprint-title"
-                  type="text" 
-                  placeholder="e.g., Clinical Accuracy Test"
-                  value={blueprint.title}
-                  onChange={(e) => setField('title', e.target.value)}
-                  className="text-base blueprint-input"
-              />
-          </div>
-          <div>
-              <label className="text-base font-semibold text-foreground" htmlFor="blueprint-description">Description</label>
-              <p className="text-sm text-muted-foreground mb-2">A brief explanation of what this blueprint is designed to test.</p>
-              <Textarea
-                  id="blueprint-description"
-                  placeholder="e.g., Tests a model's ability to provide safe and accurate medical information."
-                  value={blueprint.description}
-                  onChange={(e) => setField('description', e.target.value)}
-                  className="min-h-[100px] text-base blueprint-input"
-                  rows={3}
-              />
-          </div>
-
-          <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-            <CollapsibleTrigger asChild>
-              <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-                <ChevronsUpDown className="h-4 w-4" />
-                Advanced Settings
-              </button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-4 space-y-4 border-t mt-4">
-              <div>
-                  <label className="text-base font-semibold text-foreground">Models</label>
-                   <p className="text-sm text-muted-foreground mb-2">The AI models you want to test.</p>
-                  <ModelSelector
-                    availableModels={availableModels}
+    <Card className="p-4">
+        <div className="space-y-4">
+            <div>
+                <label className="text-sm font-semibold text-foreground" htmlFor="blueprint-title">Blueprint Title</label>
+                <p className="text-xs text-muted-foreground mb-1.5">A short, descriptive title for your evaluation.</p>
+                <Input
+                    id="blueprint-title"
+                    type="text" 
+                    placeholder="e.g., Clinical Accuracy Test"
+                    value={blueprint.title}
+                    onChange={(e) => handleFieldChange('title', e.target.value)}
+                    className="text-sm"
+                    readOnly={!isEditable}
+                />
+            </div>
+            <div>
+                <label className="text-sm font-semibold text-foreground" htmlFor="blueprint-description">Description</label>
+                <p className="text-xs text-muted-foreground mb-1.5">A brief explanation of what this blueprint is designed to test.</p>
+                <Textarea
+                    id="blueprint-description"
+                    placeholder="e.g., Tests a model's ability to provide safe and accurate medical information."
+                    value={blueprint.description || ''}
+                    onChange={(e) => handleFieldChange('description', e.target.value)}
+                    className="min-h-[80px] text-sm"
+                    rows={3}
+                    readOnly={!isEditable}
+                />
+            </div>
+            {blueprint.models && blueprint.models.length > 0 && (
+                 <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Models Will Be Ignored</AlertTitle>
+                    <AlertDescription>
+                        Defining models in the blueprint is not supported within the sandbox. Models for evaluation are selected when you click &quot;Run Evaluation.&quot; If you want to submit this as a proposal, please remove the <code>models</code> field.
+                    </AlertDescription>
+                </Alert>
+            )}
+            {/*
+            <div>
+                <label className="text-base font-semibold text-foreground">Models</label>
+                <p className="text-sm text-muted-foreground mb-2">The AI models you want to test.</p>
+                <ModelSelector
                     selectedModels={blueprint.models || []}
-                    onSelectionChange={(models) => setField('models', models)}
-                    maxSelection={5}
-                  />
-              </div>
-              <div>
-                  <label htmlFor="blueprint-system" className="text-sm font-medium block mb-1.5">System Prompt</label>
-                  <Textarea
-                      id="blueprint-system"
-                      placeholder="You are a helpful assistant."
-                      value={blueprint.system || ''}
-                      onChange={(e) => setField('system', e.target.value)}
-                      rows={3}
-                      className="min-h-[100px] text-base blueprint-input"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1.5">Optional. A global system prompt for all test cases.</p>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-      </div>
+                    onSelectionChange={(models) => handleFieldChange('models', models)}
+                />
+            </div>
+            */}
+            <div>
+                <label htmlFor="blueprint-system" className="text-sm font-semibold block mb-1">System Prompt (Optional)</label>
+                <Textarea
+                    id="blueprint-system"
+                    placeholder="You are a helpful assistant."
+                    value={blueprint.system || ''}
+                    onChange={(e) => handleFieldChange('system', e.target.value)}
+                    rows={3}
+                    className="min-h-[80px] text-sm"
+                    readOnly={!isEditable}
+                />
+                <p className="text-xs text-muted-foreground mt-1">A global system prompt to be used for all test cases in this blueprint.</p>
+            </div>
+        </div>
     </Card>
   );
 } 

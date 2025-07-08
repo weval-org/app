@@ -21,6 +21,7 @@ import {
 import { fromSafeTimestamp } from '../../lib/timestampUtils';
 import { ModelRunPerformance, ModelSummary } from '@/types/shared';
 import { parseEffectiveModelId, getModelDisplayLabel } from '@/app/utils/modelIdUtils';
+import { populatePairwiseQueue } from '../services/pairwise-task-queue-service';
 
 async function actionBackfillSummary(options: { verbose?: boolean }) {
     const { logger } = getConfig();
@@ -46,6 +47,11 @@ async function actionBackfillSummary(options: { verbose?: boolean }) {
                 if (options.verbose) logger.info(`- No runs found for config ${configId}, skipping.`);
                 continue;
             }
+
+            // For populating the pairs queue, we only care about the latest run.
+            // listRunsForConfig returns runs sorted by date, so the first one is the latest.
+            const latestRunInfo = runs[0];
+            
             totalConfigsProcessed++;
             logger.info(`Processing ${runs.length} runs for config: ${configId}...`);
             
@@ -70,6 +76,17 @@ async function actionBackfillSummary(options: { verbose?: boolean }) {
                         // Iteratively build up the summary object for this specific config
                         runsForThisConfig = updateSummaryDataWithNewRun(runsForThisConfig, resultData, runFileName);
                         totalRunsProcessed++;
+
+                        // Populate the pairwise queue with tasks from this run, ONLY if it's the latest one and has the tag.
+                        if (runInfo.fileName === latestRunInfo.fileName && resultData.config?.tags?.includes('_get_human_prefs')) {
+                            try {
+                                if (options.verbose) logger.info(`  Found _get_human_prefs tag. Populating pairwise queue for LATEST run: ${runFileName}`);
+                                await populatePairwiseQueue(resultData, { logger });
+                            } catch (pairwiseError: any) {
+                                logger.error(`  Error populating pairwise queue for run ${runFileName}: ${pairwiseError.message}`);
+                                // Do not fail the whole backfill for this one error
+                            }
+                        }
                     } else {
                         logger.warn(`  Could not fetch or parse result data for run file: ${runFileName}`);
                         totalRunsFailed++;
@@ -98,9 +115,12 @@ async function actionBackfillSummary(options: { verbose?: boolean }) {
             // 1. Create the hybrid array for the homepage summary file itself.
             const homepageConfigs = allConfigsForHomepage.map(config => {
                 if (config.tags?.includes('_featured')) {
-                    return config; // Keep full run data
+                    // For featured configs, keep the metadata but only include the LATEST run.
+                    // The runs array is already sorted newest first.
+                    const latestRun = config.runs[0];
+                    return { ...config, runs: latestRun ? [latestRun] : [] };
                 }
-                return { ...config, runs: [] }; // Strip run data
+                return { ...config, runs: [] }; // For non-featured, strip all run data.
             });
 
             // 2. Calculate stats based on ALL configs.

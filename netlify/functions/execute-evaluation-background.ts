@@ -15,6 +15,7 @@ import {
     calculateHeadlineStats,
     calculatePotentialModelDrift
 } from '../../src/cli/utils/summaryCalculationUtils';
+import { populatePairwiseQueue } from "../../src/cli/services/pairwise-task-queue-service";
 
 // Helper to create a simple console-based logger with a prefix
 const createLogger = (context: HandlerContext) => {
@@ -142,6 +143,19 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
 
             await saveHomepageSummary(newHomepageSummaryContent);
             logger.info('Homepage summary manifest updated successfully with re-calculated stats.');
+
+            // --- BEGIN: Populate Pairwise Task Queue ---
+            if (newResultData.config?.tags?.includes('_get_human_prefs')) {
+                try {
+                    logger.info('Found _get_human_prefs tag. Attempting to populate pairwise comparison task queue...');
+                    const queueResult = await populatePairwiseQueue(newResultData, { logger });
+                    logger.info(`Pairwise task queue processed. Added: ${queueResult.tasksAdded}, Total in queue: ${queueResult.totalTasksInQueue}`);
+                } catch (pairwiseError: any) {
+                    logger.error(`Failed to populate pairwise task queue: ${pairwiseError.message}`);
+                }
+            }
+            // --- END: Populate Pairwise Task Queue ---
+            
         } catch (summaryError: any) {
             logger.error(`Failed to update homepage summary manifest: ${summaryError.message}`);
             if (process.env.DEBUG && summaryError.stack) {

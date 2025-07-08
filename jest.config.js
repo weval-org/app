@@ -1,21 +1,20 @@
-/** @type {import('ts-jest').JestConfigWithTsJest} */
-module.exports = {
-  preset: 'ts-jest',
-  testEnvironment: 'node',
-  transform: {
-    '^.+\\.tsx?$': ['ts-jest', {
-      tsconfig: 'tsconfig.json',
-      diagnostics: {
-        ignoreCodes: [151001]
-      }
-    }],
-  },
+const nextJest = require('next/jest');
+
+/** @type {import('jest').Config} */
+const createJestConfig = nextJest({
+  dir: './',
+});
+
+const config = {
+  coverageProvider: 'v8',
+  testEnvironment: 'jsdom',
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
-  testMatch: [
-    '**/__tests__/**/*.test.ts',
-    '**/__tests__/**/*.test.tsx',
-    '**/?(*.)+(spec|test).ts',
+  testPathIgnorePatterns: [
+    '<rootDir>/src/cli/',
+    '<rootDir>/src/lib/',
   ],
-}; 
+};
+
+module.exports = createJestConfig(config); 

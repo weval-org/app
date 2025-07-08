@@ -5,7 +5,7 @@ import {
     PointAssessment,
     CoverageResult
 } from '@/app/utils/types';
-import { ModelEvaluationDetailModalData } from '@/app/(full)/analysis/components/ModelEvaluationDetailModal';
+import { ModelEvaluationDetailModalData } from '@/app/(full)/analysis/components/ModelEvaluationDetailModalV2';
 import { parseEffectiveModelId } from '@/app/utils/modelIdUtils';
 
 interface OpenModalOptions {
@@ -17,8 +17,8 @@ export function usePageInteraction(data: ComparisonDataV2 | null) {
     const [responseComparisonModal, setResponseComparisonModal] = useState<SelectedPairInfo | null>(null);
     const [modelEvaluationModal, setModelEvaluationModal] = useState<ModelEvaluationDetailModalData | null>(null);
 
-    const openResponseComparisonModal = useCallback((info: Partial<SelectedPairInfo>) => {
-        if (!data || !info.promptId || !data.promptContexts?.[info.promptId]) return;
+    const prepareResponseComparisonModalData = useCallback((info: Partial<SelectedPairInfo>): SelectedPairInfo | null => {
+        if (!data || !info.promptId || !data.promptContexts?.[info.promptId]) return null;
 
         const fullInfo: SelectedPairInfo = {
             modelA: info.modelA || '',
@@ -36,15 +36,22 @@ export function usePageInteraction(data: ComparisonDataV2 | null) {
             pointAssessmentsA: info.pointAssessmentsA,
             pointAssessmentsB: info.pointAssessmentsB,
         };
-        setResponseComparisonModal(fullInfo);
+        return fullInfo;
     }, [data]);
+
+    const openResponseComparisonModal = useCallback((info: Partial<SelectedPairInfo>) => {
+        const modalData = prepareResponseComparisonModalData(info);
+        if (modalData) {
+            setResponseComparisonModal(modalData);
+        }
+    }, [prepareResponseComparisonModalData]);
 
     const closeResponseComparisonModal = () => setResponseComparisonModal(null);
 
-    const openModelEvaluationDetailModal = useCallback(({ promptId, modelId: clickedModelId }: OpenModalOptions) => {
+    const prepareModelEvaluationModalData = useCallback(({ promptId, modelId: clickedModelId }: OpenModalOptions): ModelEvaluationDetailModalData | null => {
         if (!data || !data.evaluationResults?.llmCoverageScores || !data.config || !data.allFinalAssistantResponses || !data.promptContexts) {
             console.error("Cannot open model evaluation modal: core evaluation data is missing.");
-            return;
+            return null;
         }
         const { effectiveModels, evaluationResults, config, allFinalAssistantResponses, promptContexts, modelSystemPrompts } = data;
         const llmCoverageScoresTyped = evaluationResults.llmCoverageScores as Record<string, Record<string, CoverageResult>>;
@@ -82,7 +89,7 @@ export function usePageInteraction(data: ComparisonDataV2 | null) {
         
         if (variantEvaluations.size === 0) {
             console.warn(`Could not gather any valid evaluation data for base model ${clickedParsed.baseId} on prompt ${promptId}.`);
-            return;
+            return null;
         }
 
         const promptConfig = config.prompts.find(p => p.id === promptId);
@@ -90,7 +97,7 @@ export function usePageInteraction(data: ComparisonDataV2 | null) {
 
         if (!promptContext) {
             console.error(`Could not find prompt context for promptId: ${promptId}. Cannot open modal.`);
-            return;
+            return null;
         }
 
         const baseModelId = clickedParsed.temperature !== undefined ? `${clickedParsed.baseId}[temp:${clickedParsed.temperature}]` : clickedParsed.baseId;
@@ -103,12 +110,19 @@ export function usePageInteraction(data: ComparisonDataV2 | null) {
             initialVariantIndex: clickedParsed.systemPromptIndex ?? 0,
         };
 
-        setModelEvaluationModal(modalData);
-      }, [data]);
+        return modalData;
+    }, [data]);
+
+    const openModelEvaluationDetailModal = useCallback(({ promptId, modelId }: OpenModalOptions) => {
+        const modalData = prepareModelEvaluationModalData({ promptId, modelId });
+        if (modalData) {
+            setModelEvaluationModal(modalData);
+        }
+    }, [prepareModelEvaluationModalData]);
     
     const closeModelEvaluationDetailModal = () => setModelEvaluationModal(null);
 
-    const handleSimilarityCellClick = (modelA: string, modelB: string, similarity: number, currentPromptId: string) => {
+    const handleSimilarityCellClick = useCallback((modelA: string, modelB: string, similarity: number, currentPromptId: string) => {
         if (!data || !currentPromptId || !data.allFinalAssistantResponses || !data.promptContexts) return;
 
         const coverageScoresForPrompt = data.evaluationResults?.llmCoverageScores?.[currentPromptId] as Record<string, CoverageResult> | undefined;
@@ -134,21 +148,21 @@ export function usePageInteraction(data: ComparisonDataV2 | null) {
             pointAssessmentsA: pointAssessmentsA || undefined, 
             pointAssessmentsB: pointAssessmentsB || undefined, 
         });
-    };
+    }, [data, openResponseComparisonModal]);
 
-    const handleCoverageCellClick = (clickedModelId: string, assessment: PointAssessment | null, currentPromptId: string) => {
+    const handleCoverageCellClick = useCallback((clickedModelId: string, assessment: PointAssessment | null, currentPromptId: string) => {
         if (!data || !currentPromptId || !assessment) {
             return;
         }
         openModelEvaluationDetailModal({ promptId: currentPromptId, modelId: clickedModelId });
-    };
+    }, [data, openModelEvaluationDetailModal]);
 
-    const handleSemanticExtremesClick = (modelId: string) => {
+    const handleSemanticExtremesClick = useCallback((modelId: string) => {
         if (!data || !data.promptIds || data.promptIds.length === 0) return;
         
         const firstPromptId = data.promptIds[0];
         openModelEvaluationDetailModal({ promptId: firstPromptId, modelId: modelId });
-    };
+    }, [data, openModelEvaluationDetailModal]);
 
     return {
         responseComparisonModal,
@@ -160,5 +174,7 @@ export function usePageInteraction(data: ComparisonDataV2 | null) {
         handleSimilarityCellClick,
         handleCoverageCellClick,
         handleSemanticExtremesClick,
+        prepareResponseComparisonModalData,
+        prepareModelEvaluationModalData,
     };
 } 

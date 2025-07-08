@@ -24,6 +24,8 @@ import { backfillPromptContextsCommand } from './commands/backfill-prompt-contex
 import { getConfig } from './config';
 import { backfillExecutiveSummaryCommand } from './commands/backfill-executive-summary';
 import { repairRunCommand } from './commands/repair-run';
+import { addToPairsCommand } from './commands/add-to-pairs';
+import { deleteFromPairsCommand } from './commands/delete-from-pairs';
 
 let isTerminating = false
 const cleanup = () => {
@@ -85,6 +87,8 @@ cli.addCommand(deleteConfigCommand);
 cli.addCommand(backfillPromptContextsCommand);
 cli.addCommand(backfillExecutiveSummaryCommand);
 cli.addCommand(repairRunCommand);
+cli.addCommand(addToPairsCommand);
+cli.addCommand(deleteFromPairsCommand);
 
 cli.parseAsync(process.argv).catch(err => {
   console.error('CLI Error:', err); 

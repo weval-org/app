@@ -15,7 +15,6 @@ import DendrogramChart from '@/app/(full)/analysis/components/DendrogramChart';
 import { Badge } from '@/components/ui/badge';
 import {
     Tabs,
-    TabsContent,
     TabsList,
     TabsTrigger,
 } from "@/components/ui/tabs";

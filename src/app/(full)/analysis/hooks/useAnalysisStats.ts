@@ -15,6 +15,28 @@ import {
 import { parseEffectiveModelId } from '@/app/utils/modelIdUtils';
 
 export const useAnalysisStats = (data: ComparisonDataV2 | null) => {
+    const calculatedPerModelHybridScores = useMemo(() => {
+        if (!data?.evaluationResults?.perModelHybridScores) {
+            return new Map<string, { average: number | null; stddev: number | null }>();
+        }
+        let scoresToSet = data.evaluationResults.perModelHybridScores;
+        if (typeof scoresToSet === 'object' && !(scoresToSet instanceof Map)) {
+            scoresToSet = new Map(Object.entries(scoresToSet));
+        }
+        return scoresToSet as Map<string, { average: number | null; stddev: number | null }>;
+    }, [data?.evaluationResults?.perModelHybridScores]);
+
+    const calculatedPerModelSemanticScores = useMemo(() => {
+        if (!data?.evaluationResults?.perModelSemanticScores) {
+            return new Map<string, { average: number | null; stddev: number | null }>();
+        }
+        let scoresToSet = data.evaluationResults.perModelSemanticScores;
+        if (typeof scoresToSet === 'object' && !(scoresToSet instanceof Map)) {
+            scoresToSet = new Map(Object.entries(scoresToSet));
+        }
+        return scoresToSet as Map<string, { average: number | null; stddev: number | null }>;
+    }, [data?.evaluationResults?.perModelSemanticScores]);
+
     return useMemo(() => {
         if (!data) {
           return {
@@ -55,24 +77,6 @@ export const useAnalysisStats = (data: ComparisonDataV2 | null) => {
         const overallRunHybridStats = (evaluationResults?.perPromptSimilarities && llmCoverageScores && effectiveModels && promptIds)
           ? calculateAverageHybridScoreForRun(evaluationResults.perPromptSimilarities, llmCoverageScores, effectiveModels, promptIds, IDEAL_MODEL_ID)
           : { average: null, stddev: null };
-
-        let calculatedPerModelHybridScores = new Map<string, { average: number | null; stddev: number | null }>();
-        if (evaluationResults?.perModelHybridScores) {
-          let scoresToSet = evaluationResults.perModelHybridScores;
-          if (typeof scoresToSet === 'object' && !(scoresToSet instanceof Map)) {
-            scoresToSet = new Map(Object.entries(scoresToSet));
-          }
-          calculatedPerModelHybridScores = scoresToSet as Map<string, { average: number | null; stddev: number | null }>;
-        }
-        
-        let calculatedPerModelSemanticScores = new Map<string, { average: number | null; stddev: number | null }>();
-        if (evaluationResults?.perModelSemanticScores) {
-          let scoresToSet = evaluationResults.perModelSemanticScores;
-          if (typeof scoresToSet === 'object' && !(scoresToSet instanceof Map)) {
-            scoresToSet = new Map(Object.entries(scoresToSet));
-          }
-          calculatedPerModelSemanticScores = scoresToSet as Map<string, { average: number | null; stddev: number | null }>;
-        }
 
         const perSystemVariantHybridScores: Record<number, number | null> = {};
         if (config.systems && config.systems.length > 1 && evaluationResults?.perPromptSimilarities && llmCoverageScores && effectiveModels && promptIds) {
@@ -124,5 +128,5 @@ export const useAnalysisStats = (data: ComparisonDataV2 | null) => {
             perTemperatureVariantHybridScores,
             mostDifferentiatingPrompt,
         };
-    }, [data]);
+    }, [data, calculatedPerModelHybridScores, calculatedPerModelSemanticScores]);
 }; 

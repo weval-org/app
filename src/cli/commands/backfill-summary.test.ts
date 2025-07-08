@@ -1,6 +1,7 @@
 import { backfillSummaryCommand } from './backfill-summary';
 import * as storageService from '../../lib/storageService';
 import { getConfig }from '../config';
+import * as pairwiseService from '../services/pairwise-task-queue-service';
 import { EnhancedComparisonConfigInfo } from '../../app/utils/homepageDataUtils';
 import { ModelRunPerformance } from '@/types/shared';
 import { ComparisonDataV2 as FetchedComparisonData } from '../../app/utils/types';
@@ -21,9 +22,11 @@ jest.mock('../../lib/storageService', () => {
   };
 });
 
+jest.mock('../services/pairwise-task-queue-service');
 jest.mock('../config');
 
 const mockedStorage = storageService as jest.Mocked<typeof storageService>;
+const mockedPairwiseService = pairwiseService as jest.Mocked<typeof pairwiseService>;
 const mockedGetConfig = getConfig as jest.Mocked<typeof getConfig>;
 
 const mockLogger = {
@@ -66,7 +69,7 @@ const mockResultData1: Partial<FetchedComparisonData> = {
         title: 'Config 1',
         models: ['test-provider:test-model-a'],
         prompts: [{id: 'p1', promptText: '...', idealResponse: 'ideal text'}],
-        tags: ['_featured'],
+        tags: ['_featured', '_get_human_prefs'],
     } as any,
     evalMethodsUsed: ['embedding', 'llm-coverage'],
     promptIds: ['p1'],
@@ -124,8 +127,12 @@ const mockResultData2: Partial<FetchedComparisonData> = {
     }
 };
 
-const mockRunInfo1 = { runLabel: 'run-1', timestamp: '2024-01-01T10-00-00-000Z', fileName: 'f1.json' };
+const mockRunInfo1 = { runLabel: 'run-1-new', timestamp: '2024-01-01T12-00-00-000Z', fileName: 'f1_new.json' };
+const mockRunInfo1_old = { runLabel: 'run-1-old', timestamp: '2024-01-01T10-00-00-000Z', fileName: 'f1_old.json' };
 const mockRunInfo2 = { runLabel: 'run-2', timestamp: '2024-01-02T10-00-00-000Z', fileName: 'f2.json' };
+
+const mockResultData1_new = { ...mockResultData1, runLabel: 'run-1-new', timestamp: '2024-01-01T12-00-00-000Z' };
+const mockResultData1_old = { ...mockResultData1, runLabel: 'run-1-old', timestamp: '2024-01-01T10-00-00-000Z' };
 
 describe('backfill-summary command', () => {
     beforeEach(() => {
@@ -135,13 +142,14 @@ describe('backfill-summary command', () => {
         // Reset mocks to a default "happy path" state
         mockedStorage.listConfigIds.mockResolvedValue(['config-1', 'config-2']);
         mockedStorage.listRunsForConfig.mockImplementation((configId: string) => {
-            if (configId === 'config-1') return Promise.resolve([mockRunInfo1]);
+            if (configId === 'config-1') return Promise.resolve([mockRunInfo1, mockRunInfo1_old]); // Newest first
             if (configId === 'config-2') return Promise.resolve([mockRunInfo2]);
             return Promise.resolve([]);
         });
         mockedStorage.getResultByFileName.mockImplementation((configId: string, fileName: string) => {
-            if (configId === 'config-1') return Promise.resolve(mockResultData1 as any);
-            if (configId === 'config-2') return Promise.resolve(mockResultData2 as any);
+            if (fileName === 'f1_new.json') return Promise.resolve(mockResultData1_new as any);
+            if (fileName === 'f1_old.json') return Promise.resolve(mockResultData1_old as any);
+            if (fileName === 'f2.json') return Promise.resolve(mockResultData2 as any);
             return Promise.resolve(null);
         });
     });
@@ -152,12 +160,31 @@ describe('backfill-summary command', () => {
         expect(mockedStorage.listConfigIds).toHaveBeenCalledTimes(1);
         expect(mockedStorage.listRunsForConfig).toHaveBeenCalledWith('config-1');
         expect(mockedStorage.listRunsForConfig).toHaveBeenCalledWith('config-2');
-        expect(mockedStorage.getResultByFileName).toHaveBeenCalledTimes(2);
+        expect(mockedStorage.getResultByFileName).toHaveBeenCalledTimes(3); // 2 for config-1, 1 for config-2
         
         // Check that a per-config summary was saved for each config
         expect(mockedStorage.saveConfigSummary).toHaveBeenCalledTimes(2);
         expect(mockedStorage.saveConfigSummary).toHaveBeenCalledWith('config-1', expect.any(Object));
         expect(mockedStorage.saveConfigSummary).toHaveBeenCalledWith('config-2', expect.any(Object));
+    });
+
+    it('should call populatePairwiseQueue ONLY for the LATEST run of configs WITH the _get_human_prefs tag', async () => {
+        await backfillSummaryCommand.parseAsync(['node', 'test']);
+
+        // It should be called once for config-1's latest run, as it has the tag.
+        expect(mockedPairwiseService.populatePairwiseQueue).toHaveBeenCalledTimes(1);
+        
+        // Verify it was called with the NEW data for config-1
+        expect(mockedPairwiseService.populatePairwiseQueue).toHaveBeenCalledWith(
+            expect.objectContaining({ runLabel: 'run-1-new' }), 
+            expect.any(Object)
+        );
+        
+        // Verify it was NOT called for config-2, which does not have the tag.
+        expect(mockedPairwiseService.populatePairwiseQueue).not.toHaveBeenCalledWith(
+            expect.objectContaining({ configId: 'config-2' }),
+            expect.any(Object)
+        );
     });
 
     it('should call saveModelSummary for models found in runs', async () => {
@@ -221,7 +248,8 @@ describe('backfill-summary command', () => {
     it('should handle failure to fetch a result file', async () => {
         mockedStorage.getResultByFileName.mockResolvedValue(null);
         await backfillSummaryCommand.parseAsync(['node', 'test']);
-        expect(mockLogger.warn).toHaveBeenCalledWith('  Could not fetch or parse result data for run file: f1.json');
+        expect(mockLogger.warn).toHaveBeenCalledWith('  Could not fetch or parse result data for run file: f1_new.json');
+        expect(mockLogger.warn).toHaveBeenCalledWith('  Could not fetch or parse result data for run file: f1_old.json');
         expect(mockLogger.warn).toHaveBeenCalledWith('  Could not fetch or parse result data for run file: f2.json');
         expect(mockedStorage.saveConfigSummary).not.toHaveBeenCalled();
     });

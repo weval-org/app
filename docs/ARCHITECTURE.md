@@ -64,7 +64,7 @@ graph TD;
                 subgraph "Path B: Conceptual 'Fuzzy' Check"
                     O{"Is point text-based?"}
                     P["Prompt Judge LLM<br>(with response + point)"]:::llm;
-                    Q["Judge classifies on 5-point scale<br>(Absent, Partial, Full, etc.)"]:::eval;
+                    Q["Judge classifies on 5-point scale<br>(e.g., UNMET, PARTIALLY_MET, EXACTLY_MET)"]:::eval;
                     R["Map classification to score<br>(0.0 to 1.0)"]:::eval;
                     S[("Point Score: 0.0-1.0")]:::score;
                     O -- Yes --> P --> Q --> R --> S;

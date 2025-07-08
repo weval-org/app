@@ -34,7 +34,7 @@ export const metadata: Metadata = {
         url: `${appUrl}/opengraph-image`,
         width: 1200,
         height: 630,
-        alt: "Weval - Measuring AI's fitness for civic life",
+        alt: "Weval - Open AI Evaluation Platform",
       },
     ],
     locale: 'en_US',
@@ -117,7 +117,9 @@ export default async function HomePage() {
           {featuredConfigs.length > 0 ? (
             <>
               <hr className="my-8 md:my-12 border-border/70 dark:border-slate-700/50 w-3/4 mx-auto" />
-              <BrowseAllBlueprintsSection blueprints={blueprintSummaries} title="Featured Blueprints" actionLink={{ href: '/all', text: 'View All Blueprints' }} />
+              <section id="featured-blueprints" className="scroll-mt-20">
+                <BrowseAllBlueprintsSection blueprints={blueprintSummaries} title="Featured Blueprints" actionLink={{ href: '/all', text: 'View All Blueprints' }} />
+              </section>
               <hr className="my-8 md:my-12 border-border/70 dark:border-slate-700/50 w-3/4 mx-auto" />
               <LatestEvaluationRunsSection latestRuns={top20LatestRuns} />
             </>

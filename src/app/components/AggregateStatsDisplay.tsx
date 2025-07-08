@@ -22,6 +22,8 @@ export interface HeadlineStatInfo {
   configTitle: string;
   value: number;
   description?: string;
+  latestRunLabel?: string;
+  latestRunTimestamp?: string;
 }
 
 export interface TopModelStatInfo {
@@ -73,6 +75,14 @@ const StatCard: React.FC<{
       break;
   }
 
+  const cardLink = useMemo(() => {
+    if (!data) return '#';
+    if (data.latestRunLabel && data.latestRunTimestamp) {
+      return `/analysis/${data.configId}/${data.latestRunLabel}/${data.latestRunTimestamp}`;
+    }
+    return `/analysis/${data.configId}`;
+  }, [data]);
+
   const cardContent = (
     <div className="flex flex-col justify-between flex-grow">
       <div>
@@ -104,7 +114,7 @@ const StatCard: React.FC<{
       className="bg-card p-4 rounded-lg border border-border/70 dark:border-slate-700/50 flex flex-col min-h-[140px] hover:shadow-md transition-shadow"
     >
       {data && data.configId ? (
-        <Link href={`/analysis/${data.configId}`} className="flex flex-col justify-between flex-grow">
+        <Link href={cardLink} className="flex flex-col justify-between flex-grow">
           {cardContent}
         </Link>
       ) : (

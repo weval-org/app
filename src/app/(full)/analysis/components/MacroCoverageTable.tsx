@@ -7,19 +7,19 @@ import { getGradedCoverageColor } from '@/app/(full)/analysis/utils/colorUtils';
 import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import { AllCoverageScores, AllFinalAssistantResponses } from '@/app/(full)/analysis/types';
 import { useMacroCoverageData } from '@/app/(full)/analysis/hooks/useMacroCoverageData';
-import { FocusView } from './FocusView';
+import { FocusView } from '@/app/(full)/analysis/components/FocusView';
 import { cn } from '@/lib/utils';
 import { ActiveHighlight } from './CoverageTableLegend';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
-const UsersIcon = dynamic(() => import("lucide-react").then((mod) => mod.Users));
-const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.AlertCircle));
-const AlertTriangleIcon = dynamic(() => import("lucide-react").then((mod) => mod.AlertTriangle));
-const ThermometerIcon = dynamic(() => import("lucide-react").then((mod) => mod.Thermometer));
-const MessageSquareIcon = dynamic(() => import("lucide-react").then((mod) => mod.MessageSquare));
-const UnlinkIcon = dynamic(() => import("lucide-react").then((mod) => mod.Unlink));
-const MedalIcon = dynamic(() => import("lucide-react").then((mod) => mod.Medal));
-const InfoIcon = dynamic(() => import("lucide-react").then((mod) => mod.Info));
+const UsersIcon = dynamic(() => import("lucide-react").then((mod) => mod.Users), { ssr: false });
+const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.AlertCircle), { ssr: false });
+const AlertTriangleIcon = dynamic(() => import("lucide-react").then((mod) => mod.AlertTriangle), { ssr: false });
+const ThermometerIcon = dynamic(() => import("lucide-react").then((mod) => mod.Thermometer), { ssr: false });
+const MessageSquareIcon = dynamic(() => import("lucide-react").then((mod) => mod.MessageSquare), { ssr: false });
+const UnlinkIcon = dynamic(() => import("lucide-react").then((mod) => mod.Unlink), { ssr: false });
+const MedalIcon = dynamic(() => import("lucide-react").then((mod) => mod.Medal), { ssr: false });
+const InfoIcon = dynamic(() => import("lucide-react").then((mod) => mod.Info), { ssr: false });
 
 interface MacroCoverageTableProps {
     allCoverageScores: AllCoverageScores | undefined | null;
@@ -37,6 +37,8 @@ interface MacroCoverageTableProps {
     onActiveHighlightsChange?: (activeHighlights: Set<ActiveHighlight>) => void;
     systemPromptIndex?: number;
     permutationSensitivityMap?: Map<string, 'temp' | 'sys' | 'both'>;
+    isSandbox?: boolean;
+    sandboxId?: string;
 }
 
 const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
@@ -55,6 +57,8 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
     onActiveHighlightsChange,
     systemPromptIndex,
     permutationSensitivityMap,
+    isSandbox,
+    sandboxId,
 }) => {
     const [focusedModelId, setFocusedModelId] = useState<string | null>(null);
     const [markdownModule, setMarkdownModule] = useState<{ ReactMarkdown: any, RemarkGfm: any } | null>(null);
@@ -175,9 +179,8 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                 runLabel={runLabel}
                 safeTimestampFromParams={safeTimestampFromParams}
                 onReturn={() => setFocusedModelId(null)}
-                markdownModule={markdownModule}
                 onClearFocus={() => setFocusedModelId(null)}
-                onSwitchFocus={(direction) => {
+                onSwitchFocus={(direction: 'next' | 'prev') => {
                     const currentIndex = localSortedModels.indexOf(focusedModelId);
                     if (currentIndex === -1) return;
                     const nextIndex = direction === 'next' 
@@ -341,7 +344,7 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                             })}
                         </tr>
                         <tr className="bg-muted">
-                            <th className={cn(firstColStickyHeader, "border-t-0")}>Avg %</th>
+                            <th className={cn(firstColStickyHeader, "border-t-0")}></th>
                             <th className={cn(secondColStickyHeader, "border-t-0")}>Prompt</th>
                             {localSortedModels.map(modelId => {
                                 const parsed = parsedModelsMap[modelId];
@@ -360,7 +363,7 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                             })}
                         </tr>
                         <tr className="bg-muted/70">
-                            <th className={firstColModelAvgSticky}>Model Avg</th>
+                            <th className={firstColModelAvgSticky}>Avg %</th>
                             <th className={secondColModelAvgSticky}></th>
                             {localSortedModels.map(modelId => {
                                 const modelAvgCoverage = calculateModelAverageCoverage(modelId);
@@ -424,14 +427,11 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                                     </td>
                                     <td className="border-x border-border dark:border-slate-700 px-3 py-2 text-left align-middle sticky left-0 z-10 bg-card/90  hover:bg-muted/60 dark:hover:bg-slate-700/50 w-96">
                                         <Link
-                                            href={`/analysis/${encodeURIComponent(configId)}/${encodeURIComponent(runLabel)}/${encodeURIComponent(safeTimestampFromParams)}?prompt=${encodeURIComponent(promptId)}`}
+                                            href={isSandbox ? `/sandbox/results/${sandboxId}?prompt=${encodeURIComponent(promptId)}` : `/analysis/${encodeURIComponent(configId)}/${encodeURIComponent(runLabel)}/${encodeURIComponent(safeTimestampFromParams)}?prompt=${encodeURIComponent(promptId)}`}
                                             className="block text-primary hover:text-primary/80 dark:hover:text-primary/80 hover:underline cursor-pointer text-xs"
-                                            title={`View details for: ${getPromptText(promptId)}`}
+                                            title={`View details for prompt ID ${promptId}: ${getPromptText(promptId)}`}
                                         >
-                                            <span className="block truncate text-xs text-muted-foreground dark:text-slate-500">
-                                                {promptId}
-                                            </span>
-                                            <span className="whitespace-normal line-clamp-2" style={{ minHeight: "2.4em"}}>
+                                            <span className="whitespace-normal line-clamp-3" style={{ minHeight: "3.5em"}}>
                                                 {getPromptText(promptId)}
                                             </span>
                                         </Link>

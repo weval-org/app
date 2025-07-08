@@ -1,7 +1,14 @@
 # netlify.toml
 
 [build]
-  functions = "netlify/functions"
+  command = "pnpm build"
+  publish = ".next"
+
+[functions]
+  included_files = ["src/cli/services/llm-service-data/**"]
+
+[blobs]
+  enabled = true
 
 # This will run the 'fetch-and-schedule-evals' function weekly on Sunday at midnight UTC.
 [functions."fetch-and-schedule-evals"]

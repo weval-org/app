@@ -14,7 +14,7 @@ For a detailed visual representation of the entire process, including the execut
 
 The platform operates on a multi-stage pipeline that proceeds from a user-defined "blueprint" to a rich, quantitative analysis.
 
-1.  **Blueprint Definition**: An evaluation begins with a YAML or JSON blueprint file that specifies the models to test, a series of prompts (test cases), evaluation methods (`embedding`, `llm-coverage`), and parameters like temperature.
+1.  **Blueprint Definition**: An evaluation begins with a YAML or JSON blueprint file that specifies the models to test, a series of prompts (test cases), evaluation methods (`embedding`, `llm-coverage`), and parameters like temperature. For a detailed guide on the blueprint syntax, see the [Blueprint Format Documentation](BLUEPRINT_FORMAT.md).
 2.  **Response Generation**: The system executes the blueprint, collecting responses from each specified model variation for every prompt.
 3.  **Evaluation Execution**: The collected responses are processed by the chosen evaluation methods.
 4.  **Results Aggregation & Storage**: The outputs are combined into a single JSON result file containing raw responses, similarity matrices, coverage scores, and metadata.
@@ -30,7 +30,9 @@ This method quantifies the semantic closeness between model responses and a pote
 
 *   **Process**: Every model's textual response is converted into a high-dimensional vector using a text embedding model (e.g., OpenAI's `text-embedding-ada-002`).
 *   **Mathematics**: The similarity between any two response vectors, $\mathbf{A}$ and $\mathbf{B}$, is calculated using **Cosine Similarity**:
-    $$ \text{Similarity}(\mathbf{A}, \mathbf{B}) = \frac{\mathbf{A} \cdot \mathbf{B}}{\|\mathbf{A}\| \|\mathbf{B}\|} $$
+    ```math
+    \text{Similarity}(\mathbf{A}, \mathbf{B}) = \frac{\mathbf{A} \cdot \mathbf{B}}{\|\mathbf{A}\| \|\mathbf{B}\|}
+    ```
     This yields a score between 0 and 1, where 1 indicates identical semantic meaning. This process produces a pairwise similarity matrix for each prompt.
 
 ### 4.2. Rubric-Based Coverage (`llm-coverage` method)
@@ -55,7 +57,8 @@ evaluationConfig:
 If no `judges` are specified, the system uses a default set designed to provide a balanced evaluation:
 1.  **`standard` approach:** A judge sees only the model's response and the single criterion to be evaluated. This tests for the presence of the criterion in isolation.
 2.  **`prompt-aware` approach:** A judge sees the response, the criterion, and the original user prompt. This allows the judge to consider the criterion in the context of the user's request.
-3.  **`holistic` approach:** A judge sees the response, the criterion, the user prompt, and *all other criteria* in the rubric. This provides the richest context, allowing the judge to assess the point as part of a whole, which can be useful for identifying redundancy or assessing trade-offs.
+
+A third approach, **`holistic`**, can be configured manually. This approach shows the judge the response, the criterion, the user prompt, and *all other criteria* in the rubric. This provides the richest context, allowing the judge to assess the point as part of a whole, which can be useful for identifying redundancy or assessing trade-offs.
 
 #### Judge Prompting and Classification
 
@@ -64,29 +67,36 @@ A specific, structured prompt is used to elicit a judgment for each individual p
 *   **System Prompt Persona**: The judge is instructed to act as an "expert evaluator and examiner" and to adhere strictly to the task and output format.
 *   **Task Definition**: The judge is presented with the model's response (`<TEXT>`) and a single criterion (`<CRITERION>`) and is asked to classify the degree to which the criterion is present in the text according to a 5-point scale. Depending on the `approach`, the original `<PROMPT>` and the full `<CRITERIA_LIST>` may also be included for context.
 *   **The 5-Point Scale**: The judge must choose one of the following five classes:
-    *   `CLASS_ABSENT`: The criterion is not found or addressed.
-    *   `CLASS_SLIGHTLY_PRESENT`: The criterion is very slightly or tangentially touched upon.
-    *   `CLASS_PARTIALLY_PRESENT`: Some core aspects are present, but significant parts are missing.
-    *   `CLASS_MAJORLY_PRESENT`: The main substance is present, but minor details might be missing.
-    *   `CLASS_FULLY_PRESENT`: The criterion is fully expressed in the text.
+    *   `CLASS_UNMET`: The criterion is not met.
+    *   `CLASS_PARTIALLY_MET`: The criterion is partially met.
+    *   `CLASS_MODERATELY_MET`: The criterion is moderately met.
+    *   `CLASS_MAJORLY_MET`: The criterion is mostly met.
+    *   `CLASS_EXACTLY_MET`: The criterion is fully met.
 
 #### Mathematical Scoring of Rubric Points
 
 The judge's categorical classification is mapped to a quantitative score.
 
 *   **Numerical Mapping**: The classification is mapped to a linear, equidistant numerical scale:
-    *   `CLASS_ABSENT` -> **0.0**
-    *   `CLASS_SLIGHTLY_PRESENT` -> **0.25**
-    *   `CLASS_PARTIALLY_PRESENT` -> **0.50**
-    *   `CLASS_MAJORLY_PRESENT` -> **0.75**
-    *   `CLASS_FULLY_PRESENT` -> **1.0**
+    *   `CLASS_UNMET` -> **0.0**
+    *   `CLASS_PARTIALLY_MET` -> **0.25**
+    *   `CLASS_MODERATELY_MET` -> **0.50**
+    *   `CLASS_MAJORLY_MET` -> **0.75**
+    *   `CLASS_EXACTLY_MET` -> **1.0**
 *   **Score Inversion (`should_not`)**: For criteria that penalize undesirable content, the score is inverted. For an original score $S_{\text{orig}}$, the final score is $S_{\text{final}} = 1 - S_{\text{orig}}$.
 *   **Weighted Aggregation**: A blueprint can assign a `multiplier` (weight) to each point. The final rubric score for a model on a prompt (`avgCoverageExtent`) is the weighted average of all point scores. For $N$ points with score $S_i$ and weight $w_i$:
-    $$ \text{avgCoverageExtent} = \frac{\sum_{i=1}^{N} S_i \cdot w_i}{\sum_{i=1}^{N} w_i} $$
+    ```math
+    \text{avgCoverageExtent} = \frac{\sum_{i=1}^{N} S_i \cdot w_i}{\sum_{i=1}^{N} w_i}
+    ```
 
 #### Judge Reliability Mechanisms
 
+We recognize that using LLMs as judges is a complex process susceptible to various cognitive biases, such as positional preference, order effects, and sensitivity to prompt phrasing. For a detailed analysis of these challenges, see the Collective Intelligence Project's research on the topic: *[LLM Judges Are Unreliable](https://www.cip.org/blog/llm-judges-are-unreliable)*. The reliability mechanisms below are designed as direct countermeasures to these known issues.
+
+*   **Pointwise Scoring Over Pairwise Comparison**: The platform defaults to a pointwise scoring methodology where each response is evaluated against a rubric in isolation. This avoids the significant positional and labeling biases that are well-documented in pairwise (A/B) or ranked-choice comparisons.
 *   **Consensus by Default**: To improve robustness, Weval queries all configured judge configurations concurrently and averages the numerical scores from all successful responses. This mitigates the impact of a single model's random error or a single approach's specific bias. The final `judgeModelId` reflects this, e.g., `consensus(standard(modelA), holistic(modelB))`.
+*   **Agnostic Scoring Scale**: The classification scale uses neutral terms (`CLASS_UNMET`, `CLASS_MODERATELY_MET`, etc.) to describe the degree to which a criterion is *met*. This is a deliberate choice to avoid the "higher is better" bias common in models trained on review data (e.g., 5/5 stars). The scale is agnostic to whether meeting a criterion is good or bad, which allows for more objective scoring of both desirable (`should`) and undesirable (`should_not`) traits.
+*   **Low-Temperature Judging**: By default, all calls to judge LLMs are made with `temperature: 0.0`. This minimizes randomness in the judge's output, making the scoring process more deterministic and repeatable. It ensures that score variations are due to differences in the content being judged, not sampling variability. We acknowledge however that there is a methodological trade-off here, as the judge's output is less "creative" and more deterministic, and won't capture the everyday temperatures these models are run via. However, there is the ability to configure multiple temperature permutations if you should wish to.
 *   **Transparent Breakdowns**: The output for each point assessment includes an `individualJudgements` array, detailing the score and reflection from each participating judge. This allows for deep inspection of any disagreements or biases among the judges.
 
 ## 5. Aggregate Statistical Measures
@@ -99,7 +109,9 @@ The Hybrid Score is a composite metric designed to provide a single, balanced me
 
 *   **Purpose**: It combines adherence to specific, user-defined criteria (coverage) with overall response quality (similarity to an ideal answer).
 *   **Formula**: To combine these two values, Weval uses a **weighted arithmetic mean**. This approach is chosen for its clarity and interpretability. It explicitly states the relative importance of each component. The formula is:
-    $$ S_{\text{hybrid}} = (\beta \cdot S_{\text{sim}}) + ((1-\beta) \cdot S_{\text{cov}}) $$
+    ```math
+    S_{\text{hybrid}} = (\beta \cdot S_{\text{sim}}) + ((1-\beta) \cdot S_{\text{cov}})
+    ```
     Where:
     *   $S_{\text{sim}}$ is the semantic similarity score.
     *   $S_{\text{cov}}$ is the rubric coverage score.
