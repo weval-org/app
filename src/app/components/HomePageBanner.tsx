@@ -19,14 +19,11 @@ export default function HomePageBanner() {
   const [isLearnMoreOpen, setLearnMoreOpen] = React.useState(false);
 
   return (
-    <div className="w-full bg-background pt-6 pb-2 text-foreground">
+    <div className="w-full bg-background pt-2 pb-2 text-foreground">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center my-10 py-5">
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-foreground dark:text-slate-50 mb-3">
-              An Open Platform for AI Evaluation
-            </h1>
-            <p className="max-w-3xl mx-auto text-base sm:text-lg text-foreground/80 dark:text-muted-foreground leading-relaxed">
-              Weval is a collaborative platform for creating, sharing, and running nuanced, qualitative evaluations to test that AI truly represents all needs.
+            <p className="font-bold max-w-4xl mx-auto text-lg sm:text-3xl text-foreground/80 dark:text-muted-foreground leading-relaxed">
+            Weval is a collaborative platform to build and share evaluations that test what matters to you. Just as Wikipedia democratized knowledge, Weval aims to democratize evaluation, ensuring that AI works for everyone.
             </p>
         </div>
 

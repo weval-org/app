@@ -1,7 +1,9 @@
 import Link from 'next/link';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Metadata } from 'next';
-import { getTags } from '@/app/utils/tagUtils';
+import { getTags } from '@/lib/tag-service';
+import { prettifyTag } from '@/app/utils/tagUtils';
+import { SiteHeader } from '@/app/components/SiteHeader';
 
 export const metadata: Metadata = {
   title: 'All Tags - Weval',
@@ -22,7 +24,7 @@ export default async function TagsPage() {
           {tags.map(tag => (
             <Link href={`/tags/${encodeURIComponent(tag.name)}`} key={tag.name} passHref>
               <Card className="p-6 h-full flex flex-col justify-between hover:bg-muted/50 dark:hover:bg-slate-800/60 transition-colors duration-200 ring-1 ring-border/60 hover:ring-primary/40 dark:ring-slate-700/80">
-                <h2 className="text-lg font-semibold text-primary">{tag.name}</h2>
+                <h2 className="text-lg font-semibold text-primary">{prettifyTag(tag.name)}</h2>
                 <p className="text-sm text-muted-foreground mt-2">
                   {tag.count} {tag.count === 1 ? 'blueprint' : 'blueprints'}
                 </p>

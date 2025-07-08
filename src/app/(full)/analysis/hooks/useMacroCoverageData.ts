@@ -2,6 +2,14 @@ import React from 'react';
 import { AllCoverageScores } from '../types';
 import { parseEffectiveModelId, ParsedModelId } from '@/app/utils/modelIdUtils';
 
+export type SortOption =
+  | 'alpha-asc'
+  | 'alpha-desc'
+  | 'coverage-desc'
+  | 'coverage-asc'
+  | 'disagreement-desc'
+  | 'disagreement-asc';
+
 // Constants can be moved here if they are only used within this hook
 const OUTLIER_THRESHOLD_STD_DEV = 1.5;
 const HIGH_DISAGREEMENT_THRESHOLD_STD_DEV = 0.3; // StDev threshold for judge scores
@@ -10,15 +18,77 @@ const HIGH_DISAGREEMENT_THRESHOLD_STD_DEV = 0.3; // StDev threshold for judge sc
 export const useMacroCoverageData = (
     allCoverageScores: AllCoverageScores | undefined | null,
     promptIds: string[],
-    models: string[]
+    models: string[],
+    sortOption: SortOption = 'alpha-asc'
 ) => {
-    const sortedPromptIds = React.useMemo(() => [...promptIds].sort((a,b) => a.localeCompare(b)), [promptIds]);
+    const promptStats = React.useMemo(() => {
+        const newPromptStats = new Map<string, { avg: number | null, stdDev: number | null }>();
+        if (!allCoverageScores) return newPromptStats;
+
+        promptIds.forEach(promptId => {
+            const scoresForPrompt: number[] = [];
+            models.forEach(modelId => {
+                const result = allCoverageScores[promptId]?.[modelId];
+                if (result && !('error' in result) && typeof result.avgCoverageExtent === 'number' && !isNaN(result.avgCoverageExtent)) {
+                    scoresForPrompt.push(result.avgCoverageExtent);
+                }
+            });
+            if (scoresForPrompt.length > 0) {
+                const sum = scoresForPrompt.reduce((acc, score) => acc + score, 0);
+                const avg = sum / scoresForPrompt.length;
+                let stdDev: number | null = null;
+                if (scoresForPrompt.length >= 2) {
+                    const sqDiffs = scoresForPrompt.map(score => Math.pow(score - avg, 2));
+                    const variance = sqDiffs.reduce((acc, sqDiff) => acc + sqDiff, 0) / scoresForPrompt.length;
+                    stdDev = Math.sqrt(variance);
+                } else {
+                    stdDev = 0;
+                }
+                newPromptStats.set(promptId, { avg, stdDev });
+            } else {
+                newPromptStats.set(promptId, { avg: null, stdDev: null });
+            }
+        });
+        return newPromptStats;
+    }, [allCoverageScores, promptIds, models]);
+
+    const sortedPromptIds = React.useMemo(() => {
+        const prompts = [...promptIds];
+        prompts.sort((a, b) => {
+            switch (sortOption) {
+                case 'coverage-desc':
+                case 'coverage-asc': {
+                    const statsA = promptStats.get(a);
+                    const statsB = promptStats.get(b);
+                    const avgA = statsA?.avg ?? -1;
+                    const avgB = statsB?.avg ?? -1;
+                    if (avgA === avgB) return a.localeCompare(b);
+                    return sortOption === 'coverage-desc' ? avgB - avgA : avgA - avgB;
+                }
+                case 'disagreement-desc':
+                case 'disagreement-asc': {
+                    const statsA = promptStats.get(a);
+                    const statsB = promptStats.get(b);
+                    const stdDevA = statsA?.stdDev ?? -1;
+                    const stdDevB = statsB?.stdDev ?? -1;
+                    if (stdDevA === stdDevB) return a.localeCompare(b);
+                    return sortOption === 'disagreement-desc' ? stdDevB - stdDevA : stdDevA - stdDevB;
+                }
+                case 'alpha-desc':
+                    return b.localeCompare(a);
+                case 'alpha-asc':
+                default:
+                    return a.localeCompare(b);
+            }
+        });
+        return prompts;
+    }, [promptIds, sortOption, promptStats]);
     
     const calculateModelAverageCoverage = React.useCallback((modelId: string): number | null => {
         if (!allCoverageScores) return null;
         let totalAvgExtent = 0;
         let validPromptsCount = 0;
-        sortedPromptIds.forEach(promptId => {
+        promptIds.forEach(promptId => {
             const result = allCoverageScores[promptId]?.[modelId];
             if (result && !('error' in result) && typeof result.avgCoverageExtent === 'number' && !isNaN(result.avgCoverageExtent)) {
                 totalAvgExtent += result.avgCoverageExtent;
@@ -26,7 +96,7 @@ export const useMacroCoverageData = (
             }
         });
         return validPromptsCount > 0 ? (totalAvgExtent / validPromptsCount) : null;
-    }, [allCoverageScores, sortedPromptIds]);
+    }, [allCoverageScores, promptIds]);
 
     const calculatePromptAverage = React.useCallback((promptId: string): number | null => {
         const promptScores = allCoverageScores?.[promptId];
@@ -121,37 +191,6 @@ export const useMacroCoverageData = (
             modelIdToRank,
         };
     }, [models, calculateModelAverageCoverage]);
-
-    const promptStats = React.useMemo(() => {
-        const newPromptStats = new Map<string, { avg: number | null, stdDev: number | null }>();
-        if (!allCoverageScores) return newPromptStats;
-
-        promptIds.forEach(promptId => {
-            const scoresForPrompt: number[] = [];
-            models.forEach(modelId => {
-                const result = allCoverageScores[promptId]?.[modelId];
-                if (result && !('error' in result) && typeof result.avgCoverageExtent === 'number' && !isNaN(result.avgCoverageExtent)) {
-                    scoresForPrompt.push(result.avgCoverageExtent);
-                }
-            });
-            if (scoresForPrompt.length > 0) {
-                const sum = scoresForPrompt.reduce((acc, score) => acc + score, 0);
-                const avg = sum / scoresForPrompt.length;
-                let stdDev: number | null = null;
-                if (scoresForPrompt.length >= 2) {
-                    const sqDiffs = scoresForPrompt.map(score => Math.pow(score - avg, 2));
-                    const variance = sqDiffs.reduce((acc, sqDiff) => acc + sqDiff, 0) / scoresForPrompt.length;
-                    stdDev = Math.sqrt(variance);
-                } else {
-                    stdDev = 0;
-                }
-                newPromptStats.set(promptId, { avg, stdDev });
-            } else {
-                newPromptStats.set(promptId, { avg: null, stdDev: null });
-            }
-        });
-        return newPromptStats;
-    }, [allCoverageScores, promptIds, models]);
 
     return {
         ...memoizedHeaderData,

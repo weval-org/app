@@ -12,7 +12,9 @@ import {
 import { fromSafeTimestamp } from '@/lib/timestampUtils';
 import React from 'react';
 import type { Metadata } from 'next';
-import BrowseAllBlueprintsSection, { BlueprintSummaryInfo } from '@/app/components/home/BrowseAllBlueprintsSection';
+import BrowseAllBlueprintsSection from '@/app/components/home/BrowseAllBlueprintsSection';
+import FeaturedBlueprintsSection from '@/app/components/home/FeaturedBlueprintsSection';
+import TopTagsSection from '@/app/components/home/TopTagsSection';
 import LatestEvaluationRunsSection, { DisplayableRunInstanceInfo } from '@/app/components/home/LatestEvaluationRunsSection';
 import { BLUEPRINT_CONFIG_REPO_URL, APP_REPO_URL } from '@/lib/configConstants';
 import { processBlueprintSummaries } from '@/app/utils/blueprintSummaryUtils';
@@ -92,6 +94,37 @@ export default async function HomePage() {
   const top20LatestRuns = allRunInstances.slice(0, 20);
 
   const blueprintSummaries = processBlueprintSummaries(featuredConfigs);
+  
+  // Featured config IDs for the top 3 showcase
+  const FEATURED_CONFIG_IDS: string[] = [
+    'homework-int-help-heuristics',
+    'sri-lanka-citizen-compendium-factum',
+    'sycophancy-probe'
+  ];
+  
+  // Split blueprints into featured (top 3) and remaining
+  const featuredBlueprints = FEATURED_CONFIG_IDS.length > 0 
+    ? blueprintSummaries.filter(bp => FEATURED_CONFIG_IDS.includes(bp.id || bp.configId)).slice(0, 3)
+    : blueprintSummaries.slice(0, 3); // Fallback to first 3 if no specific IDs provided
+  
+  const featuredConfigIds = featuredBlueprints.map(bp => bp.id || bp.configId);
+
+  // Extract and count tags from all configs (similar to getTags but using existing data)
+  const tagCounts: Record<string, number> = {};
+  featuredConfigs.forEach(config => {
+    if (config.tags) {
+      config.tags.forEach(tag => {
+        // Filter out internal tags that start with _
+        if (!tag.startsWith('_')) {
+          tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+        }
+      });
+    }
+  });
+  
+  const tagsData = Object.entries(tagCounts)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count); // Sort by count descending
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -105,9 +138,9 @@ export default async function HomePage() {
               aria-labelledby="platform-summary-heading"
               className="bg-card/50 dark:bg-slate-800/50 backdrop-blur-md p-6 rounded-2xl shadow-lg ring-1 ring-border/60 dark:ring-slate-700/60"
             >
-              <h2 id="platform-summary-heading" className="text-2xl sm:text-2xl font-semibold tracking-tight text-foreground dark:text-slate-100 mb-6 md:mb-8 text-center">
+              {/* <h2 id="platform-summary-heading" className="text-2xl sm:text-2xl font-semibold tracking-tight text-foreground dark:text-slate-100 mb-6 md:mb-8 text-center">
                 Latest Platform Stats
-              </h2>
+              </h2> */}
               <div className="space-y-8 md:space-y-10">
                   <AggregateStatsDisplay stats={headlineStats} />
               </div>
@@ -117,11 +150,21 @@ export default async function HomePage() {
           {featuredConfigs.length > 0 ? (
             <>
               <hr className="my-8 md:my-12 border-border/70 dark:border-slate-700/50 w-3/4 mx-auto" />
-              <section id="featured-blueprints" className="scroll-mt-20">
-                <BrowseAllBlueprintsSection blueprints={blueprintSummaries} title="Featured Blueprints" actionLink={{ href: '/all', text: 'View All Blueprints' }} />
+              <FeaturedBlueprintsSection featuredBlueprints={featuredBlueprints} />
+              <hr className="my-8 md:my-12 border-border/70 dark:border-slate-700/50 w-3/4 mx-auto" />
+              <section id="more-blueprints" className="scroll-mt-20">
+                <BrowseAllBlueprintsSection 
+                  blueprints={blueprintSummaries} 
+                  title="More Evaluations" 
+                  detailed={false}
+                  excludeConfigIds={featuredConfigIds}
+                  actionLink={{ href: '/all', text: 'View All Blueprints' }} 
+                />
               </section>
               <hr className="my-8 md:my-12 border-border/70 dark:border-slate-700/50 w-3/4 mx-auto" />
-              <LatestEvaluationRunsSection latestRuns={top20LatestRuns} />
+              <TopTagsSection tags={tagsData} />
+              {/* <hr className="my-8 md:my-12 border-border/70 dark:border-slate-700/50 w-3/4 mx-auto" />
+              <LatestEvaluationRunsSection latestRuns={top20LatestRuns} /> */}
             </>
           ) : (
            <div className="bg-card/80 dark:bg-slate-800/50 backdrop-blur-md p-8 sm:p-12 rounded-xl shadow-xl ring-1 ring-border dark:ring-slate-700/80 text-center flex flex-col items-center mt-10">

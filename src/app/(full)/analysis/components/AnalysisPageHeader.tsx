@@ -10,6 +10,9 @@ import Link from 'next/link';
 import { MarkdownAccordion } from './MarkdownAccordion';
 import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Button } from '@/components/ui/button';
+import { prettifyTag, normalizeTag } from '@/app/utils/tagUtils';
+import { Badge } from '@/components/ui/badge';
 
 const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
 const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
@@ -201,15 +204,11 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
           )}
 
           {tags && tags.length > 0 && (
-            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-2 mt-3">
               <span className="text-xs font-semibold text-muted-foreground dark:text-slate-400">TAGS:</span>
               {tags.map(tag => (
-                <Link
-                  href={`/tags/${tag}`}
-                  key={tag}
-                  className="px-2 py-0.5 text-[10px] sm:text-xs bg-primary/10 text-primary dark:bg-sky-500/20 dark:text-sky-300 rounded-full hover:bg-primary/20 dark:hover:bg-sky-500/30 transition-colors"
-                >
-                  {tag}
+                <Link href={`/tags/${normalizeTag(tag)}`} key={tag}>
+                  <Badge variant="secondary" className="hover:bg-primary/20 transition-colors">{prettifyTag(tag)}</Badge>
                 </Link>
               ))}
             </div>

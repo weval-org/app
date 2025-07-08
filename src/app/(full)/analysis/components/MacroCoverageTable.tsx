@@ -6,11 +6,13 @@ import Link from 'next/link';
 import { getGradedCoverageColor } from '@/app/(full)/analysis/utils/colorUtils';
 import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import { AllCoverageScores, AllFinalAssistantResponses } from '@/app/(full)/analysis/types';
-import { useMacroCoverageData } from '@/app/(full)/analysis/hooks/useMacroCoverageData';
+import { useMacroCoverageData, SortOption } from '@/app/(full)/analysis/hooks/useMacroCoverageData';
 import { FocusView } from '@/app/(full)/analysis/components/FocusView';
 import { cn } from '@/lib/utils';
 import { ActiveHighlight } from './CoverageTableLegend';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 
 const UsersIcon = dynamic(() => import("lucide-react").then((mod) => mod.Users), { ssr: false });
 const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.AlertCircle), { ssr: false });
@@ -62,6 +64,7 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
 }) => {
     const [focusedModelId, setFocusedModelId] = useState<string | null>(null);
     const [markdownModule, setMarkdownModule] = useState<{ ReactMarkdown: any, RemarkGfm: any } | null>(null);
+    const [sortOption, setSortOption] = useState<SortOption>('alpha-asc');
 
     const {
         localSortedModels,
@@ -75,7 +78,7 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
         OUTLIER_THRESHOLD_STD_DEV,
         HIGH_DISAGREEMENT_THRESHOLD_STD_DEV,
         modelIdToRank
-    } = useMacroCoverageData(allCoverageScores, promptIds, models);
+    } = useMacroCoverageData(allCoverageScores, promptIds, models, sortOption);
 
     useEffect(() => {
         Promise.all([
@@ -287,15 +290,33 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
 
     return (
         <div>
-            {onCellClick && (
-                <Alert className="mb-4 bg-sky-50 border border-sky-200 text-sky-900 dark:bg-sky-900/20 dark:border-sky-500/30 dark:text-sky-200">
-                    <InfoIcon className="h-4 w-4" />
-                    <AlertTitle className="font-semibold">Pro Tip</AlertTitle>
-                    <AlertDescription>
-                        Click on any result cell in the table to open a detailed view with the model's full response and evaluation criteria.
-                    </AlertDescription>
-                </Alert>
-            )}
+            <div className="flex items-center justify-between mb-4">
+                {onCellClick && (
+                    <Alert className="bg-sky-50 border border-sky-200 text-sky-900 dark:bg-sky-900/20 dark:border-sky-500/30 dark:text-sky-200 w-auto">
+                        <InfoIcon className="h-4 w-4" />
+                        <AlertTitle className="font-semibold">Pro Tip</AlertTitle>
+                        <AlertDescription>
+                            Click on any result cell to open a detailed view.
+                        </AlertDescription>
+                    </Alert>
+                )}
+                <div className="flex items-center gap-2 ml-auto">
+                    <Label htmlFor="sort-prompts" className="text-sm font-medium">Sort by</Label>
+                    <Select value={sortOption} onValueChange={(value) => setSortOption(value as SortOption)}>
+                        <SelectTrigger id="sort-prompts" className="w-[240px]">
+                            <SelectValue placeholder="Select sort order..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="alpha-asc">Prompt Text (A-Z)</SelectItem>
+                            <SelectItem value="alpha-desc">Prompt Text (Z-A)</SelectItem>
+                            <SelectItem value="coverage-desc">Highest Avg. Coverage</SelectItem>
+                            <SelectItem value="coverage-asc">Lowest Avg. Coverage</SelectItem>
+                            <SelectItem value="disagreement-desc">Highest Performance Variance</SelectItem>
+                            <SelectItem value="disagreement-asc">Lowest Performance Variance</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
             <div className="overflow-x-auto rounded-md ring-1 ring-border dark:ring-slate-700 shadow-md">
                 <table className="border-collapse text-xs table-fixed">
                     <thead>

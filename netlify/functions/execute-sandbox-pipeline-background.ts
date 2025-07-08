@@ -10,6 +10,7 @@ import { ComparisonConfig, FinalComparisonOutputV2, IDEAL_MODEL_ID, EvaluationMe
 import { toSafeTimestamp } from '@/lib/timestampUtils';
 import { generateExecutiveSummary } from '@/cli/services/executive-summary-service';
 import { ConversationMessage } from '@/types/shared';
+import { normalizeTag } from '@/app/utils/tagUtils';
 
 const s3Client = new S3Client({
   region: process.env.APP_S3_REGION!,
@@ -71,6 +72,14 @@ export const handler: BackgroundHandler = async (event) => {
       }))).Body as Readable
     );
     const config = parseAndNormalizeBlueprint(blueprintContent, 'yaml');
+
+    // --- NORMALIZE TAGS ---
+    if (config.tags) {
+        const originalTags = [...config.tags];
+        const normalizedTags = [...new Set(originalTags.map(tag => normalizeTag(tag)).filter(tag => tag))];
+        config.tags = normalizedTags;
+    }
+    // --- END NORMALIZE TAGS ---
 
     await updateStatus('generating_responses', 'Generating model responses...');
     

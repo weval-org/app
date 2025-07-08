@@ -39,6 +39,7 @@ import { fromSafeTimestamp } from '@/lib/timestampUtils';
 import { ModelRunPerformance, ModelSummary } from '@/types/shared';
 import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelIdUtils';
 import { populatePairwiseQueue } from '../services/pairwise-task-queue-service';
+import { normalizeTag } from '@/app/utils/tagUtils';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
@@ -321,7 +322,15 @@ async function loadAndValidateConfig(options: {
         if (!Array.isArray(configJson.tags) || !configJson.tags.every((tag: any) => typeof tag === 'string')) {
             throw new Error("Config file has an invalid 'tags' field (must be an array of strings if provided).");
         }
-        logger.info(`Tags found in config: ${configJson.tags.join(', ')}`);
+        const originalTags = [...configJson.tags];
+        const normalizedTags = [...new Set(originalTags.map(tag => normalizeTag(tag)).filter(tag => tag))];
+        
+        if (JSON.stringify(originalTags) !== JSON.stringify(normalizedTags)) {
+            logger.info(`Original tags [${originalTags.join(', ')}] were normalized to [${normalizedTags.join(', ')}].`);
+        } else {
+            logger.info(`Tags found in config: ${normalizedTags.join(', ')}`);
+        }
+        configJson.tags = normalizedTags;
     }
     if (configJson.temperature !== undefined && configJson.temperature !== null &&
         Array.isArray(configJson.temperatures) && configJson.temperatures.length > 0) {

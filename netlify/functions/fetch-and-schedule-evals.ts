@@ -5,6 +5,7 @@ import { generateConfigContentHash } from "@/lib/hash-utils";
 import { listRunsForConfig } from "@/lib/storageService";
 import { resolveModelsInConfig, SimpleLogger } from "@/lib/blueprint-service";
 import { parseAndNormalizeBlueprint } from "@/lib/blueprint-parser";
+import { normalizeTag } from "@/app/utils/tagUtils";
 
 const EVAL_CONFIGS_REPO_API_URL = "https://api.github.com/repos/weval/configs/contents/blueprints";
 const MODEL_COLLECTIONS_REPO_API_URL_BASE = "https://api.github.com/repos/weval/configs/contents/models";
@@ -83,6 +84,17 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
         const configContent = typeof configFileResponse.data === 'string' ? configFileResponse.data : JSON.stringify(configFileResponse.data);
         
         let config: ComparisonConfig = parseAndNormalizeBlueprint(configContent, fileType);
+
+        // --- NORMALIZE TAGS ---
+        if (config.tags) {
+            const originalTags = [...config.tags];
+            const normalizedTags = [...new Set(originalTags.map(tag => normalizeTag(tag)).filter(tag => tag))];
+            if (JSON.stringify(originalTags) !== JSON.stringify(normalizedTags)) {
+                logger.info(`[fetch-and-schedule-evals] Blueprint tags for ${config.id || fileName} were normalized from [${originalTags.join(', ')}] to [${normalizedTags.join(', ')}].`);
+            }
+            config.tags = normalizedTags;
+        }
+        // --- END NORMALIZE TAGS ---
 
         // If ID is missing, derive it from the filename.
         if (!config.id) {

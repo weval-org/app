@@ -22,6 +22,7 @@ import { fromSafeTimestamp } from '../../lib/timestampUtils';
 import { ModelRunPerformance, ModelSummary } from '@/types/shared';
 import { parseEffectiveModelId, getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import { populatePairwiseQueue } from '../services/pairwise-task-queue-service';
+import { normalizeTag } from '@/app/utils/tagUtils';
 
 async function actionBackfillSummary(options: { verbose?: boolean }) {
     const { logger } = getConfig();
@@ -68,6 +69,15 @@ async function actionBackfillSummary(options: { verbose?: boolean }) {
                         if (runInfo.timestamp) {
                             resultData.timestamp = runInfo.timestamp;
                         }
+
+                        // --- NORMALIZE TAGS ---
+                        if (resultData.config?.tags) {
+                            const originalTags = [...resultData.config.tags];
+                            const normalizedTags = [...new Set(originalTags.map(tag => normalizeTag(tag)).filter(tag => tag))];
+                            resultData.config.tags = normalizedTags;
+                        }
+                        // --- END NORMALIZE TAGS ---
+
                         if (!resultData.configId || !resultData.runLabel || !resultData.timestamp) {
                             logger.warn(`  Skipping run file ${runFileName} due to missing essential fields (configId, runLabel, or timestamp).`);
                             totalRunsFailed++;

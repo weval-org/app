@@ -5,6 +5,7 @@ import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { APP_REPO_URL } from '@/lib/configConstants';
 
 const BarChartHorizontalBig = dynamic(() => import('lucide-react').then(mod => mod.BarChartHorizontalBig));
 
@@ -135,7 +136,7 @@ const OverallModelLeaderboard: React.FC<{
 }> = ({ 
   models,
   title,
-  initialCount = 10,
+  initialCount = 5,
   incrementCount = 10,
   seeMoreMinRemaining = 5
 }) => {
@@ -217,7 +218,7 @@ const AggregateStatsDisplay: React.FC<AggregateStatsDisplayProps> = ({ stats }) 
 
   return (
     <div className="my-2 pt-2">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+      {/* <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         <StatCard 
           title="Best Performing Eval"
           data={stats.bestPerformingConfig ? { ...stats.bestPerformingConfig, description: "Avg. Hybrid Score" } : null} 
@@ -239,7 +240,7 @@ const AggregateStatsDisplay: React.FC<AggregateStatsDisplayProps> = ({ stats }) 
           statusType="mostDifferentiating"
           blurb="The evaluation that shows the widest range of scores, making it best for telling models apart."
         />
-      </div>
+      </div> */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <OverallModelLeaderboard
           models={filteredRankedModels || null}
@@ -255,7 +256,7 @@ const AggregateStatsDisplay: React.FC<AggregateStatsDisplayProps> = ({ stats }) 
           <p className="mt-2 flex items-start">
             {FlaskConical && <FlaskConical className="w-4 h-4 mr-2 text-primary flex-shrink-0" />}
             <span>
-              The Hybrid Score is a weighted average combining semantic similarity (35% weight) and key point coverage (65% weight). This emphasizes rubric adherence while still valuing overall response quality. <span className="mt-1 font-mono text-primary/80 text-[0.7rem]">Formula: (0.35 * sim_score) + (0.65 * cov_score)</span>
+              The Hybrid Score is a weighted average combining semantic similarity (35% weight) and key point coverage (65% weight). This emphasizes rubric adherence while still valuing overall response quality. Read more about our methodology <a href={`${APP_REPO_URL}/blob/main/docs/METHODOLOGY.md`} target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">here</a>.
             </span>
           </p>
         </div>

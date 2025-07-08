@@ -22,7 +22,7 @@ const getTourSteps = (isLoggedIn: boolean): TourStep[] => {
           content: (
             <>
                 <p className="mb-2">
-                    On the far left of the page, this is where you caan manage your evaluation blueprints. All your files, whether stored locally in your browser (scratchpad) or synced with GitHub, appear here.
+                    On the far left of the page, this is where you manage your blueprint files. All your files, whether stored locally in your browser (scratchpad) or synced with GitHub, appear here.
                 </p>
                 <ul className="list-disc pl-5 space-y-1 text-xs">
                     <li><span className="font-semibold">Local files</span> are stored only in your browser.</li>

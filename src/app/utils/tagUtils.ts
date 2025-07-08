@@ -1,50 +1,24 @@
-import { getHomepageSummary } from '@/lib/storageService';
+export function normalizeTag(tag: string): string {
+  if (!tag) return '';
 
-type TagInfo = {
-  name: string;
-  count: number;
-};
+  const processedTag = tag.toString().trim();
 
-export async function getTags(): Promise<TagInfo[]> {
-    try {
-        const homepageSummary = await getHomepageSummary();
+  if (processedTag.startsWith('_')) {
+    // It's an internal tag (e.g., _featured). Return as-is.
+    return processedTag;
+  }
 
-        if (!homepageSummary || !homepageSummary.configs) {
-            return [];
-        }
-
-        const tagCounts: Record<string, number> = {};
-
-        for (const config of homepageSummary.configs) {
-            if (config.tags) {
-                for (const tag of config.tags) {
-                    // We don't want to show internal tags like _featured
-                    if (tag.startsWith('_')) {
-                        continue;
-                    }
-                    tagCounts[tag] = (tagCounts[tag] || 0) + 1;
-                }
-            }
-        }
-
-        const sortedTags = Object.entries(tagCounts)
-            .map(([name, count]) => ({ name, count }))
-            .sort((a, b) => b.count - a.count); // Sort by count descending
-
-        return sortedTags;
-
-    } catch (error: any) {
-        console.error('[tagUtils] Error fetching tags:', error);
-        return []; // Return empty array on error
-    }
+  // It's a public tag.
+  return processedTag
+    .toLowerCase()
+    .replace(/[\s_]+/g, '-') // Replace spaces and underscores with hyphens
+    .replace(/[^a-z0-9-]/g, ''); // Remove any non-alphanumeric characters except hyphens
 }
 
-export function normalizeTag(tag: string): string {
-  if (!tag) return ''
-  return tag
-    .toString()
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-]/g, ''); // Remove any non-alphanumeric characters except hyphens
+export function prettifyTag(tag: string): string {
+    if (!tag) return '';
+    return tag
+        .split('-')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
 } 

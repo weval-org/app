@@ -16,6 +16,7 @@ import {
     calculatePotentialModelDrift
 } from '../../src/cli/utils/summaryCalculationUtils';
 import { populatePairwiseQueue } from "../../src/cli/services/pairwise-task-queue-service";
+import { normalizeTag } from "../../src/app/utils/tagUtils";
 
 // Helper to create a simple console-based logger with a prefix
 const createLogger = (context: HandlerContext) => {
@@ -54,6 +55,14 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
 
   const config = requestPayload.config as ComparisonConfig;
   const commitSha = requestPayload.commitSha as string | undefined;
+
+  // --- NORMALIZE TAGS ---
+  if (config.tags) {
+      const originalTags = [...config.tags];
+      const normalizedTags = [...new Set(originalTags.map(tag => normalizeTag(tag)).filter(tag => tag))];
+      config.tags = normalizedTags;
+  }
+  // --- END NORMALIZE TAGS ---
 
   if (!config || typeof config !== 'object' || (!config.id && !config.configId)) {
     logger.error("Invalid or missing 'config' object in payload, or missing 'id'/'configId'.", { payloadReceived: requestPayload });
