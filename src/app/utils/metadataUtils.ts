@@ -54,7 +54,7 @@ export async function generateAnalysisPageMetadata(
   console.log('[metadataUtils] appUrl for analysis page:', appUrl);
 
   // Construct image URL carefully, pointing to the opengraph-image route for the specific analysis page.
-  const imageUrl = `${appUrl}/analysis/${configId}/${runLabel}/${timestamp}/opengraph-image`; 
+  const imageUrl = `${appUrl}/analysis/${configId}/${runLabel}/${timestamp}/opengraph-image.png`; 
 
   return {
     title: pageTitle,

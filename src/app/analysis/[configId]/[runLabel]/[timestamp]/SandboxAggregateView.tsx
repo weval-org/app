@@ -4,14 +4,14 @@ import React, { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import KeyPointCoverageTable from '@/app/(full)/analysis/components/KeyPointCoverageTable';
-import MacroCoverageTable from '@/app/(full)/analysis/components/MacroCoverageTable';
+import KeyPointCoverageTable from '@/app/analysis/components/KeyPointCoverageTable';
+import MacroCoverageTable from '@/app/analysis/components/MacroCoverageTable';
 import {
     ComparisonDataV2 as ImportedComparisonDataV2,
     CoverageResult as ImportedCoverageResult,
 } from '@/app/utils/types';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
-import { ActiveHighlight } from '@/app/(full)/analysis/components/CoverageTableLegend';
+import { ActiveHighlight } from '@/app/analysis/components/CoverageTableLegend';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 

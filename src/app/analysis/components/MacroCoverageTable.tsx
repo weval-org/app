@@ -3,11 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { getGradedCoverageColor } from '@/app/(full)/analysis/utils/colorUtils';
+import { getGradedCoverageColor } from '@/app/analysis/utils/colorUtils';
 import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
-import { AllCoverageScores, AllFinalAssistantResponses } from '@/app/(full)/analysis/types';
-import { useMacroCoverageData, SortOption } from '@/app/(full)/analysis/hooks/useMacroCoverageData';
-import { FocusView } from '@/app/(full)/analysis/components/FocusView';
+import { AllCoverageScores, AllFinalAssistantResponses } from '@/app/analysis/types';
+import { useMacroCoverageData, SortOption } from '@/app/analysis/hooks/useMacroCoverageData';
+import { FocusView } from '@/app/analysis/components/FocusView';
 import { cn } from '@/lib/utils';
 import { ActiveHighlight } from './CoverageTableLegend';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';

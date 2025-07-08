@@ -6,12 +6,12 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import MacroCoverageTable from '@/app/(full)/analysis/components/MacroCoverageTable';
-import DatasetStatistics from '@/app/(full)/analysis/components/DatasetStatistics';
-import CoverageTableLegend, { ActiveHighlight } from '@/app/(full)/analysis/components/CoverageTableLegend';
-import PerModelHybridScoresCard from '@/app/(full)/analysis/components/PerModelHybridScoresCard';
-import SimilarityGraph from '@/app/(full)/analysis/components/SimilarityGraph';
-import DendrogramChart from '@/app/(full)/analysis/components/DendrogramChart';
+import MacroCoverageTable from '@/app/analysis/components/MacroCoverageTable';
+import DatasetStatistics from '@/app/analysis/components/DatasetStatistics';
+import CoverageTableLegend, { ActiveHighlight } from '@/app/analysis/components/CoverageTableLegend';
+import PerModelHybridScoresCard from '@/app/analysis/components/PerModelHybridScoresCard';
+import SimilarityGraph from '@/app/analysis/components/SimilarityGraph';
+import DendrogramChart from '@/app/analysis/components/DendrogramChart';
 import { Badge } from '@/components/ui/badge';
 import {
     Tabs,

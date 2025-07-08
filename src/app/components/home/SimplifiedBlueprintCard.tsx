@@ -3,7 +3,7 @@
 import nextDynamic from 'next/dynamic';
 import Link from 'next/link';
 import { Card } from '@/components/ui/card';
-import CoverageHeatmapCanvas from '@/app/(full)/analysis/components/CoverageHeatmapCanvas';
+import CoverageHeatmapCanvas from '@/app/analysis/components/CoverageHeatmapCanvas';
 import { BlueprintSummaryInfo } from '@/app/utils/blueprintSummaryUtils';
 
 const ReactMarkdown = nextDynamic(() => import('react-markdown'), { ssr: false });

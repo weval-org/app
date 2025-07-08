@@ -7,11 +7,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
-import SimilarityGraph from '@/app/(full)/analysis/components/SimilarityGraph';
-import DendrogramChart from '@/app/(full)/analysis/components/DendrogramChart';
-import KeyPointCoverageTable from '@/app/(full)/analysis/components/KeyPointCoverageTable';
-import KeyPointCoverageComparisonDisplay from '@/app/(full)/analysis/components/KeyPointCoverageComparisonDisplay';
-import SemanticExtremesDisplay from '@/app/(full)/analysis/components/SemanticExtremesDisplay';
+import SimilarityGraph from '@/app/analysis/components/SimilarityGraph';
+import DendrogramChart from '@/app/analysis/components/DendrogramChart';
+import KeyPointCoverageTable from '@/app/analysis/components/KeyPointCoverageTable';
+import KeyPointCoverageComparisonDisplay from '@/app/analysis/components/KeyPointCoverageComparisonDisplay';
+import SemanticExtremesDisplay from '@/app/analysis/components/SemanticExtremesDisplay';
 import {
     ComparisonDataV2 as ImportedComparisonDataV2,
     CoverageResult as ImportedCoverageResult,
@@ -19,8 +19,8 @@ import {
     SelectedPairInfo,
 } from '@/app/utils/types';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
-import ModelEvaluationDetailModalV2, { ModelEvaluationDetailModalData } from '@/app/(full)/analysis/components/ModelEvaluationDetailModalV2';
-import { ResponseComparisonModal } from '@/app/(full)/analysis/components/ResponseComparisonModal';
+import ModelEvaluationDetailModalV2, { ModelEvaluationDetailModalData } from '@/app/analysis/components/ModelEvaluationDetailModalV2';
+import { ResponseComparisonModal } from '@/app/analysis/components/ResponseComparisonModal';
 
 const HelpCircle = dynamic(() => import("lucide-react").then(mod => mod.HelpCircle));
 const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });

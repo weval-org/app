@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { getComparisonRunInfo, EnhancedComparisonConfigInfo } from '@/app/utils/homepageDataUtils';
 import { Button } from '@/components/ui/button';
 import dynamic from 'next/dynamic';
-import AnalysisPageHeader from '@/app/(full)/analysis/components/AnalysisPageHeader';
+import AnalysisPageHeader from '@/app/analysis/components/AnalysisPageHeader';
 import { normalizeTag } from '@/app/utils/tagUtils';
 import BrowseAllBlueprintsSection from '@/app/components/home/BrowseAllBlueprintsSection';
 import { processBlueprintSummaries, BlueprintSummaryInfo } from '@/app/utils/blueprintSummaryUtils';

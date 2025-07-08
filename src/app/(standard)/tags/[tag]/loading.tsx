@@ -1,4 +1,4 @@
-import AnalysisPageHeader from '@/app/(full)/analysis/components/AnalysisPageHeader';
+import AnalysisPageHeader from '@/app/analysis/components/AnalysisPageHeader';
 
 function SkeletonCard() {
     return (

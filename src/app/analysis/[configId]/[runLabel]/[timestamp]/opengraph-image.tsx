@@ -22,7 +22,7 @@ const formatDisplayTimestamp = (safeTimestamp: string): string => {
 
 export default async function Image({ params }: { params: { configId: string, runLabel: string, timestamp: string } }) {
   const { configId, runLabel, timestamp } = params;
-  const appUrl = process.env.URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:8888' : 'https://weval.org');
 
   // Fetch font data (ensure Geist TTF files are in public/fonts/)
   const geistRegularFontData = fetch(

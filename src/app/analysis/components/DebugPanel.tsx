@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
-import DownloadResultsButton from '@/app/(full)/analysis/components/DownloadResultsButton';
+import DownloadResultsButton from '@/app/analysis/components/DownloadResultsButton';
 import { ComparisonDataV2 } from '@/app/utils/types';
 import { fromSafeTimestamp } from '@/lib/timestampUtils';
 

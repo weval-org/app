@@ -1,4 +1,4 @@
-import BetaComparisonClientPage from '@/app/(full)/analysis/[configId]/[runLabel]/[timestamp]/BetaComparisonClientPage';
+import BetaComparisonClientPage from '@/app/analysis/[configId]/[runLabel]/[timestamp]/BetaComparisonClientPage';
 import { ComparisonDataV2 } from '@/app/utils/types';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';

@@ -3,7 +3,7 @@
 import nextDynamic from 'next/dynamic';
 import Link from 'next/link';
 import { Card } from '@/components/ui/card';
-import CoverageHeatmapCanvas from '@/app/(full)/analysis/components/CoverageHeatmapCanvas';
+import CoverageHeatmapCanvas from '@/app/analysis/components/CoverageHeatmapCanvas';
 import ClientDateTime from '../ClientDateTime';
 import { Badge } from '@/components/ui/badge';
 import { BlueprintSummaryInfo } from '@/app/utils/blueprintSummaryUtils';

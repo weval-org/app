@@ -5,7 +5,7 @@ import {
     PointAssessment,
     CoverageResult
 } from '@/app/utils/types';
-import { ModelEvaluationDetailModalData } from '@/app/(full)/analysis/components/ModelEvaluationDetailModalV2';
+import { ModelEvaluationDetailModalData } from '@/app/analysis/components/ModelEvaluationDetailModalV2';
 import { parseEffectiveModelId } from '@/app/utils/modelIdUtils';
 
 interface OpenModalOptions {
