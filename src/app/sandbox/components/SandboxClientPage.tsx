@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import * as yaml from 'js-yaml';
 import { useAuth } from '../hooks/useAuth';
-import { useWorkspace, ActiveBlueprint } from '../hooks/useWorkspace';
+import { useWorkspace, ActiveBlueprint, BlueprintFile } from '../hooks/useWorkspace';
 import { useToast } from '@/components/ui/use-toast';
 import { Toaster } from "@/components/ui/toaster";
 import { ProposalWizard } from './ProposalWizard';
@@ -30,8 +30,17 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { TourModal } from './TourModal';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const Loader2 = dynamic(() => import('lucide-react').then(mod => mod.Loader2), { ssr: false });
 const Save = dynamic(() => import('lucide-react').then(mod => mod.Save), { ssr: false });
@@ -45,6 +54,8 @@ const HelpCircle = dynamic(() => import('lucide-react').then(mod => mod.HelpCirc
 const ChevronLeft = dynamic(() => import('lucide-react').then(mod => mod.ChevronLeft), { ssr: false });
 const ChevronRight = dynamic(() => import('lucide-react').then(mod => mod.ChevronRight), { ssr: false });
 const Pencil = dynamic(() => import('lucide-react').then(mod => mod.Pencil), { ssr: false });
+const Copy = dynamic(() => import('lucide-react').then(mod => mod.Copy), { ssr: false });
+const Trash = dynamic(() => import('lucide-react').then(mod => mod.Trash), { ssr: false });
 
 function SandboxClientPageInternal() {
     const { user, isLoading: isAuthLoading, clearAuth } = useAuth();
@@ -98,13 +109,14 @@ function SandboxClientPageInternal() {
     const [isAnonymousRunModalOpen, setIsAnonymousRunModalOpen] = useState(false);
     const [isAutoCreateModalOpen, setIsAutoCreateModalOpen] = useState(false);
     const [isModalSubmitting, setIsModalSubmitting] = useState(false);
+    const [fileToDelete, setFileToDelete] = useState<BlueprintFile | null>(null);
     const [inputModalConfig, setInputModalConfig] = useState<{
         title: string;
         description: string;
         inputLabel: string;
         initialValue: string;
         submitButtonText: string;
-        onSubmit: (value: string) => void;
+        onSubmit: (value: string) => Promise<void>;
     } | null>(null);
     const [activeEditor, setActiveEditor] = useState<'form' | 'yaml'>('form');
     const [hasShownFormWarning, setHasShownFormWarning] = useState(false);
@@ -260,7 +272,11 @@ function SandboxClientPageInternal() {
         setEditorContent(newContent);
     };
 
-    const handlePromotion = async () => {
+    const handleModalClose = useCallback(() => {
+        setInputModalConfig(null);
+    }, []);
+
+    const handlePromotion = useCallback(async () => {
         if (!editorContent || !activeBlueprint) return;
 
         const title = parsedBlueprint?.title || 'new-blueprint';
@@ -273,7 +289,10 @@ function SandboxClientPageInternal() {
             initialValue: normalizeFilename(title),
             submitButtonText: "Save to GitHub",
             onSubmit: async (filename) => {
-                if (!filename) return;
+                if (!filename) {
+                    handleModalClose();
+                    return;
+                }
                 setIsModalSubmitting(true);
                 
                 const finalFilename = filename.endsWith('.yml') ? filename : `${filename}.yml`;
@@ -288,13 +307,13 @@ function SandboxClientPageInternal() {
                     await deleteBlueprint(originalLocalBlueprint, { silent: true });
                 }
                 
-                setInputModalConfig(null);
+                handleModalClose();
                 setIsModalSubmitting(false);
             }
         });
-    };
+    }, [editorContent, activeBlueprint, parsedBlueprint, promoteBlueprint, loadFile, deleteBlueprint, handleModalClose]);
 
-    const handleCreateNew = () => {
+    const handleCreateNew = useCallback(() => {
         setInputModalConfig({
             title: "Create New Blueprint",
             description: "Enter a filename for your new blueprint.",
@@ -329,31 +348,31 @@ function SandboxClientPageInternal() {
                 if (createBlueprintWithContent) {
                     await createBlueprintWithContent(finalFilename, DEFAULT_BLUEPRINT_CONTENT);
                 }
-                setInputModalConfig(null);
+                handleModalClose();
                 setIsModalSubmitting(false);
             }
         });
-    };
+    }, [createBlueprintWithContent, files, toast, handleModalClose]);
 
-    const handleRename = () => {
-        if (!activeBlueprint) return;
+    const handleRename = useCallback((file: BlueprintFile) => {
+        if (!file) return;
 
         setInputModalConfig({
             title: "Rename Blueprint",
             description: "Enter a new filename for your blueprint.",
             inputLabel: "Filename",
-            initialValue: activeBlueprint.name,
+            initialValue: file.name,
             submitButtonText: "Rename",
             onSubmit: async (newName) => {
-                if (!newName || newName === activeBlueprint.name) {
-                    setInputModalConfig(null);
+                if (!newName || newName === file.name) {
+                    handleModalClose();
                     return;
                 }
                 setIsModalSubmitting(true);
                 
                 const finalNewName = newName.trim().endsWith('.yml') ? newName.trim() : `${newName.trim()}.yml`;
 
-                if (files.some(f => f.name === finalNewName)) {
+                if (files.some(f => f.name === finalNewName && f.path !== file.path)) {
                     toast({
                         variant: "destructive",
                         title: "File already exists",
@@ -363,13 +382,13 @@ function SandboxClientPageInternal() {
                     return;
                 }
 
-                await renameBlueprint(activeBlueprint, finalNewName);
+                await renameBlueprint(file, finalNewName);
                 
-                setInputModalConfig(null);
+                handleModalClose();
                 setIsModalSubmitting(false);
             }
         });
-    };
+    }, [files, renameBlueprint, toast, handleModalClose]);
 
     const handleLogin = () => { 
         setIsLoggingInWithGitHub(true);
@@ -427,10 +446,22 @@ function SandboxClientPageInternal() {
         setIsAnonymousRunModalOpen(false);
     };
 
+    const confirmDeletion = () => {
+        if (fileToDelete) {
+            deleteBlueprint(fileToDelete);
+            setFileToDelete(null);
+        }
+    };
+
+    const handleHeaderAction = (action: (file: BlueprintFile) => void) => {
+        if (!activeBlueprint) return;
+        action(activeBlueprint);
+    };
+
     const renderHeader = () => {
         const isSaveDisabled = isSaving || isLoading || !activeBlueprint || !isDirty;
         const showPromoteButton = isLocal && isLoggedIn;
-        const canRename = activeBlueprint && !hasOpenPr;
+        const canTakeAction = activeBlueprint && !hasOpenPr;
 
         console.log({
             isLocal,
@@ -438,7 +469,7 @@ function SandboxClientPageInternal() {
             hasOpenPr,
             activeBlueprint,
             forkName,
-            canRename,
+            canRename: canTakeAction,
         })
 
         return (
@@ -447,14 +478,38 @@ function SandboxClientPageInternal() {
                     <span className="truncate">
                         {activeBlueprint ? `${activeBlueprint.name}${isDirty ? '*' : ''}` : 'No file selected'}
                     </span>
-                    {canRename && (
-                        <Button onClick={handleRename} size="icon" variant="ghost" className="h-6 w-6" title="Rename blueprint">
-                            <Pencil className="w-4 h-4" />
-                        </Button>
-                    )}
+                    
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 flex-shrink-0 text-muted-foreground hover:text-foreground hover:bg-slate-200 data-[state=open]:bg-slate-200 dark:hover:bg-slate-700 dark:data-[state=open]:bg-slate-700"
+                                disabled={!canTakeAction}
+                            >
+                                <MoreVertical className="h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuItem onSelect={() => setTimeout(() => handleHeaderAction(handleRename), 0)}>
+                                <Pencil className="w-4 h-4 mr-2" />
+                                Rename
+                            </DropdownMenuItem>
+                             <DropdownMenuItem onSelect={() => setTimeout(() => handleHeaderAction(duplicateBlueprint), 0)}>
+                                <Copy className="w-4 h-4 mr-2" />
+                                Duplicate
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                             <DropdownMenuItem onSelect={() => setTimeout(() => handleHeaderAction(setFileToDelete), 0)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
+                                <Trash className="w-4 h-4 mr-2" />
+                                Delete
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+
                     {!isLocal && activeBlueprint && forkName && (
                         <a
-                            href={`https://github.com/${forkName}/blob/main/${activeBlueprint.path}`}
+                            href={`https://github.com/${forkName}/blob/${activeBlueprint.branchName || 'main'}/${activeBlueprint.path}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-muted-foreground hover:text-foreground transition-colors"
@@ -574,7 +629,9 @@ function SandboxClientPageInternal() {
                     files={files}
                     activeFilePath={activeBlueprint?.path || null}
                     onSelectFile={loadFile}
-                    onDeleteFile={deleteBlueprint}
+                    onDeleteFile={setFileToDelete}
+                    onRenameFile={handleRename}
+                    onDuplicateFile={duplicateBlueprint}
                     onCreateNew={handleCreateNew}
                     onAutoCreate={() => setIsAutoCreateModalOpen(true)}
                     isLoading={status === 'setting_up' || isFetchingFiles}
@@ -747,7 +804,7 @@ function SandboxClientPageInternal() {
             {inputModalConfig && (
                 <InputModal
                     isOpen={!!inputModalConfig}
-                    onClose={() => setInputModalConfig(null)}
+                    onClose={handleModalClose}
                     isSubmitting={isModalSubmitting}
                     {...inputModalConfig}
                 />
@@ -788,6 +845,24 @@ function SandboxClientPageInternal() {
                 }}
                 isConfirming={status === 'setting_up'}
             />
+            <Dialog open={!!fileToDelete} onOpenChange={(isOpen) => !isOpen && setFileToDelete(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Are you absolutely sure?</DialogTitle>
+                        <DialogDescription>
+                            This action cannot be undone. This will permanently delete the blueprint
+                            <span className="font-semibold mx-1">{fileToDelete?.name}</span>.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setFileToDelete(null)}>Cancel</Button>
+                        <Button variant="destructive" onClick={confirmDeletion}>
+                            {isDeleting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                            Delete
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </>
     );
 }

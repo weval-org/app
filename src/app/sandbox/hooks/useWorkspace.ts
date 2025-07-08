@@ -14,6 +14,7 @@ export interface BlueprintFile {
     isLocal: boolean;
     lastModified: string;
     prStatus?: PRStatus | null;
+    branchName?: string;
 }
 
 export interface ActiveBlueprint extends BlueprintFile {
@@ -91,8 +92,7 @@ export function useWorkspace(
     setSetupMessage: setGitHubSetupMessage,
     setupWorkspace: setupGitHubWorkspace,
     updateFileOnGitHub,
-    createFileOnGitHub,
-    promoteBlueprint: promoteToGitHub,
+    promoteBlueprintToBranch,
     createPullRequest: createPullRequestOnGitHub,
     closeProposal: closePullRequestOnGitHub,
     deleteFileFromGitHub,
@@ -166,7 +166,7 @@ export function useWorkspace(
             const { isLoggedIn: currentIsLoggedIn, forkName: currentForkName } = stateRef.current;
             if (!currentIsLoggedIn || !currentForkName) return;
 
-            const { content, sha } = await loadFileContentFromGitHub(file.path);
+            const { content, sha } = await loadFileContentFromGitHub(file.path, file.branchName);
             const loadedBlueprint = { ...file, content, sha };
             setActiveBlueprint(loadedBlueprint);
             setEditorContent(content);
@@ -333,7 +333,12 @@ export function useWorkspace(
             setActiveBlueprint(updatedBlueprint); // Update the "source of truth" content
         } else {
             // This is an update to a GitHub file
-            const updatedFile = await updateFileOnGitHub(activeBlueprint.path, editorContent, activeBlueprint.sha);
+            if (!activeBlueprint.branchName || activeBlueprint.branchName === 'main') {
+                toast({ variant: "destructive", title: "Cannot Save", description: "This file is not on a feature branch and cannot be edited directly." });
+                setStatus('ready');
+                return;
+            }
+            const updatedFile = await updateFileOnGitHub(activeBlueprint.path, editorContent, activeBlueprint.sha, activeBlueprint.branchName);
             if (updatedFile) {
                 // Update the active blueprint with the new content and SHA
                 const refreshedBlueprint = { ...activeBlueprint, ...updatedFile, content: editorContent };
@@ -357,7 +362,7 @@ export function useWorkspace(
   const promoteBlueprint = useCallback(async (filename: string, content: string): Promise<BlueprintFile | null> => {
     setStatus('saving');
     try {
-        const newFile = await createFileOnGitHub(filename, content);
+        const newFile = await promoteBlueprintToBranch(filename, content);
         if (newFile) {
             await fetchFiles(true);
         }
@@ -365,7 +370,7 @@ export function useWorkspace(
     } finally {
         setStatus('ready');
     }
-  }, [createFileOnGitHub, fetchFiles]);
+  }, [promoteBlueprintToBranch, fetchFiles]);
 
   const createBlueprintWithContent = useCallback(async (
     filename: string, 
@@ -475,9 +480,13 @@ export function useWorkspace(
     }
 
     // For GitHub files
+    if (!blueprint.branchName) {
+        toast({ variant: 'destructive', title: 'Delete Error', description: 'Cannot delete a file that is not on a feature branch.' });
+        return;
+    }
     setDeletingFilePath(blueprint.path);
     try {
-        await deleteFileFromGitHub(blueprint.path, blueprint.sha);
+        await deleteFileFromGitHub(blueprint.path, blueprint.sha, blueprint.branchName);
 
         setFiles(currentFiles => currentFiles.filter(f => f.path !== blueprint.path));
         
@@ -503,8 +512,8 @@ export function useWorkspace(
   }, [activeBlueprint, files, loadFile, deleteFromLocalStorage, localFiles, deleteFileFromGitHub]);
 
   const createPullRequest = useCallback(async (data: { title: string; body: string }) => {
-    if (!activeBlueprint) {
-        throw new Error('No active blueprint to create a PR for.');
+    if (!activeBlueprint || !activeBlueprint.branchName) {
+        throw new Error('No active blueprint on a feature branch to create a PR for.');
     }
     if (isDirty) {
         toast({ variant: 'destructive', title: 'Unsaved Changes', description: 'Please save your changes before creating a proposal.' });
@@ -560,37 +569,64 @@ export function useWorkspace(
     }
   }, [activeBlueprint, closePullRequestOnGitHub]);
 
-  const duplicateBlueprint = useCallback(async (blueprint: BlueprintFile | ActiveBlueprint) => {
-    let content: string;
-    
-    if ('content' in blueprint) {
-        content = blueprint.content;
-    } else {
-        // Need to fetch content first
-        if (blueprint.isLocal) {
-            const storedBlueprint = window.localStorage.getItem(blueprint.path);
-            if (!storedBlueprint) {
-                toast({ variant: 'destructive', title: 'Error', description: 'Could not find blueprint content.' });
-                return;
-            }
-            content = JSON.parse(storedBlueprint).content;
-        } else {
-            // For now, let's just use the active content if it matches
-            if (activeBlueprint?.path === blueprint.path) {
-                content = editorContent ?? activeBlueprint.content;
+  const duplicateBlueprint = async (sourceFile: BlueprintFile) => {
+    console.log(`[duplicateBlueprint] Starting duplication for: ${sourceFile.path}`);
+    try {
+        setStatusState('saving');
+        
+        let contentToClone: string;
+        if (sourceFile.isLocal) {
+            const stored = localStorage.getItem(sourceFile.path);
+            if (stored) {
+                contentToClone = JSON.parse(stored).content;
             } else {
-                toast({ variant: 'destructive', title: 'Error', description: 'Cannot duplicate inactive GitHub blueprint yet.' });
-                return;
+                throw new Error('Could not find local file content to duplicate.');
             }
+        } else {
+             if (!isLoggedIn) throw new Error("Cannot duplicate a remote file when not logged in.");
+             const { content } = await loadFileContentFromGitHub(sourceFile.path, sourceFile.branchName);
+             contentToClone = content;
         }
-    }
 
-    const baseName = blueprint.name.replace(/\.yml$/, '');
-    const duplicateName = `${baseName} (Copy).yml`;
-    
-    await createBlueprintWithContent(duplicateName, content, { showToast: false });
-    toast({ title: 'Blueprint Duplicated', description: `A copy was created as '${duplicateName}'.` });
-  }, [createBlueprintWithContent, toast, activeBlueprint, editorContent]);
+        const getUniqueName = (baseName: string): string => {
+            const allFileNames = new Set(files.map(f => f.name));
+            let newName = baseName;
+            if (allFileNames.has(newName)) {
+                const parts = baseName.replace(/\.yml$/, '').split('_clone_');
+                const base = parts[0];
+                let i = 2;
+                do {
+                    newName = `${base}_clone_${i}.yml`;
+                    i++;
+                } while (allFileNames.has(newName));
+            }
+            return newName;
+        }
+
+        const baseName = sourceFile.name.replace(/\.yml$/, '_clone.yml');
+        const newFileName = getUniqueName(baseName);
+        
+        const newFile = await createBlueprintWithContent(newFileName, contentToClone);
+
+        if (newFile) {
+            await loadFile(newFile, { force: true });
+            toast({
+                title: "Blueprint Duplicated",
+                description: `Successfully created and loaded '${newFileName}'.`,
+            });
+        }
+
+    } catch (error: any) {
+        console.error('[duplicateBlueprint] Error:', error);
+        toast({
+            variant: 'destructive',
+            title: 'Duplication Failed',
+            description: error.message,
+        });
+    } finally {
+        setStatusState('ready');
+    }
+  };
 
   const setStatus = useCallback((s: WorkspaceStatus, message?: string) => {
     setStatusState(s);
@@ -607,7 +643,11 @@ export function useWorkspace(
         if (blueprint.isLocal) {
             renamedFile = renameInLocalStorage(blueprint, newName);
         } else {
-            renamedFile = await renameFileOnGitHub(blueprint.path, newName);
+            if (!blueprint.branchName) {
+                 toast({ variant: 'destructive', title: 'Rename Error', description: 'Cannot rename a file that is not on a feature branch.' });
+                 throw new Error('Missing branch name for rename operation.');
+            }
+            renamedFile = await renameFileOnGitHub(blueprint.path, newName, blueprint.branchName);
         }
 
         if (renamedFile) {

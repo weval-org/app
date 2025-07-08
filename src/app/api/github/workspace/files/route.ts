@@ -1,21 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAccessToken } from '@/lib/github/auth-utils';
+import { getOctokit } from '@/lib/github/github-utils';
 
-async function githubApiRequest(endpoint: string, token: string, options: RequestInit = {}) {
-    const response = await fetch(`https://api.github.com${endpoint}`, {
-        ...options,
-        headers: {
-            ...options.headers,
-            Authorization: `Bearer ${token}`,
-            'Accept': 'application/vnd.github.v3+json',
-        },
-    });
-    return response;
+interface BlueprintFile {
+    name: string;
+    path: string;
+    sha: string;
+    isLocal: boolean;
+    lastModified: string;
+    branchName: string;
 }
 
 export async function GET(req: NextRequest) {
-    const accessToken = await getAccessToken(req);
-    if (!accessToken) {
+    const octokit = await getOctokit(req);
+    if (!octokit) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
@@ -30,33 +27,59 @@ export async function GET(req: NextRequest) {
              return NextResponse.json({ error: 'Invalid forkName format. Expected owner/repo.' }, { status: 400 });
         }
 
-        const workspacePath = `blueprints/users/${owner}`;
+        // 1. Get all branches
+        const allBranches = await octokit.paginate(octokit.repos.listBranches, {
+            owner,
+            repo,
+        });
+
+        const proposalBranches = allBranches
+            .filter(branch => branch.name.startsWith('proposal/'))
+            .map(branch => branch.name);
         
-        const contentsResponse = await githubApiRequest(`/repos/${forkName}/contents/${workspacePath}`, accessToken);
+        const branchesToScan = ['main', ...proposalBranches];
+        const blueprintFileMap = new Map<string, BlueprintFile>();
 
-        if (contentsResponse.status === 404) {
-            // This is not an error, it just means the user's directory is empty.
-            return NextResponse.json([]);
+        // 2. Get files from each branch
+        for (const branchName of branchesToScan) {
+            try {
+                const workspacePath = `blueprints/users/${owner}`;
+                const { data: contents } = await octokit.repos.getContent({
+                    owner,
+                    repo,
+                    path: workspacePath,
+                    ref: branchName,
+                });
+
+                if (Array.isArray(contents)) {
+                    for (const item of contents) {
+                        if (item.type === 'file' && (item.name.endsWith('.yml') || item.name.endsWith('.yaml'))) {
+                            // If we already have this file from a proposal branch, don't overwrite it with the one from main
+                            if (blueprintFileMap.has(item.path) && branchName === 'main') {
+                                continue;
+                            }
+                            
+                            blueprintFileMap.set(item.path, {
+                                name: item.name,
+                                path: item.path,
+                                sha: item.sha,
+                                isLocal: false,
+                                lastModified: new Date().toISOString(), // Placeholder
+                                branchName: branchName,
+                            });
+                        }
+                    }
+                }
+            } catch (error: any) {
+                // A 404 here is not a critical error, it just means the directory doesn't exist on this branch.
+                if (error.status !== 404) {
+                    console.warn(`Could not fetch contents for branch '${branchName}':`, error.message);
+                }
+            }
         }
 
-        if (!contentsResponse.ok) {
-            const errorBody = await contentsResponse.json();
-            throw new Error(`Failed to list files from repo: ${errorBody.message}`);
-        }
-
-        const contents = await contentsResponse.json();
-
-        const blueprintFiles = contents
-            .filter((item: any) => item.type === 'file' && (item.name.endsWith('.yml') || item.name.endsWith('.yaml')))
-            .map((item: any) => ({
-                name: item.name,
-                path: item.path,
-                sha: item.sha,
-                isLocal: false,
-                lastModified: new Date().toISOString(), // This will be updated on fetch
-            }));
-
-        return NextResponse.json(blueprintFiles);
+        const allFiles = Array.from(blueprintFileMap.values());
+        return NextResponse.json(allFiles);
 
     } catch (error: any) {
         console.error('List workspace files failed:', error);

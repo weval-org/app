@@ -10,8 +10,17 @@ import {
 } from '@/cli/types/cli_types';
 import { ExpectationGroup } from './ExpectationGroup';
 import { produce } from 'immer';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    DropdownMenuSeparator,
+    DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
 
 const Trash2 = dynamic(() => import('lucide-react').then(mod => mod.Trash2));
+const Copy = dynamic(() => import('lucide-react').then(mod => mod.Copy));
 
 type PromptConfig = WevalPromptConfig;
 
@@ -19,10 +28,11 @@ interface PromptCardProps {
   prompt: PromptConfig;
   onUpdate: (p: PromptConfig) => void;
   onRemove: () => void;
+  onDuplicate: () => void;
   isEditable: boolean;
 }
 
-export function PromptCard({ prompt, onUpdate, onRemove, isEditable }: PromptCardProps) {
+export function PromptCard({ prompt, onUpdate, onRemove, onDuplicate, isEditable }: PromptCardProps) {
 
   const getPromptText = () => {
     if (!prompt.messages || prompt.messages.length === 0) return '';
@@ -58,15 +68,37 @@ export function PromptCard({ prompt, onUpdate, onRemove, isEditable }: PromptCar
   return (
     <Card className="relative p-4" id={prompt.id}>
         {isEditable && (
-            <Button
-                variant="ghost"
-                size="icon"
-                onClick={onRemove}
-                className="absolute top-1.5 right-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-7 w-7"
-                title="Remove Prompt"
-            >
-                <Trash2 className="h-3.5 w-3.5" />
-            </Button>
+            <div className="absolute top-1.5 right-1.5 flex items-center">
+                 <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={onDuplicate}
+                    className="text-muted-foreground hover:text-primary hover:bg-primary/10 h-7 w-7"
+                    title="Duplicate Prompt"
+                >
+                    <Copy className="h-3.5 w-3.5" />
+                </Button>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-7 w-7"
+                            title="Remove Prompt"
+                            aria-label="Remove prompt"
+                        >
+                            <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                        <DropdownMenuLabel>Are you sure?</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={onRemove} className="text-destructive focus:text-destructive focus:bg-destructive/10">
+                            Yes, delete this prompt
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </div>
         )}
         <div className="space-y-4">
             <div>

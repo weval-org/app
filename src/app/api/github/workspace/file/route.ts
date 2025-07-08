@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getAccessToken } from '@/lib/github/auth-utils';
+    import { NextRequest, NextResponse } from 'next/server';
 import { Buffer } from 'buffer';
+import { getOctokit } from '@/lib/github/github-utils';
 
 // This is a server-side-only type definition
 interface BlueprintFile {
@@ -11,45 +11,39 @@ interface BlueprintFile {
     lastModified: string;
 }
 
-async function githubApiRequest(endpoint: string, token: string, options: RequestInit = {}) {
-    const response = await fetch(`https://api.github.com${endpoint}`, {
-        ...options,
-        headers: {
-            ...options.headers,
-            Authorization: `Bearer ${token}`,
-            'Accept': 'application/vnd.github.v3+json',
-        },
-    });
-    return response;
-}
-
 export async function GET(req: NextRequest) {
-    const accessToken = await getAccessToken(req);
-    if (!accessToken) {
+    const octokit = await getOctokit(req);
+    if (!octokit) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
     try {
         const path = req.nextUrl.searchParams.get('path');
         const forkName = req.nextUrl.searchParams.get('forkName');
+        const branchName = req.nextUrl.searchParams.get('branchName');
 
         if (!path || !forkName) {
             return NextResponse.json({ error: 'File path and fork name are required' }, { status: 400 });
         }
         
-        const userResponse = await githubApiRequest('/user', accessToken);
-        if (!userResponse.ok) throw new Error('Failed to fetch user data');
-        const user = await userResponse.json();
-        const userLogin = user.login;
+        const [owner, repo] = forkName.split('/');
 
-        const fileResponse = await githubApiRequest(`/repos/${forkName}/contents/${path}`, accessToken);
+        const fileResponse = await octokit.repos.getContent({
+            owner,
+            repo,
+            path,
+            ref: branchName || undefined,
+        });
 
-        if (!fileResponse.ok) {
-            const errorBody = await fileResponse.json();
-            throw new Error(`Failed to get file content: ${errorBody.message}`);
+        if (Array.isArray(fileResponse.data)) {
+            throw new Error('Expected a file, but got a directory listing.');
         }
 
-        const fileData = await fileResponse.json();
+        const fileData = fileResponse.data;
+        if (fileData.type !== 'file' || !('content' in fileData)) {
+             throw new Error('The path does not point to a file or content is missing.');
+        }
+
         if (fileData.encoding !== 'base64') {
             throw new Error('Unexpected file encoding from GitHub');
         }
@@ -69,53 +63,64 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-    const accessToken = await getAccessToken(req);
-    if (!accessToken) {
+    const octokit = await getOctokit(req);
+    if (!octokit) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    const { path, content, sha, forkName, isNew } = await req.json();
+    const { path, content, sha, forkName, isNew, branchName } = await req.json();
     if (!path || content === undefined || !forkName) {
         return NextResponse.json({ error: 'File path, content, and fork name are required' }, { status: 400 });
     }
+    if (!branchName) {
+        return NextResponse.json({ error: 'A branch name is required for all file operations.' }, { status: 400 });
+    }
 
     try {
-        const body: { message: string; content: string; sha?: string } = {
+        const [owner, repo] = forkName.split('/');
+        const upstreamOwner = 'weval-org';
+        const upstreamRepo = 'configs';
+
+        if (isNew) {
+            // Get the SHA of the main branch from the UPSTREAM repo
+            const mainBranch = await octokit.repos.getBranch({
+                owner: upstreamOwner,
+                repo: upstreamRepo,
+                branch: 'main',
+            });
+            const mainSha = mainBranch.data.commit.sha;
+
+            // Create the new branch on the user's FORK pointing to the upstream SHA
+            await octokit.git.createRef({
+                owner,
+                repo,
+                ref: `refs/heads/${branchName}`,
+                sha: mainSha,
+            });
+        }
+        
+        const { data: { commit, content: createdFile } } = await octokit.repos.createOrUpdateFileContents({
+            owner,
+            repo,
+            path,
             message: isNew 
-                ? `feat(blueprints): create ${path}`
+                ? `feat(blueprints): create ${path} on new branch`
                 : `feat(blueprints): update ${path}`,
             content: Buffer.from(content).toString('base64'),
-        };
-        
-        // For updates, the SHA of the file being updated is required.
-        // For new files, it must be omitted.
-        if (sha) {
-            body.sha = sha;
+            sha: sha,
+            branch: branchName,
+        });
+
+        if (!createdFile) {
+            throw new Error('GitHub API did not return content after file creation/update.');
         }
-
-        const response = await githubApiRequest(
-            `/repos/${forkName}/contents/${path}`,
-            accessToken,
-            {
-                method: 'PUT',
-                body: JSON.stringify(body),
-            }
-        );
-
-        if (!response.ok) {
-            const errorBody = await response.json();
-            throw new Error(`Failed to save file to GitHub: ${errorBody.message}`);
-        }
-
-        const data = await response.json();
-        const createdFile = data.content;
 
         return NextResponse.json({
             name: createdFile.name,
             path: createdFile.path,
             sha: createdFile.sha,
             isLocal: false,
-            lastModified: data.commit.committer.date,
+            lastModified: commit.committer?.date,
         });
 
     } catch (error: any) {
@@ -125,27 +130,27 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-    const accessToken = await getAccessToken(req);
-    if (!accessToken) {
+    const octokit = await getOctokit(req);
+    if (!octokit) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     try {
-        const { path, sha, forkName } = await req.json();
+        const { path, sha, forkName, branchName } = await req.json();
 
-        if (!path || !sha || !forkName) {
-            return NextResponse.json({ error: 'Missing required parameters: path, sha, forkName' }, { status: 400 });
+        if (!path || !sha || !forkName || !branchName) {
+            return NextResponse.json({ error: 'Missing required parameters: path, sha, forkName, branchName' }, { status: 400 });
         }
 
-        const { Octokit } = await import('@octokit/rest');
-        const octokit = new Octokit({ auth: accessToken });
+        const [owner, repo] = forkName.split('/');
 
         await octokit.repos.deleteFile({
-            owner: forkName.split('/')[0],
-            repo: forkName.split('/')[1],
+            owner,
+            repo,
             path,
             message: `feat: delete blueprint '${path}'`,
             sha,
+            branch: branchName,
         });
 
         return NextResponse.json({ success: true });
@@ -156,58 +161,56 @@ export async function DELETE(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-    const accessToken = await getAccessToken(req);
-    if (!accessToken) {
+    const octokit = await getOctokit(req);
+    if (!octokit) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     try {
-        const { oldPath, newName, forkName } = await req.json();
+        const { oldPath, newName, forkName, branchName } = await req.json();
 
-        if (!oldPath || !newName || !forkName) {
-            return NextResponse.json({ error: 'Missing required parameters: oldPath, newName, forkName' }, { status: 400 });
+        if (!oldPath || !newName || !forkName || !branchName) {
+            return NextResponse.json({ error: 'Missing required parameters: oldPath, newName, forkName, branchName' }, { status: 400 });
         }
         
-        const { Octokit } = await import('@octokit/rest');
-        const octokit = new Octokit({ auth: accessToken });
         const [owner, repo] = forkName.split('/');
 
-        // 1. Get the content of the old file
-        const { data: oldFileData } = await octokit.repos.getContent({
+        const { data: oldFileDataResponse } = await octokit.repos.getContent({
             owner,
             repo,
             path: oldPath,
+            ref: branchName,
         });
 
-        if (!('content' in oldFileData) || !('sha' in oldFileData)) {
+        if (Array.isArray(oldFileDataResponse) || !('content' in oldFileDataResponse) || !('sha' in oldFileDataResponse)) {
             throw new Error('Could not retrieve content of the original file.');
         }
+        const oldFileData = oldFileDataResponse;
 
         const newPath = oldPath.substring(0, oldPath.lastIndexOf('/') + 1) + newName;
         
-        // 2. Create the new file with the same content
         const { data: newFileResult } = await octokit.repos.createOrUpdateFileContents({
             owner,
             repo,
             path: newPath,
             message: `feat: rename '${oldPath}' to '${newPath}'`,
             content: oldFileData.content,
+            branch: branchName,
         });
 
-        // 3. Delete the old file
         await octokit.repos.deleteFile({
             owner,
             repo,
             path: oldPath,
             message: `feat: remove old file after rename to '${newPath}'`,
             sha: oldFileData.sha,
+            branch: branchName,
         });
 
         if (!newFileResult.content || !newFileResult.content.sha) {
             throw new Error('New file content or SHA was not returned from GitHub API.');
         }
 
-        // 4. Return the new file data in the format our frontend expects
         const newFile: BlueprintFile = {
             name: newName,
             path: newPath,

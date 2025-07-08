@@ -31,6 +31,7 @@ import { generateExecutiveSummary } from '../services/executive-summary-service'
 import { toSafeTimestamp } from '@/lib/timestampUtils';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { getModelResponse, DEFAULT_TEMPERATURE } from '../services/llm-service';
+import { parseEffectiveModelId } from '@/app/utils/modelIdUtils';
 
 async function runEvaluators(
     inputs: EvaluationInput[],
@@ -160,11 +161,10 @@ async function actionRepairRun(runIdentifier: string, options: { cache?: boolean
         for (const modelId of modelIds) {
             logger.info(`Attempting to re-generate response for model ${modelId} on prompt ${promptId}...`);
             try {
-                const modelString = resultData.effectiveModels.find(m => m.startsWith(modelId.split('[')[0])) || modelId;
-                const tempMatch = modelId.match(/\[temp:(.*?)\]/);
-                const temperature = tempMatch ? parseFloat(tempMatch[1]) : DEFAULT_TEMPERATURE;
+                const { baseId, temperature: parsedTemp } = parseEffectiveModelId(modelId);
+                const temperature = parsedTemp ?? DEFAULT_TEMPERATURE;
                 
-                const newResponseText = await getModelResponse({ modelId: modelString, messages: promptConfig.messages, temperature, useCache });
+                const newResponseText = await getModelResponse({ modelId: baseId, messages: promptConfig.messages, temperature, useCache });
                 
                 // Update response data
                 if(resultData.allFinalAssistantResponses && resultData.allFinalAssistantResponses[promptId] && resultData.allFinalAssistantResponses[promptId][modelId]) {
@@ -179,35 +179,75 @@ async function actionRepairRun(runIdentifier: string, options: { cache?: boolean
 
                 // Re-evaluate
                 if (resultData.allFinalAssistantResponses) {
-                    const genInput: EvaluationInput = {
-                        promptData: {
-                            promptId,
-                            initialMessages: promptConfig.messages,
-                            idealResponseText: resultData.allFinalAssistantResponses[promptId]?.[IDEAL_MODEL_ID] || null,
-                            modelResponses: { [modelId]: { finalAssistantResponseText: newResponseText, hasError: false, fullConversationHistory: [], systemPromptUsed: null } },
-                        },
-                        config: resultData.config,
-                        effectiveModelIds: [modelId],
-                    };
-                    const newEvalResults = await runEvaluators([genInput], resultData.evalMethodsUsed, logger, useCache);
+                    // We need to run evaluators separately to provide different contexts for embedding vs. coverage.
 
-                    // Merge new evaluation results
-                    if (newEvalResults.llmCoverageScores) {
-                        if (!resultData.evaluationResults.llmCoverageScores) resultData.evaluationResults.llmCoverageScores = {};
-                        if (!resultData.evaluationResults.llmCoverageScores[promptId]) resultData.evaluationResults.llmCoverageScores[promptId] = {};
-                        resultData.evaluationResults.llmCoverageScores![promptId][modelId] = newEvalResults.llmCoverageScores[promptId][modelId];
-                    }
-                    if (newEvalResults.similarityMatrix) {
-                        if (!resultData.evaluationResults.similarityMatrix) resultData.evaluationResults.similarityMatrix = {};
-                        resultData.evaluationResults.similarityMatrix[promptId] = {
-                            ...resultData.evaluationResults.similarityMatrix[promptId],
-                            ...newEvalResults.similarityMatrix[promptId]
+                    // 1. Embedding requires all other model responses to build a full similarity matrix.
+                    if (resultData.evalMethodsUsed.includes('embedding')) {
+                        const allModelResponses: { [modelId: string]: ModelResponseDetail } = {};
+                        const allModelIds = Object.keys(resultData.allFinalAssistantResponses[promptId] || {});
+                        
+                        for (const mId of allModelIds) {
+                            if (mId === IDEAL_MODEL_ID) continue;
+                            allModelResponses[mId] = {
+                                finalAssistantResponseText: resultData.allFinalAssistantResponses[promptId][mId],
+                                fullConversationHistory: (resultData.fullConversationHistories?.[promptId]?.[mId] || []) as ConversationMessage[],
+                                hasError: !!resultData.errors?.[promptId]?.[mId],
+                                systemPromptUsed: resultData.modelSystemPrompts?.[mId] || null,
+                            };
+                        }
+
+                        const embeddingInput: EvaluationInput = {
+                            promptData: {
+                                promptId,
+                                initialMessages: promptConfig.messages,
+                                idealResponseText: resultData.allFinalAssistantResponses[promptId]?.[IDEAL_MODEL_ID] || null,
+                                modelResponses: allModelResponses,
+                            },
+                            config: resultData.config,
+                            effectiveModelIds: allModelIds.filter(id => id !== IDEAL_MODEL_ID),
                         };
+
+                        const embeddingEvaluator = new EmbeddingEvaluator(logger);
+                        const newEmbeddingResults = await embeddingEvaluator.evaluate([embeddingInput]);
+
+                        if (newEmbeddingResults.similarityMatrix && newEmbeddingResults.similarityMatrix[promptId]) {
+                            if (!resultData.evaluationResults.similarityMatrix) resultData.evaluationResults.similarityMatrix = {};
+                            resultData.evaluationResults.similarityMatrix[promptId] = newEmbeddingResults.similarityMatrix[promptId];
+                        }
+                        if (newEmbeddingResults.perPromptSimilarities && newEmbeddingResults.perPromptSimilarities[promptId]) {
+                            if (!resultData.evaluationResults.perPromptSimilarities) resultData.evaluationResults.perPromptSimilarities = {};
+                            resultData.evaluationResults.perPromptSimilarities[promptId] = newEmbeddingResults.perPromptSimilarities[promptId];
+                        }
                     }
-                     if (newEvalResults.perPromptSimilarities) {
-                        if (!resultData.evaluationResults.perPromptSimilarities) resultData.evaluationResults.perPromptSimilarities = {};
-                        if (!resultData.evaluationResults.perPromptSimilarities[promptId]) resultData.evaluationResults.perPromptSimilarities[promptId] = {};
-                         resultData.evaluationResults.perPromptSimilarities[promptId][modelId] = newEvalResults.perPromptSimilarities[promptId][modelId];
+
+                    // 2. LLM Coverage only needs the single repaired response to avoid re-evaluating (and paying for) others.
+                    if (resultData.evalMethodsUsed.includes('llm-coverage')) {
+                        const coverageInput: EvaluationInput = {
+                            promptData: {
+                                promptId,
+                                initialMessages: promptConfig.messages,
+                                idealResponseText: resultData.allFinalAssistantResponses[promptId]?.[IDEAL_MODEL_ID] || null,
+                                modelResponses: { 
+                                    [modelId]: { 
+                                        finalAssistantResponseText: newResponseText, 
+                                        hasError: false, 
+                                        fullConversationHistory: [...promptConfig.messages, { role: 'assistant', content: newResponseText }], 
+                                        systemPromptUsed: resultData.modelSystemPrompts?.[modelId] || null 
+                                    } 
+                                },
+                            },
+                            config: resultData.config,
+                            effectiveModelIds: [modelId],
+                        };
+
+                        const llmCoverageEvaluator = new LLMCoverageEvaluator(logger, useCache);
+                        const newCoverageResults = await llmCoverageEvaluator.evaluate([coverageInput]);
+
+                        if (newCoverageResults.llmCoverageScores?.[promptId]?.[modelId]) {
+                            if (!resultData.evaluationResults.llmCoverageScores) resultData.evaluationResults.llmCoverageScores = {};
+                            if (!resultData.evaluationResults.llmCoverageScores[promptId]) resultData.evaluationResults.llmCoverageScores[promptId] = {};
+                            resultData.evaluationResults.llmCoverageScores[promptId][modelId] = newCoverageResults.llmCoverageScores[promptId][modelId];
+                        }
                     }
 
                     logger.info(`Successfully repaired and re-evaluated model ${modelId} for prompt ${promptId}.`);

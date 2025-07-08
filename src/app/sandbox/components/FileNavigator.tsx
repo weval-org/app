@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { BlueprintFile, PRStatus } from '../hooks/useWorkspace';
@@ -17,14 +17,7 @@ import {
     DropdownMenuTrigger,
     DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 
 const TrashIcon = dynamic(() => import('lucide-react').then(mod => mod.Trash), {
     ssr: false,
@@ -35,13 +28,15 @@ const Wand = dynamic(() => import('lucide-react').then(mod => mod.Wand2));
 const BookOpenCheck = dynamic(() => import('lucide-react').then(mod => mod.BookOpenCheck));
 const Github = dynamic(() => import('lucide-react').then(mod => mod.Github), { ssr: false });
 const File = dynamic(() => import('lucide-react').then(mod => mod.File), { ssr: false });
-const GitPullRequest = dynamic(() => import('lucide-react').then(mod => mod.GitPullRequest));
-const GitMerge = dynamic(() => import('lucide-react').then(mod => mod.GitMerge));
 const GitPullRequestClosed = dynamic(() => import('lucide-react').then(mod => mod.GitPullRequestClosed));
 const Plus = dynamic(() => import('lucide-react').then(mod => mod.Plus));
 const MoreVertical = dynamic(() => import('lucide-react').then(mod => mod.MoreVertical));
 const RefreshCw = dynamic(() => import('lucide-react').then(mod => mod.RefreshCw), { ssr: false });
 const HelpCircle = dynamic(() => import('lucide-react').then(mod => mod.HelpCircle), { ssr: false });
+const Copy = dynamic(() => import('lucide-react').then(mod => mod.Copy));
+const Pencil = dynamic(() => import('lucide-react').then(mod => mod.Pencil));
+const GitMerge = dynamic(() => import('lucide-react').then(mod => mod.GitMerge));
+const GitPullRequest = dynamic(() => import('lucide-react').then(mod => mod.GitPullRequest));
 
 const getPrIcon = (status: PRStatus) => {
     if (status.merged) {
@@ -58,6 +53,8 @@ export interface FileNavigatorProps {
     activeFilePath: string | null;
     onSelectFile: (file: BlueprintFile) => void;
     onDeleteFile: (file: BlueprintFile) => void;
+    onRenameFile: (file: BlueprintFile) => void;
+    onDuplicateFile: (file: BlueprintFile) => void;
     onCreateNew: () => void;
     onAutoCreate: () => void;
     isLoading: boolean;
@@ -80,6 +77,8 @@ export function FileNavigator({
     activeFilePath, 
     onSelectFile, 
     onDeleteFile,
+    onRenameFile,
+    onDuplicateFile,
     onCreateNew, 
     onAutoCreate,
     isLoading, 
@@ -97,26 +96,15 @@ export function FileNavigator({
     onTourBlurbClick,
 }: FileNavigatorProps) {
     const { toast } = useToast();
-    const [fileToDelete, setFileToDelete] = useState<BlueprintFile | null>(null);
 
     const localFiles = files.filter(f => f.isLocal);
     const remoteFiles = files.filter(f => !f.isLocal);
 
-    const handleDeleteClick = (file: BlueprintFile, e: React.MouseEvent) => {
-        e.stopPropagation();
-        setFileToDelete(file);
-    };
-
-    const confirmDeletion = () => {
-        if (fileToDelete) {
-            onDeleteFile(fileToDelete);
-            setFileToDelete(null);
-        }
-    };
-
     const renderFileItem = (file: BlueprintFile) => {
         const isActive = file.path === activeFilePath;
         const isFileBeingDeleted = deletingFilePath === file.path;
+        const hasOpenPr = file.prStatus?.state === 'open';
+        const isEditable = !hasOpenPr;
 
         return (
             <div
@@ -126,7 +114,11 @@ export function FileNavigator({
                         ? 'bg-primary/10 text-primary font-semibold'
                         : 'hover:bg-primary/5'
                 } ${isFileBeingDeleted ? 'opacity-50' : ''}`}
-                onClick={() => onSelectFile(file)}
+                onClick={() => {
+                    if (!isFileBeingDeleted) {
+                        onSelectFile(file);
+                    }
+                }}
             >
                 <div className="flex items-center gap-2 min-w-0 flex-1">
                     <div className="flex-shrink-0">
@@ -155,18 +147,40 @@ export function FileNavigator({
                     </div>
                 )}
                 
-                <div className="flex-shrink-0 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex-shrink-0 ml-2 transition-opacity">
                     {isFileBeingDeleted ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
-                        <button
-                            onClick={(e) => handleDeleteClick(file, e)}
-                            className="p-1 hover:bg-destructive/10 rounded-md"
-                            aria-label={`Delete ${file.name}`}
-                            disabled={isDeleting}
-                        >
-                            <TrashIcon className="w-4 h-4 text-destructive" />
-                        </button>
+                        <DropdownMenu modal={false}>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 text-muted-foreground hover:text-foreground hover:bg-slate-200 data-[state=open]:bg-slate-200 dark:hover:bg-slate-700 dark:data-[state=open]:bg-slate-700"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <MoreVertical className="h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent onClick={(e) => e.stopPropagation()}>
+                                <DropdownMenuItem onSelect={() => setTimeout(() => onRenameFile(file), 0)}>
+                                    <Pencil className="w-3.5 h-3.5 mr-2" />
+                                    Rename
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => setTimeout(() => onDuplicateFile(file), 0)}>
+                                    <Copy className="w-3.5 h-3.5 mr-2" />
+                                    Duplicate
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem 
+                                    onSelect={() => setTimeout(() => onDeleteFile(file), 0)}
+                                    className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                >
+                                    <TrashIcon className="w-3.5 h-3.5 mr-2" />
+                                    Delete
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                     )}
                 </div>
             </div>
@@ -354,25 +368,6 @@ export function FileNavigator({
                     <p className="text-xs text-muted-foreground">Click here for a quick tour of the Sandbox Studio.</p>
                 </div>
             )}
-
-            <Dialog open={!!fileToDelete} onOpenChange={(isOpen) => !isOpen && setFileToDelete(null)}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Are you absolutely sure?</DialogTitle>
-                        <DialogDescription>
-                            This action cannot be undone. This will permanently delete the blueprint
-                            <span className="font-semibold mx-1">{fileToDelete?.name}</span>.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                        <Button variant="ghost" onClick={() => setFileToDelete(null)}>Cancel</Button>
-                        <Button variant="destructive" onClick={confirmDeletion}>
-                            {isDeleting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                            Delete
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
         </div>
     );
 } 

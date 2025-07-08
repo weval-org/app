@@ -86,7 +86,6 @@ const SummaryStatsTable = ({ stats, onMostDifferentiatingClick, isSandbox }: { s
       tooltip: `${performerTooltipText} Model: ${bestPerformingModel ? getModelDisplayLabel(bestPerformingModel.id) : 'N/A'}`,
     },
     { label: '📉 Worst Performer', item: worstPerformingModel ? getModelDisplayLabel(worstPerformingModel.id, { hideProvider: true }) : 'N/A', value: worstPerformingModel ? `${(worstPerformingModel.score * 100).toFixed(1)}%` : 'N/A', tooltip: `${worstPerformerTooltipText} Model: ${worstPerformingModel ? getModelDisplayLabel(worstPerformingModel.id) : 'N/A'}` },
-    { label: '🧐 Most Differentiating', item: mostDifferentiatingPrompt ? (mostDifferentiatingPrompt.text || mostDifferentiatingPrompt.id) : 'N/A', value: mostDifferentiatingPrompt ? `~${(mostDifferentiatingPrompt.score).toFixed(3)} sim` : 'N/A', tooltip: `Prompt with the most diverse responses (lowest avg similarity). Prompt: ${mostDifferentiatingPrompt ? (mostDifferentiatingPrompt.text || mostDifferentiatingPrompt.id) : 'N/A'}`, onClick: onMostDifferentiatingClick },
   ];
 
   return (

@@ -78,7 +78,7 @@ export default function FeaturedBlueprintsSection({ featuredBlueprints }: Featur
               )}
 
               {/* Stats Section */}
-              <div className="flex items-center justify-between gap-4 mb-4">
+              <div className="flex items-center justify-between gap-4">
                 <div className="text-center">
                   {typeof bp.overallAverageHybridScore === 'number' ? (
                     <div>
@@ -110,11 +110,7 @@ export default function FeaturedBlueprintsSection({ featuredBlueprints }: Featur
                 )}
               </div>
 
-              <div className="mt-auto pt-4 border-t border-border/30 dark:border-border/30">
-                <div className="w-full inline-flex items-center justify-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-md text-primary-foreground bg-primary group-hover:bg-primary/90 transition-colors shadow-sm">
-                  View Latest Analysis
-                </div>
-              </div>
+
             </div>
           );
 

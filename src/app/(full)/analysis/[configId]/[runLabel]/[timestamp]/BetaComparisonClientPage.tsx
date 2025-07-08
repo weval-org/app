@@ -482,7 +482,7 @@ const BetaComparisonClientPage: React.FC<BetaComparisonClientPageProps> = ({ dat
   if (!comparisonData) return null; 
 
   const headerActions = comparisonData ? (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center justify-end gap-2">
         {isSandbox ? (
             <Button asChild variant="outline" size="sm" className="text-green-600 dark:text-green-400 border-green-600/70 dark:border-green-700/70 hover:bg-green-600/10 dark:hover:bg-green-700/30 hover:text-green-700 dark:hover:text-green-300 px-3 py-1.5 text-xs">
                 <Link href={`/api/sandbox/blueprint/${sandboxId}`} download>
@@ -491,10 +491,10 @@ const BetaComparisonClientPage: React.FC<BetaComparisonClientPageProps> = ({ dat
                 </Link>
             </Button>
         ) : comparisonData.sourceCommitSha ? (
-            <Button asChild variant="outline">
+            <Button asChild variant="outline" size="sm" className="px-3 py-1.5 text-xs">
                 <Link href={`${BLUEPRINT_CONFIG_REPO_URL}/blob/${comparisonData.sourceCommitSha}/blueprints/${comparisonData.configId}.yml`} target="_blank" rel="noopener noreferrer" title={`View blueprint at commit ${comparisonData.sourceCommitSha.substring(0, 7)}`}>
                     <GitCommit className="w-4 h-4 mr-2" />
-                    View Blueprint on GitHub
+                    See Blueprint
                 </Link>
             </Button>
         ) : (
@@ -521,12 +521,12 @@ const BetaComparisonClientPage: React.FC<BetaComparisonClientPageProps> = ({ dat
         <Button asChild variant="outline" size="sm" className="text-green-600 dark:text-green-400 border-green-600/70 dark:border-green-700/70 hover:bg-green-600/10 dark:hover:bg-green-700/30 hover:text-green-700 dark:hover:text-green-300 px-3 py-1.5 text-xs">
             <Link href={`/api/comparison/${configIdFromUrl}/${runLabel}/${timestampFromUrl}/markdown`} download>
                 <FileText className="w-3.5 h-3.5 mr-1.5" />
-                Download Results as Markdown
+                Download Markdown
             </Link>
         </Button>
-        <Button onClick={handleExploreInSandbox} variant="outline" size="sm" className="bg-exciting text-exciting-foreground border-exciting hover:bg-exciting/90 hover:text-exciting-foreground">
+        <Button onClick={handleExploreInSandbox} variant="outline" size="sm" className="bg-exciting text-exciting-foreground border-exciting hover:bg-exciting/90 hover:text-exciting-foreground text-xs">
           <FlaskConical className="w-4 h-4 mr-2" />
-          Run in Sandbox Studio
+          Run in Sandbox
         </Button>
     </div>
   ) : null;

@@ -11,6 +11,7 @@ const Loader2 = dynamic(() => import('lucide-react').then(mod => mod.Loader2), {
 const AVAILABLE_PLAYGROUND_MODELS = [
   "openai:gpt-4o-mini",
   "openai:gpt-4.1-nano",
+  "openai:gpt-4.1-mini",
   "anthropic:claude-3-haiku-20240307",
   "openrouter:google/gemini-flash-1.5",
   "openrouter:google/gemini-2.5-flash",

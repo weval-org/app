@@ -116,9 +116,12 @@ export function useGitHub(isLoggedIn: boolean, username: string | null) {
     }
   }, [toast, forkName]);
 
-  const updateFileOnGitHub = useCallback(async (path: string, content: string, sha: string): Promise<BlueprintFile | null> => {
+  const updateFileOnGitHub = useCallback(async (path: string, content: string, sha: string, branchName: string): Promise<BlueprintFile | null> => {
     if (!isLoggedIn || !forkName) {
       throw new Error('User not logged in or fork not available.');
+    }
+    if (!branchName) {
+      throw new Error('A branch name is required to update a file on GitHub.');
     }
 
     try {
@@ -131,6 +134,7 @@ export function useGitHub(isLoggedIn: boolean, username: string | null) {
           sha,
           forkName,
           isNew: false,
+          branchName,
         }),
       });
 
@@ -152,12 +156,15 @@ export function useGitHub(isLoggedIn: boolean, username: string | null) {
     }
   }, [isLoggedIn, forkName, toast]);
 
-  const createFileOnGitHub = useCallback(async (filename: string, content: string): Promise<BlueprintFile | null> => {
+  const promoteBlueprintToBranch = useCallback(async (filename: string, content: string): Promise<BlueprintFile | null> => {
     if (!isLoggedIn || !forkName || !username) {
       throw new Error('User not logged in or fork not available.');
     }
 
     try {
+      const cleanFilename = filename.replace(/\.yml$/, '').replace(/[^a-zA-Z0-9-]/g, '-');
+      const branchName = `proposal/${cleanFilename}-${Date.now()}`;
+
       const response = await fetch('/api/github/workspace/file', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -167,6 +174,7 @@ export function useGitHub(isLoggedIn: boolean, username: string | null) {
           sha: null,
           forkName: forkName,
           isNew: true,
+          branchName: branchName,
         }),
       });
 
@@ -176,8 +184,11 @@ export function useGitHub(isLoggedIn: boolean, username: string | null) {
       }
 
       const newFile = await response.json();
-      toast({ title: "Saved to GitHub", description: `Successfully saved ${filename} to your repository.` });
-      return newFile;
+      
+      const fileWithBranch = { ...newFile, branchName };
+
+      toast({ title: "Saved to GitHub", description: `Successfully saved ${filename} to a new branch.` });
+      return fileWithBranch;
     } catch (e: any) {
       toast({
         variant: "destructive",
@@ -189,8 +200,8 @@ export function useGitHub(isLoggedIn: boolean, username: string | null) {
   }, [isLoggedIn, forkName, username, toast]);
 
   const createPullRequest = useCallback(async (data: { title: string; body: string }, activeBlueprint: ActiveBlueprint) => {
-    if (!activeBlueprint || !forkName) {
-        throw new Error('No active blueprint or fork available.');
+    if (!activeBlueprint || !forkName || !activeBlueprint.branchName) {
+        throw new Error('No active blueprint, fork, or branch available to create a PR.');
     }
 
     try {
@@ -200,8 +211,8 @@ export function useGitHub(isLoggedIn: boolean, username: string | null) {
             body: JSON.stringify({
                 title: data.title,
                 body: data.body,
-                blueprintPath: activeBlueprint.path,
                 forkName: forkName,
+                headBranch: activeBlueprint.branchName,
             }),
         });
 
@@ -275,22 +286,26 @@ export function useGitHub(isLoggedIn: boolean, username: string | null) {
       }
   }, [isLoggedIn, prStatuses, saveCache, toast]);
 
-  const deleteFileFromGitHub = useCallback(async (path: string, sha: string) => {
+  const deleteFileFromGitHub = useCallback(async (path: string, sha: string, branchName: string) => {
     if (!forkName) {
         throw new Error("Fork name not available");
+    }
+    if (!branchName) {
+        console.warn(`Deleting file ${path} from default branch.`);
     }
     await fetch('/api/github/workspace/file', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path, sha, forkName }),
+        body: JSON.stringify({ path, sha, forkName, branchName }),
     });
   }, [forkName]);
   
-  const loadFileContentFromGitHub = useCallback(async (path: string) => {
+  const loadFileContentFromGitHub = useCallback(async (path: string, branchName?: string) => {
     if (!forkName) {
       throw new Error("Fork name not available");
     }
-    const response = await fetch(`/api/github/workspace/file?path=${encodeURIComponent(path)}&forkName=${encodeURIComponent(forkName)}`);
+    const url = `/api/github/workspace/file?path=${encodeURIComponent(path)}&forkName=${encodeURIComponent(forkName)}${branchName ? `&branchName=${encodeURIComponent(branchName)}` : ''}`;
+    const response = await fetch(url);
     if (!response.ok) {
       const err = await response.json();
       throw new Error(err.error || 'Failed to load file content.');
@@ -298,17 +313,21 @@ export function useGitHub(isLoggedIn: boolean, username: string | null) {
     return response.json();
   }, [forkName]);
 
-  const renameFile = useCallback(async (oldPath: string, newName: string): Promise<BlueprintFile | null> => {
+  const renameFile = useCallback(async (oldPath: string, newName: string, branchName: string): Promise<BlueprintFile | null> => {
     if (!forkName) {
       toast({ variant: 'destructive', title: 'Error', description: 'Fork name not available.' });
       return null;
+    }
+    if (!branchName) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Branch name is required for renaming.' });
+        return null;
     }
 
     try {
       const response = await fetch('/api/github/workspace/file', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ oldPath, newName, forkName }),
+        body: JSON.stringify({ oldPath, newName, forkName, branchName }),
       });
 
       if (!response.ok) {
@@ -318,7 +337,7 @@ export function useGitHub(isLoggedIn: boolean, username: string | null) {
 
       const renamedFile = await response.json();
       toast({ title: "Renamed on GitHub", description: `Successfully renamed to ${newName}.` });
-      return renamedFile;
+      return { ...renamedFile, branchName };
     } catch (e: any) {
       toast({
         variant: "destructive",
@@ -344,8 +363,7 @@ export function useGitHub(isLoggedIn: boolean, username: string | null) {
     fetchPrStatuses,
     setupWorkspace,
     updateFileOnGitHub,
-    createFileOnGitHub,
-    promoteBlueprint: createFileOnGitHub,
+    promoteBlueprintToBranch,
     createPullRequest,
     closeProposal,
     deleteFileFromGitHub,
