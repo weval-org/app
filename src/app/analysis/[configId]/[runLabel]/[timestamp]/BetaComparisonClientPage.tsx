@@ -38,6 +38,7 @@ import { SandboxAggregateView } from './SandboxAggregateView';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
 import { useToast } from '@/components/ui/use-toast';
 import { generateMinimalBlueprintYaml } from '@/app/sandbox/utils/yaml-generator';
+import { getBlueprintPathFromId } from '@/app/utils/blueprintIdUtils';
 
 const FlaskConical = dynamic(() => import('lucide-react').then(mod => mod.FlaskConical));
 const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.AlertCircle))
@@ -492,7 +493,7 @@ const BetaComparisonClientPage: React.FC<BetaComparisonClientPageProps> = ({ dat
             </Button>
         ) : comparisonData.sourceCommitSha ? (
             <Button asChild variant="outline" size="sm" className="px-3 py-1.5 text-xs">
-                <Link href={`${BLUEPRINT_CONFIG_REPO_URL}/blob/${comparisonData.sourceCommitSha}/blueprints/${comparisonData.configId}.yml`} target="_blank" rel="noopener noreferrer" title={`View blueprint at commit ${comparisonData.sourceCommitSha.substring(0, 7)}`}>
+                <Link href={`${BLUEPRINT_CONFIG_REPO_URL}/blob/${comparisonData.sourceCommitSha}/blueprints/${comparisonData.sourceBlueprintFileName || getBlueprintPathFromId(comparisonData.configId) + '.yml'}`} target="_blank" rel="noopener noreferrer" title={`View blueprint at commit ${comparisonData.sourceCommitSha.substring(0, 7)}`}>
                     <GitCommit className="w-4 h-4 mr-2" />
                     See Blueprint
                 </Link>
@@ -502,7 +503,7 @@ const BetaComparisonClientPage: React.FC<BetaComparisonClientPageProps> = ({ dat
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button asChild variant="outline">
-                      <Link href={`${BLUEPRINT_CONFIG_REPO_URL}/blob/main/blueprints/${comparisonData.configId}.json`} target="_blank" rel="noopener noreferrer">
+                      <Link href={`${BLUEPRINT_CONFIG_REPO_URL}/blob/main/blueprints/${comparisonData.sourceBlueprintFileName || getBlueprintPathFromId(comparisonData.configId) + '.yml'}`} target="_blank" rel="noopener noreferrer">
                           <GitCommit className="w-4 h-4 mr-2" />
                           View Latest Blueprint
                       </Link>

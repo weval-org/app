@@ -31,7 +31,7 @@ export async function fetchBlueprintContentByName(
   blueprintName: string,
   githubToken?: string,
   logger: SimpleLogger = defaultLogger
-): Promise<{ content: string; fileType: 'json' | 'yaml'; fileName: string; commitSha: string | null } | null> {
+): Promise<{ content: string; fileType: 'json' | 'yaml'; blueprintPath: string; commitSha: string | null } | null> {
   const apiHeaders: Record<string, string> = { 'Accept': 'application/vnd.github.v3+json' };
   const rawContentHeaders: Record<string, string> = { ...GITHUB_RAW_CONTENT_HEADERS };
 
@@ -69,7 +69,7 @@ export async function fetchBlueprintContentByName(
     for (const ext of extensions) {
       const targetFileName = `${blueprintName}.${ext}`;
       const foundFile = blueprintFiles.find(
-        (node: any) => node.path.endsWith(`/${targetFileName}`) || node.path === `blueprints/${targetFileName}`
+        (node: any) => node.path === `blueprints/${targetFileName}` || node.path.endsWith(`/${targetFileName}`)
       );
 
       if (foundFile) {
@@ -80,7 +80,10 @@ export async function fetchBlueprintContentByName(
           logger.info(`[blueprint-service] Successfully fetched blueprint '${foundFile.path}'`);
           const content = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
           const fileType = ext === 'json' ? 'json' : 'yaml';
-          return { content, fileType, fileName: foundFile.path.split('/').pop()!, commitSha: latestCommitSha };
+          const blueprintPath = foundFile.path.startsWith('blueprints/')
+            ? foundFile.path.substring('blueprints/'.length)
+            : foundFile.path;
+          return { content, fileType, blueprintPath: blueprintPath, commitSha: latestCommitSha };
         }
       }
     }

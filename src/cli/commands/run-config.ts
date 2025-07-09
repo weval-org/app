@@ -40,6 +40,7 @@ import { ModelRunPerformance, ModelSummary } from '@/types/shared';
 import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelIdUtils';
 import { populatePairwiseQueue } from '../services/pairwise-task-queue-service';
 import { normalizeTag } from '@/app/utils/tagUtils';
+import { generateBlueprintIdFromPath } from '@/app/utils/blueprintIdUtils';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
@@ -208,12 +209,12 @@ export function validatePrompts(prompts: ComparisonConfig['prompts'], logger: Lo
 async function loadAndValidateConfig(options: {
     configPath?: string,
     configContent?: string,
-    fileName?: string,
+    blueprintPath?: string,
     fileType?: 'json' | 'yaml',
     collectionsRepoPath?: string,
     isRemote?: boolean,
 }): Promise<ComparisonConfig> {
-    const { configPath, configContent, fileName, fileType, collectionsRepoPath, isRemote } = options;
+    const { configPath, configContent, blueprintPath, fileType, collectionsRepoPath, isRemote } = options;
     const { logger } = getConfig();
 
     let content: string;
@@ -222,7 +223,7 @@ async function loadAndValidateConfig(options: {
 
     if (configPath) {
         logger.info(`Loading and validating config file: ${path.resolve(configPath)}`);
-        sourceName = path.basename(configPath);
+        sourceName = configPath; // Use the full relative path for ID generation
         type = (configPath.endsWith('.yaml') || configPath.endsWith('.yml')) ? 'yaml' : 'json';
         try {
             content = await fs.readFile(path.resolve(configPath), 'utf-8');
@@ -231,13 +232,13 @@ async function loadAndValidateConfig(options: {
             logger.error(`System error: ${fileReadError.message}`);
             throw fileReadError;
         }
-    } else if (configContent && fileName && fileType) {
-        logger.info(`Loading and validating config from remote blueprint: ${fileName}`);
-        sourceName = fileName;
+    } else if (configContent && blueprintPath && fileType) {
+        logger.info(`Loading and validating config from remote blueprint: ${blueprintPath}`);
+        sourceName = blueprintPath;
         type = fileType;
         content = configContent;
     } else {
-        throw new Error("loadAndValidateConfig requires either a configPath or configContent with a fileName and fileType.");
+        throw new Error("loadAndValidateConfig requires either a configPath or configContent with a blueprintPath and fileType.");
     }
 
     if (collectionsRepoPath) {
@@ -253,21 +254,21 @@ async function loadAndValidateConfig(options: {
         throw parseError;
     }
     
-    // If ID is missing, derive it from the filename.
-    if (!configJson.id) { // id is normalized from configId by the parser
-        const rawFileName = sourceName;
-        const id = rawFileName
-            .replace(/\.civic\.ya?ml$/, '')
-            .replace(/\.weval\.ya?ml$/, '')
-            .replace(/\.ya?ml$/, '')
-            .replace(/\.json$/, '');
-        logger.info(`'id' not found in blueprint. Deriving from filename: '${rawFileName}' -> '${id}'`);
-        configJson.id = id;
+    // If an 'id' is present in the file, log a warning that it's being ignored.
+    // The file path is now the single source of truth for the blueprint's ID.
+    if (configJson.id) {
+        logger.warn(`Blueprint source '${sourceName}' contains an 'id' field ('${configJson.id}'). This field is now deprecated and will be ignored. The blueprint's ID will be derived from its file path.`);
     }
+
+    // Always derive the ID from the source path.
+    const id = generateBlueprintIdFromPath(sourceName);
+
+    logger.info(`Deriving blueprint ID from file path: '${sourceName}' -> '${id}'`);
+    configJson.id = id;
 
     // If title is missing, derive it from the ID.
     if (!configJson.title) {
-        logger.info(`'title' not found in blueprint. Using derived or existing ID as title: '${configJson.id}'`);
+        logger.info(`'title' not found in blueprint. Using derived ID as title: '${configJson.id}'`);
         configJson.title = configJson.id;
     }
 
@@ -812,13 +813,13 @@ async function actionGitHub(options: { name: string } & RunOptions) {
 
         const config = await loadAndValidateConfig({
             configContent: remoteConfig.content,
-            fileName: remoteConfig.fileName,
+            blueprintPath: remoteConfig.blueprintPath,
             fileType: remoteConfig.fileType,
             collectionsRepoPath: options.collectionsRepoPath,
             isRemote: true,
         });
 
-        await runBlueprint(config, options, remoteConfig.commitSha, remoteConfig.fileName);
+        await runBlueprint(config, options, remoteConfig.commitSha, remoteConfig.blueprintPath);
     } catch (error: any) {
         // Enhanced error logging
         const chalk = (await import('chalk')).default;

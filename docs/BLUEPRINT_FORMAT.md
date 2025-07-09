@@ -91,7 +91,7 @@ The following fields can be included in the header section (Structure 1) or the 
 
 | Field | Type | Description |
 |---|---|---|
-| `id` | `string` | **(Optional)** A unique identifier for the blueprint. If omitted, it will be derived from the filename. Aliased as `configId`. |
+| `id` | `string` | **(DEPRECATED)** This field is no longer used. The blueprint's unique ID is now always derived from its file path. For example, a file at `blueprints/subdir/my-test.yml` will automatically have the ID `subdir__my-test`. Please remove this field from new blueprints. Aliased as `configId`. |
 | `title` | `string` | **(Optional)** A human-readable title for the blueprint, displayed in the UI. If omitted, it defaults to the `id`. Aliased as `configTitle`. |
 | `description` | `string` | **(Optional)** A longer description of the blueprint's purpose. Supports Markdown. |
 | `tags` | `string[]` | **(Optional)** An array of tags for categorizing and filtering blueprints on the homepage. |
@@ -245,4 +245,6 @@ The system remains backwardly compatible with the original JSON format.
 - **Single Object**: The entire blueprint is a single JSON object.
 - **Formal Field Names**: While some aliases work, the canonical field names are `promptText`, `idealResponse`, and `points`.
 - **No Multi-Document**: There is no `---` separator. Prompts are nested within the `"prompts"` array.
-- **ID is Required**: In the legacy format, the top-level `id` and the `id` for each prompt are generally expected. The automatic prompt ID generation was added with the YAML format in mind. 
+- **ID is Required**: In the legacy format, the top-level `id` and the `id` for each prompt are generally expected. The automatic prompt ID generation was added with the YAML format in mind.
+- **Top-Level ID is Ignored**: The top-level `id` field is now deprecated and ignored, just like in the YAML format. The blueprint's ID is always derived from its file path.
+- **Prompt ID**: The `id` for each individual prompt inside the `prompts` array is still respected and useful for tracking. 

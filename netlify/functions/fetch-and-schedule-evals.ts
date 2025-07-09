@@ -6,6 +6,7 @@ import { listRunsForConfig } from "@/lib/storageService";
 import { resolveModelsInConfig, SimpleLogger } from "@/lib/blueprint-service";
 import { parseAndNormalizeBlueprint } from "@/lib/blueprint-parser";
 import { normalizeTag } from "@/app/utils/tagUtils";
+import { generateBlueprintIdFromPath } from "@/app/utils/blueprintIdUtils";
 
 const EVAL_CONFIGS_REPO_API_URL = "https://api.github.com/repos/weval/configs/contents/blueprints";
 const MODEL_COLLECTIONS_REPO_API_URL_BASE = "https://api.github.com/repos/weval/configs/contents/models";
@@ -74,13 +75,16 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
     logger.info(`[fetch-and-schedule-evals] Found ${filesInBlueprintDir.length} blueprint files in the repo tree.`);
 
     for (const file of filesInBlueprintDir) {
-      const fileName = file.path.split('/').pop();
-      logger.info(`[fetch-and-schedule-evals] Processing config file: ${file.path}`);
+      const blueprintPath = file.path.startsWith('blueprints/')
+          ? file.path.substring('blueprints/'.length)
+          : file.path;
+
+      logger.info(`[fetch-and-schedule-evals] Processing config file: ${file.path} (path for ID: ${blueprintPath})`);
       
       try {
         const configFileResponse = await axios.get(file.url, { headers: rawContentHeaders });
         
-        const fileType = (fileName.endsWith(".yaml") || fileName.endsWith(".yml")) ? 'yaml' : 'json';
+        const fileType = (file.path.endsWith(".yaml") || file.path.endsWith(".yml")) ? 'yaml' : 'json';
         const configContent = typeof configFileResponse.data === 'string' ? configFileResponse.data : JSON.stringify(configFileResponse.data);
         
         let config: ComparisonConfig = parseAndNormalizeBlueprint(configContent, fileType);
@@ -90,56 +94,55 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
             const originalTags = [...config.tags];
             const normalizedTags = [...new Set(originalTags.map(tag => normalizeTag(tag)).filter(tag => tag))];
             if (JSON.stringify(originalTags) !== JSON.stringify(normalizedTags)) {
-                logger.info(`[fetch-and-schedule-evals] Blueprint tags for ${config.id || fileName} were normalized from [${originalTags.join(', ')}] to [${normalizedTags.join(', ')}].`);
+                logger.info(`[fetch-and-schedule-evals] Blueprint tags for ${config.id || blueprintPath} were normalized from [${originalTags.join(', ')}] to [${normalizedTags.join(', ')}].`);
             }
             config.tags = normalizedTags;
         }
         // --- END NORMALIZE TAGS ---
 
-        // If ID is missing, derive it from the filename.
-        if (!config.id) {
-          const rawFileName = fileName;
-          const id = rawFileName
-            .replace(/\.civic\.ya?ml$/, '')
-            .replace(/\.weval\.ya?ml$/, '')
-            .replace(/\.ya?ml$/, '')
-            .replace(/\.json$/, '');
-          logger.info(`[fetch-and-schedule-evals] 'id' not found in blueprint '${fileName}'. Deriving from filename: '${id}'`);
-          config.id = id;
+        // The file path is now the single source of truth for the blueprint's ID.
+        // Warn if a blueprint file still contains the deprecated 'id' field.
+        if (config.id) {
+            logger.warn(`[fetch-and-schedule-evals] Blueprint source '${file.path}' contains a deprecated 'id' field ('${config.id}'). This will be ignored.`);
         }
+
+        // Always derive the ID from the file path.
+        const id = generateBlueprintIdFromPath(blueprintPath);
+        logger.info(`[fetch-and-schedule-evals] Derived ID from path '${blueprintPath}': '${id}'`);
+        config.id = id;
 
         // If title is missing, derive it from the ID.
         if (!config.title) {
-          logger.info(`[fetch-and-schedule-evals] 'title' not found in blueprint '${fileName}'. Using derived or existing ID as title: '${config.id}'`);
+          logger.info(`[fetch-and-schedule-evals] 'title' not found in blueprint '${file.path}'. Using derived ID as title: '${config.id}'`);
           config.title = config.id;
         }
 
         if (!config.tags || !config.tags.includes('_periodic')) {
-          logger.info(`[fetch-and-schedule-evals] Blueprint ${config.id || fileName} does not have the '_periodic' tag. Skipping scheduled run check.`);
+          logger.info(`[fetch-and-schedule-evals] Blueprint ${config.id || blueprintPath} does not have the '_periodic' tag. Skipping scheduled run check.`);
           continue; // Move to the next file
         }
 
         if (!config.id || !config.prompts) {
-          logger.warn(`[fetch-and-schedule-evals] Blueprint file ${fileName} is invalid or missing essential fields (id, prompts) after attempting to derive them. Skipping.`);
+          logger.warn(`[fetch-and-schedule-evals] Blueprint file ${file.path} is invalid or missing essential fields (id, prompts) after attempting to derive them. Skipping.`);
           continue;
         }
 
         if (!config.models || !Array.isArray(config.models) || config.models.length === 0) {
-          logger.info(`[fetch-and-schedule-evals] Models field for ${fileName} is missing, not an array, or empty. Defaulting to ["CORE"].`);
+          logger.info(`[fetch-and-schedule-evals] Models field for ${file.path} is missing, not an array, or empty. Defaulting to ["CORE"].`);
           config.models = ["CORE"];
         }
 
         const currentId = config.id!;
         const currentTitle = config.title;
 
-        logger.info(`[fetch-and-schedule-evals] Attempting to resolve model collections for ${currentId} from blueprint ${fileName}`);
+        logger.info(`[fetch-and-schedule-evals] Attempting to resolve model collections for ${currentId} from blueprint ${file.path}`);
         config = await resolveModelsInConfig(config, githubToken, logger);
         // Log after resolution attempt
         logger.info(`[fetch-and-schedule-evals] Models for ${currentId} after resolution attempt: [${config.models.join(', ')}] (Count: ${config.models.length})`);
 
         // Critical check: if after resolution, models array is empty, skip this config.
-        if (!config.models || config.models.length === 0) {
-          logger.warn(`[fetch-and-schedule-evals] Blueprint file ${fileName} (id: ${currentId}) has no models after resolution or resolution failed. Skipping evaluation for this blueprint.`);
+        if (config.models.length === 0) {
+          logger.warn(`[fetch-and-schedule-evals] Blueprint file ${file.path} (id: ${currentId}) has no models after resolution or resolution failed. Skipping evaluation for this blueprint.`);
           continue;
         }
 
@@ -191,7 +194,7 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
           try {
               await axios.post(executionUrl, 
                   { 
-                    config, // Pass the MODIFIED config object with resolved models
+                    config: { ...config, id: currentId }, // Explicitly set the canonical ID
                     commitSha: latestCommitSha
                   },
                   {

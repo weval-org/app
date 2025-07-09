@@ -147,7 +147,7 @@ pnpm cli run-config local --config path/to/your_blueprint.yml --run-label <your_
 pnpm cli run-config github --name udhr-misattribution-absurd-framing --run-label <my_remote_run>
 ```
 
--   `--name <name>`: **(Required)** Name of the blueprint in the `weval/configs` repo (without extension).
+-   `--name <name>`: **(Required)** Name of the blueprint in the `weval/configs` repo (without extension). Can include subdirectories, e.g., `subdir/my-blueprint`.
 
 ### `backfill-prompt-contexts`
 
@@ -167,7 +167,7 @@ Repairs a specific evaluation run by re-running failed assessments and generatio
 pnpm cli repair-run <configId/runLabel/timestamp>
 ```
 
--   `<runIdentifier>`: **(Required)** The unique identifier for the run, typically found in the URL of the analysis page (e.g., `my-config/my-run-label/2024-01-01T12-00-00-000Z`).
+-   `<runIdentifier>`: **(Required)** The unique identifier for the run, typically found in the URL of the analysis page (e.g., `my-config__my-test/my-run-label/2024-01-01T12-00-00-000Z`). Note that subdirectories in a blueprint's path are converted to a double underscore (`__`) in the `configId`.
 -   `--cache`: Enables caching for model responses during the repair. By default, caching is disabled for repairs to ensure fresh results.
 
 ## Blueprint File Structure
@@ -179,7 +179,6 @@ For simple blueprints with no global config, you can omit the header and `---` e
 **Example Blueprint (`.yml`):**
 ```yaml
 # Main configuration for the blueprint
-id: comprehensive-llm-test-v1
 title: "Comprehensive LLM Functionality Test (Version 1)"
 description: "Tests multiple LLMs on a mix of philosophy, tech explanation, and creative writing prompts. Includes ideal responses and system prompt overrides."
 tags: [general-knowledge, creative-writing, philosophy, stoicism]

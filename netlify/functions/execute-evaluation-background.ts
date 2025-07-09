@@ -64,15 +64,15 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
   }
   // --- END NORMALIZE TAGS ---
 
-  if (!config || typeof config !== 'object' || (!config.id && !config.configId)) {
-    logger.error("Invalid or missing 'config' object in payload, or missing 'id'/'configId'.", { payloadReceived: requestPayload });
+  if (!config || typeof config !== 'object' || !config.id) {
+    logger.error("Invalid or missing 'config' object in payload, or it is missing the canonical 'id'.", { payloadReceived: requestPayload });
     return {
       statusCode: 400,
-      body: JSON.stringify({ error: "Invalid or missing 'config' object in payload, or missing 'id'/'configId'." }),
+      body: JSON.stringify({ error: "Invalid or missing 'config' object in payload, or it is missing the canonical 'id'." }),
     };
   }
-  const currentId = config.id || config.configId!;
-  const currentTitle = config.title || config.configTitle!;
+  const currentId = config.id;
+  const currentTitle = config.title || config.id;
 
   logger.info(`Received request to execute evaluation for Blueprint ID: ${currentId}, Title: ${currentTitle}`);
 
