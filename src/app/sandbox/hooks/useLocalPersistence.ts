@@ -17,9 +17,7 @@ prompt: |
 should:
   - "The explanation should be easy for a child to understand."
   - "It must use an analogy to illustrate the concept."
-  - "The tone should be friendly and encouraging."
-should_not:
-  - "Use technical jargon like 'neural networks' or 'transformer architecture'."`;
+  - "The tone should be friendly and encouraging."`;
 
 export function useLocalPersistence() {
   const { toast } = useToast();

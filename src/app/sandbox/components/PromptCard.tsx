@@ -149,16 +149,18 @@ export function PromptCard({ prompt, onUpdate, onRemove, onDuplicate, isEditable
                 isEditable={isEditable}
             />
             {/* 
-            Temporarily commented out - users can express negative criteria using plain language 
+            Temporarily deprecated - users can express negative criteria using plain language 
             in the "should" section instead (e.g., "should be professional and avoid slang")
+            ONLY show it if the YAML has a "should_not" section
+            */}
+            {prompt.should_not && prompt.should_not.length > 0 && (
             <ExpectationGroup
                 title="The response SHOULD NOT..."
                 expectations={prompt.should_not || []}
                 onUpdate={exps => setField('should_not', exps)}
                 variant="should-not"
                 isEditable={isEditable}
-            />
-            */}
+            />)}
             </div>
         </div>
     </Card>

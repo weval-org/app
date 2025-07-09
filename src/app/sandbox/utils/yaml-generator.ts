@@ -35,6 +35,8 @@ function isHeaderMeaningful(header: any): boolean {
 export function generateMinimalBlueprintYaml(config: ComparisonConfig): string {
     const { prompts, models, ...header } = config;
 
+    console.log('Generating minimal blueprint YAML for config:', config);
+
     const deNormalizedPrompts = prompts.map(p => {
         const newPrompt: any = {};
 
@@ -68,6 +70,10 @@ export function generateMinimalBlueprintYaml(config: ComparisonConfig): string {
             newPrompt.should_not = p.should_not.map(point => 
                 isDefaultPoint(point) ? (point as any).text : point
             );
+        }
+
+        if (p.promptText) {
+            newPrompt.promptText = p.promptText;
         }
 
         return newPrompt;

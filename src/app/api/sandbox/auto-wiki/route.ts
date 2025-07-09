@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getModelResponse } from '@/cli/services/llm-service';
 import { checkForErrors } from '@/cli/utils/response-utils';
+import { parseWevalConfigFromResponse } from '@/app/sandbox/utils/json-response-parser';
 import { fromZodError } from 'zod-validation-error';
-import * as yaml from 'js-yaml';
 
 const WIKI_GENERATOR_MODEL = 'openrouter:google/gemini-2.5-flash-preview-05-20';
 const MAX_TEXT_LENGTH = 300000; // A safe character limit for the context window
@@ -24,7 +24,7 @@ const autoWikiSchema = z.object({
 });
 
 const getSystemPrompt = (articleTitle: string, articleSummary: string) => `
-You are an expert AI Test Engineer specializing in creating robust evaluation blueprints for Large Language Models. Your task is to analyze the provided text from a Wikipedia article and generate a Weval blueprint in YAML format.
+You are an expert AI Test Engineer specializing in creating robust evaluation blueprints for Large Language Models. Your task is to analyze the provided text from a Wikipedia article and generate a Weval blueprint structure.
 
 The goal is NOT to simply summarize the article. Instead, you must identify the most "potent" and "testable" claims, nuances, and potential areas of confusion within the text. Create prompts that test a model's ability to reason accurately about this specific information.
 
@@ -32,7 +32,7 @@ The goal is NOT to simply summarize the article. Instead, you must identify the 
 **Summary:** ${articleSummary}
 
 **Instructions:**
-1.  **Generate a Blueprint:** Create a complete YAML blueprint.
+1.  **Generate a Blueprint:** Create a complete blueprint configuration as JSON.
 2.  **Title and Description:** Write a clear \`title\` and \`description\`.
 3.  **Create 5-10 Potent Prompts:** Generate between 5 and 10 distinct prompts. Each prompt should be a question or instruction that requires a deep and specific understanding of the provided text.
     *   **Focus on Nuance:** Design prompts that target subtle distinctions, potential ambiguities, or common misunderstandings related to the topic.
@@ -42,25 +42,33 @@ The goal is NOT to simply summarize the article. Instead, you must identify the 
     *   **The generated prompts must NOT refer to the source article.** They must be standalone questions that test a model's knowledge on the topic.
     *   **Bad Example:** "According to the article, why did the company fail?"
     *   **Good Example:** "What were the primary reasons for the failure of the company 'Global MegaCorp' in 2023, and what role did its CEO play?"
-5.  **Define 'should' and 'should_not' Criteria (CRITICAL):**
+5.  **Define 'points' Criteria (CRITICAL):**
     *   **Be Specific and Self-Contained:** Each criterion must be a clear, fully-qualified statement that can be understood and judged without needing to re-read the original prompt. Imagine a "blind" judge who only sees the model's response and the criterion.
+    *   **Include Both Positive and Negative Criteria:** Use positive statements to describe both what responses should include AND what they should avoid. For negative criteria, phrase them as "does not..." or "avoids..." statements.
     *   For example, instead of "Mentions the three branches," write "States that the three branches of government are the legislative, executive, and judicial branches."
-6.  **Format and Quoting (CRITICAL):**
-    *   The entire output must be a single, valid YAML code block.
-    *   **You MUST enclose all string values in double quotes ("").** This applies to 'title', 'description', 'prompt', and every item in 'should' and 'should_not'.
-    *   You MUST wrap your entire YAML output within \`<YAML>\` and \`</YAML>\` tags. DO NOT use markdown code fences (\`\`\`).
+6.  **JSON Structure Format:**
+    *   \`title\`: string - blueprint title based on the article
+    *   \`description\`: string - blueprint description
+    *   \`models\`: array of strings - can be empty []
+    *   \`prompts\`: array of prompt objects with:
+        - \`id\`: unique identifier string
+        - \`promptText\`: the actual prompt/question string
+        - \`idealResponse\`: optional ideal response string
+        - \`points\`: array of "should" criteria (strings)
+7.  **Output Format:**
+    *   You MUST wrap your JSON output within \`<JSON>\` and \`</JSON>\` tags.
+    *   Do NOT use markdown code fences.
 
 **Example of a Potent Prompt:**
 
 If the article is about "Stoicism", a weak prompt would be "What is Stoicism?".
 A potent prompt would be: "Explain the Stoic concept of 'apatheia' and how it differs from the modern definition of 'apathy'."
-*   **should:**
-    *   - "Defines apatheia as a state of being free from emotional disturbance, achieved through virtue and reason."
-    *   - "Contrasts apatheia with the modern definition of apathy, which implies a lack of care or interest."
-*   **should_not:**
-    *   - "Equates the Stoic concept of apatheia with being emotionless or robotic."
+*   **points:**
+    *   - "Defines apatheia as a state of being free from emotional disturbance, achieved through virtue and reason"
+    *   - "Contrasts apatheia with the modern definition of apathy, which implies a lack of care or interest"
+    *   - "Does not equate the Stoic concept of apatheia with being emotionless or robotic"
 
-Now, analyze the following article text and generate the YAML blueprint.
+Now, analyze the following article text and generate the complete blueprint structure as JSON.
 `;
 
 // Function to extract the article title and language from a Wikipedia URL
@@ -160,84 +168,16 @@ export async function POST(req: NextRequest) {
         throw new Error(`The YAML generation model returned an error: ${generatedYaml}`);
     }
 
-    const yamlRegex = /<YAML>([\s\S]*)<\/YAML>/;
-    const match = generatedYaml.match(yamlRegex);
+         const configParseResult = await parseWevalConfigFromResponse(generatedYaml, {
+         modelId: WIKI_GENERATOR_MODEL
+     });
 
-    if (!match || !match[1]) {
-        throw new Error("The model did not return a valid YAML response within <YAML> tags.");
-    }
-
-    const cleanedYaml = match[1].trim();
-    let finalYaml = cleanedYaml;
-    let wasSanitized = false;
-    let validationError: string | null = null;
-    
-    try {
-        const parsed = yaml.loadAll(cleanedYaml);
-        if (parsed.filter(p => p !== null).length === 0) {
-            throw new Error('Generated YAML is empty or invalid after parsing.');
-        }
-    } catch (e: any) {
-        if (e instanceof yaml.YAMLException) {
-            console.warn('[Auto-Wiki] Initial YAML parsing failed. Attempting self-correction.', e.message);
-
-            // Attempt to self-correct the YAML by re-prompting the LLM
-            const selfCorrectionSystemPrompt = `You are an expert YAML debugger. The user will provide you with a piece of YAML that has a syntax error, along with the error message. Your task is to fix the YAML and return only the corrected, valid YAML code block. Do not add any explanation, apologies, or surrounding text. Output only the raw, corrected YAML.`;
-            
-            const selfCorrectionUserPrompt = `The following YAML is invalid.\nError: ${e.message}\n\nInvalid YAML:\n${cleanedYaml}\n\nPlease provide the corrected YAML.`;
-
-            try {
-                const correctedYamlResponse = await getModelResponse({
-                    modelId: WIKI_GENERATOR_MODEL,
-                    messages: [{ role: 'user', content: selfCorrectionUserPrompt }],
-                    systemPrompt: selfCorrectionSystemPrompt,
-                    temperature: 0.0,
-                    useCache: false,
-                    maxTokens: 5000
-                });
-
-                if (checkForErrors(correctedYamlResponse)) {
-                    throw new Error(`The self-correction model returned an error: ${correctedYamlResponse}`);
-                }
-                
-                // The model might wrap the corrected YAML in markdown fences, so we need to strip them.
-                const markdownYamlRegex = /```(?:yaml\n)?([\s\S]*?)```/;
-                const match = correctedYamlResponse.match(markdownYamlRegex);
-                finalYaml = (match ? match[1] : correctedYamlResponse).trim();
-
-                try {
-                    // Try parsing the corrected YAML
-                    const parsed = yaml.loadAll(finalYaml);
-                    if (parsed.filter(p => p !== null).length === 0) {
-                        throw new Error('Self-corrected YAML is empty or invalid after parsing.');
-                    }
-                    console.log('[Auto-Wiki] Self-correction successful.');
-                    wasSanitized = true; // Use 'sanitized' flag to indicate correction happened
-                } catch (e2: any) {
-                    // If correction fails, return original with error info
-                    console.error('[Auto-Wiki] Self-correction failed.', e2.message);
-                    validationError = `YAML validation failed: ${e.message}. Self-correction also failed: ${e2.message}`;
-                    finalYaml = cleanedYaml; // Return original invalid YAML
-                }
-            } catch (correctionError: any) {
-                // If self-correction request fails, return original with error
-                console.error('[Auto-Wiki] Self-correction request failed.', correctionError.message);
-                validationError = `YAML validation failed: ${e.message}. Could not attempt self-correction: ${correctionError.message}`;
-                finalYaml = cleanedYaml; // Return original invalid YAML
-            }
-        } else {
-          // Re-throw other errors not related to YAML parsing for now
-          // But we could also handle these more gracefully in the future
-          validationError = `YAML validation failed: ${e.message}`;
-        }
-    }
-
-    return NextResponse.json({ 
-        yaml: finalYaml, 
-        truncated: wasTruncated, 
-        sanitized: wasSanitized,
-        validationError: validationError
-    });
+     return NextResponse.json({ 
+         yaml: configParseResult.yaml, 
+         truncated: wasTruncated, 
+         sanitized: configParseResult.sanitized,
+         validationError: configParseResult.validationError
+     });
 
   } catch (error: any) {
     console.error('[Auto-Wiki Error]', error);

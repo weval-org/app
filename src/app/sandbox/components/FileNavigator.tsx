@@ -357,17 +357,6 @@ export function FileNavigator({
                     </div>
                 )}
             </div>
-
-            {showTourBlurb && (
-                 <div 
-                    className="m-4 p-3 border-2 border-dashed rounded-lg text-center cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors"
-                    onClick={onTourBlurbClick}
-                >
-                    <HelpCircle className="w-6 h-6 mx-auto text-muted-foreground mb-2" />
-                    <h4 className="font-semibold text-sm mb-1">Need help getting started?</h4>
-                    <p className="text-xs text-muted-foreground">Click here for a quick tour of the Sandbox Studio.</p>
-                </div>
-            )}
         </div>
     );
 } 

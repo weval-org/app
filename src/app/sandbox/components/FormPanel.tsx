@@ -127,7 +127,7 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
     const handleAutoExtend = async (guidance: string) => {
         if (!parsedBlueprint) return;
         setIsExtending(true);
-        setIsAutoExtendModalOpen(false);
+        // Don't close the modal - it will handle its own loading state
 
         try {
             const existingBlueprintContent = yaml.dump(parsedBlueprint);
@@ -169,25 +169,12 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
                     if (existingPoints.size > 0) {
                         throw new Error(`Auto-extend failed validation: It tried to remove a 'should' criteria from prompt ID ${newPrompt.id}.`);
                     }
-
-                    // 'should_not' must be additive
-                    const existingShouldNot = new Set((existingPrompt.should_not || []).map(stringifyPoint));
-                    const newShouldNot = newPrompt.should_not || [];
-                     for(const p of newShouldNot) {
-                        if (!existingShouldNot.has(stringifyPoint(p))) {
-                           // new point, allowed
-                        } else {
-                            existingShouldNot.delete(stringifyPoint(p));
-                        }
-                    }
-                    if (existingShouldNot.size > 0) {
-                        throw new Error(`Auto-extend failed validation: It tried to remove a 'should_not' criteria from prompt ID ${newPrompt.id}.`);
-                    }
                 }
             }
             
             toast({ title: 'Blueprint Extended!', description: 'The AI has added to your blueprint.' });
             onUpdate(newBlueprint);
+            setIsAutoExtendModalOpen(false); // Close modal on success
 
         } catch (error: any) {
             console.error('Auto-extend error:', error);
@@ -216,14 +203,6 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
 
     return (
         <div className="p-3 space-y-3 bg-background relative">
-             {isExtending && (
-                <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center z-10 gap-4">
-                    <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-                    <p className="text-lg font-semibold">AI is extending your blueprint...</p>
-                    <p className="text-sm text-muted-foreground">This may take a moment.</p>
-                </div>
-            )}
-            
             {showGuide && (
                 <Card className="border-primary/20 bg-primary/5">
                     <CardHeader className="pb-3">
@@ -249,7 +228,7 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
                     <CardContent className="space-y-3">
                         <div className="text-sm text-muted-foreground space-y-2">
                             <p><strong>1. Configure your blueprint:</strong> Set the title, description, and models to test</p>
-                            <p><strong>2. Add prompts:</strong> Create prompts with evaluation criteria (what responses should/shouldn't include)</p>
+                            <p><strong>2. Add prompts:</strong> Create prompts with evaluation criteria (what counts as a good response?)</p>
                             <p><strong>3. Run evaluation:</strong> Test your prompts across multiple AI models and see detailed comparisons</p>
                         </div>
                         {onShowTour && (
