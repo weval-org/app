@@ -36,17 +36,17 @@ const BrowseAllBlueprintsSection = ({
   
   return (
     <section id="browse-blueprints" className="mb-12 md:mb-16">
-      <div className="flex flex-col sm:flex-row justify-between items-center mb-6 md:mb-8">
-        <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground dark:text-foreground text-center sm:text-left">
-          {title}
-        </h2>
-        {actionLink && (
-           <Button asChild variant="link" className="mt-2 sm:mt-0">
-             <Link href={actionLink.href}>
-                {actionLink.text}
-             </Link>
-           </Button>
-        )}
+      <div className="text-center mb-8">
+          <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground dark:text-foreground text-center">
+            {title}
+          </h2>
+          {actionLink && (
+            <Button asChild variant="link" className="mt-2 sm:mt-0">
+              <Link href={actionLink.href}>
+                  {actionLink.text}
+              </Link>
+            </Button>
+          )}
       </div>
       {filteredBlueprints.length === 0 ? (
         <div className="text-center py-10 bg-card/50 dark:bg-card/40 rounded-lg shadow-md">

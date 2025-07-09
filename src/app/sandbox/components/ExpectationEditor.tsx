@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { AutoExpandTextarea } from '@/components/ui/textarea';
 import dynamic from 'next/dynamic';
 import { PointDefinition } from '@/cli/types/cli_types';
 import {
@@ -36,12 +36,13 @@ export function ExpectationEditor({ expectation, onUpdate, onRemove, variant, is
 
   return (
     <div className="flex items-start gap-2">
-      <Textarea
+      <AutoExpandTextarea
         placeholder={variant === 'should' ? 'e.g., The response is polite.' : 'e.g., Avoids technical jargon.'}
         value={value}
-        onChange={(e) => handleUpdate(e.target.value)}
-        className="h-auto resize-y text-sm"
-        rows={1}
+        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleUpdate(e.target.value)}
+        minRows={1}
+        maxRows={4}
+        className="text-sm py-1.5"
         readOnly={!isEditable}
       />
       {isEditable && (

@@ -36,4 +36,12 @@ export const getGradedCoverageColor = (isPresent: boolean, extent?: number): str
         return gradeClasses[grade];
     }
     return NO_EXTENT_DATA_PRESENT_CLASS; // Fallback
+};
+
+export const getHybridScoreColorClass = (score: number | null | undefined): string => {
+    if (score === null || score === undefined) return 'bg-muted/30 text-muted-foreground';
+    if (score >= 0.75) return 'bg-highlight-success/80 text-highlight-success-foreground';
+    if (score >= 0.50) return 'bg-highlight-warning/80 text-highlight-warning-foreground';
+    if (score > 0) return 'bg-highlight-error/80 text-highlight-error-foreground';
+    return 'bg-muted/80 text-muted-foreground';
 }; 

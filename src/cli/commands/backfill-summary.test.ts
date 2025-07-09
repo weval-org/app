@@ -2,8 +2,6 @@ import { backfillSummaryCommand } from './backfill-summary';
 import * as storageService from '../../lib/storageService';
 import { getConfig }from '../config';
 import * as pairwiseService from '../services/pairwise-task-queue-service';
-import { EnhancedComparisonConfigInfo } from '../../app/utils/homepageDataUtils';
-import { ModelRunPerformance } from '@/types/shared';
 import { ComparisonDataV2 as FetchedComparisonData } from '../../app/utils/types';
 import { IDEAL_MODEL_ID } from '../../app/utils/calculationUtils';
 

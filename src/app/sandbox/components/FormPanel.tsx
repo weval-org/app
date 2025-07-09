@@ -7,6 +7,7 @@ import { ActiveBlueprint } from '../hooks/useWorkspace';
 import { ComparisonConfig, PointDefinition, PromptConfig } from '@/cli/types/cli_types';
 import { parseAndNormalizeBlueprint } from '@/lib/blueprint-parser';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { GlobalConfigCard } from './GlobalConfigCard';
 import { PromptCard } from './PromptCard';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,9 @@ import { useToast } from '@/components/ui/use-toast';
 const Plus = dynamic(() => import('lucide-react').then(mod => mod.Plus));
 const Sparkles = dynamic(() => import('lucide-react').then(mod => mod.Sparkles));
 const Loader2 = dynamic(() => import('lucide-react').then(mod => mod.Loader2));
+const HelpCircle = dynamic(() => import('lucide-react').then(mod => mod.HelpCircle));
+const PlayCircle = dynamic(() => import('lucide-react').then(mod => mod.PlayCircle));
+const X = dynamic(() => import('lucide-react').then(mod => mod.X));
 
 interface FormPanelProps {
     parsedBlueprint: ComparisonConfig | null;
@@ -33,13 +37,38 @@ interface FormPanelProps {
     isLoading: boolean;
     isSaving: boolean;
     isEditable: boolean;
+    onShowTour?: () => void;
 }
 
-export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEditable }: FormPanelProps) {
+const GUIDE_DISMISSED_KEY = 'sandbox_guide_dismissed';
+
+export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEditable, onShowTour }: FormPanelProps) {
     const [promptToDeleteIndex, setPromptToDeleteIndex] = useState<number | null>(null);
     const [isAutoExtendModalOpen, setIsAutoExtendModalOpen] = useState(false);
     const [isExtending, setIsExtending] = useState(false);
+    const [showGuide, setShowGuide] = useState(true);
     const { toast } = useToast();
+
+    // Load guide visibility state from localStorage on mount
+    useEffect(() => {
+        try {
+            const dismissed = localStorage.getItem(GUIDE_DISMISSED_KEY);
+            setShowGuide(dismissed !== 'true');
+        } catch (e) {
+            // If localStorage fails, default to showing the guide
+            setShowGuide(true);
+        }
+    }, []);
+
+    const dismissGuide = () => {
+        setShowGuide(false);
+        try {
+            localStorage.setItem(GUIDE_DISMISSED_KEY, 'true');
+        } catch (e) {
+            // Silently fail if localStorage is unavailable
+            console.warn('Could not save guide dismissed state to localStorage');
+        }
+    };
 
     const handleUpdate = (newConfig: ComparisonConfig) => {
         onUpdate(newConfig);
@@ -194,6 +223,50 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
                     <p className="text-sm text-muted-foreground">This may take a moment.</p>
                 </div>
             )}
+            
+            {showGuide && (
+                <Card className="border-primary/20 bg-primary/5">
+                    <CardHeader className="pb-3">
+                        <CardTitle className="text-lg flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <PlayCircle className="w-5 h-5 text-primary" />
+                                Welcome to Sandbox Studio
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={dismissGuide}
+                                className="h-6 w-6 rounded-full hover:bg-primary/10"
+                                title="Dismiss guide"
+                            >
+                                <X className="w-4 h-4" />
+                            </Button>
+                        </CardTitle>
+                        <CardDescription>
+                            Create and test AI model prompts with our blueprint system
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                        <div className="text-sm text-muted-foreground space-y-2">
+                            <p><strong>1. Configure your blueprint:</strong> Set the title, description, and models to test</p>
+                            <p><strong>2. Add prompts:</strong> Create prompts with evaluation criteria (what responses should/shouldn't include)</p>
+                            <p><strong>3. Run evaluation:</strong> Test your prompts across multiple AI models and see detailed comparisons</p>
+                        </div>
+                        {onShowTour && (
+                            <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={onShowTour}
+                                className="mt-3"
+                            >
+                                <HelpCircle className="w-4 h-4 mr-2" />
+                                Take the Interactive Tour
+                            </Button>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
+
             <GlobalConfigCard 
                 blueprint={parsedBlueprint}
                 onUpdate={handleUpdate}
@@ -202,7 +275,7 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
             <div className="space-y-3">
                 {parsedBlueprint.prompts.map((prompt, index) => (
                     <PromptCard
-                        key={prompt.id || index}
+                        key={index}
                         prompt={prompt}
                         onUpdate={(p) => handleUpdatePrompt(index, p)}
                         onRemove={() => handleRequestRemovePrompt(index)}

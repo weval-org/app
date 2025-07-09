@@ -178,6 +178,31 @@ export function useWorkspace(
     }
   }, [toast, isDirty, loadFileContentFromGitHub]);
 
+  // Effect to handle blueprint imports from results pages - runs for both logged-in and anonymous users
+  useEffect(() => {
+    if (isAuthLoading) return;
+
+    const importedBlueprint = importBlueprint();
+    if (importedBlueprint) {
+      const currentLocalFiles = loadFilesFromLocalStorage();
+      
+      let finalName = importedBlueprint.name;
+      let counter = 2;
+      while(currentLocalFiles.some((f: BlueprintFile) => f.name === finalName)) {
+          finalName = `${importedBlueprint.name.replace(/\.yml$/, '')} (${counter}).yml`;
+          counter++;
+      }
+      const finalBlueprint = { ...importedBlueprint, name: finalName, path: `local/${uuidv4()}_${finalName}` };
+      
+      saveToLocalStorage(finalBlueprint);
+      const updatedLocalFiles = [finalBlueprint, ...currentLocalFiles];
+      
+      setFiles(updatedLocalFiles);
+      setLocalFiles(updatedLocalFiles);
+      loadFile(finalBlueprint);
+    }
+  }, [isAuthLoading, importBlueprint, loadFilesFromLocalStorage, saveToLocalStorage, setLocalFiles, loadFile]);
+
   const fetchFiles = useCallback(async (forceRefresh = false, providedForkName?: string) => {
     const effectiveForkName = providedForkName || forkName;
     console.log(`[fetchFiles] Called with forceRefresh=${forceRefresh}, isLoggedIn=${isLoggedIn}, forkName=${effectiveForkName} (provided: ${providedForkName}, state: ${forkName}), status=${status}`);
@@ -271,26 +296,8 @@ export function useWorkspace(
       // Logged in: files will now be loaded EXCLUSIVELY by the `setupWorkspace` function
       // after it confirms the fork is ready. This prevents race conditions.
     } else {
+        // For non-logged-in users, handle local files
         let currentLocalFiles = loadFilesFromLocalStorage();
-        const importedBlueprint = importBlueprint();
-
-        if (importedBlueprint) {
-            let finalName = importedBlueprint.name;
-            let counter = 2;
-            while(currentLocalFiles.some((f: BlueprintFile) => f.name === finalName)) {
-                finalName = `${importedBlueprint.name.replace(/\.yml$/, '')} (${counter}).yml`;
-                counter++;
-            }
-            const finalBlueprint = { ...importedBlueprint, name: finalName, path: `local/${uuidv4()}_${finalName}` };
-            
-            saveToLocalStorage(finalBlueprint);
-            currentLocalFiles = [finalBlueprint, ...currentLocalFiles];
-            
-            setFiles(currentLocalFiles);
-            setLocalFiles(currentLocalFiles);
-            loadFile(finalBlueprint);
-            return;
-        }
 
         if (currentLocalFiles.length === 0) {
             const { file } = initializeDefaultBlueprint();
@@ -301,7 +308,7 @@ export function useWorkspace(
             loadFile(currentLocalFiles[0]);
         }
     }
-  }, [isAuthLoading, isLoggedIn, status, fetchFiles, toast, loadFile, activeBlueprint, loadFilesFromLocalStorage, initializeDefaultBlueprint, importBlueprint, saveToLocalStorage, setLocalFiles]);
+  }, [isAuthLoading, isLoggedIn, status, fetchFiles, toast, loadFile, activeBlueprint, loadFilesFromLocalStorage, initializeDefaultBlueprint]);
 
   const runEvaluation = useCallback(async (models?: string[]) => {
     if (!activeBlueprint) {

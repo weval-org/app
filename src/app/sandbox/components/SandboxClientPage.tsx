@@ -33,6 +33,8 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { TourModal } from './TourModal';
+import { MobileFileNavigator } from './MobileFileNavigator';
+import { useMobile } from '../hooks/useMobile';
 import {
   Dialog,
   DialogContent,
@@ -56,6 +58,10 @@ const ChevronRight = dynamic(() => import('lucide-react').then(mod => mod.Chevro
 const Pencil = dynamic(() => import('lucide-react').then(mod => mod.Pencil), { ssr: false });
 const Copy = dynamic(() => import('lucide-react').then(mod => mod.Copy), { ssr: false });
 const Trash = dynamic(() => import('lucide-react').then(mod => mod.Trash), { ssr: false });
+const FileCode2 = dynamic(() => import('lucide-react').then(mod => mod.FileCode2), { ssr: false });
+const FolderOpen = dynamic(() => import('lucide-react').then(mod => mod.FolderOpen), { ssr: false });
+const Edit3 = dynamic(() => import('lucide-react').then(mod => mod.Edit3), { ssr: false });
+const BarChart3 = dynamic(() => import('lucide-react').then(mod => mod.BarChart3), { ssr: false });
 
 function SandboxClientPageInternal() {
     const { user, isLoading: isAuthLoading, clearAuth } = useAuth();
@@ -119,11 +125,15 @@ function SandboxClientPageInternal() {
         onSubmit: (value: string) => Promise<void>;
     } | null>(null);
     const [activeEditor, setActiveEditor] = useState<'form' | 'yaml'>('form');
-    const [hasShownFormWarning, setHasShownFormWarning] = useState(false);
+    const [showYamlEditor, setShowYamlEditor] = useState(false);
     const [parsedBlueprint, setParsedBlueprint] = useImmer<ComparisonConfig | null>(null);
     const [yamlError, setYamlError] = useState<string | null>(null);
     const [isLoggingInWithGitHub, setIsLoggingInWithGitHub] = useState(false);
     const { toast } = useToast();
+    const { isMobile, isLoaded } = useMobile();
+
+    // Mobile navigation state
+    const [mobileActiveTab, setMobileActiveTab] = useState<'files' | 'edit' | 'run'>('edit');
 
     const isLocal = activeBlueprint?.isLocal ?? true;
     const isLoggedIn = user?.isLoggedIn ?? false;
@@ -201,8 +211,14 @@ function SandboxClientPageInternal() {
         const inProgressStatuses = ['pending', 'generating_responses', 'evaluating', 'saving'];
         if (runId && inProgressStatuses.includes(runStatus.status)) {
             setIsRunModalOpen(true);
+            // On mobile, switch to run tab when evaluation starts
+            if (isMobile) {
+                setMobileActiveTab('run');
+            }
         }
-    }, [runId, runStatus.status]);
+    }, [runId, runStatus.status, isMobile]);
+
+
 
     useEffect(() => {
         if (runStatus.status === 'complete' || runStatus.status === 'error') {
@@ -410,14 +426,6 @@ function SandboxClientPageInternal() {
 
     const handleActivateFormEditor = () => {
         if (hasOpenPr) return;
-        if (!hasShownFormWarning) {
-            toast({
-                title: "Heads Up: Formatting",
-                description: "Editing via the form may reformat the YAML source. Your comments and custom formatting will be preserved if you edit the YAML directly.",
-                duration: 8000,
-            });
-            setHasShownFormWarning(true);
-        }
         setActiveEditor('form');
     };
 
@@ -457,6 +465,46 @@ function SandboxClientPageInternal() {
         if (!activeBlueprint) return;
         action(activeBlueprint);
     };
+
+    const renderMobileTabBar = () => (
+        <div className="fixed bottom-0 left-0 right-0 bg-background border-t border-border md:hidden z-10">
+            <div className="flex">
+                <button
+                    className={`flex-1 flex flex-col items-center py-2 px-1 ${
+                        mobileActiveTab === 'files' 
+                            ? 'text-primary bg-primary/10' 
+                            : 'text-muted-foreground'
+                    }`}
+                    onClick={() => setMobileActiveTab('files')}
+                >
+                    <FolderOpen className="w-5 h-5 mb-1" />
+                    <span className="text-xs">Files</span>
+                </button>
+                <button
+                    className={`flex-1 flex flex-col items-center py-2 px-1 ${
+                        mobileActiveTab === 'edit' 
+                            ? 'text-primary bg-primary/10' 
+                            : 'text-muted-foreground'
+                    }`}
+                    onClick={() => setMobileActiveTab('edit')}
+                >
+                    <Edit3 className="w-5 h-5 mb-1" />
+                    <span className="text-xs">Edit</span>
+                </button>
+                <button
+                    className={`flex-1 flex flex-col items-center py-2 px-1 ${
+                        mobileActiveTab === 'run' 
+                            ? 'text-primary bg-primary/10' 
+                            : 'text-muted-foreground'
+                    }`}
+                    onClick={() => setMobileActiveTab('run')}
+                >
+                    <BarChart3 className="w-5 h-5 mb-1" />
+                    <span className="text-xs">Run</span>
+                </button>
+            </div>
+        </div>
+    );
 
     const renderHeader = () => {
         const isSaveDisabled = isSaving || isLoading || !activeBlueprint || !isDirty;
@@ -608,6 +656,19 @@ function SandboxClientPageInternal() {
 
                     <Separator orientation="vertical" className="h-6" />
 
+                    <Button 
+                        onClick={() => setShowYamlEditor(!showYamlEditor)} 
+                        size="sm" 
+                        variant={showYamlEditor ? "default" : "outline"}
+                        disabled={isLoading}
+                        title={showYamlEditor ? "Hide YAML Editor" : "Show YAML Editor"}
+                    >
+                        <FileCode2 className="w-4 h-4 mr-2" />
+                        {showYamlEditor ? 'Hide YAML' : 'Edit YAML'}
+                    </Button>
+
+                    <Separator orientation="vertical" className="h-6" />
+
                     <Button onClick={() => setIsRunsSidebarOpen(true)} size="icon" variant="ghost" className="relative" disabled={isLoading} data-tour="runs-history-button">
                         <History className="w-5 h-5" />
                         {isRunning && (
@@ -622,107 +683,303 @@ function SandboxClientPageInternal() {
         );
     };
 
-    const renderMainContent = () => (
-        <div className="flex h-screen bg-background">
-             <div className="flex-shrink-0 border-r bg-muted w-72 flex flex-col" data-tour="file-navigator">
-                <FileNavigator
+    const renderMobileFilesTab = () => (
+        <div className="h-full overflow-y-auto pb-16 bg-background">
+            <div className="p-4">
+                <MobileFileNavigator
                     files={files}
                     activeFilePath={activeBlueprint?.path || null}
-                    onSelectFile={loadFile}
-                    onDeleteFile={setFileToDelete}
-                    onRenameFile={handleRename}
-                    onDuplicateFile={duplicateBlueprint}
+                    onSelectFile={(file) => {
+                        loadFile(file);
+                        setMobileActiveTab('edit');
+                    }}
                     onCreateNew={handleCreateNew}
                     onAutoCreate={() => setIsAutoCreateModalOpen(true)}
+                    onRenameFile={handleRename}
+                    onDuplicateFile={duplicateBlueprint}
+                    onDeleteFile={setFileToDelete}
                     isLoading={status === 'setting_up' || isFetchingFiles}
                     isSyncingWithGitHub={isSyncingWithGitHub}
                     isCreating={isCreating}
-                    isDeleting={!!deletingFilePath || status === 'deleting'}
-                    deletingFilePath={deletingFilePath}
                     user={user}
                     forkName={forkName}
                     onLogin={handleLogin}
                     isLoggingInWithGitHub={isLoggingInWithGitHub}
                     onLogout={handleLogout}
                     onRefresh={() => fetchFiles(true)}
-                    showTourBlurb={showTourBlurb}
-                    onTourBlurbClick={() => {
-                        setIsTourModalOpen(true);
-                        setShowTourBlurb(false);
-                        localStorage.setItem('hasSeenTourBlurb', 'true');
-                    }}
                 />
             </div>
-            <main className="flex-1 flex flex-col overflow-hidden">
-                {renderHeader()}
-                {hasOpenPr && (
-                    <div className="flex-shrink-0 border-b bg-primary/10 p-3 text-sm">
-                        <div className="flex items-center justify-between gap-4">
-                            <div className="flex items-center gap-3">
-                                <GitPullRequest className="h-5 w-5 text-primary flex-shrink-0" />
-                                <div>
-                                    <h3 className="font-semibold">This blueprint is under review.</h3>
-                                    <p className="text-muted-foreground">Editing is locked while a pull request is open.</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-3 flex-shrink-0">
-                                {activeBlueprint?.prStatus?.url && (
-                                    <Button variant="outline" size="sm" asChild>
-                                        <a href={activeBlueprint.prStatus.url} target="_blank" rel="noopener noreferrer">
-                                            View PR
-                                        </a>
-                                    </Button>
-                                )}
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => activeBlueprint && duplicateBlueprint(activeBlueprint)}
-                                >
-                                    Duplicate and Edit
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-                <div className="flex-grow flex flex-row gap-px bg-border relative min-h-0" data-tour="editor-panels">
-                    {isFetchingFileContent && (
-                        <div className="absolute inset-0 bg-background flex flex-col items-center justify-center z-10">
-                            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-                        </div>
-                    )}
-                    <div
-                        className={`flex-1 relative overflow-y-auto transition-all duration-200 ease-in-out ${activeEditor === 'form' ? 'border-t-2 border-primary' : 'border-t-2 border-transparent'}`}
-                        onClick={handleActivateFormEditor}
-                        data-tour="form-panel"
-                    >
-                        <FormPanel
-                            parsedBlueprint={parsedBlueprint}
-                            onUpdate={handleFormUpdate}
-                            isLoading={isLoading}
-                            isSaving={isSaving}
-                            isEditable={isEditable && activeEditor === 'form'}
-                        />
-                    </div>
-                    <div
-                        className={`flex-1 relative overflow-y-auto transition-all duration-200 ease-in-out ${activeEditor === 'yaml' ? 'border-t-2 border-primary' : 'border-t-2 border-transparent'}`}
-                        onClick={() => setActiveEditor('yaml')}
-                        data-tour="yaml-panel"
-                    >
-                       <EditorPanel
-                            rawContent={editorContent}
-                            onChange={handleYamlUpdate}
-                            isLoading={isLoading}
-                            isSaving={isSaving}
-                            readOnly={!isEditable || activeEditor !== 'yaml'}
-                            yamlError={yamlError}
-                        />
-                    </div>
-                </div>
-            </main>
         </div>
     );
 
-    if (isAuthLoading || (user?.isLoggedIn && (status === 'idle' || status === 'setting_up' || status === 'loading'))) {
+    const renderMobileEditTab = () => (
+        <div className="h-full overflow-y-auto pb-16 bg-background">
+            {isFetchingFileContent && (
+                <div className="absolute inset-0 bg-background flex flex-col items-center justify-center z-10">
+                    <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                </div>
+            )}
+            
+            {/* Mobile header with current file and actions */}
+            <div className="sticky top-0 bg-background border-b border-border p-4 z-10">
+                <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                        <h2 className="text-lg font-semibold truncate">
+                            {activeBlueprint ? `${activeBlueprint.name}${isDirty ? '*' : ''}` : 'No file selected'}
+                        </h2>
+                        {!isLocal && activeBlueprint && (
+                            <p className="text-sm text-muted-foreground truncate">GitHub • {forkName}</p>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-2 ml-4">
+                        <Button 
+                            onClick={handleSave} 
+                            disabled={isSaving || isLoading || !activeBlueprint || !isDirty}
+                            size="sm"
+                        >
+                            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                        </Button>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-muted-foreground"
+                                    disabled={!activeBlueprint || hasOpenPr}
+                                >
+                                    <MoreVertical className="h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuItem onSelect={() => setTimeout(() => handleHeaderAction(handleRename), 0)}>
+                                    <Pencil className="w-4 h-4 mr-2" />
+                                    Rename
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => setTimeout(() => handleHeaderAction(duplicateBlueprint), 0)}>
+                                    <Copy className="w-4 h-4 mr-2" />
+                                    Duplicate
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onSelect={() => setTimeout(() => handleHeaderAction(setFileToDelete), 0)} className="text-destructive">
+                                    <Trash className="w-4 h-4 mr-2" />
+                                    Delete
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
+                </div>
+            </div>
+
+            {hasOpenPr && (
+                <div className="bg-primary/10 p-4 border-b">
+                    <div className="flex items-center gap-3">
+                        <GitPullRequest className="h-5 w-5 text-primary flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold text-sm">Under Review</h3>
+                            <p className="text-sm text-muted-foreground">Editing locked while PR is open</p>
+                        </div>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => activeBlueprint && duplicateBlueprint(activeBlueprint)}
+                        >
+                            Duplicate
+                        </Button>
+                    </div>
+                </div>
+            )}
+
+            <div className="p-4">
+                <FormPanel
+                    parsedBlueprint={parsedBlueprint}
+                    onUpdate={handleFormUpdate}
+                    isLoading={isLoading}
+                    isSaving={isSaving}
+                    isEditable={isEditable}
+                    onShowTour={() => setIsTourModalOpen(true)}
+                />
+            </div>
+        </div>
+    );
+
+    const renderMobileRunTab = () => (
+        <div className="h-full overflow-y-auto pb-16 bg-background">
+            <div className="p-4">
+                <h2 className="text-lg font-semibold mb-4">Run Evaluation</h2>
+                
+                {/* Run button */}
+                <div className="mb-6">
+                    <Button 
+                        onClick={handleRunRequest} 
+                        disabled={isRunning || !activeBlueprint || isLoading || isDirty} 
+                        size="lg"
+                        className="w-full bg-exciting text-exciting-foreground border-exciting hover:bg-exciting/90"
+                    >
+                        {isRunning ? (
+                            <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Running...</>
+                        ) : (
+                            <><FlaskConical className="w-5 h-5 mr-2" />Run Evaluation</>
+                        )}
+                    </Button>
+                    
+                    {isDirty && (
+                        <p className="text-sm text-muted-foreground mt-2 text-center">
+                            Save your changes before running
+                        </p>
+                    )}
+                </div>
+
+                {/* Run history */}
+                <div className="space-y-4">
+                    <h3 className="font-medium">Recent Runs</h3>
+                    {runHistory.length > 0 ? (
+                        <div className="space-y-2">
+                            {runHistory.slice(0, 5).map((run) => (
+                                <div key={run.runId} className="border border-border rounded-lg p-3">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-medium truncate">{run.blueprintName}</p>
+                                            <p className="text-sm text-muted-foreground">
+                                                {new Date(run.completedAt).toLocaleDateString()}
+                                            </p>
+                                        </div>
+                                        <Button variant="outline" size="sm" asChild>
+                                            <a href={run.resultUrl} target="_blank">
+                                                View
+                                            </a>
+                                        </Button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-muted-foreground text-center py-8">
+                            No runs yet. Run an evaluation to see results here.
+                        </p>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+
+    const renderMainContent = () => (
+        <>
+            {/* Mobile Layout - Tab-based */}
+            <div className="md:hidden h-screen bg-background">
+                {mobileActiveTab === 'files' && renderMobileFilesTab()}
+                {mobileActiveTab === 'edit' && renderMobileEditTab()}
+                {mobileActiveTab === 'run' && renderMobileRunTab()}
+                {renderMobileTabBar()}
+            </div>
+
+            {/* Desktop Layout - Sidebar + Split View */}
+            <div className="hidden md:flex h-screen bg-background">
+                <div className="flex-shrink-0 border-r bg-muted w-72 flex flex-col" data-tour="file-navigator">
+                    <FileNavigator
+                        files={files}
+                        activeFilePath={activeBlueprint?.path || null}
+                        onSelectFile={loadFile}
+                        onDeleteFile={setFileToDelete}
+                        onRenameFile={handleRename}
+                        onDuplicateFile={duplicateBlueprint}
+                        onCreateNew={handleCreateNew}
+                        onAutoCreate={() => setIsAutoCreateModalOpen(true)}
+                        isLoading={status === 'setting_up' || isFetchingFiles}
+                        isSyncingWithGitHub={isSyncingWithGitHub}
+                        isCreating={isCreating}
+                        isDeleting={!!deletingFilePath || status === 'deleting'}
+                        deletingFilePath={deletingFilePath}
+                        user={user}
+                        forkName={forkName}
+                        onLogin={handleLogin}
+                        isLoggingInWithGitHub={isLoggingInWithGitHub}
+                        onLogout={handleLogout}
+                        onRefresh={() => fetchFiles(true)}
+                        showTourBlurb={showTourBlurb}
+                        onTourBlurbClick={() => {
+                            setIsTourModalOpen(true);
+                            setShowTourBlurb(false);
+                            localStorage.setItem('hasSeenTourBlurb', 'true');
+                        }}
+                    />
+                </div>
+                <main className="flex-1 flex flex-col overflow-hidden">
+                    {renderHeader()}
+                    {hasOpenPr && (
+                        <div className="flex-shrink-0 border-b bg-primary/10 p-3 text-sm">
+                            <div className="flex items-center justify-between gap-4">
+                                <div className="flex items-center gap-3">
+                                    <GitPullRequest className="h-5 w-5 text-primary flex-shrink-0" />
+                                    <div>
+                                        <h3 className="font-semibold">This blueprint is under review.</h3>
+                                        <p className="text-muted-foreground">Editing is locked while a pull request is open.</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3 flex-shrink-0">
+                                    {activeBlueprint?.prStatus?.url && (
+                                        <Button variant="outline" size="sm" asChild>
+                                            <a href={activeBlueprint.prStatus.url} target="_blank" rel="noopener noreferrer">
+                                                View PR
+                                            </a>
+                                        </Button>
+                                    )}
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => activeBlueprint && duplicateBlueprint(activeBlueprint)}
+                                    >
+                                        Duplicate and Edit
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    <div className="flex-grow flex flex-row gap-px bg-border relative min-h-0" data-tour="editor-panels">
+                        {isFetchingFileContent && (
+                            <div className="absolute inset-0 bg-background flex flex-col items-center justify-center z-10">
+                                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                            </div>
+                        )}
+                        <div
+                            className={`${showYamlEditor ? 'flex-1' : 'w-full'} relative overflow-y-auto transition-all duration-200 ease-in-out ${(!showYamlEditor || activeEditor === 'form') ? 'border-t-2 border-primary' : 'border-t-2 border-transparent'}`}
+                            onClick={handleActivateFormEditor}
+                            data-tour="form-panel"
+                        >
+                            <FormPanel
+                                parsedBlueprint={parsedBlueprint}
+                                onUpdate={handleFormUpdate}
+                                isLoading={isLoading}
+                                isSaving={isSaving}
+                                isEditable={isEditable && (!showYamlEditor || activeEditor === 'form')}
+                                onShowTour={() => setIsTourModalOpen(true)}
+                            />
+                        </div>
+                        {showYamlEditor && (
+                            <div
+                                className={`flex-1 relative overflow-y-auto transition-all duration-200 ease-in-out ${activeEditor === 'yaml' ? 'border-t-2 border-primary' : 'border-t-2 border-transparent'}`}
+                                onClick={() => {
+                                    if (!showYamlEditor) setShowYamlEditor(true);
+                                    setActiveEditor('yaml');
+                                }}
+                                data-tour="yaml-panel"
+                            >
+                               <EditorPanel
+                                    rawContent={editorContent}
+                                    onChange={handleYamlUpdate}
+                                    isLoading={isLoading}
+                                    isSaving={isSaving}
+                                    readOnly={!isEditable || activeEditor !== 'yaml'}
+                                    yamlError={yamlError}
+                                />
+                            </div>
+                        )}
+                    </div>
+                </main>
+            </div>
+        </>
+    );
+
+    if (!isLoaded || isAuthLoading || (user?.isLoggedIn && (status === 'idle' || status === 'setting_up' || status === 'loading'))) {
         let loadingMessage = 'Authenticating...';
         if (!isAuthLoading) {
             switch (status) {

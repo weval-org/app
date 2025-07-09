@@ -97,7 +97,6 @@ export default function FeaturedBlueprintsSection({ featuredBlueprints }: Featur
 
                 {bp.latestRunCoverageScores && bp.latestRunModels && bp.latestRunPromptIds && bp.latestRunModels.length > 0 && bp.latestRunPromptIds.length > 0 && (
                   <div className="text-center">
-                    <p className="text-xs text-muted-foreground dark:text-muted-foreground mb-1">Latest Run</p>
                     <CoverageHeatmapCanvas
                       allCoverageScores={bp.latestRunCoverageScores}
                       models={bp.latestRunModels}
@@ -106,6 +105,7 @@ export default function FeaturedBlueprintsSection({ featuredBlueprints }: Featur
                       height={48}
                       className="rounded-sm border border-border/50 dark:border-border mx-auto"
                     />
+                    <p className="text-xs text-muted-foreground dark:text-muted-foreground mb-1">Latest Run</p>
                   </div>
                 )}
               </div>

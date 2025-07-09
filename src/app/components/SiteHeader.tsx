@@ -17,7 +17,7 @@ export function SiteHeader({ contentMaxWidth = 'max-w-7xl' }: SiteHeaderProps) {
             </Link>
             <div>
               <Link href="/">
-                <h1 className="text-3xl font-bold text-foreground">
+                <h1 className="text-4xl font-bold text-foreground">
                   <span style={{ fontWeight: 700 }}>w</span>
                   <span style={{ fontWeight: 200 }}>eval</span>
                 </h1>
@@ -26,7 +26,7 @@ export function SiteHeader({ contentMaxWidth = 'max-w-7xl' }: SiteHeaderProps) {
                 href="https://cip.org"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-base text-muted-foreground leading-tight hover:underline"
+                className="text-base text-muted-foreground leading-tight hover:underline text-sm"
               >
                 A Collective Intelligence Project
               </a>

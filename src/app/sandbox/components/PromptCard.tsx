@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Textarea } from '@/components/ui/textarea';
+import { AutoExpandTextarea } from '@/components/ui/textarea';
 import dynamic from 'next/dynamic';
 import {
   ComparisonConfig,
@@ -116,11 +116,13 @@ export function PromptCard({ prompt, onUpdate, onRemove, onDuplicate, isEditable
                     <p className="text-xs text-center text-muted-foreground pt-2">Multi-turn prompts are currently read-only in the form view.</p>
                 </div>
             ) : (
-                <Textarea
+                <AutoExpandTextarea
                     placeholder="e.g., Write a short story about a robot who discovers music."
                     value={getPromptText()}
-                    onChange={e => handlePromptTextChange(e.target.value)}
-                    className="min-h-[80px] text-sm"
+                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handlePromptTextChange(e.target.value)}
+                    minRows={2}
+                    maxRows={8}
+                    className="text-sm"
                     readOnly={!isEditable}
                 />
             )}
@@ -128,22 +130,27 @@ export function PromptCard({ prompt, onUpdate, onRemove, onDuplicate, isEditable
             <div>
             <label className="text-sm font-semibold text-foreground">Ideal Response <span className="text-xs font-normal text-muted-foreground">(Optional)</span></label>
             <p className="text-xs text-muted-foreground mb-1.5">A "gold-standard" answer to compare against for semantic similarity.</p>
-            <Textarea
+            <AutoExpandTextarea
                 placeholder="e.g., Unit 734 processed the auditory input..."
                 value={prompt.idealResponse || ''}
-                onChange={e => handleIdealResponseChange(e.target.value)}
-                className="min-h-[80px] text-sm"
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleIdealResponseChange(e.target.value)}
+                minRows={2}
+                maxRows={8}
+                className="text-sm"
                 readOnly={!isEditable}
             />
             </div>
             <div className="space-y-3">
             <ExpectationGroup
-                title="The response SHOULD..."
+                title="With as much detail as possible, describe what constitutes a good response:"
                 expectations={prompt.points || []}
                 onUpdate={exps => setField('points', exps)}
                 variant="should"
                 isEditable={isEditable}
             />
+            {/* 
+            Temporarily commented out - users can express negative criteria using plain language 
+            in the "should" section instead (e.g., "should be professional and avoid slang")
             <ExpectationGroup
                 title="The response SHOULD NOT..."
                 expectations={prompt.should_not || []}
@@ -151,6 +158,7 @@ export function PromptCard({ prompt, onUpdate, onRemove, onDuplicate, isEditable
                 variant="should-not"
                 isEditable={isEditable}
             />
+            */}
             </div>
         </div>
     </Card>

@@ -155,10 +155,10 @@ export default async function HomePage() {
               <section id="more-blueprints" className="scroll-mt-20">
                 <BrowseAllBlueprintsSection 
                   blueprints={blueprintSummaries} 
-                  title="More Evaluations" 
+                  title="Other Evaluations" 
                   detailed={false}
                   excludeConfigIds={featuredConfigIds}
-                  actionLink={{ href: '/all', text: 'View All Blueprints' }} 
+                  actionLink={{ href: '/all', text: 'View All Evaluations »' }} 
                 />
               </section>
               <hr className="my-8 md:my-12 border-border/70 dark:border-slate-700/50 w-3/4 mx-auto" />

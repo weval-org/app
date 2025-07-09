@@ -10,9 +10,8 @@ import MacroCoverageTable from '@/app/analysis/components/MacroCoverageTable';
 import DatasetStatistics from '@/app/analysis/components/DatasetStatistics';
 import CoverageTableLegend, { ActiveHighlight } from '@/app/analysis/components/CoverageTableLegend';
 import PerModelHybridScoresCard from '@/app/analysis/components/PerModelHybridScoresCard';
-import SimilarityGraph from '@/app/analysis/components/SimilarityGraph';
 import DendrogramChart from '@/app/analysis/components/DendrogramChart';
-import { Badge } from '@/components/ui/badge';
+import SystemPromptsDisplay from '@/app/analysis/components/SystemPromptsDisplay';
 import {
     Tabs,
     TabsList,
@@ -24,17 +23,12 @@ import {
 } from '@/app/utils/types';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelIdUtils';
+import { getHybridScoreColorClass } from '@/app/analysis/utils/colorUtils';
+
+const hclust = require('ml-hclust');
 
 const AlertTriangle = dynamic(() => import("lucide-react").then((mod) => mod.AlertTriangle));
 const HelpCircle = dynamic(() => import("lucide-react").then(mod => mod.HelpCircle));
-
-const getHybridScoreColorClass = (score: number | null | undefined): string => {
-    if (score === null || score === undefined) return 'bg-muted/30 text-muted-foreground dark:text-muted-foreground';
-    if (score >= 0.75) return 'bg-highlight-success/80 text-white dark:text-foreground';
-    if (score >= 0.50) return 'bg-highlight-warning/80 text-white dark:text-foreground';
-    if (score > 0) return 'bg-highlight-error/80 text-white dark:text-foreground';
-    return 'bg-muted/80 text-white dark:text-foreground';
-};
 
 export interface AggregateAnalysisViewProps {
     data: ImportedComparisonDataV2;
@@ -100,33 +94,10 @@ export const AggregateAnalysisView: React.FC<AggregateAnalysisViewProps> = ({
 
     return (
         <>
-            {data?.config?.systems && (
-                data.config.systems.length > 1 ||
-                data.config.systems[0] !== null
-            ) && (
-                <Card className="shadow-lg border-border dark:border-border">
-                    <CardHeader>
-                        <CardTitle className="text-primary text-primary">System Prompt Variants</CardTitle>
-                        <CardDescription>This run was executed against the following system prompt variations.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <ul className="space-y-3">
-                            {data.config.systems.map((systemPrompt, index) => (
-                                <li key={index} className="flex items-start gap-3 p-2 rounded-md bg-muted/50 dark:bg-muted/30">
-                                    <Badge variant="secondary" className="mt-1">{`sp_idx:${index}`}</Badge>
-                                    <div className="text-sm text-card-foreground dark:text-card-foreground">
-                                        {systemPrompt === null ? (
-                                            <em className="text-muted-foreground">[No System Prompt]</em>
-                                        ) : (
-                                            <p className="whitespace-pre-wrap font-mono">{systemPrompt}</p>
-                                        )}
-                                    </div>
-                                </li>
-                            ))}
-                        </ul>
-                    </CardContent>
-                </Card>
-            )}
+            <SystemPromptsDisplay
+                systemPrompts={data.config.systems || []}
+                scores={perSystemVariantHybridScores}
+            />
 
             {excludedModelsList.length > 0 && !forceIncludeExcludedModels && (
                 <Alert variant="destructive">
@@ -250,7 +221,7 @@ export const AggregateAnalysisView: React.FC<AggregateAnalysisViewProps> = ({
                                                         <div className="flex items-center gap-2.5">
                                                             {score !== null && score !== undefined && (
                                                                 <span className={`px-1.5 py-0.5 rounded-sm text-xs font-semibold ${getHybridScoreColorClass(score)}`}>
-                                                                    {score.toFixed(2)}
+                                                                    {(score * 100).toFixed(0)}%
                                                                 </span>
                                                             )}
                                                             <div className="flex flex-col items-start text-left">
@@ -344,23 +315,6 @@ export const AggregateAnalysisView: React.FC<AggregateAnalysisViewProps> = ({
 
                     {data?.evaluationResults?.similarityMatrix && modelsForAggregateView && modelsForAggregateView.length > 1 && (
                         <>
-                            <Card className="shadow-lg border-border dark:border-border">
-                                <CardHeader>
-                                    <CardTitle className="text-primary text-primary">Model Similarity Graph</CardTitle>
-                                    <CardDescription>
-                                        Force-directed graph showing relationships based on semantic similarity of model responses across all prompts.
-                                    </CardDescription>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="h-[600px] w-full">
-                                        <SimilarityGraph
-                                            similarityMatrix={data.evaluationResults.similarityMatrix}
-                                            models={modelsForAggregateView}
-                                            resolvedTheme={resolvedTheme}
-                                        />
-                                    </div>
-                                </CardContent>
-                            </Card>
 
                             <Card className="shadow-lg border-border dark:border-border">
                                 <CardHeader>

@@ -12,6 +12,7 @@ import DendrogramChart from '@/app/analysis/components/DendrogramChart';
 import KeyPointCoverageTable from '@/app/analysis/components/KeyPointCoverageTable';
 import KeyPointCoverageComparisonDisplay from '@/app/analysis/components/KeyPointCoverageComparisonDisplay';
 import SemanticExtremesDisplay from '@/app/analysis/components/SemanticExtremesDisplay';
+import SystemPromptsDisplay from '@/app/analysis/components/SystemPromptsDisplay';
 import {
     ComparisonDataV2 as ImportedComparisonDataV2,
     CoverageResult as ImportedCoverageResult,
@@ -185,32 +186,7 @@ export const SinglePromptView: React.FC<SinglePromptViewProps> = ({
     
     return (
         <>
-            {data?.config?.systems && (
-                (data.config.systems.length > 1 || data.config.systems[0] !== null)
-            ) && (
-                <Card className="shadow-lg border-border dark:border-border mb-6">
-                    <CardHeader>
-                        <CardTitle className="text-primary text-primary">System Prompt Variants</CardTitle>
-                        <CardDescription>This run was executed against the following system prompt variations.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <ul className="space-y-3">
-                            {data.config.systems.map((systemPrompt, index) => (
-                                <li key={index} className="flex items-start gap-3 p-2 rounded-md bg-muted/50 dark:bg-muted/30">
-                                    <Badge variant="secondary" className="mt-1">{`sp_idx:${index}`}</Badge>
-                                    <div className="text-sm text-card-foreground dark:text-card-foreground">
-                                        {systemPrompt === null ? (
-                                            <em className="text-muted-foreground">[No System Prompt]</em>
-                                        ) : (
-                                            <p className="whitespace-pre-wrap font-mono">{systemPrompt}</p>
-                                        )}
-                                    </div>
-                                </li>
-                            ))}
-                        </ul>
-                    </CardContent>
-                </Card>
-            )}
+            <SystemPromptsDisplay systemPrompts={data.config.systems || []} />
 
             {currentPromptSystemPrompt && (
                 <Card className="shadow-lg border-border dark:border-border">

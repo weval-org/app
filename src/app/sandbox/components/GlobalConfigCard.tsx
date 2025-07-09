@@ -2,7 +2,7 @@
 
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { AutoExpandTextarea } from '@/components/ui/textarea';
 import { ComparisonConfig } from '@/cli/types/cli_types';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import dynamic from 'next/dynamic';
@@ -41,13 +41,14 @@ export function GlobalConfigCard({ blueprint, onUpdate, isEditable }: GlobalConf
             <div>
                 <label className="text-sm font-semibold text-foreground" htmlFor="blueprint-description">Description</label>
                 <p className="text-xs text-muted-foreground mb-1.5">A brief explanation of what this blueprint is designed to test.</p>
-                <Textarea
+                <AutoExpandTextarea
                     id="blueprint-description"
                     placeholder="e.g., Tests a model's ability to provide safe and accurate medical information."
                     value={blueprint.description || ''}
-                    onChange={(e) => handleFieldChange('description', e.target.value)}
-                    className="min-h-[80px] text-sm"
-                    rows={3}
+                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleFieldChange('description', e.target.value)}
+                    minRows={2}
+                    maxRows={6}
+                    className="text-sm"
                     readOnly={!isEditable}
                 />
             </div>
@@ -72,13 +73,14 @@ export function GlobalConfigCard({ blueprint, onUpdate, isEditable }: GlobalConf
             */}
             <div>
                 <label htmlFor="blueprint-system" className="text-sm font-semibold block mb-1">System Prompt (Optional)</label>
-                <Textarea
+                <AutoExpandTextarea
                     id="blueprint-system"
                     placeholder="You are a helpful assistant."
                     value={blueprint.system || ''}
-                    onChange={(e) => handleFieldChange('system', e.target.value)}
-                    rows={3}
-                    className="min-h-[80px] text-sm"
+                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleFieldChange('system', e.target.value)}
+                    minRows={2}
+                    maxRows={6}
+                    className="text-sm"
                     readOnly={!isEditable}
                 />
                 <p className="text-xs text-muted-foreground mt-1">A global system prompt to be used for all test cases in this blueprint.</p>
