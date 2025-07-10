@@ -69,7 +69,7 @@ export function parseEffectiveModelId(effectiveModelId: string): ParsedModelId {
 // Helper function to format the display name for UI
 export function getModelDisplayLabel(
     parsedIdOrFullId: ParsedModelId | string,
-    options?: { hideProvider?: boolean; hideModelMaker?: boolean }
+    options?: { hideProvider?: boolean; hideModelMaker?: boolean; prettifyModelName?: boolean }
 ): string {
     const parsed = typeof parsedIdOrFullId === 'string' ? parseEffectiveModelId(parsedIdOrFullId) : parsedIdOrFullId;
     
@@ -87,6 +87,14 @@ export function getModelDisplayLabel(
         if (slashIndex !== -1) {
             baseId = baseId.substring(slashIndex + 1);
         }
+    }
+    
+    // Prettify the model name if requested
+    if (options?.prettifyModelName) {
+        baseId = baseId
+            .split('-')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(' ');
     }
     
     let baseDisplayName = baseId;

@@ -447,15 +447,27 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                                         )}
                                     </td>
                                     <td className="border-x border-border dark:border-slate-700 px-3 py-2 text-left align-middle sticky left-0 z-10 bg-card/90  hover:bg-muted/60 dark:hover:bg-slate-700/50 w-96">
-                                        <Link
-                                            href={isSandbox ? `/sandbox/results/${sandboxId}?prompt=${encodeURIComponent(promptId)}` : `/analysis/${encodeURIComponent(configId)}/${encodeURIComponent(runLabel)}/${encodeURIComponent(safeTimestampFromParams)}?prompt=${encodeURIComponent(promptId)}`}
-                                            className="block text-primary hover:text-primary/80 dark:hover:text-primary/80 hover:underline cursor-pointer text-xs"
-                                            title={`View details for prompt ID ${promptId}: ${getPromptText(promptId)}`}
-                                        >
-                                            <span className="whitespace-normal line-clamp-3" style={{ minHeight: "3.5em"}}>
-                                                {getPromptText(promptId)}
-                                            </span>
-                                        </Link>
+                                        {onPromptClick ? (
+                                            <button
+                                                onClick={() => onPromptClick(promptId)}
+                                                className="block text-primary hover:text-primary/80 dark:hover:text-primary/80 hover:underline cursor-pointer text-xs text-left w-full"
+                                                title={`View details for prompt ID ${promptId}: ${getPromptText(promptId)}`}
+                                            >
+                                                <span className="whitespace-normal line-clamp-3" style={{ minHeight: "3.5em"}}>
+                                                    {getPromptText(promptId)}
+                                                </span>
+                                            </button>
+                                        ) : (
+                                            <Link
+                                                href={isSandbox ? `/sandbox/results/${sandboxId}?prompt=${encodeURIComponent(promptId)}` : `/analysis/${encodeURIComponent(configId)}/${encodeURIComponent(runLabel)}/${encodeURIComponent(safeTimestampFromParams)}?prompt=${encodeURIComponent(promptId)}`}
+                                                className="block text-primary hover:text-primary/80 dark:hover:text-primary/80 hover:underline cursor-pointer text-xs"
+                                                title={`View details for prompt ID ${promptId}: ${getPromptText(promptId)}`}
+                                            >
+                                                <span className="whitespace-normal line-clamp-3" style={{ minHeight: "3.5em"}}>
+                                                    {getPromptText(promptId)}
+                                                </span>
+                                            </Link>
+                                        )}
                                     </td>
                                     {localSortedModels.map(modelId => {
                                         const parsedModel = parsedModelsMap[modelId];

@@ -424,56 +424,6 @@ export async function saveResult(configId: string, fileNameWithTimestamp: string
 }
 
 /**
- * Retrieves a specific comparison result.
- * @param configId The configuration ID.
- * @param runLabel The base run label (before timestamp and _comparison.json).
- * @returns The parsed JSON data or null if not found or on error.
- */
-export async function getResult(configId: string, runLabel: string): Promise<any | null> {
-  const resultFileName = runLabel; // Assuming runLabel here IS the full fileNameWithTimestamp for now.
-
-  if (storageProvider === 's3' && s3Client && s3BucketName) {
-    const s3Key = path.join(MULTI_DIR, configId, resultFileName);
-    try {
-      const { Body } = await s3Client.send(new GetObjectCommand({
-        Bucket: s3BucketName,
-        Key: s3Key,
-      }));
-      if (Body) {
-        const content = await streamToString(Body as Readable);
-        console.log(`[StorageService] Result retrieved from S3: s3://${s3BucketName}/${s3Key}`);
-        return JSON.parse(content);
-      }
-      return null;
-    } catch (error: any) {
-      if (error.name === 'NoSuchKey') {
-        console.log(`[StorageService] Result not found in S3: s3://${s3BucketName}/${s3Key}`);
-      } else {
-        console.error('[StorageService] Error getting result from S3:', error);
-      }
-      return null;
-    }
-  } else if (storageProvider === 'local') {
-    const localPath = path.join(process.cwd(), RESULTS_DIR, MULTI_DIR, configId, resultFileName);
-    try {
-      const fileContents = await fs.readFile(localPath, 'utf-8');
-      console.log(`[StorageService] Result retrieved locally: ${localPath}`);
-      return JSON.parse(fileContents);
-    } catch (error: any) {
-      if (error.code === 'ENOENT') {
-        console.log(`[StorageService] Result not found locally: ${localPath}`);
-      } else {
-        console.error('[StorageService] Error getting result locally:', error);
-      }
-      return null;
-    }
-  } else {
-    console.warn('[StorageService] No valid storage provider configured. Cannot get result.');
-    return null;
-  }
-}
-
-/**
  * Lists all available config IDs (directories).
  * For S3, this lists "common prefixes" under MULTI_DIR.
  * For local, this lists directories under RESULTS_DIR/MULTI_DIR.

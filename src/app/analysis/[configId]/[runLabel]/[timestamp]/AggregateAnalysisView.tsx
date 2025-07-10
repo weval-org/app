@@ -24,6 +24,7 @@ import {
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelIdUtils';
 import { getHybridScoreColorClass } from '@/app/analysis/utils/colorUtils';
+import PromptDetailModal from '@/app/analysis/components/PromptDetailModal';
 
 const hclust = require('ml-hclust');
 
@@ -77,6 +78,7 @@ export const AggregateAnalysisView: React.FC<AggregateAnalysisViewProps> = ({
     permutationSensitivityMap,
     promptTextsForMacroTable,
 }) => {
+    const [selectedPromptIdForModal, setSelectedPromptIdForModal] = React.useState<string | null>(null);
     
     const {
         overallIdealExtremes,
@@ -91,6 +93,14 @@ export const AggregateAnalysisView: React.FC<AggregateAnalysisViewProps> = ({
     } = analysisStats;
     
     const { promptIds, evalMethodsUsed, allFinalAssistantResponses } = data;
+
+    const handlePromptClick = (promptId: string) => {
+        setSelectedPromptIdForModal(promptId);
+    };
+
+    const handleCloseModal = () => {
+        setSelectedPromptIdForModal(null);
+    };
 
     return (
         <>
@@ -292,6 +302,7 @@ export const AggregateAnalysisView: React.FC<AggregateAnalysisViewProps> = ({
                                             onActiveHighlightsChange={handleActiveHighlightsChange}
                                             systemPromptIndex={activeSysPromptIndex}
                                             permutationSensitivityMap={permutationSensitivityMap}
+                                            onPromptClick={handlePromptClick}
                                         />
                                     </div>
                                 </Tabs>
@@ -308,6 +319,7 @@ export const AggregateAnalysisView: React.FC<AggregateAnalysisViewProps> = ({
                                     onCellClick={(promptId, modelId) => openModelEvaluationDetailModal({ promptId, modelId })}
                                     onActiveHighlightsChange={handleActiveHighlightsChange}
                                     permutationSensitivityMap={permutationSensitivityMap}
+                                    onPromptClick={handlePromptClick}
                                 />
                             )}
                         </CardContent>
@@ -336,6 +348,13 @@ export const AggregateAnalysisView: React.FC<AggregateAnalysisViewProps> = ({
                     )}
                 </>
             )}
+            <PromptDetailModal
+                isOpen={!!selectedPromptIdForModal}
+                onClose={handleCloseModal}
+                promptId={selectedPromptIdForModal}
+                data={data}
+                displayedModels={displayedModels}
+            />
         </>
     );
 };

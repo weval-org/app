@@ -54,11 +54,11 @@ const DialogContent = React.forwardRef<
       {...props}
     >
       {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
+      <DialogPrimitive.Close className="absolute right-4 top-4 flex items-center gap-2 px-4 py-3 bg-background/95 backdrop-blur-sm hover:bg-muted rounded-lg transition-all border border-border/50 shadow-lg min-h-[48px] font-medium opacity-100 ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
         <Suspense fallback={null}>
-          <X className="h-4 w-4" />
+          <X className="h-6 w-6" />
         </Suspense>
-        <span className="sr-only">Close</span>
+        <span className="text-sm">Close</span>
       </DialogPrimitive.Close>
     </DialogPrimitive.Content>
   </DialogPortal>

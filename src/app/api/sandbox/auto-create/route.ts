@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { dispatchMakeApiCall } from '@/lib/llm-clients/client-dispatcher';
 import { LLMApiCallOptions } from '@/lib/llm-clients/types';
 import { getModelResponse } from '@/cli/services/llm-service';
 import { checkForErrors } from '@/cli/utils/response-utils';
