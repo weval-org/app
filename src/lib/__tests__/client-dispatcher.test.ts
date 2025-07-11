@@ -1,4 +1,4 @@
-import { LLMClient } from '../llm-clients/types';
+import { BaseLLMClient } from '../llm-clients/types';
 
 // This is a generic mock client class.
 // We can spy on its constructor and methods to test the dispatcher's behavior.
@@ -6,8 +6,9 @@ const mockMakeApiCall = jest.fn();
 const mockStreamApiCall = jest.fn();
 const mockConstructor = jest.fn();
 
-class MockLLMClient implements LLMClient {
+class MockLLMClient extends BaseLLMClient {
     constructor() {
+        super();
         mockConstructor();
     }
     makeApiCall = mockMakeApiCall;
@@ -49,21 +50,21 @@ describe('LLM Client Dispatcher', () => {
 
     describe('Error Handling and Model ID Parsing', () => {
         it('should throw an error for an invalid modelId format (no colon)', async () => {
-            const options = { modelId: 'invalid-id', prompt: 'test' };
+            const options = { modelId: 'invalid-id', messages: [{role: 'user', content: 'test'}] };
             await expect(dispatchMakeApiCall(options)).rejects.toThrow(
                 'Invalid modelId format: "invalid-id". Expected format: "<provider>:<model-name>"'
             );
         });
 
         it('should throw an error for an invalid modelId format (multiple colons)', async () => {
-            const options = { modelId: 'provider:model:extra', prompt: 'test' };
+            const options = { modelId: 'provider:model:extra', messages: [{role: 'user', content: 'test'}] };
             await expect(dispatchMakeApiCall(options)).rejects.toThrow(
                 'Invalid modelId format: "provider:model:extra". Expected format: "<provider>:<model-name>"'
             );
         });
 
         it('should throw an error for an unsupported provider', async () => {
-            const options = { modelId: 'unsupported:some-model', prompt: 'test' };
+            const options = { modelId: 'unsupported:some-model', messages: [{role: 'user', content: 'test'}] };
             await expect(dispatchMakeApiCall(options)).rejects.toThrow(
                 'Unsupported LLM provider: "unsupported" from model ID "unsupported:some-model".'
             );
@@ -72,72 +73,59 @@ describe('LLM Client Dispatcher', () => {
 
     describe('dispatchMakeApiCall', () => {
         it('should dispatch to the correct client and pass the right arguments', async () => {
-            const options = { modelId: 'openai:gpt-4o', temperature: 0.5, prompt: 'test' };
+            const options = { modelId: 'openai:gpt-4o', temperature: 0.5, messages: [{role: 'user', content: 'test'}] };
             await dispatchMakeApiCall(options);
             
             expect(mockMakeApiCall).toHaveBeenCalledTimes(1);
-            expect(mockMakeApiCall).toHaveBeenCalledWith({
-                temperature: 0.5,
-                prompt: 'test',
-                modelName: 'gpt-4o', // Note: modelName, not modelId
-            });
+            expect(mockMakeApiCall).toHaveBeenCalledWith(options);
         });
 
         it('should handle model names with slashes for providers like openrouter', async () => {
-            const options = { modelId: 'openrouter:google/gemini-pro', prompt: 'test' };
+            const options = { modelId: 'openrouter:google/gemini-pro', messages: [{role: 'user', content: 'test'}] };
             await dispatchMakeApiCall(options);
 
             expect(mockMakeApiCall).toHaveBeenCalledTimes(1);
-            expect(mockMakeApiCall).toHaveBeenCalledWith({
-                prompt: 'test',
-                modelName: 'google/gemini-pro',
-            });
+            expect(mockMakeApiCall).toHaveBeenCalledWith(options);
         });
 
         it('should be case-insensitive for the provider name', async () => {
-            const options = { modelId: 'Google:gemini-1.5-flash', prompt: 'test' };
+            const options = { modelId: 'Google:gemini-1.5-flash', messages: [{role: 'user', content: 'test'}] };
             await dispatchMakeApiCall(options);
             
             expect(mockMakeApiCall).toHaveBeenCalledTimes(1);
-            expect(mockMakeApiCall).toHaveBeenCalledWith({
-                prompt: 'test',
-                modelName: 'gemini-1.5-flash',
-            });
+            expect(mockMakeApiCall).toHaveBeenCalledWith(options);
         });
     });
 
     describe('dispatchStreamApiCall', () => {
        it('should dispatch to the correct client for streaming calls', async () => {
-            const options = { modelId: 'anthropic:claude-3-opus', prompt: 'test' };
+            const options = { modelId: 'anthropic:claude-3-opus', messages: [{role: 'user', content: 'test'}] };
             dispatchStreamApiCall(options);
 
             expect(mockStreamApiCall).toHaveBeenCalledTimes(1);
-            expect(mockStreamApiCall).toHaveBeenCalledWith({
-                prompt: 'test',
-                modelName: 'claude-3-opus',
-            });
+            expect(mockStreamApiCall).toHaveBeenCalledWith(options);
        });
     });
 
     describe('Client Caching', () => {
         it('should cache client instances to avoid re-instantiation for the same provider', async () => {
-            await dispatchMakeApiCall({ modelId: 'openai:gpt-4', prompt: 'test' });
+            await dispatchMakeApiCall({ modelId: 'openai:gpt-4', messages: [{role: 'user', content: 'test'}] });
             expect(mockConstructor).toHaveBeenCalledTimes(1);
             
-            await dispatchMakeApiCall({ modelId: 'openai:gpt-3.5-turbo', prompt: 'test 2' });
+            await dispatchMakeApiCall({ modelId: 'openai:gpt-3.5-turbo', messages: [{role: 'user', content: 'test 2'}] });
             expect(mockConstructor).toHaveBeenCalledTimes(1); // Should not create a new instance
 
             expect(mockMakeApiCall).toHaveBeenCalledTimes(2);
         });
 
         it('should create new instances for different providers', async () => {
-            await dispatchMakeApiCall({ modelId: 'openai:gpt-4', prompt: 'test' });
+            await dispatchMakeApiCall({ modelId: 'openai:gpt-4', messages: [{role: 'user', content: 'test'}] });
             expect(mockConstructor).toHaveBeenCalledTimes(1);
 
-            await dispatchMakeApiCall({ modelId: 'anthropic:claude-2', prompt: 'test' });
+            await dispatchMakeApiCall({ modelId: 'anthropic:claude-2', messages: [{role: 'user', content: 'test'}] });
             expect(mockConstructor).toHaveBeenCalledTimes(2); // New instance for 'anthropic'
             
-            await dispatchMakeApiCall({ modelId: 'google:gemini-pro', prompt: 'test' });
+            await dispatchMakeApiCall({ modelId: 'google:gemini-pro', messages: [{role: 'user', content: 'test'}] });
             expect(mockConstructor).toHaveBeenCalledTimes(3); // New instance for 'google'
         });
     });

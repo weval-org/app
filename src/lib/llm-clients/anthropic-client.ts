@@ -1,17 +1,10 @@
-import { LLMClient, LLMApiCallOptions, LLMApiCallResponse, LLMStreamApiCallOptions, StreamChunk } from './types';
+import { LLMApiCallOptions, LLMApiCallResult, StreamChunk } from './types';
 import crypto from 'crypto';
 
 const ANTHROPIC_API_BASE_URL = 'https://api.anthropic.com/v1';
 const ANTHROPIC_API_VERSION = '2023-06-01';
 
-const llmCache = new Map<string, LLMApiCallResponse>();
-
-function getCacheKey(input: LLMApiCallOptions): string {
-    const hash = crypto.createHash('sha256').update(JSON.stringify(input)).digest('hex');
-    return `anthropic:${hash}`;
-}
-
-class AnthropicClient implements LLMClient {
+class AnthropicClient {
     private apiKey: string;
 
     constructor(apiKey?: string) {
@@ -30,16 +23,11 @@ class AnthropicClient implements LLMClient {
         };
     }
 
-    public async makeApiCall(options: LLMApiCallOptions): Promise<LLMApiCallResponse> {
-        const { modelName, messages, systemPrompt, temperature = 0.3, maxTokens = 1500, cache = true } = options;
+    public async makeApiCall(options: LLMApiCallOptions): Promise<LLMApiCallResult> {
+        // Extract modelName from modelId (format: "anthropic:claude-3-opus")
+        const modelName = options.modelId.split(':')[1] || options.modelId;
+        const { messages, systemPrompt, temperature = 0.3, maxTokens = 1500, timeout = 120000 } = options;
         const fetch = (await import('node-fetch')).default;
-
-        if (cache) {
-            const cacheKey = getCacheKey(options);
-            if (llmCache.has(cacheKey)) {
-                return llmCache.get(cacheKey)!;
-            }
-        }
 
         const body = JSON.stringify({
             model: modelName,
@@ -51,11 +39,17 @@ class AnthropicClient implements LLMClient {
         });
 
         try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeout);
+
             const response = await fetch(`${ANTHROPIC_API_BASE_URL}/messages`, {
                 method: 'POST',
                 headers: this.getHeaders(),
                 body,
+                signal: controller.signal,
             });
+
+            clearTimeout(timeoutId);
 
             if (!response.ok) {
                 const errorBody = await response.text();
@@ -64,21 +58,21 @@ class AnthropicClient implements LLMClient {
 
             const jsonResponse = await response.json() as any;
             const responseText = jsonResponse.content[0]?.text?.trim() ?? '';
-            const result: LLMApiCallResponse = { responseText };
-
-            if (cache) {
-                const cacheKey = getCacheKey(options);
-                llmCache.set(cacheKey, result);
-            }
+            const result: LLMApiCallResult = { responseText };
 
             return result;
         } catch (error: any) {
+            if (error.name === 'AbortError') {
+                return { responseText: '', error: `Anthropic API request timed out after ${timeout}ms` };
+            }
             return { responseText: '', error: `Network or other error calling Anthropic: ${error.message}` };
         }
     }
 
-    public async *streamApiCall(options: LLMStreamApiCallOptions): AsyncGenerator<StreamChunk> {
-        const { modelName, messages, systemPrompt, temperature = 0.3, maxTokens = 2000 } = options;
+    public async *streamApiCall(options: LLMApiCallOptions): AsyncGenerator<StreamChunk> {
+        // Extract modelName from modelId (format: "anthropic:claude-3-opus")
+        const modelName = options.modelId.split(':')[1] || options.modelId;
+        const { messages, systemPrompt, temperature = 0.3, maxTokens = 2000, timeout = 120000 } = options;
         const fetch = (await import('node-fetch')).default;
 
         const body = JSON.stringify({
@@ -91,11 +85,17 @@ class AnthropicClient implements LLMClient {
         });
 
         try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeout);
+
             const response = await fetch(`${ANTHROPIC_API_BASE_URL}/messages`, {
                 method: 'POST',
                 headers: this.getHeaders(),
                 body,
+                signal: controller.signal,
             });
+
+            clearTimeout(timeoutId);
 
             if (!response.ok || !response.body) {
                 const errorBody = await response.text();
@@ -120,7 +120,11 @@ class AnthropicClient implements LLMClient {
                 }
             }
         } catch (error: any) {
-            yield { type: 'error', error: `Network or other error during Anthropic stream: ${error.message}` };
+            if (error.name === 'AbortError') {
+                yield { type: 'error', error: `Anthropic stream request timed out after ${timeout}ms` };
+            } else {
+                yield { type: 'error', error: `Network or other error during Anthropic stream: ${error.message}` };
+            }
         }
     }
 }

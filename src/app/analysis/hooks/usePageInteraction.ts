@@ -5,6 +5,7 @@ import {
     PointAssessment,
     CoverageResult
 } from '@/app/utils/types';
+import { ConversationMessage } from '@/types/shared';
 import { ModelEvaluationDetailModalData } from '@/app/analysis/components/ModelEvaluationDetailModalV2';
 import { parseEffectiveModelId } from '@/app/utils/modelIdUtils';
 
@@ -73,7 +74,31 @@ export function usePageInteraction(data: ComparisonDataV2 | null) {
 
             const modelResult = llmCoverageScoresTyped[promptId]?.[modelId];
             const modelResponse = allFinalAssistantResponses?.[promptId]?.[modelId];
-            const systemPrompt = modelSystemPrompts?.[modelId] ?? config.system ?? null;
+            
+            // Determine the effective system prompt using the same logic as other modals
+            const promptContext = promptContexts[promptId];
+            let effectiveSystemPrompt: string | null = null;
+            
+            // Highest precedence: a 'system' message in the conversation history
+            if (Array.isArray(promptContext) && promptContext.length > 0 && promptContext[0].role === 'system') {
+                effectiveSystemPrompt = promptContext[0].content;
+            } else {
+                // Medium precedence: a 'system' property on the specific prompt
+                const promptConfig = config.prompts.find(p => p.id === promptId);
+                if (promptConfig?.system) {
+                    effectiveSystemPrompt = promptConfig.system;
+                } else {
+                    // Lowest precedence: a run-level system prompt from a permutation
+                    if (config.systems && typeof parsed.systemPromptIndex === 'number' && config.systems[parsed.systemPromptIndex]) {
+                        effectiveSystemPrompt = config.systems[parsed.systemPromptIndex];
+                    } else if (config.systems && typeof parsed.systemPromptIndex === 'number' && config.systems[parsed.systemPromptIndex] === null) {
+                        effectiveSystemPrompt = '[No System Prompt]';
+                    } else if (config.system) {
+                        // Fallback to global system prompt if no permutation
+                        effectiveSystemPrompt = config.system;
+                    }
+                }
+            }
 
             if (!modelResult || 'error' in modelResult || !modelResult.pointAssessments || modelResponse == null) {
                 continue; 
@@ -83,7 +108,7 @@ export function usePageInteraction(data: ComparisonDataV2 | null) {
                 modelId: modelId,
                 assessments: modelResult.pointAssessments,
                 modelResponse: modelResponse,
-                systemPrompt: systemPrompt
+                systemPrompt: effectiveSystemPrompt
             });
         }
         

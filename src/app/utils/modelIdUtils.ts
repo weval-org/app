@@ -69,7 +69,7 @@ export function parseEffectiveModelId(effectiveModelId: string): ParsedModelId {
 // Helper function to format the display name for UI
 export function getModelDisplayLabel(
     parsedIdOrFullId: ParsedModelId | string,
-    options?: { hideProvider?: boolean; hideModelMaker?: boolean; prettifyModelName?: boolean }
+    options?: { hideProvider?: boolean; hideModelMaker?: boolean; prettifyModelName?: boolean, hideSystemPrompt?: boolean, hideTemperature?: boolean }
 ): string {
     const parsed = typeof parsedIdOrFullId === 'string' ? parseEffectiveModelId(parsedIdOrFullId) : parsedIdOrFullId;
     
@@ -105,13 +105,13 @@ export function getModelDisplayLabel(
     let label = baseDisplayName;
 
     const suffixes = [];
-    if (parsed.systemPromptHash) {
+    if (parsed.systemPromptHash && !options?.hideSystemPrompt) {
         suffixes.push(`${parsed.systemPromptHash}`);
     }
-    if (parsed.systemPromptIndex !== undefined) {
+    if (parsed.systemPromptIndex !== undefined && !options?.hideSystemPrompt) {
         suffixes.push(`sys:${parsed.systemPromptIndex}`);
     }
-    if (parsed.temperature !== undefined && parsed.temperature !== 0) {
+    if (parsed.temperature !== undefined && parsed.temperature !== 0 && !options?.hideTemperature) {
         suffixes.push(`T:${parsed.temperature}`);
     }
 

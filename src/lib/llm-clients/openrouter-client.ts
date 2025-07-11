@@ -1,35 +1,27 @@
-import { LLMClient, LLMApiCallOptions, LLMApiCallResponse, LLMStreamApiCallOptions, StreamChunk } from './types';
+import { LLMApiCallOptions, LLMApiCallResult, StreamChunk } from './types';
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
-class OpenRouterModuleClient implements LLMClient {
-  async makeApiCall(options: LLMApiCallOptions): Promise<LLMApiCallResponse> {
-    const { modelName, prompt, systemPrompt, temperature, maxTokens, messages: optionMessages } = options;
-    const apiKey = options.apiKey || process.env.OPENROUTER_API_KEY;
+class OpenRouterModuleClient {
+  async makeApiCall(options: LLMApiCallOptions): Promise<LLMApiCallResult> {
+    // Extract modelName from modelId (format: "openrouter:meta-llama/llama-3.1-8b-instruct:free")
+    const modelName = options.modelId.split(':').slice(1).join(':') || options.modelId;
+    const { messages, systemPrompt, temperature, maxTokens, timeout = 120000 } = options;
+    const apiKey = process.env.OPENROUTER_API_KEY;
 
     if (!apiKey) {
       return { responseText: '', error: 'OpenRouter API key not found. Please set OPENROUTER_API_KEY environment variable.' };
     }
 
-    let finalMessagesPayload: any[];
-
-    if (optionMessages && optionMessages.length > 0) {
-      let tempMessages = [...optionMessages];
-      if (systemPrompt && !tempMessages.find(m => m.role === 'system')) {
-        tempMessages.unshift({ role: "system", content: systemPrompt });
-      }
-      finalMessagesPayload = tempMessages;
-    } else if (prompt) {
-      finalMessagesPayload = [];
-      if (systemPrompt) {
-        finalMessagesPayload.push({ role: "system", content: systemPrompt });
-      }
-      finalMessagesPayload.push({ role: "user", content: prompt });
-    } else {
-      return { responseText: '', error: 'No valid prompt or messages provided to OpenRouter client.' };
+    let finalMessagesPayload: any[] = [...(messages || [])];
+    if (systemPrompt && !finalMessagesPayload.find(m => m.role === 'system')) {
+      finalMessagesPayload.unshift({ role: "system", content: systemPrompt });
     }
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+
       const response = await fetch(OPENROUTER_API_URL, {
         method: "POST",
         headers: {
@@ -42,8 +34,11 @@ class OpenRouterModuleClient implements LLMClient {
           temperature: temperature ?? 0.7, 
           max_tokens: maxTokens,
           stream: false
-        })
+        }),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorBody = await response.text();
@@ -62,40 +57,34 @@ class OpenRouterModuleClient implements LLMClient {
       return { responseText };
 
     } catch (error: any) {
+      if (error.name === 'AbortError') {
+        return { responseText: '', error: `OpenRouter API request timed out after ${timeout}ms` };
+      }
       console.error('Failed to make OpenRouter API call:', error);
       return { responseText: '', error: `Network or other error calling OpenRouter: ${error.message}` };
     }
   }
 
-  async *streamApiCall(options: LLMStreamApiCallOptions): AsyncGenerator<StreamChunk, void, undefined> {
-    const { modelName, prompt, systemPrompt, temperature, maxTokens, messages: optionMessages } = options;
-    const apiKey = options.apiKey || process.env.OPENROUTER_API_KEY;
+  async *streamApiCall(options: LLMApiCallOptions): AsyncGenerator<StreamChunk, void, undefined> {
+    // Extract modelName from modelId (format: "openrouter:meta-llama/llama-3.1-8b-instruct:free")
+    const modelName = options.modelId.split(':').slice(1).join(':') || options.modelId;
+    const { messages, systemPrompt, temperature, maxTokens, timeout = 120000 } = options;
+    const apiKey = process.env.OPENROUTER_API_KEY;
 
     if (!apiKey) {
       yield { type: 'error', error: 'OpenRouter API key not found. Please set OPENROUTER_API_KEY environment variable.' };
       return;
     }
 
-    let finalMessagesPayload: any[];
-
-    if (optionMessages && optionMessages.length > 0) {
-      let tempMessages = [...optionMessages];
-      if (systemPrompt && !tempMessages.find(m => m.role === 'system')) {
-        tempMessages.unshift({ role: "system", content: systemPrompt });
-      }
-      finalMessagesPayload = tempMessages;
-    } else if (prompt) {
-      finalMessagesPayload = [];
-      if (systemPrompt) {
-        finalMessagesPayload.push({ role: "system", content: systemPrompt });
-      }
-      finalMessagesPayload.push({ role: "user", content: prompt });
-    } else {
-      yield { type: 'error', error: 'No valid prompt or messages provided to OpenRouter client for streaming.' };
-      return;
+    let finalMessagesPayload: any[] = [...(messages || [])];
+    if (systemPrompt && !finalMessagesPayload.find(m => m.role === 'system')) {
+      finalMessagesPayload.unshift({ role: "system", content: systemPrompt });
     }
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+
       const response = await fetch(OPENROUTER_API_URL, {
         method: "POST",
         headers: {
@@ -108,8 +97,11 @@ class OpenRouterModuleClient implements LLMClient {
           temperature: temperature ?? 0.7,
           max_tokens: maxTokens,
           stream: true
-        })
+        }),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorBody = await response.text();
@@ -158,8 +150,12 @@ class OpenRouterModuleClient implements LLMClient {
       }
 
     } catch (error: any) {
-      console.error('Failed to make OpenRouter streaming API call:', error);
-      yield { type: 'error', error: `Network or other error streaming from OpenRouter: ${error.message}` };
+      if (error.name === 'AbortError') {
+        yield { type: 'error', error: `OpenRouter stream request timed out after ${timeout}ms` };
+      } else {
+        console.error('Failed to make OpenRouter streaming API call:', error);
+        yield { type: 'error', error: `Network or other error streaming from OpenRouter: ${error.message}` };
+      }
     }
   }
 }

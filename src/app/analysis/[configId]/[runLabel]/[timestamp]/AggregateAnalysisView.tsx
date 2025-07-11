@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import MacroCoverageTable from '@/app/analysis/components/MacroCoverageTable';
 import DatasetStatistics from '@/app/analysis/components/DatasetStatistics';
-import CoverageTableLegend, { ActiveHighlight } from '@/app/analysis/components/CoverageTableLegend';
+import { ActiveHighlight } from '@/app/analysis/components/CoverageTableLegend';
 import PerModelHybridScoresCard from '@/app/analysis/components/PerModelHybridScoresCard';
 import DendrogramChart from '@/app/analysis/components/DendrogramChart';
 import SystemPromptsDisplay from '@/app/analysis/components/SystemPromptsDisplay';
@@ -116,7 +116,7 @@ export const AggregateAnalysisView: React.FC<AggregateAnalysisViewProps> = ({
                     <AlertDescription>
                         <div className="flex justify-between items-start gap-4">
                             <div>
-                                The following models were excluded from this overall analysis because they returned at least one empty response. This is done to prevent skewed aggregate scores. You can still see their results by selecting an individual prompt.
+                                The following models returned at least one empty response. Their results are still available below.
                                 <ul className="list-disc pl-6 mt-2 space-y-1">
                                     {excludedModelsList.map(modelId => (
                                         <li key={modelId}>
@@ -127,33 +127,11 @@ export const AggregateAnalysisView: React.FC<AggregateAnalysisViewProps> = ({
                                     ))}
                                 </ul>
                             </div>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className="ml-4 flex-shrink-0"
-                                onClick={() => setForceIncludeExcludedModels(true)}
-                            >
-                                Show Anyway
-                            </Button>
                         </div>
                     </AlertDescription>
                 </Alert>
             )}
 
-            {forceIncludeExcludedModels && excludedModelsList.length > 0 && (
-                <Alert variant="default" className="border-amber-500/50 dark:border-amber-400/30 bg-amber-50/50 dark:bg-amber-900/10">
-                    <AlertTriangle className="h-4 w-4 text-amber-500 dark:text-amber-400" />
-                    <AlertTitle className="text-amber-700 dark:text-amber-300">Displaying Models with Incomplete Data</AlertTitle>
-                    <AlertDescription className="text-amber-900 dark:text-amber-400/90">
-                        You are viewing models that had empty responses for some prompts.
-                        Aggregate scores for these models ({excludedModelsList.map(modelId => `"${getModelDisplayLabel(parseEffectiveModelId(modelId))}"`).join(', ')})
-                        are calculated only from the prompts they responded to and may not be directly comparable to other models.
-                        <Button variant="link" className="p-0 h-auto ml-2 text-primary text-primary font-semibold" onClick={() => setForceIncludeExcludedModels(false)}>
-                            (Re-hide incomplete models)
-                        </Button>
-                    </AlertDescription>
-                </Alert>
-            )}
 
             <DatasetStatistics
                 promptStats={data.evaluationResults?.promptStatistics}
@@ -196,9 +174,6 @@ export const AggregateAnalysisView: React.FC<AggregateAnalysisViewProps> = ({
                         <CardHeader>
                             <div className="flex justify-between items-center">
                                 <CardTitle className="text-primary text-primary">Macro Coverage Overview</CardTitle>
-                                <Button variant="ghost" size="sm" title="Help: Macro Coverage Table" asChild>
-                                    <Link href="#macro-coverage-help" scroll={false}><HelpCircle className="w-4 h-4 text-muted-foreground" /></Link>
-                                </Button>
                             </div>
                             <CardDescription className="text-muted-foreground dark:text-muted-foreground pt-1 text-sm">
                                 {data.config.systems && data.config.systems.length > 1
@@ -206,7 +181,6 @@ export const AggregateAnalysisView: React.FC<AggregateAnalysisViewProps> = ({
                                     : "Average key point coverage extent for each model across all prompts."
                                 }
                             </CardDescription>
-                            <CoverageTableLegend activeHighlights={activeHighlights} className="pt-4 mt-4 border-t border-border/50 dark:border-border/50" />
                         </CardHeader>
                         <CardContent className="pt-0">
                             {data.config.systems && data.config.systems.length > 1 ? (
@@ -293,8 +267,10 @@ export const AggregateAnalysisView: React.FC<AggregateAnalysisViewProps> = ({
                                             allCoverageScores={data.evaluationResults.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>>}
                                             promptIds={promptIds}
                                             promptTexts={promptTextsForMacroTable}
+                                            promptContexts={data.promptContexts}
                                             models={modelsForMacroTable.filter(m => m !== IDEAL_MODEL_ID)}
                                             allFinalAssistantResponses={allFinalAssistantResponses}
+                                            config={data.config}
                                             configId={configId}
                                             runLabel={runLabel}
                                             safeTimestampFromParams={timestamp}
@@ -311,8 +287,10 @@ export const AggregateAnalysisView: React.FC<AggregateAnalysisViewProps> = ({
                                     allCoverageScores={data.evaluationResults.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>>}
                                     promptIds={promptIds}
                                     promptTexts={promptTextsForMacroTable}
+                                    promptContexts={data.promptContexts}
                                     models={displayedModels.filter(m => m !== IDEAL_MODEL_ID)}
                                     allFinalAssistantResponses={allFinalAssistantResponses}
+                                    config={data.config}
                                     configId={configId}
                                     runLabel={runLabel}
                                     safeTimestampFromParams={timestamp}

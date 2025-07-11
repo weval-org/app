@@ -102,7 +102,7 @@ export default function FeaturedBlueprintsSection({ featuredBlueprints }: Featur
                       models={bp.latestRunModels}
                       promptIds={bp.latestRunPromptIds}
                       width={64}
-                      height={48}
+                      height={58}
                       className="rounded-sm border border-border/50 dark:border-border mx-auto"
                     />
                     <p className="text-xs text-muted-foreground dark:text-muted-foreground mb-1">Latest Run</p>

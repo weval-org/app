@@ -91,7 +91,7 @@ export default function SimplifiedBlueprintCard({ blueprint: bp }: SimplifiedBlu
                       models={bp.latestRunModels}
                       promptIds={bp.latestRunPromptIds}
                       width={80}
-                      height={56}
+                      height={70}
                       className="rounded-sm border border-border/50 dark:border-border"
                     />
                   </div>

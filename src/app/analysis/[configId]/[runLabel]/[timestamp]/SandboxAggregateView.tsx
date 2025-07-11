@@ -147,8 +147,10 @@ export const SandboxAggregateView: React.FC<SandboxAggregateViewProps> = ({
                             allCoverageScores={evaluationResults.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>>}
                             promptIds={promptIds}
                             promptTexts={promptTextsForMacroTable}
+                            promptContexts={data.promptContexts}
                             models={displayedModels.filter(m => m !== IDEAL_MODEL_ID)}
                             allFinalAssistantResponses={allFinalAssistantResponses}
+                            config={config}
                             configId={config.id!}
                             runLabel={runLabel}
                             safeTimestampFromParams={timestamp}

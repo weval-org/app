@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, ComponentType } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
+import PromptContextDisplay from './PromptContextDisplay';
 
 const AlertTriangle = dynamic(() => import('lucide-react').then(mod => mod.AlertTriangle), { ssr: false });
 const MessageSquare = dynamic(() => import('lucide-react').then(mod => mod.MessageSquare), { ssr: false });
@@ -82,57 +83,9 @@ const getScoreColor = (score?: number): string => {
     return 'bg-red-600';
 };
 
-const getRoleIcon = (role: 'user' | 'assistant' | 'system'): React.ReactNode => {
-    switch (role) {
-        case 'user':
-            return <User className="h-5 w-5 text-sky-800 dark:text-sky-300" />;
-        case 'assistant':
-            return <Bot className="h-5 w-5 text-slate-800 dark:text-slate-300" />;
-        case 'system':
-            return <Terminal className="h-5 w-5 text-gray-800 dark:text-gray-300" />;
-        default:
-            return null;
-    }
-};
 
-const PromptContextDisplay: React.FC<{ promptContext: string | ConversationMessage[] }> = ({ promptContext }) => {
-    if (typeof promptContext === 'string') {
-        return (
-            <div className="mt-2 prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap text-sm p-3 bg-muted/50 rounded-md border">
-                <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
-                    {promptContext}
-                </ReactMarkdown>
-            </div>
-        );
-    }
-    if (Array.isArray(promptContext) && promptContext.length > 0) {
-      return (
-        <div className="space-y-4 mt-2 max-h-48 overflow-y-auto custom-scrollbar pr-2">
-          {promptContext.map((msg, index) => (
-            <div key={index} className="flex items-start gap-3">
-                <div className={cn(
-                    "rounded-full p-2",
-                    msg.role === 'user' ? 'bg-sky-100 dark:bg-sky-900/40' : 
-                    msg.role === 'assistant' ? 'bg-slate-200 dark:bg-slate-700/40' : 
-                    'bg-gray-200 dark:bg-gray-700/40'
-                )}>
-                    {getRoleIcon(msg.role as any)}
-                </div>
-                <div className="flex-1 pt-1">
-                    <p className="text-sm font-bold text-muted-foreground/90 dark:text-slate-400 capitalize">{msg.role}</p>
-                    <div className="prose prose-sm dark:prose-invert max-w-none text-foreground dark:text-slate-200 whitespace-pre-wrap pt-1">
-                        <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
-                            {msg.content}
-                        </ReactMarkdown>
-                    </div>
-                </div>
-            </div>
-          ))}
-        </div>
-      );
-    }
-    return <p className="italic">Prompt context not available.</p>;
-};
+
+
 
 const AssessmentItem: React.FC<{
     assessment: PointAssessment;
@@ -287,7 +240,8 @@ const EvaluationView: React.FC<{
     variant: ModelEvaluationVariant,
     expandedLogs: Record<number, boolean>,
     toggleLogExpansion: (index: number) => void;
-}> = ({ variant, expandedLogs, toggleLogExpansion }) => {
+    isMobile?: boolean;
+}> = ({ variant, expandedLogs, toggleLogExpansion, isMobile = false }) => {
     const { modelResponse, assessments } = variant;
     const [expandedAssessments, setExpandedAssessments] = useState<Set<number>>(new Set());
 
@@ -343,6 +297,64 @@ const EvaluationView: React.FC<{
         })
     );
 
+    if (isMobile) {
+        // Mobile: Single column stacked view - user scrolls the entire page
+        return (
+            <div className="space-y-4">
+                {/* Model Response Section */}
+                <div className="bg-muted/20 border border-border/50 rounded-lg p-3">
+                    <h3 className="font-semibold text-muted-foreground text-sm mb-2 border-b border-border/30 pb-1">
+                        Model Response
+                    </h3>
+                    <div>
+                        {modelResponse ? (
+                            <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]} className="prose prose-sm dark:prose-invert max-w-none">{modelResponse}</ReactMarkdown>
+                        ) : (
+                            <p className="italic text-muted-foreground">No response text available.</p>
+                        )}
+                    </div>
+                </div>
+                
+                {/* Criteria Evaluation Section */}
+                <div className="bg-muted/20 border border-border/50 rounded-lg p-3">
+                    <h3 className="font-semibold text-muted-foreground text-sm mb-2 border-b border-border/30 pb-1">
+                        Criteria Evaluation ({assessments.length})
+                    </h3>
+                    <div className="space-y-4">
+                        {criticalFailures.length > 0 && (
+                            <div>
+                                <h4 className="font-bold text-base text-red-600 dark:text-red-500 flex items-center mb-2" title="A critical failure occurs when the model does something it was explicitly told not to do.">
+                                    <ThumbsDown className="h-5 w-5 mr-2" /> Critical Failures ({criticalFailures.length})
+                                </h4>
+                                <div className="space-y-3">{renderAssessmentList(criticalFailures)}</div>
+                            </div>
+                        )}
+                        {majorGaps.length > 0 && (
+                             <div>
+                                <h4 className="font-bold text-base text-orange-600 dark:text-orange-500 flex items-center mb-2" title="A major gap occurs when the model fails to include a key positive requirement.">
+                                    <AlertTriangle className="h-5 w-5 mr-2" /> Major Gaps ({majorGaps.length})
+                                </h4>
+                                <div className="space-y-3">{renderAssessmentList(majorGaps)}</div>
+                            </div>
+                        )}
+                        {passed.length > 0 && (
+                            <div>
+                                <h4 className="font-bold text-base text-green-600 dark:text-green-500 flex items-center mb-2">
+                                    <CheckCircle className="h-5 w-5 mr-2" /> Passed Criteria ({passed.length})
+                                </h4>
+                                <div className="space-y-3">{renderAssessmentList(passed)}</div>
+                            </div>
+                        )}
+                        {assessments.length === 0 && (
+                            <p className="text-muted-foreground italic text-sm">No criteria assessments available.</p>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // Desktop: Side-by-side layout with response and criteria
     return (
         <div className="flex-1 px-4 text-sm flex flex-col lg:flex-row lg:space-x-4 overflow-hidden min-h-0"> 
             <div className="lg:w-2/5 flex flex-col overflow-hidden">
@@ -407,64 +419,25 @@ const EvaluationView: React.FC<{
     );
 };
 
-const ScoreSummary: React.FC<{ assessments: PointAssessment[] }> = ({ assessments }) => {
-  const summary = useMemo(() => {
-    if (!assessments || assessments.length === 0) {
-      return { total: 0, passed: 0, criticalFailures: 0, majorGaps: 0 };
-    }
-    const total = assessments.length;
-    let passed = 0;
-    let criticalFailures = 0;
-    let majorGaps = 0;
-
-    assessments.forEach(a => {
-      const score = a.coverageExtent;
-      if (score === undefined || score === null || isNaN(score)) return;
-      
-      if (a.isInverted) {
-        if (score < 0.7) criticalFailures++;
-        else passed++;
-      } else {
-        if (score < 0.4) majorGaps++;
-        else passed++;
-      }
-    });
-    return { total, passed, criticalFailures, majorGaps };
-  }, [assessments]);
-
-  return (
-    <div className="p-3 rounded-lg bg-muted/60 dark:bg-slate-800/40 border border-border/80 flex items-center justify-around text-center text-sm">
-      <div className="flex flex-col items-center" title="The number of criteria the model successfully met.">
-        <span className="text-2xl font-bold text-green-600 dark:text-green-500">{summary.passed}</span>
-        <span className="text-xs text-muted-foreground">Passed</span>
-      </div>
-      <div className="h-10 border-l border-border/80" />
-      <div className="flex flex-col items-center" title="The number of negative criteria ('should_not') that the model violated.">
-        <span className="text-2xl font-bold text-red-600 dark:text-red-500">{summary.criticalFailures}</span>
-        <span className="text-xs text-muted-foreground">Critical Failures</span>
-      </div>
-      <div className="h-10 border-l border-border/80" />
-      <div className="flex flex-col items-center" title="The number of positive criteria ('should') that the model failed to meet.">
-        <span className="text-2xl font-bold text-orange-600 dark:text-orange-500">{summary.majorGaps}</span>
-        <span className="text-xs text-muted-foreground">Major Gaps</span>
-      </div>
-       <div className="h-10 border-l border-border/80" />
-       <div className="flex flex-col items-center" title="The total number of criteria defined in the evaluation rubric.">
-        <span className="text-2xl font-bold text-foreground">{summary.total}</span>
-        <span className="text-xs text-muted-foreground">Total Criteria</span>
-      </div>
-    </div>
-  );
-};
-
-
 const ModelEvaluationDetailModalV2: React.FC<ModelEvaluationDetailModalProps> = ({ isOpen, onClose, data }) => {
   if (!isOpen) return null;
 
   const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
+  const [isMobileView, setIsMobileView] = useState(false);
   const { baseModelId, promptContext, promptDescription, variantEvaluations, initialVariantIndex } = data;
   
   const [selectedVariantIndex, setSelectedVariantIndex] = useState(initialVariantIndex);
+
+  // Mobile detection
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobileView(window.innerWidth < 768); // md breakpoint
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const displayModelName = getModelDisplayLabel(baseModelId);
   
@@ -489,6 +462,96 @@ const ModelEvaluationDetailModalV2: React.FC<ModelEvaluationDetailModalProps> = 
     );
   }
 
+  // Mobile: Use dedicated full-screen mobile experience
+  if (isMobileView) {
+    return (
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="w-[100vw] h-[100vh] max-w-none p-0 m-0 rounded-none border-0 bg-background flex flex-col overflow-hidden">
+          {/* Hidden title for accessibility */}
+          <DialogTitle className="sr-only">Model Evaluation Details - Mobile View</DialogTitle>
+          
+          <div className="h-full flex flex-col min-h-0">
+            {/* Mobile Header */}
+            <div className="flex items-center gap-3 p-4 border-b bg-card flex-shrink-0">
+              <Button 
+                variant="ghost"
+                size="sm"
+                onClick={onClose}
+                className="flex items-center gap-2 px-3 py-2 hover:bg-muted rounded-lg transition-colors min-h-[44px]"
+              >
+                <span className="font-medium">Close</span>
+              </Button>
+              <div className="flex-1 min-w-0">
+                <h2 className="font-semibold text-lg truncate">{displayModelName}</h2>
+                {promptDescription && (
+                  <p className="text-sm text-muted-foreground truncate">{promptDescription}</p>
+                )}
+              </div>
+            </div>
+
+            {/* System Prompt Variant Selection (Mobile) */}
+            {hasMultipleVariants && (
+              <div className="px-4 py-3 border-b bg-muted/40 flex-shrink-0">
+                <RadioGroup 
+                  value={String(selectedVariantIndex)} 
+                  onValueChange={(value) => setSelectedVariantIndex(Number(value))}
+                  className="space-y-2"
+                >
+                  <Label className="text-sm font-semibold text-foreground">System Prompt Variant:</Label>
+                  {variantKeys.map(index => {
+                    const variant = variantEvaluations.get(index);
+                    const systemPromptText = variant?.systemPrompt || "[Default System Prompt]";
+                    return (
+                      <div key={index} className="flex items-start space-x-2">
+                        <RadioGroupItem value={String(index)} id={`mobile-variant-${index}`} className="mt-0.5" />
+                        <Label htmlFor={`mobile-variant-${index}`} className="font-normal cursor-pointer flex-1" title={systemPromptText}>
+                          <span className="text-sm line-clamp-2">
+                            {systemPromptText}
+                          </span>
+                        </Label>
+                      </div>
+                    )
+                  })}
+                </RadioGroup>
+              </div>
+            )}
+
+            {/* Prompt Context (Mobile) */}
+            <div className="px-4 py-3 border-b bg-muted/20 flex-shrink-0 max-h-40 overflow-y-auto">
+              <p className="font-semibold text-xs uppercase tracking-wider text-muted-foreground mb-2">Prompt:</p>
+              <PromptContextDisplay promptContext={promptContext} />
+            </div>
+
+            {/* System Prompt Info (Mobile) */}
+            <div className="px-4 py-3 border-b flex-shrink-0">
+              {currentVariant?.systemPrompt ? (
+                <div className="p-2 rounded-md bg-sky-100/50 dark:bg-sky-900/30 text-xs text-sky-800 dark:text-sky-200 ring-1 ring-sky-200 dark:ring-sky-800">
+                  <p className="font-semibold text-sky-900 dark:text-sky-300 mb-1">System Prompt:</p>
+                  <p className="whitespace-pre-wrap font-mono text-xs">{currentVariant.systemPrompt}</p>
+                </div>
+              ) : (
+                <div className="p-2 rounded-md bg-slate-100/50 dark:bg-slate-900/30 text-xs text-slate-500 dark:text-slate-400 ring-1 ring-slate-200 dark:ring-slate-800">
+                  <p className="italic">[No System Prompt was used for this variant]</p>
+                </div>
+              )}
+            </div>
+
+            {/* Mobile-optimized content */}
+            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4">
+              <EvaluationView 
+                variant={currentVariant}
+                expandedLogs={expandedLogs}
+                toggleLogExpansion={toggleLogExpansion}
+                isMobile={true}
+              />
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // Desktop: Use existing responsive layout
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="w-[95vw] max-w-[95vw] h-[95vh] flex flex-col p-0 overflow-hidden">
@@ -547,13 +610,13 @@ const ModelEvaluationDetailModalV2: React.FC<ModelEvaluationDetailModalProps> = 
                         <p className="italic">[No System Prompt was used for this variant]</p>
                     </div>
                 )}
-                <ScoreSummary assessments={currentVariant.assessments} />
             </div>
 
             <EvaluationView 
                 variant={currentVariant}
                 expandedLogs={expandedLogs}
                 toggleLogExpansion={toggleLogExpansion}
+                isMobile={false}
             />
         </div>
 

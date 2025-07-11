@@ -76,7 +76,7 @@ ${idealResponse}
 
             const clientOptions: Omit<LLMApiCallOptions, 'modelName'> & { modelId: string } = {
                 modelId: modelId,
-                prompt: extractionPrompt,
+                messages: [{ role: 'user', content: extractionPrompt }],
                 systemPrompt: systemPrompt,
                 temperature: 0.1,
                 maxTokens: 2000, 

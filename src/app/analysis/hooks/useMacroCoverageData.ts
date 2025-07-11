@@ -84,6 +84,51 @@ export const useMacroCoverageData = (
         return prompts;
     }, [promptIds, sortOption, promptStats]);
     
+    const promptModelRanks = React.useMemo(() => {
+        const ranks = new Map<string, Map<string, number>>();
+        if (!allCoverageScores) return ranks;
+
+        promptIds.forEach(promptId => {
+            const modelScores: { modelId: string, score: number | null }[] = [];
+            models.forEach(modelId => {
+                const result = allCoverageScores[promptId]?.[modelId];
+                let score: number | null = null;
+                if (result && !('error' in result) && typeof result.avgCoverageExtent === 'number' && !isNaN(result.avgCoverageExtent)) {
+                    score = result.avgCoverageExtent;
+                }
+                modelScores.push({ modelId, score });
+            });
+
+            modelScores.sort((a, b) => {
+                if (a.score === null) return 1;
+                if (b.score === null) return -1;
+                return b.score - a.score; // descending
+            });
+
+            const promptRanks = new Map<string, number>();
+            if (modelScores.length > 0 && modelScores[0].score !== null) {
+                let rank = 1;
+                promptRanks.set(modelScores[0].modelId, rank);
+                for (let i = 1; i < modelScores.length; i++) {
+                    const currentModelScore = modelScores[i];
+                    const prevModelScore = modelScores[i - 1];
+
+                    if (currentModelScore.score === null) {
+                        continue;
+                    }
+                    
+                    if (prevModelScore.score !== null && currentModelScore.score < prevModelScore.score) {
+                        rank = i + 1;
+                    }
+                    promptRanks.set(currentModelScore.modelId, rank);
+                }
+            }
+            ranks.set(promptId, promptRanks);
+        });
+
+        return ranks;
+    }, [allCoverageScores, promptIds, models]);
+
     const calculateModelAverageCoverage = React.useCallback((modelId: string): number | null => {
         if (!allCoverageScores) return null;
         let totalAvgExtent = 0;
@@ -198,6 +243,7 @@ export const useMacroCoverageData = (
         promptStats,
         calculateModelAverageCoverage,
         calculatePromptAverage,
+        promptModelRanks,
         OUTLIER_THRESHOLD_STD_DEV,
         HIGH_DISAGREEMENT_THRESHOLD_STD_DEV
     };

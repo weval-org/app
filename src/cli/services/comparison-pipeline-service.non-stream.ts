@@ -77,6 +77,11 @@ export async function generateAllResponses(
                                 temperature: temperatureForThisCall,
                                 useCache: useCache
                             });
+
+                            if (!finalAssistantResponseText || finalAssistantResponseText.trim() === '') {
+                                throw new Error('Model returned an empty or whitespace-only response.');
+                            }
+
                             hasError = checkForErrors(finalAssistantResponseText);
                             if (hasError) {
                                 const errorMatch = finalAssistantResponseText.match(/<error>([\s\S]*)<\/error>/);

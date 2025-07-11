@@ -1,9 +1,9 @@
-import { LLMApiCallOptions, LLMStreamApiCallOptions, StreamChunk, LLMApiCallResponse } from './types';
+import { LLMApiCallOptions, LLMApiCallResult, StreamChunk } from './types';
 import crypto from 'crypto';
 
 const OPENAI_API_BASE_URL = 'https://api.openai.com/v1';
 
-const llmCache = new Map<string, LLMApiCallResponse>();
+const llmCache = new Map<string, LLMApiCallResult>();
 
 function getCacheKey(input: LLMApiCallOptions): string {
     const hash = crypto.createHash('sha256').update(JSON.stringify(input)).digest('hex');
@@ -28,17 +28,12 @@ class OpenAIClient {
         };
     }
 
-    public async makeApiCall(options: LLMApiCallOptions): Promise<LLMApiCallResponse> {
-        const { modelName, messages: optionMessages, systemPrompt, temperature = 0.3, maxTokens = 1500, cache = true, prompt } = options;
+    public async makeApiCall(options: LLMApiCallOptions): Promise<LLMApiCallResult> {
+        // Extract modelName from modelId (format: "openai:gpt-4")
+        const modelName = options.modelId.split(':')[1] || options.modelId;
+        const { messages: optionMessages, systemPrompt, temperature = 0.3, maxTokens = 1500, timeout = 120000 } = options;
         
         const fetch = (await import('node-fetch')).default;
-
-        if (cache) {
-            const cacheKey = getCacheKey(options);
-            if (llmCache.has(cacheKey)) {
-                return llmCache.get(cacheKey)!;
-            }
-        }
 
         const messages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [];
 
@@ -48,12 +43,6 @@ class OpenAIClient {
             if (systemPrompt && !messages.find(m => m.role === 'system')) {
                  messages.unshift({ role: 'system', content: systemPrompt });
             }
-        } else {
-            // Fallback to legacy prompt string behavior
-            if (systemPrompt) {
-                messages.push({ role: 'system', content: systemPrompt });
-            }
-            messages.push({ role: 'user', content: prompt || '' });
         }
 
         const body = JSON.stringify({
@@ -65,11 +54,17 @@ class OpenAIClient {
         });
 
         try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeout);
+
             const response = await fetch(`${OPENAI_API_BASE_URL}/chat/completions`, {
                 method: 'POST',
                 headers: this.getHeaders(),
                 body,
+                signal: controller.signal,
             });
+
+            clearTimeout(timeoutId);
 
             if (!response.ok) {
                 const errorBody = await response.text();
@@ -78,21 +73,21 @@ class OpenAIClient {
 
             const jsonResponse = await response.json() as any;
             const responseText = jsonResponse.choices[0]?.message?.content?.trim() ?? '';
-            const result: LLMApiCallResponse = { responseText };
-
-            if (cache) {
-                const cacheKey = getCacheKey(options);
-                llmCache.set(cacheKey, result);
-            }
+            const result: LLMApiCallResult = { responseText };
 
             return result;
         } catch (error: any) {
+            if (error.name === 'AbortError') {
+                return { responseText: '', error: `OpenAI API request timed out after ${timeout}ms` };
+            }
             return { responseText: '', error: `Network or other error calling OpenAI: ${error.message}` };
         }
     }
 
-    public async *streamApiCall(options: LLMStreamApiCallOptions): AsyncGenerator<StreamChunk> {
-        const { modelName, messages, systemPrompt, temperature = 0.3, maxTokens = 2000 } = options;
+    public async *streamApiCall(options: LLMApiCallOptions): AsyncGenerator<StreamChunk> {
+        // Extract modelName from modelId (format: "openai:gpt-4")  
+        const modelName = options.modelId.split(':')[1] || options.modelId;
+        const { messages, systemPrompt, temperature = 0.3, maxTokens = 2000, timeout = 120000 } = options;
 
         const fetch = (await import('node-fetch')).default;
 
@@ -110,11 +105,17 @@ class OpenAIClient {
         });
 
         try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeout);
+
             const response = await fetch(`${OPENAI_API_BASE_URL}/chat/completions`, {
                 method: 'POST',
                 headers: this.getHeaders(),
                 body,
+                signal: controller.signal,
             });
+
+            clearTimeout(timeoutId);
 
             if (!response.ok || !response.body) {
                 const errorBody = await response.text();
@@ -143,7 +144,11 @@ class OpenAIClient {
                 }
             }
         } catch (error: any) {
-            yield { type: 'error', error: `Network or other error during OpenAI stream: ${error.message}` };
+            if (error.name === 'AbortError') {
+                yield { type: 'error', error: `OpenAI stream request timed out after ${timeout}ms` };
+            } else {
+                yield { type: 'error', error: `Network or other error during OpenAI stream: ${error.message}` };
+            }
         }
     }
 }

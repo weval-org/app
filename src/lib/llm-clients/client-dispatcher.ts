@@ -5,10 +5,10 @@ import { MistralClient } from './mistral-client';
 import { TogetherClient } from './together-client';
 import { XaiClient } from './xai-client';
 import { OpenRouterModuleClient } from './openrouter-client';
-import { LLMClient, LLMApiCallOptions, LLMStreamApiCallOptions, LLMApiCallResponse, StreamChunk } from './types';
+import { BaseLLMClient, LLMApiCallOptions, LLMStreamApiCallOptions, LLMApiCallResult, StreamChunk } from './types';
 
 // A mapping from provider prefix to the corresponding client *class*.
-const clientClassMap: Record<string, new () => LLMClient> = {
+const clientClassMap: Record<string, new (apiKey?: string) => any> = {
     'openrouter': OpenRouterModuleClient,
     'openai': OpenAIClient,
     'anthropic': AnthropicClient,
@@ -19,7 +19,7 @@ const clientClassMap: Record<string, new () => LLMClient> = {
 };
 
 // A cache for instantiated clients, to avoid creating new ones for every call.
-const clientInstances: Partial<Record<string, LLMClient>> = {};
+const clientInstances: Partial<Record<string, any>> = {};
 
 /**
  * Parses the model ID to extract the provider and the actual model name.
@@ -41,7 +41,7 @@ function parseModelId(modelId: string): { provider: string; modelName: string } 
  * @returns The corresponding LLM client.
  * @throws An error if the provider is unsupported.
  */
-function getClient(modelId: string): LLMClient {
+function getClient(modelId: string): any {
     const parsed = parseModelId(modelId);
     if (!parsed) {
         throw new Error(`Invalid modelId format: "${modelId}". Expected format: "<provider>:<model-name>"`);
@@ -70,28 +70,21 @@ function getClient(modelId: string): LLMClient {
  * A generic dispatcher for making non-streaming API calls to any supported LLM provider.
  * It determines the correct client from the modelId and forwards the call.
  */
-export async function dispatchMakeApiCall(options: Omit<LLMApiCallOptions, 'modelName'> & { modelId: string }): Promise<LLMApiCallResponse> {
-    const { modelId, ...restOptions } = options;
+export async function dispatchMakeApiCall(options: LLMApiCallOptions): Promise<LLMApiCallResult> {
+    const { modelId } = options;
     const client = getClient(modelId);
-    const parsed = parseModelId(modelId)!;
-
-    return client.makeApiCall({
-        ...restOptions,
-        modelName: parsed.modelName,
-    });
+    
+    // The client's makeApiCall method now expects the full options object.
+    return client.makeApiCall(options);
 }
 
 /**
  * A generic dispatcher for making streaming API calls to any supported LLM provider.
  * It determines the correct client from the modelId and forwards the call.
  */
-export function dispatchStreamApiCall(options: Omit<LLMStreamApiCallOptions, 'modelName'> & { modelId: string }): AsyncGenerator<StreamChunk> {
-    const { modelId, ...restOptions } = options;
+export function dispatchStreamApiCall(options: LLMApiCallOptions): AsyncGenerator<StreamChunk> {
+    const { modelId } = options;
     const client = getClient(modelId);
-    const parsed = parseModelId(modelId)!;
-
-    return client.streamApiCall({
-        ...restOptions,
-        modelName: parsed.modelName,
-    });
+    
+    return client.streamApiCall(options);
 } 

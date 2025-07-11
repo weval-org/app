@@ -9,6 +9,7 @@ import { ComparisonDataV2 as ImportedComparisonDataV2 } from '@/app/utils/types'
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { ConversationMessage } from '@/types/shared';
 import { cn } from '@/lib/utils';
+import PromptContextDisplay from './PromptContextDisplay';
 
 const User = dynamic(() => import('lucide-react').then(mod => mod.User), { ssr: false });
 const Bot = dynamic(() => import('lucide-react').then(mod => mod.Bot), { ssr: false });
@@ -29,45 +30,6 @@ const getRoleIcon = (role: 'user' | 'assistant' | 'system'): React.ReactNode => 
     }
 };
 
-const PromptContextDisplay: React.FC<{ promptContext: string | ConversationMessage[] | undefined }> = ({ promptContext }) => {
-    if (typeof promptContext === 'string') {
-        return (
-            <div className="prose dark:prose-invert max-w-none whitespace-pre-wrap p-3 bg-muted/50 rounded-md border">
-                <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
-                    {promptContext}
-                </ReactMarkdown>
-            </div>
-        );
-    }
-    if (Array.isArray(promptContext) && promptContext.length > 0) {
-      return (
-        <div className="space-y-4">
-          {promptContext.map((msg, index) => (
-            <div key={index} className="flex items-start gap-3">
-                <div className={cn(
-                    "rounded-full p-2",
-                    msg.role === 'user' ? 'bg-sky-100 dark:bg-sky-900/40' : 
-                    msg.role === 'assistant' ? 'bg-slate-200 dark:bg-slate-700/40' : 
-                    'bg-gray-200 dark:bg-gray-700/40'
-                )}>
-                    {getRoleIcon(msg.role as any)}
-                </div>
-                <div className="flex-1 pt-1">
-                    <p className="text-sm font-bold text-muted-foreground/90 dark:text-slate-400 capitalize">{msg.role}</p>
-                    <div className="prose dark:prose-invert max-w-none text-foreground dark:text-slate-200 whitespace-pre-wrap pt-1 font-bold">
-                        <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
-                            {msg.content}
-                        </ReactMarkdown>
-                    </div>
-                </div>
-            </div>
-          ))}
-        </div>
-      );
-    }
-    return <p className="italic">Prompt context not available.</p>;
-};
-
 interface PromptDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -82,7 +44,22 @@ const PromptDetailModal: React.FC<PromptDetailModalProps> = ({ isOpen, onClose, 
   }
 
   const promptContext = data.promptContexts?.[promptId];
+  const promptConfig = data.config.prompts.find(p => p.id === promptId);
+  
+  // Determine the single, effective system prompt
+  let effectiveSystemPrompt: string | null = null;
+  let conversationContext = promptContext;
 
+  if (Array.isArray(promptContext) && promptContext.length > 0 && promptContext[0].role === 'system') {
+    effectiveSystemPrompt = promptContext[0].content;
+    conversationContext = promptContext.slice(1); // Remove system message for display
+  } else if (promptConfig?.system) {
+    effectiveSystemPrompt = promptConfig.system;
+  } else if (typeof data.config.system === 'string') {
+    // This fallback might be needed if a prompt doesn't have a specific context but was run with a global prompt
+    effectiveSystemPrompt = data.config.system;
+  }
+  
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="w-[95vw] max-w-[95vw] h-[95vh] flex flex-col p-0">
@@ -95,7 +72,15 @@ const PromptDetailModal: React.FC<PromptDetailModalProps> = ({ isOpen, onClose, 
         <div className="flex-1 flex flex-col min-h-0">
             <div className='p-4 md:p-6 border-b flex-shrink-0'>
                 <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">The Prompt</h3>
-                <PromptContextDisplay promptContext={promptContext} />
+                {effectiveSystemPrompt && (
+                    <div className="mb-4">
+                        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">System Prompt</h4>
+                        <div className="p-3 rounded-md bg-green-50 dark:bg-green-900/40 ring-1 ring-green-200 dark:ring-green-800 text-sm text-green-900 dark:text-green-200 whitespace-pre-wrap">
+                            {effectiveSystemPrompt}
+                        </div>
+                    </div>
+                )}
+                <PromptContextDisplay promptContext={conversationContext} />
             </div>
             <div className="p-4 md:p-6 flex-1 min-h-0">
                 <KeyPointCoverageTable

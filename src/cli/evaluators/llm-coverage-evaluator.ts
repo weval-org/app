@@ -354,7 +354,7 @@ Output: <reflection>The text mentions empathy, which means the criterion is MET 
         try {
              const clientOptions: Omit<LLMApiCallOptions, 'modelName'> & { modelId: string } = {
                 modelId: modelId,
-                prompt: finalPrompt, 
+                messages: [{ role: 'user', content: finalPrompt }],
                 systemPrompt: systemPrompt,
                 temperature: 0.0,
                 maxTokens: 500,
@@ -488,6 +488,19 @@ Output: <reflection>The text mentions empathy, which means the criterion is MET 
 
             for (const [modelId, responseData] of Object.entries(promptData.modelResponses)) {
                 if (modelId === IDEAL_MODEL_ID) continue;
+
+                // Do not evaluate if the response text is missing or an error occurred during generation.
+                if (responseData.hasError || !responseData.finalAssistantResponseText) {
+                    const errorMessage = responseData.errorMessage || "Model response generation failed or returned empty.";
+                    this.logger.warn(`[LLMCoverageEvaluator] Skipping evaluation for model ${modelId} on prompt ${promptData.promptId} due to generation error: ${errorMessage}`);
+                    llmCoverageScores[promptData.promptId][modelId] = { error: `Generation failed: ${errorMessage}` };
+                    // Increment completed tasks even for skipped ones to keep progress accurate
+                    completedTasks++;
+                    if (onProgress) {
+                        await onProgress(completedTasks, totalTasks);
+                    }
+                    continue;
+                }
 
                 tasks.push(limit(async () => {
                     try {

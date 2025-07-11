@@ -58,8 +58,8 @@
     --slate-900: 0 0% 11%;
     --slate-950: 0 0% 5%;
 
-    /* Coverage Grade Colors - Light Theme */
-    --coverage-unmet: 0 75% 60%;
+    /* Coverage Grade Colors - Light Theme OLD OLD OLD */
+    /* --coverage-unmet: 0 75% 60%;
     --coverage-fully-met: 120 65% 50%;
     --coverage-no-extent: 40 80% 55%;
     --coverage-grade-0: 0 75% 60%;
@@ -71,7 +71,22 @@
     --coverage-grade-6: 75 65% 55%;
     --coverage-grade-7: 90 65% 55%;
     --coverage-grade-8: 100 65% 50%;
-    --coverage-grade-9: 110 65% 50%;
+    --coverage-grade-9: 110 65% 50%; */
+
+    --coverage-no-extent: 0 0% 70%;
+    --coverage-unmet: 0 65% 48%;
+    --coverage-grade-0: 0 65% 48%;
+    --coverage-grade-1: 0 75% 56%;
+    --coverage-grade-2: 0 70% 76%;
+    --coverage-grade-3: 0 67% 84%;
+    --coverage-grade-4: 0 71% 92%;
+    --coverage-grade-5: 134 61% 88%;
+    --coverage-grade-6: 134 68% 80%;
+    --coverage-grade-7: 134 61% 70%;
+    --coverage-grade-8: 134 61% 60%;
+    --coverage-grade-9: 134 61% 51%;
+    --coverage-fully-met: 140 61% 37%;
+
     --border-contrast: rgba(0, 0, 0, 0.1);
   }
 
@@ -129,8 +144,8 @@
     --slate-900: 330 3% 11%;
     --slate-950: 330 3% 5%;
 
-    /* Coverage Grade Colors - Dark Theme */
-    --coverage-unmet: 0 70% 50%;
+    /* Coverage Grade Colors - Dark Theme OLD OLD OLD */
+    /* --coverage-unmet: 0 70% 50%;
     --coverage-fully-met: 120 60% 40%;
     --coverage-no-extent: 40 70% 50%;
     --coverage-grade-0: 0 70% 50%;
@@ -142,7 +157,23 @@
     --coverage-grade-6: 75 60% 45%;
     --coverage-grade-7: 90 60% 45%;
     --coverage-grade-8: 100 60% 40%;
-    --coverage-grade-9: 110 60% 40%;
+    --coverage-grade-9: 110 60% 40%; */
+
+    --coverage-no-extent: 0 0% 70%;
+    --coverage-unmet: 0 65% 52%;
+    --coverage-grade-0: 0 65% 52%;
+    --coverage-grade-1: 0 75% 44%;
+    --coverage-grade-2: 0 70% 24%;
+    --coverage-grade-3: 0 67% 16%;
+    --coverage-grade-4: 0 71% 8%;
+    --coverage-grade-5: 134 61% 12%;
+    --coverage-grade-6: 134 68% 20%;
+    --coverage-grade-7: 134 61% 30%;
+    --coverage-grade-8: 134 61% 40%;
+    --coverage-grade-9: 134 61% 49%;
+    --coverage-fully-met: 140 61% 63%; 
+
+
     --border-contrast: rgba(255, 255, 255, 0.15);
   }
 }

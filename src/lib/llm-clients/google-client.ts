@@ -1,15 +1,8 @@
-import { LLMClient, LLMApiCallOptions, LLMApiCallResponse, LLMStreamApiCallOptions, StreamChunk } from './types';
+import { LLMApiCallOptions, LLMApiCallResult, StreamChunk } from './types';
 import crypto from 'crypto';
 import { ConversationMessage } from '@/types/shared';
 
 const GOOGLE_API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
-
-const llmCache = new Map<string, LLMApiCallResponse>();
-
-function getCacheKey(input: LLMApiCallOptions): string {
-    const hash = crypto.createHash('sha256').update(JSON.stringify(input)).digest('hex');
-    return `google:${hash}`;
-}
 
 // Helper to transform our standard messages to Google's format
 function toGoogleMessages(messages: ConversationMessage[], systemPrompt?: string | null) {
@@ -33,7 +26,7 @@ function toGoogleMessages(messages: ConversationMessage[], systemPrompt?: string
     return googleMessages;
 }
 
-class GoogleClient implements LLMClient {
+class GoogleClient {
     private apiKey: string;
 
     constructor(apiKey?: string) {
@@ -55,16 +48,11 @@ class GoogleClient implements LLMClient {
         };
     }
 
-    public async makeApiCall(options: LLMApiCallOptions): Promise<LLMApiCallResponse> {
-        const { modelName, messages, systemPrompt, temperature = 0.3, maxTokens = 1500, cache = true } = options;
+    public async makeApiCall(options: LLMApiCallOptions): Promise<LLMApiCallResult> {
+        // Extract modelName from modelId (format: "google:gemini-pro")
+        const modelName = options.modelId.split(':')[1] || options.modelId;
+        const { messages, systemPrompt, temperature = 0.3, maxTokens = 1500, timeout = 120000 } = options;
         const fetch = (await import('node-fetch')).default;
-
-        if (cache) {
-            const cacheKey = getCacheKey(options);
-            if (llmCache.has(cacheKey)) {
-                return llmCache.get(cacheKey)!;
-            }
-        }
 
         const body = JSON.stringify({
             contents: toGoogleMessages(messages || [], systemPrompt),
@@ -75,11 +63,17 @@ class GoogleClient implements LLMClient {
         });
 
         try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeout);
+
             const response = await fetch(this.getUrl(modelName, false), {
                 method: 'POST',
                 headers: this.getHeaders(),
                 body,
+                signal: controller.signal,
             });
+
+            clearTimeout(timeoutId);
 
             if (!response.ok) {
                 const errorBody = await response.text();
@@ -88,19 +82,21 @@ class GoogleClient implements LLMClient {
 
             const jsonResponse = await response.json() as any;
             const responseText = jsonResponse.candidates[0]?.content?.parts[0]?.text?.trim() ?? '';
-            const result: LLMApiCallResponse = { responseText };
+            const result: LLMApiCallResult = { responseText };
 
-            if (cache) {
-                llmCache.set(getCacheKey(options), result);
-            }
             return result;
         } catch (error: any) {
+            if (error.name === 'AbortError') {
+                return { responseText: '', error: `Google API request timed out after ${timeout}ms` };
+            }
             return { responseText: '', error: `Network or other error calling Google API: ${error.message}` };
         }
     }
 
-    public async *streamApiCall(options: LLMStreamApiCallOptions): AsyncGenerator<StreamChunk> {
-        const { modelName, messages, systemPrompt, temperature = 0.3, maxTokens = 2000 } = options;
+    public async *streamApiCall(options: LLMApiCallOptions): AsyncGenerator<StreamChunk> {
+        // Extract modelName from modelId (format: "google:gemini-pro")
+        const modelName = options.modelId.split(':')[1] || options.modelId;
+        const { messages, systemPrompt, temperature = 0.3, maxTokens = 2000, timeout = 120000 } = options;
         const fetch = (await import('node-fetch')).default;
 
         const body = JSON.stringify({
@@ -112,11 +108,17 @@ class GoogleClient implements LLMClient {
         });
 
         try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeout);
+
             const response = await fetch(this.getUrl(modelName, true), {
                 method: 'POST',
                 headers: this.getHeaders(),
                 body,
+                signal: controller.signal,
             });
+
+            clearTimeout(timeoutId);
 
             if (!response.ok || !response.body) {
                 const errorBody = await response.text();
@@ -143,7 +145,11 @@ class GoogleClient implements LLMClient {
                 }
             }
         } catch (error: any) {
-            yield { type: 'error', error: `Network or other error during Google stream: ${error.message}` };
+            if (error.name === 'AbortError') {
+                yield { type: 'error', error: `Google stream request timed out after ${timeout}ms` };
+            } else {
+                yield { type: 'error', error: `Network or other error during Google stream: ${error.message}` };
+            }
         }
     }
 }
