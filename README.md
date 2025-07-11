@@ -94,7 +94,7 @@ This example demonstrates the `run-config` command for local use.
 1.  **Create a Blueprint File**: Save a blueprint (like the one detailed under "Blueprint File Structure" below) to a local directory, e.g., `/evaluation_blueprints/my_test.yml`.
 2.  **Run the Command**: Execute the `run-config` command from your terminal.
     ```bash
-    pnpm cli run_config local --config evaluation_blueprints/my_test.yml --run-label "initial-test"
+    pnpm cli run-config local --config evaluation_blueprints/my_test.yml --run-label "initial-test"
     ```
 3.  **Start the Web Dashboard**:
     ```bash
@@ -106,12 +106,12 @@ This example demonstrates the `run-config` command for local use.
 
 This toolkit supports two primary workflows: a local, manual workflow for development and an automated, deployed workflow for continuous monitoring.
 
-**1. Local Development Workflow (`run_config`)**
+**1. Local Development Workflow (`run-config`)**
 
 This is the recommended method for creating and testing new blueprints.
 
 1.  **Create Blueprint**: Define your tests in a local YAML or JSON file.
-2.  **Execute**: Run `pnpm cli run_config ...`. This generates responses and evaluations, saving them to a local `_comparison.json` file in the `/.results/` directory.
+2.  **Execute**: Run `pnpm cli run-config ...`. This generates responses and evaluations, saving them to a local `_comparison.json` file in the `/.results/` directory.
 3.  **Analyze**: Start the web dashboard (`pnpm dev`) to view the local results.
 
 **2. Automated Deployed Workflow**
