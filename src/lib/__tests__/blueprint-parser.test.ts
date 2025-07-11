@@ -197,6 +197,49 @@ prompts:
                 { role: 'assistant', content: 'Hi there' },
             ]);
         });
+
+        test('should correctly parse prompt-level citation in YAML', () => {
+            const yamlWithCitation = `
+- id: test-prompt
+  prompt: "What is Beejamrut?"
+  ideal: "Beejamrut is an organic bio-fertilizer."
+  citation: "https://www.youtube.com/watch?v=example"
+  should:
+    - "Should mention organic bio-fertilizer"
+`;
+            const result = parseAndNormalizeBlueprint(yamlWithCitation, 'yaml');
+            
+            expect(result.prompts).toHaveLength(1);
+            const prompt = result.prompts[0];
+            expect(prompt.id).toBe('test-prompt');
+            expect(prompt.citation).toBe('https://www.youtube.com/watch?v=example');
+            expect(prompt.idealResponse).toBe('Beejamrut is an organic bio-fertilizer.');
+            expect(prompt.points).toHaveLength(1);
+        });
+
+        test('should correctly parse prompt-level citation in JSON', () => {
+            const jsonWithCitation = `{
+                "prompts": [
+                    {
+                        "id": "test-prompt",
+                        "promptText": "What is Beejamrut?",
+                        "idealResponse": "Beejamrut is an organic bio-fertilizer.",
+                        "citation": "https://www.youtube.com/watch?v=example",
+                        "points": [
+                            { "text": "Should mention organic bio-fertilizer", "multiplier": 1.0 }
+                        ]
+                    }
+                ]
+            }`;
+            const result = parseAndNormalizeBlueprint(jsonWithCitation, 'json');
+            
+            expect(result.prompts).toHaveLength(1);
+            const prompt = result.prompts[0];
+            expect(prompt.id).toBe('test-prompt');
+            expect(prompt.citation).toBe('https://www.youtube.com/watch?v=example');
+            expect(prompt.idealResponse).toBe('Beejamrut is an organic bio-fertilizer.');
+            expect(prompt.points).toHaveLength(1);
+        });
         
         test('should generate a stable hash-based ID for a prompt without an ID', () => {
             const yamlContent = `

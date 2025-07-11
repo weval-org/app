@@ -43,7 +43,6 @@ interface FormPanelProps {
 const GUIDE_DISMISSED_KEY = 'sandbox_guide_dismissed';
 
 export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEditable, onShowTour }: FormPanelProps) {
-    const [promptToDeleteIndex, setPromptToDeleteIndex] = useState<number | null>(null);
     const [isAutoExtendModalOpen, setIsAutoExtendModalOpen] = useState(false);
     const [isExtending, setIsExtending] = useState(false);
     const [showGuide, setShowGuide] = useState(true);
@@ -94,18 +93,12 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
         onUpdate(nextState);
     };
 
-    const handleRequestRemovePrompt = (index: number) => {
-        setPromptToDeleteIndex(index);
-    };
-
-    const handleConfirmRemovePrompt = () => {
-        if (promptToDeleteIndex === null) return;
+    const handleRemovePrompt = (index: number) => {
         if (!parsedBlueprint) return;
         const nextState = produce(parsedBlueprint, draft => {
-            draft.prompts.splice(promptToDeleteIndex, 1);
+            draft.prompts.splice(index, 1);
         });
         onUpdate(nextState);
-        setPromptToDeleteIndex(null);
     };
 
     const handleDuplicatePrompt = (index: number) => {
@@ -257,7 +250,7 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
                         key={index}
                         prompt={prompt}
                         onUpdate={(p) => handleUpdatePrompt(index, p)}
-                        onRemove={() => handleRequestRemovePrompt(index)}
+                        onRemove={() => handleRemovePrompt(index)}
                         onDuplicate={() => handleDuplicatePrompt(index)}
                         isEditable={isEditable}
                     />
@@ -284,22 +277,7 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
                         {isExtending ? 'Extending...' : 'Auto-extend'}
                 </Button>
             </div>
-            <Dialog open={promptToDeleteIndex !== null} onOpenChange={(isOpen) => !isOpen && setPromptToDeleteIndex(null)}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Are you absolutely sure?</DialogTitle>
-                        <DialogDescription>
-                            This action cannot be undone. This will permanently delete the prompt.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                        <Button variant="ghost" onClick={() => setPromptToDeleteIndex(null)}>Cancel</Button>
-                        <Button variant="destructive" onClick={handleConfirmRemovePrompt}>
-                            Delete
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+
             <AutoExtendModal
                 isOpen={isAutoExtendModalOpen}
                 onOpenChange={setIsAutoExtendModalOpen}

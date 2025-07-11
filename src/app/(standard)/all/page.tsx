@@ -7,20 +7,13 @@ import nextDynamic from 'next/dynamic';
 import { PaginationControls } from './PaginationControls';
 import { fromSafeTimestamp } from '@/lib/timestampUtils';
 import { normalizeTag } from '@/app/utils/tagUtils';
+import { processBlueprintSummaries, BlueprintSummaryInfo } from '@/app/utils/blueprintSummaryUtils';
+import DetailedBlueprintCard from '@/app/components/home/DetailedBlueprintCard';
 
 const ArrowLeft = nextDynamic(() => import('lucide-react').then(mod => mod.ArrowLeft));
 const TagIcon = nextDynamic(() => import('lucide-react').then(mod => mod.Tag));
 
 const ITEMS_PER_PAGE = 20;
-
-interface BlueprintIndexItem {
-    id: string;
-    title: string;
-    description: string | null;
-    latestRunTimestamp: string | null;
-    totalRuns: number;
-    tags: string[];
-}
 
 export default async function AllBlueprintsPage(props: {
     searchParams: Promise<{ page?: string }>;
@@ -42,16 +35,8 @@ export default async function AllBlueprintsPage(props: {
 
     const results = await Promise.all(blueprintPromises);
 
-    const blueprints: BlueprintIndexItem[] = results
-        .filter((summary): summary is EnhancedComparisonConfigInfo => summary !== null)
-        .map(summary => ({
-            id: summary.configId,
-            title: summary.title || summary.configTitle || summary.configId,
-            description: summary.description || null,
-            latestRunTimestamp: summary.latestRunTimestamp,
-            totalRuns: summary.runs?.length || 0,
-            tags: summary.tags || [],
-        }));
+    const filteredResults = results.filter((summary): summary is EnhancedComparisonConfigInfo => summary !== null);
+    const blueprints: BlueprintSummaryInfo[] = processBlueprintSummaries(filteredResults);
         
     // Sort by latest run to ensure the most recently active blueprints are at the top
     blueprints.sort((a, b) => {
@@ -63,11 +48,13 @@ export default async function AllBlueprintsPage(props: {
     // Create a Set of all unique, non-featured tags
     const allTags = new Set<string>();
     blueprints.forEach(config => {
-        config.tags.forEach(tag => {
-            if (!tag.startsWith('_')) {
-                allTags.add(tag);
-            }
-        });
+        if (config.tags) {
+            config.tags.forEach(tag => {
+                if (!tag.startsWith('_')) {
+                    allTags.add(tag);
+                }
+            });
+        }
     });
     const sortedTags = Array.from(allTags).sort((a, b) => a.localeCompare(b));
 
@@ -77,7 +64,7 @@ export default async function AllBlueprintsPage(props: {
             
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
                 <div className="flex justify-between items-center mb-8">
-                    <h2 className="text-3xl font-bold tracking-tight">All Evaluation Blueprints ({allConfigIds.length})</h2>
+                    <h2 className="text-3xl font-bold tracking-tight">All Evaluations ({allConfigIds.length})</h2>
                     <Button asChild variant="ghost">
                         <Link href="/">
                             {ArrowLeft && <ArrowLeft className="w-4 h-4 mr-2" />}
@@ -88,20 +75,7 @@ export default async function AllBlueprintsPage(props: {
                 
                 <div className="space-y-4">
                     {blueprints.map(bp => (
-                        <Link key={bp.id} href={`/analysis/${bp.id}`} className="block">
-                            <div className="bg-card/80 dark:bg-card/60 p-5 rounded-lg border border-border dark:border-border/60 shadow-sm hover:shadow-md hover:border-primary/30 dark:hover:border-primary/50 transition-all duration-200">
-                                <h3 className="font-semibold text-lg text-primary">{bp.title}</h3>
-                                <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{bp.description || 'No description available.'}</p>
-                                <div className="text-xs text-muted-foreground/80 dark:text-muted-foreground/80 mt-3 flex items-center justify-between">
-                                    <span>
-                                        <strong>{bp.totalRuns}</strong> {bp.totalRuns === 1 ? 'run' : 'runs'} recorded
-                                    </span>
-                                    {bp.latestRunTimestamp && (
-                                        <span>Last run: {new Date(fromSafeTimestamp(bp.latestRunTimestamp)).toLocaleDateString()}</span>
-                                    )}
-                                </div>
-                            </div>
-                        </Link>
+                        <DetailedBlueprintCard key={bp.configId} blueprint={bp} />
                     ))}
                 </div>
 

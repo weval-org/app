@@ -3,14 +3,12 @@
 import React from 'react';
 import dynamic from 'next/dynamic';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import KeyPointCoverageTable from './KeyPointCoverageTable';
 import { ComparisonDataV2 as ImportedComparisonDataV2 } from '@/app/utils/types';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
-import { ConversationMessage } from '@/types/shared';
-import { cn } from '@/lib/utils';
 import PromptContextDisplay from './PromptContextDisplay';
 
+const Quote = dynamic(() => import('lucide-react').then(mod => mod.Quote), { ssr: false });
 const User = dynamic(() => import('lucide-react').then(mod => mod.User), { ssr: false });
 const Bot = dynamic(() => import('lucide-react').then(mod => mod.Bot), { ssr: false });
 const Terminal = dynamic(() => import('lucide-react').then(mod => mod.Terminal), { ssr: false });
@@ -72,6 +70,19 @@ const PromptDetailModal: React.FC<PromptDetailModalProps> = ({ isOpen, onClose, 
         <div className="flex-1 flex flex-col min-h-0">
             <div className='p-4 md:p-6 border-b flex-shrink-0'>
                 <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">The Prompt</h3>
+                {promptConfig?.description && (
+                    <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground border-l-4 border-primary/20 pl-4 py-1 mb-4">
+                        <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{promptConfig.description}</ReactMarkdown>
+                    </div>
+                )}
+                
+                {promptConfig?.citation && (
+                    <div className="flex items-start space-x-1.5 text-xs text-muted-foreground/90 italic border-l-2 border-border pl-3 py-2 mb-4">
+                        <Quote className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                        <span>Source: {promptConfig.citation}</span>
+                    </div>
+                )}
+                
                 {effectiveSystemPrompt && (
                     <div className="mb-4">
                         <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">System Prompt</h4>

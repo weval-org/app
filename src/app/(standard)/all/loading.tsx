@@ -27,7 +27,7 @@ export default function AllBlueprintsLoading() {
             
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
                 <div className="flex justify-between items-center mb-8">
-                    <h2 className="text-3xl font-bold tracking-tight">All Evaluation Blueprints (...)</h2>
+                    <h2 className="text-3xl font-bold tracking-tight">All Evaluations (...)</h2>
                     <Button asChild variant="ghost" disabled>
                         <Link href="/">
                             {ArrowLeft && <ArrowLeft className="w-4 h-4 mr-2" />}

@@ -2,16 +2,12 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 
 import SimilarityGraph from '@/app/analysis/components/SimilarityGraph';
 import DendrogramChart from '@/app/analysis/components/DendrogramChart';
 import KeyPointCoverageTable from '@/app/analysis/components/KeyPointCoverageTable';
-import KeyPointCoverageComparisonDisplay from '@/app/analysis/components/KeyPointCoverageComparisonDisplay';
-import SemanticExtremesDisplay from '@/app/analysis/components/SemanticExtremesDisplay';
 import SystemPromptsDisplay from '@/app/analysis/components/SystemPromptsDisplay';
 import {
     ComparisonDataV2 as ImportedComparisonDataV2,
@@ -23,6 +19,7 @@ import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import ModelEvaluationDetailModalV2, { ModelEvaluationDetailModalData } from '@/app/analysis/components/ModelEvaluationDetailModalV2';
 import { ResponseComparisonModal } from '@/app/analysis/components/ResponseComparisonModal';
 
+const Quote = dynamic(() => import('lucide-react').then(mod => mod.Quote), { ssr: false });
 const HelpCircle = dynamic(() => import("lucide-react").then(mod => mod.HelpCircle));
 const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
 const RemarkGfm = dynamic(() => import('remark-gfm'), { ssr: false });
@@ -151,6 +148,13 @@ export const SinglePromptView: React.FC<SinglePromptViewProps> = ({
                 {promptConfig?.description && (
                     <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground border-l-4 border-primary/20 pl-4 py-1">
                         <ReactMarkdown remarkPlugins={[RemarkGfm as any]}>{promptConfig.description}</ReactMarkdown>
+                    </div>
+                )}
+                
+                {promptConfig?.citation && (
+                    <div className="flex items-start space-x-1.5 text-xs text-muted-foreground/90 italic border-l-2 border-border pl-3 py-2">
+                        <Quote className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                        <span>Source: {promptConfig.citation}</span>
                     </div>
                 )}
                 

@@ -205,6 +205,14 @@ temperatures: [0.0, 0.5, 0.8]
 
 - id: creative-story
   prompt: "Write a short story opening (100 words) about a detective discovering a mysterious antique map."
+
+- id: agricultural-practice
+  prompt: "How can Beejamrut be beneficial for farmers in comparison to chemical fertilizers?"
+  ideal: "Beejamrut is an organic bio-fertilizer consisting of cow dung, cow urine, water, and sometimes lime..."
+  citation: "https://www.youtube.com/watch?v=example"
+  should:
+    - "Should identify Beejamrut as an organic bio-fertilizer."
+    - "Should explain benefits for soil health and sustainability."
 ```
 
 For full details on rubric syntax (`should` and `should_not` blocks), system prompt usage, and convenience aliases, please see the [Blueprint Format Documentation](docs/BLUEPRINT_FORMAT.md) and the [Points Documentation](docs/POINTS_DOCUMENTATION.md).

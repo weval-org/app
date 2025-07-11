@@ -8,6 +8,7 @@ import {
 import { ConversationMessage } from '@/types/shared';
 import { ModelEvaluationDetailModalData } from '@/app/analysis/components/ModelEvaluationDetailModalV2';
 import { parseEffectiveModelId } from '@/app/utils/modelIdUtils';
+import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 
 interface OpenModalOptions {
     promptId: string;
@@ -127,12 +128,16 @@ export function usePageInteraction(data: ComparisonDataV2 | null) {
 
         const baseModelId = clickedParsed.temperature !== undefined ? `${clickedParsed.baseId}[temp:${clickedParsed.temperature}]` : clickedParsed.baseId;
 
+        const idealResponse = data.allFinalAssistantResponses?.[promptId]?.[IDEAL_MODEL_ID];
+
         const modalData: ModelEvaluationDetailModalData = {
             baseModelId: baseModelId,
             promptContext: promptContext,
             promptDescription: promptConfig?.description,
+            promptCitation: promptConfig?.citation,
             variantEvaluations: variantEvaluations,
             initialVariantIndex: clickedParsed.systemPromptIndex ?? 0,
+            idealResponse: idealResponse,
         };
 
         return modalData;

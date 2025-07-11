@@ -23,7 +23,7 @@ const DEFAULT_ADVANCED_MODELS = [
     'openrouter:google/gemini-flash-1.5'
 ];
 
-const SANDBOX_V2_TEMP_DIR = 'sandbox'; // New directory for V2 runs
+const SANDBOX_V2_TEMP_DIR = 'sandbox';
 
 // S3 Client Initialization
 const s3Client = new S3Client({

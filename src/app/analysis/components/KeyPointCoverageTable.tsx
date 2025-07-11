@@ -39,14 +39,12 @@ const GitCompareArrows = dynamic(() => import("lucide-react").then((mod) => mod.
 
 // --- Components adapted from SharedEvaluationComponents ---
 
-
-
-
 const ModelCard: React.FC<{
     modelId: string;
     coverageResult: CoverageResult | undefined;
     response: string;
-}> = ({ modelId, coverageResult, response }) => {
+    idealResponse?: string;
+}> = ({ modelId, coverageResult, response, idealResponse }) => {
     const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
     
     const toggleLogExpansion = (index: number) => {
@@ -77,6 +75,7 @@ const ModelCard: React.FC<{
                 <EvaluationView 
                     assessments={assessments}
                     modelResponse={response}
+                    idealResponse={idealResponse}
                     expandedLogs={expandedLogs}
                     toggleLogExpansion={toggleLogExpansion}
                     isMobile={false}
@@ -271,11 +270,12 @@ const ModelView: React.FC<{
             
             <div className="flex-grow min-w-0 flex flex-col min-h-0">
                  {selectedModelId ? (
-                    <ModelCard
-                        modelId={selectedModelId}
-                        coverageResult={selectedModelCoverage}
-                        response={selectedModelResponse}
-                    />
+                                    <ModelCard
+                    modelId={selectedModelId}
+                    coverageResult={selectedModelCoverage}
+                    response={selectedModelResponse}
+                    idealResponse={promptResponses[IDEAL_MODEL_ID]}
+                />
                 ) : (
                     <div className="flex items-center justify-center h-full p-8 bg-muted/30 rounded-lg">
                         <p className="text-muted-foreground italic">Select a model to view its detailed evaluation.</p>

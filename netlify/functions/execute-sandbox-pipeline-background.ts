@@ -11,6 +11,7 @@ import { toSafeTimestamp } from '@/lib/timestampUtils';
 import { generateExecutiveSummary } from '@/cli/services/executive-summary-service';
 import { ConversationMessage } from '@/types/shared';
 import { normalizeTag } from '@/app/utils/tagUtils';
+import { configure } from '@/cli/config';
 
 const s3Client = new S3Client({
   region: process.env.APP_S3_REGION!,
@@ -54,6 +55,21 @@ export const handler: BackgroundHandler = async (event) => {
   const body = event.body ? JSON.parse(event.body) : {};
   const { runId, blueprintKey, sandboxVersion } = body;
   
+  // Configure CLI before any CLI services are used
+  configure({
+    errorHandler: (error: Error) => {
+      logger.error(`[Sandbox Pipeline] CLI Error: ${error.message}`);
+    },
+    logger: {
+      info: (msg: string) => logger.info(msg),
+      warn: (msg: string) => logger.warn(msg), 
+      error: (msg: string) => logger.error(msg),
+      success: (msg: string) => logger.success(msg),
+    }
+  });
+  
+  logger.info(`[Sandbox Pipeline] CLI configured for runId: ${runId}`);
+  
   const updateStatus = getStatusUpdater(runId, sandboxVersion);
   const directory = sandboxVersion === 'v2' ? 'sandbox' : 'sandbox';
 
@@ -83,13 +99,17 @@ export const handler: BackgroundHandler = async (event) => {
 
     await updateStatus('generating_responses', 'Generating model responses...');
     
+    logger.info(`[Sandbox Pipeline] About to generate responses for models: ${config.models?.join(', ')}`);
+    
     const generationProgressCallback = async (completed: number, total: number) => {
         await updateStatus('generating_responses', 'Generating model responses...', {
             progress: { completed, total },
         });
     };
 
+    logger.info(`[Sandbox Pipeline] Calling generateAllResponses with ${config.prompts?.length} prompts and ${config.models?.length} models`);
     const allResponsesMap = await generateAllResponses(config, logger, true, generationProgressCallback);
+    logger.info(`[Sandbox Pipeline] generateAllResponses completed, got ${allResponsesMap.size} prompt responses`);
 
     await updateStatus('evaluating', 'Running evaluations...');
     

@@ -2,14 +2,12 @@
 
 import React from 'react';
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import MacroCoverageTable from '@/app/analysis/components/MacroCoverageTable';
 import DatasetStatistics from '@/app/analysis/components/DatasetStatistics';
 import { ActiveHighlight } from '@/app/analysis/components/CoverageTableLegend';
-import PerModelHybridScoresCard from '@/app/analysis/components/PerModelHybridScoresCard';
 import DendrogramChart from '@/app/analysis/components/DendrogramChart';
 import SystemPromptsDisplay from '@/app/analysis/components/SystemPromptsDisplay';
 import {
@@ -79,7 +77,7 @@ export const AggregateAnalysisView: React.FC<AggregateAnalysisViewProps> = ({
     promptTextsForMacroTable,
 }) => {
     const [selectedPromptIdForModal, setSelectedPromptIdForModal] = React.useState<string | null>(null);
-    
+
     const {
         overallIdealExtremes,
         overallAvgCoverageStats,
@@ -91,6 +89,13 @@ export const AggregateAnalysisView: React.FC<AggregateAnalysisViewProps> = ({
         perSystemVariantHybridScores,
         perTemperatureVariantHybridScores
     } = analysisStats;
+
+
+    console.log('Condition on whether PerModelHybridScoresCard will display and its props', {
+        conditionOfDisplay: calculatedPerModelHybridScores.size > 0 && displayedModels.length > 0,
+        calculatedPerModelHybridScores,
+        displayedModels,
+    })
     
     const { promptIds, evalMethodsUsed, allFinalAssistantResponses } = data;
 
@@ -162,14 +167,6 @@ export const AggregateAnalysisView: React.FC<AggregateAnalysisViewProps> = ({
             
             {evalMethodsUsed.includes('llm-coverage') && data.evaluationResults?.llmCoverageScores && (
                 <>
-                    {calculatedPerModelHybridScores.size > 0 && displayedModels.length > 0 && (
-                        <PerModelHybridScoresCard
-                            perModelHybridScores={calculatedPerModelHybridScores}
-                            perModelSemanticSimilarityScores={calculatedPerModelSemanticScores}
-                            modelIds={displayedModels.filter(m => m !== IDEAL_MODEL_ID)}
-                        />
-                    )}
-
                     <Card className="shadow-lg border-border dark:border-border">
                         <CardHeader>
                             <div className="flex justify-between items-center">

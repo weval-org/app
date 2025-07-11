@@ -14,11 +14,18 @@ class OpenAIClient {
     private apiKey: string;
 
     constructor(apiKey?: string) {
+        console.log(`[OpenAIClient] Initializing OpenAI client`);
+        console.log(`[OpenAIClient] API key provided as parameter: ${apiKey ? 'YES' : 'NO'}`);
+        console.log(`[OpenAIClient] OPENAI_API_KEY env var present: ${process.env.OPENAI_API_KEY ? 'YES' : 'NO'}`);
+        
         const key = apiKey || process.env.OPENAI_API_KEY;
         if (!key) {
-            throw new Error('OPENAI_API_KEY is not set in environment variables');
+            const error = 'OPENAI_API_KEY is not set in environment variables';
+            console.error(`[OpenAIClient] ${error}`);
+            throw new Error(error);
         }
         this.apiKey = key;
+        console.log(`[OpenAIClient] Successfully initialized with API key (length: ${key.length})`);
     }
 
     private getHeaders() {
@@ -29,8 +36,12 @@ class OpenAIClient {
     }
 
     public async makeApiCall(options: LLMApiCallOptions): Promise<LLMApiCallResult> {
+        console.log(`[OpenAIClient] makeApiCall called for modelId: ${options.modelId}`);
+        
         // Extract modelName from modelId (format: "openai:gpt-4")
         const modelName = options.modelId.split(':')[1] || options.modelId;
+        console.log(`[OpenAIClient] Extracted model name: ${modelName}`);
+        
         const { messages: optionMessages, systemPrompt, temperature = 0.3, maxTokens = 1500, timeout = 120000 } = options;
         
         const fetch = (await import('node-fetch')).default;

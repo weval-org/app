@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { MobilePromptList } from './MobilePromptList';
 import { MobilePromptDetail } from './MobilePromptDetail';
 import { AllCoverageScores, AllFinalAssistantResponses } from '../types';
+import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 
 export interface PromptPerformance {
     promptId: string;
@@ -57,6 +58,10 @@ export const MobileModelPerformanceAnalysis: React.FC<MobileModelPerformanceAnal
         ? promptPerformances.find(p => p.promptId === selectedPromptId)
         : null;
 
+    const idealResponse = selectedPromptId 
+        ? allFinalAssistantResponses?.[selectedPromptId]?.[IDEAL_MODEL_ID]
+        : undefined;
+
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="w-[100vw] h-[100vh] max-w-none p-0 m-0 rounded-none border-0 bg-background flex flex-col overflow-hidden">
@@ -83,6 +88,7 @@ export const MobileModelPerformanceAnalysis: React.FC<MobileModelPerformanceAnal
                             modelDisplayName={modelDisplayName}
                             coverageResult={selectedPromptPerformance.coverageResult}
                             response={selectedPromptPerformance.response || ''}
+                            idealResponse={idealResponse}
                             score={selectedPromptPerformance.score}
                             rank={selectedPromptPerformance.rank}
                             onBack={handleBackToList}

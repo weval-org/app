@@ -14,6 +14,10 @@ export type SortOption =
 const OUTLIER_THRESHOLD_STD_DEV = 1.5;
 const HIGH_DISAGREEMENT_THRESHOLD_STD_DEV = 0.3; // StDev threshold for judge scores
 
+export interface PromptStats {
+    avg: number | null;
+    stdDev: number | null;
+}
 
 export const useMacroCoverageData = (
     allCoverageScores: AllCoverageScores | undefined | null,
@@ -22,7 +26,7 @@ export const useMacroCoverageData = (
     sortOption: SortOption = 'alpha-asc'
 ) => {
     const promptStats = React.useMemo(() => {
-        const newPromptStats = new Map<string, { avg: number | null, stdDev: number | null }>();
+        const newPromptStats = new Map<string, PromptStats>();
         if (!allCoverageScores) return newPromptStats;
 
         promptIds.forEach(promptId => {

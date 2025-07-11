@@ -17,6 +17,7 @@ import type { CheckedState } from '@radix-ui/react-checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ModelPerformanceModal from './ModelPerformanceModal';
 import { ComparisonDataV2 as ImportedComparisonDataV2 } from '@/app/utils/types';
+import { useActiveHighlights } from '../hooks/useActiveHighlights';
 
 const UsersIcon = dynamic(() => import("lucide-react").then((mod) => mod.Users), { ssr: false });
 const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.AlertCircle), { ssr: false });
@@ -76,7 +77,6 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
     const [sortOption, setSortOption] = useState<SortOption>('alpha-asc');
     const [highlightBestInClass, setHighlightBestInClass] = useState<boolean>(false);
     const [simplifiedView, setSimplifiedView] = useState<boolean>(false);
-    const [activeHighlights, setActiveHighlights] = useState<Set<ActiveHighlight>>(new Set());
     const [errorModalOpen, setErrorModalOpen] = useState<boolean>(false);
     const [errorModalContent, setErrorModalContent] = useState<string>('');
 
@@ -95,6 +95,14 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
         promptModelRanks,
     } = useMacroCoverageData(allCoverageScores, promptIds, models, sortOption);
 
+    const activeHighlights = useActiveHighlights(
+        allCoverageScores,
+        sortedPromptIds,
+        localSortedModels,
+        promptStats,
+        permutationSensitivityMap
+    );
+
     useEffect(() => {
         Promise.all([
             import('react-markdown'),
@@ -105,73 +113,11 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
     }, []);
 
     useEffect(() => {
-        const highlights = new Set<ActiveHighlight>();
-        if (!allCoverageScores) {
-            if (onActiveHighlightsChange) onActiveHighlightsChange(highlights);
-            return;
-        }
-
-        // Part 1: Populate highlights based on currently visible cells
-        sortedPromptIds.forEach(promptId => {
-            const pStats = promptStats.get(promptId);
-            
-            localSortedModels.forEach(modelId => {
-                const result = allCoverageScores[promptId]?.[modelId];
-                if (!result || 'error' in result) return;
-                
-                // Check for outliers
-                const cellScoreNum = result.avgCoverageExtent;
-                if (typeof cellScoreNum === 'number') {
-                    if (pStats && pStats.avg !== null && pStats.stdDev !== null && pStats.stdDev > 1e-9) { 
-                        if (Math.abs(cellScoreNum - pStats.avg) > OUTLIER_THRESHOLD_STD_DEV * pStats.stdDev) {
-                            highlights.add('outlier');
-                        }
-                    }
-                }
-
-                // Check for disagreement and critical failures
-                if (result.pointAssessments) {
-                    for (const assessment of result.pointAssessments) {
-                        if (assessment.individualJudgements && assessment.individualJudgements.length > 1) {
-                            const scores = assessment.individualJudgements.map(j => j.coverageExtent);
-                            const n = scores.length;
-                            const mean = scores.reduce((a, b) => a + b, 0) / n;
-                            const stdDev = Math.sqrt(scores.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b) / n);
-                            if (stdDev > HIGH_DISAGREEMENT_THRESHOLD_STD_DEV) {
-                                highlights.add('disagreement');
-                            }
-                        }
-                        if ((assessment as any).isInverted) {
-                            const isPassing = assessment.coverageExtent !== undefined && assessment.coverageExtent >= 0.7;
-                            if (!isPassing) {
-                                highlights.add('critical_failure');
-                            }
-                        }
-                    }
-                }
-            });
-        });
-
-        // Part 2: Populate permutation sensitivity highlights from the entire dataset, independent of the current view
-        if (permutationSensitivityMap) {
-            for (const sensitivity of permutationSensitivityMap.values()) {
-                if (sensitivity === 'temp' || sensitivity === 'both') {
-                    highlights.add('temp_sensitivity');
-                }
-                if (sensitivity === 'sys' || sensitivity === 'both') {
-                    highlights.add('sys_sensitivity');
-                }
-            }
-        }
-
-        // Set local state for internal legend
-        setActiveHighlights(highlights);
-
-        // Also notify parent component
+        // Notify parent component when highlights change
         if (onActiveHighlightsChange) {
-            onActiveHighlightsChange(highlights);
+            onActiveHighlightsChange(activeHighlights);
         }
-    }, [allCoverageScores, sortedPromptIds, localSortedModels, promptStats, onActiveHighlightsChange, OUTLIER_THRESHOLD_STD_DEV, HIGH_DISAGREEMENT_THRESHOLD_STD_DEV, permutationSensitivityMap]);
+    }, [activeHighlights, onActiveHighlightsChange]);
 
     if (!allCoverageScores) {
         return <p className="p-4 text-muted-foreground italic">Macro coverage data not available at all.</p>;
@@ -256,8 +202,9 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
             const bgColorClass = avgExtent !== undefined ? getGradedCoverageColor(true, avgExtent) : 'bg-muted/80';
             
             return (
-                <div className="w-full h-full flex items-center justify-center" title={tooltipText}>
-                    <span className={`px-2 py-1 rounded-md text-white font-semibold text-sm ${bgColorClass} w-full text-center`}>
+                <div className="w-full h-full flex flex-col items-center justify-center gap-1" title={tooltipText}>
+                    <div className={`w-full h-3 rounded-sm ${bgColorClass}`} />
+                    <span className="text-xs text-foreground font-medium">
                         {avgExtent !== undefined ? `${(avgExtent * 100).toFixed(0)}%` : 'N/A'}
                     </span>
                 </div>
@@ -622,7 +569,11 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                                                 title={`View details for prompt ID ${promptId}: ${getPromptText(promptId)}`}
                                             >
                                                 <span className={promptTextContainerClasses} style={promptTextContainerStyle}>
-                                                    <small style={{fontSize: "0.8em", fontFamily: "monospace", color: "hsl(var(--muted-foreground))"}}>{promptId}</small><br/>
+                                                    {!simplifiedView && (
+                                                        <>
+                                                            <small style={{fontSize: "0.8em", fontFamily: "monospace", color: "hsl(var(--muted-foreground))"}}>{promptId}</small><br/>
+                                                        </>
+                                                    )}
                                                     {getPromptText(promptId)}
                                                 </span>
                                             </button>
@@ -633,7 +584,11 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                                                 title={`View details for prompt ID ${promptId}: ${getPromptText(promptId)}`}
                                             >
                                                 <span className={promptTextContainerClasses} style={promptTextContainerStyle}>
-                                                    <small style={{fontSize: "0.8em", fontFamily: "monospace", color: "hsl(var(--muted-foreground))"}}>{promptId}</small><br/>
+                                                    {!simplifiedView && (
+                                                        <>
+                                                            <small style={{fontSize: "0.8em", fontFamily: "monospace", color: "hsl(var(--muted-foreground))"}}>{promptId}</small><br/>
+                                                        </>
+                                                    )}
                                                     {getPromptText(promptId)}
                                                 </span>
                                             </Link>

@@ -42,28 +42,43 @@ function parseModelId(modelId: string): { provider: string; modelName: string } 
  * @throws An error if the provider is unsupported.
  */
 function getClient(modelId: string): any {
+    console.log(`[ClientDispatcher] Getting client for modelId: ${modelId}`);
+    
     const parsed = parseModelId(modelId);
     if (!parsed) {
-        throw new Error(`Invalid modelId format: "${modelId}". Expected format: "<provider>:<model-name>"`);
+        const error = `Invalid modelId format: "${modelId}". Expected format: "<provider>:<model-name>"`;
+        console.error(`[ClientDispatcher] ${error}`);
+        throw new Error(error);
     }
     
     const { provider } = parsed;
+    console.log(`[ClientDispatcher] Parsed provider: ${provider}, model: ${parsed.modelName}`);
 
     // Check if we already have an instance for this provider
     if (clientInstances[provider]) {
+        console.log(`[ClientDispatcher] Using cached client for provider: ${provider}`);
         return clientInstances[provider]!;
     }
     
     const ClientClass = clientClassMap[provider];
     if (!ClientClass) {
-        throw new Error(`Unsupported LLM provider: "${provider}" from model ID "${modelId}". Supported providers are: ${Object.keys(clientClassMap).join(', ')}.`);
+        const error = `Unsupported LLM provider: "${provider}" from model ID "${modelId}". Supported providers are: ${Object.keys(clientClassMap).join(', ')}.`;
+        console.error(`[ClientDispatcher] ${error}`);
+        throw new Error(error);
     }
     
-    // Instantiate the client on-demand. This is where the API key check will happen.
-    const newInstance = new ClientClass();
-    clientInstances[provider] = newInstance; // Cache the new instance
+    console.log(`[ClientDispatcher] Instantiating new client for provider: ${provider}`);
     
-    return newInstance;
+    try {
+        // Instantiate the client on-demand. This is where the API key check will happen.
+        const newInstance = new ClientClass();
+        clientInstances[provider] = newInstance; // Cache the new instance
+        console.log(`[ClientDispatcher] Successfully created and cached client for provider: ${provider}`);
+        return newInstance;
+    } catch (error: any) {
+        console.error(`[ClientDispatcher] Failed to instantiate client for provider: ${provider}. Error: ${error.message}`);
+        throw error;
+    }
 }
 
 /**

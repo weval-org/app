@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import KeyPointCoverageTable from '@/app/analysis/components/KeyPointCoverageTable';
 import MacroCoverageTable from '@/app/analysis/components/MacroCoverageTable';
 import {
@@ -17,6 +16,7 @@ import { Label } from '@/components/ui/label';
 
 const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
 const RemarkGfm = dynamic(() => import('remark-gfm'), { ssr: false });
+const Quote = dynamic(() => import('lucide-react').then(mod => mod.Quote), { ssr: false });
 
 export interface SandboxAggregateViewProps {
     data: ImportedComparisonDataV2;
@@ -80,6 +80,14 @@ const RenderPromptDetails: React.FC<{
                     <ReactMarkdown remarkPlugins={[RemarkGfm as any]}>{promptConfig.description}</ReactMarkdown>
                 </div>
             )}
+            
+            {promptConfig?.citation && (
+                <div className="flex items-start space-x-1.5 text-xs text-muted-foreground/90 italic border-l-2 border-border pl-3 py-2">
+                    <Quote className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                    <span>Source: {promptConfig.citation}</span>
+                </div>
+            )}
+            
             {renderContent()}
         </div>
     )

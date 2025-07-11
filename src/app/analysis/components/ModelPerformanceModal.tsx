@@ -18,13 +18,11 @@ import { MobileModelPerformanceAnalysis, PromptPerformance as MobilePromptPerfor
 import PromptContextDisplay from './PromptContextDisplay';
 import { ConversationMessage } from '@/types/shared';
 
+const Quote = dynamic(() => import('lucide-react').then(mod => mod.Quote), { ssr: false });
 const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
 const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
 const BarChart3 = dynamic(() => import("lucide-react").then((mod) => mod.BarChart3), { ssr: false });
-const TrendingUp = dynamic(() => import("lucide-react").then((mod) => mod.TrendingUp), { ssr: false });
-const TrendingDown = dynamic(() => import("lucide-react").then((mod) => mod.TrendingDown), { ssr: false });
 const AlertTriangle = dynamic(() => import("lucide-react").then((mod) => mod.AlertTriangle), { ssr: false });
-const CheckCircle = dynamic(() => import("lucide-react").then((mod) => mod.CheckCircle), { ssr: false });
 
 interface ModelPerformanceModalProps {
     isOpen: boolean;
@@ -132,6 +130,8 @@ const ModelPerformanceModal: React.FC<ModelPerformanceModalProps> = ({
         : null;
 
     const selectedPromptContext = selectedPromptId && promptContexts ? promptContexts[selectedPromptId] : null;
+    
+    const idealResponse = selectedPromptId ? allFinalAssistantResponses[selectedPromptId]?.[IDEAL_MODEL_ID] : null;
 
     const { effectiveSystemPrompt, conversationContext } = useMemo(() => {
         if (!selectedPromptId || !config) return { effectiveSystemPrompt: null, conversationContext: null };
@@ -238,6 +238,21 @@ const ModelPerformanceModal: React.FC<ModelPerformanceModalProps> = ({
                                 <div className="mb-4 pb-4 border-b">
                                     <div className="mb-4">
                                         <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">The Prompt</h3>
+                                        {config.prompts.find(p => p.id === selectedPromptId)?.description && (
+                                            <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground border-l-4 border-primary/20 pl-4 py-1 mb-4">
+                                                <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
+                                                    {config.prompts.find(p => p.id === selectedPromptId)?.description}
+                                                </ReactMarkdown>
+                                            </div>
+                                        )}
+                                        
+                                        {config.prompts.find(p => p.id === selectedPromptId)?.citation && (
+                                            <div className="flex items-start space-x-1.5 text-xs text-muted-foreground/90 italic border-l-2 border-border pl-3 py-2 mb-4">
+                                                <Quote className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                                                <span>Source: {config.prompts.find(p => p.id === selectedPromptId)?.citation}</span>
+                                            </div>
+                                        )}
+                                        
                                         {conversationContext ? (
                                             <PromptContextDisplay promptContext={conversationContext} />
                                         ) : (
@@ -267,6 +282,7 @@ const ModelPerformanceModal: React.FC<ModelPerformanceModalProps> = ({
                                         <EvaluationView
                                             assessments={selectedPromptPerformance.coverageResult.pointAssessments || []}
                                             modelResponse={selectedPromptPerformance.response || ''}
+                                            idealResponse={idealResponse || undefined}
                                             expandedLogs={expandedLogs}
                                             toggleLogExpansion={toggleLogExpansion}
                                             isMobile={false}

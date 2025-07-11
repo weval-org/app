@@ -38,7 +38,19 @@ export const getGradedCoverageColor = (isPresent: boolean, extent?: number): str
     return NO_EXTENT_DATA_PRESENT_CLASS; // Fallback
 };
 
-export const getHybridScoreColorClass = (score: number | null | undefined): string => {
+export const getHybridScoreColorClass = (
+    score: number | null | undefined, 
+    mode: 'text' | 'bg' = 'bg'
+): string => {
+    if (mode === 'text') {
+        if (score === null || score === undefined || isNaN(score)) return 'text-muted-foreground dark:text-slate-400';
+        if (score >= 0.8) return 'text-emerald-600 dark:text-emerald-400';
+        if (score >= 0.6) return 'text-lime-600 dark:text-lime-400';
+        if (score >= 0.4) return 'text-amber-600 dark:text-amber-400';
+        return 'text-red-600 dark:text-red-400';
+    }
+
+    // Default 'bg' mode
     if (score === null || score === undefined) return 'bg-muted/30 text-muted-foreground';
     if (score >= 0.75) return 'bg-highlight-success/80 text-highlight-success-foreground';
     if (score >= 0.50) return 'bg-highlight-warning/80 text-highlight-warning-foreground';

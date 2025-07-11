@@ -9,6 +9,7 @@ import { PointAssessment, IndividualJudgement } from '@/app/utils/types';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
 const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
@@ -187,11 +188,13 @@ export const AssessmentItem: React.FC<{
 export const EvaluationView: React.FC<{
     assessments: PointAssessment[];
     modelResponse: string;
+    idealResponse?: string;
     expandedLogs: Record<number, boolean>;
     toggleLogExpansion: (index: number) => void;
     isMobile?: boolean;
-}> = ({ assessments, modelResponse, expandedLogs, toggleLogExpansion, isMobile = false }) => {
+}> = ({ assessments, modelResponse, idealResponse, expandedLogs, toggleLogExpansion, isMobile = false }) => {
     const [expandedAssessments, setExpandedAssessments] = useState<Set<number>>(new Set());
+    const [activeTab, setActiveTab] = useState('model-response');
 
     const toggleAssessmentExpansion = (index: number) => {
         setExpandedAssessments(prev => {
@@ -250,16 +253,26 @@ export const EvaluationView: React.FC<{
             <div className="space-y-4">
                 {/* Model Response Section */}
                 <div className="bg-muted/20 border border-border/50 rounded-lg p-3">
-                    <h3 className="font-semibold text-muted-foreground text-sm mb-2 border-b border-border/30 pb-1">
-                        Model Response
-                    </h3>
-                    <div>
-                        {modelResponse ? (
-                            <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]} className="prose prose-sm dark:prose-invert max-w-none">{modelResponse}</ReactMarkdown>
-                        ) : (
-                            <p className="italic text-muted-foreground">No response text available.</p>
-                        )}
-                    </div>
+                    <Tabs value={activeTab} onValueChange={setActiveTab}>
+                        <TabsList className="grid w-full grid-cols-2 h-9">
+                            <TabsTrigger value="model-response">Model Response</TabsTrigger>
+                            <TabsTrigger value="ideal-response" disabled={!idealResponse}>Ideal</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="model-response" className="pt-3">
+                            {modelResponse ? (
+                                <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]} className="prose prose-sm dark:prose-invert max-w-none">{modelResponse}</ReactMarkdown>
+                            ) : (
+                                <p className="italic text-muted-foreground">No response text available.</p>
+                            )}
+                        </TabsContent>
+                        <TabsContent value="ideal-response" className="pt-3">
+                            {idealResponse ? (
+                                <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]} className="prose prose-sm dark:prose-invert max-w-none">{idealResponse}</ReactMarkdown>
+                            ) : (
+                                <p className="italic text-muted-foreground">No ideal response available.</p>
+                            )}
+                        </TabsContent>
+                    </Tabs>
                 </div>
                 
                 {/* Criteria Evaluation Section */}
@@ -306,16 +319,26 @@ export const EvaluationView: React.FC<{
         <div className="flex flex-1 flex-col gap-4 text-sm lg:flex-row lg:gap-x-4 min-h-0">
             {/* Left Panel: Model Response */}
             <div className="flex flex-1 flex-col rounded-lg border border-border/50 bg-muted/20 p-3 lg:w-2/5 min-h-0">
-                <p className="flex-shrink-0 mb-1.5 border-b border-border/30 pb-1 font-semibold text-muted-foreground">
-                    Model Response
-                </p>
-                <div className="custom-scrollbar min-h-0 flex-grow overflow-y-auto pr-2">
-                    {modelResponse ? (
-                        <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]} className="prose prose-sm dark:prose-invert max-w-none">{modelResponse}</ReactMarkdown>
-                    ) : (
-                        <p className="italic text-muted-foreground">No response text available.</p>
-                    )}
-                </div>
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 min-h-0 flex flex-col">
+                    <TabsList className="grid w-full grid-cols-2 h-9 mb-1.5 flex-shrink-0">
+                        <TabsTrigger value="model-response">Model Response</TabsTrigger>
+                        <TabsTrigger value="ideal-response" disabled={!idealResponse}>Ideal</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="model-response" className="flex-grow overflow-y-auto custom-scrollbar pr-2">
+                        {modelResponse ? (
+                            <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]} className="prose prose-sm dark:prose-invert max-w-none">{modelResponse}</ReactMarkdown>
+                        ) : (
+                            <p className="italic text-muted-foreground">No response text available.</p>
+                        )}
+                    </TabsContent>
+                    <TabsContent value="ideal-response" className="flex-grow overflow-y-auto custom-scrollbar pr-2">
+                        {idealResponse ? (
+                            <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]} className="prose prose-sm dark:prose-invert max-w-none">{idealResponse}</ReactMarkdown>
+                        ) : (
+                            <p className="italic text-muted-foreground">No ideal response available.</p>
+                        )}
+                    </TabsContent>
+                </Tabs>
             </div>
 
             {/* Right Panel: Criteria Evaluation */}

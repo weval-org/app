@@ -39,7 +39,7 @@ export default function FeaturedBlueprintsSection({ featuredBlueprints }: Featur
           Featured Evaluations
         </h2>
         <p className="text-muted-foreground dark:text-muted-foreground text-sm">
-          Our most comprehensive and community-valued evaluation blueprints
+          Our most comprehensive and community-valued evaluations
         </p>
       </div>
 

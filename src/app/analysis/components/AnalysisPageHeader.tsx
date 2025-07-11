@@ -3,14 +3,11 @@
 import React, { useRef, useState, useLayoutEffect, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
-import type { BreadcrumbItem } from '@/app/components/Breadcrumbs'; // Using type import
-import { formatTimestampForDisplay, fromSafeTimestamp } from '@/lib/timestampUtils';
-import { BLUEPRINT_CONFIG_REPO_URL } from '@/lib/configConstants';
+import type { BreadcrumbItem } from '@/app/components/Breadcrumbs';
 import Link from 'next/link';
 import { MarkdownAccordion } from './MarkdownAccordion';
 import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Button } from '@/components/ui/button';
 import { prettifyTag, normalizeTag } from '@/app/utils/tagUtils';
 import { Badge } from '@/components/ui/badge';
 

@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { MobileModelList } from './MobileModelList';
 import { MobileModelDetail } from './MobileModelDetail';
 import { ComparisonDataV2 as ImportedComparisonDataV2, CoverageResult } from '@/app/utils/types';
+import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 
 interface MobileKeyPointAnalysisProps {
     data: ImportedComparisonDataV2;
@@ -42,6 +43,8 @@ export const MobileKeyPointAnalysis: React.FC<MobileKeyPointAnalysisProps> = ({
     const promptSimilarities = React.useMemo(() => {
         return evaluationResults?.perPromptSimilarities?.[promptId] || null;
     }, [evaluationResults, promptId]);
+
+    const idealResponse = promptResponses[IDEAL_MODEL_ID];
 
     const handleModelSelect = (modelId: string) => {
         setSelectedModelId(modelId);
@@ -84,6 +87,7 @@ export const MobileKeyPointAnalysis: React.FC<MobileKeyPointAnalysisProps> = ({
                             modelId={selectedModelId}
                             coverageResult={promptCoverageScores[selectedModelId]}
                             response={promptResponses[selectedModelId] || ''}
+                            idealResponse={idealResponse}
                             onBack={handleBackToList}
                         />
                     )}

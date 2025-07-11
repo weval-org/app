@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { BLUEPRINT_CONFIG_REPO_URL, APP_REPO_URL } from '@/lib/configConstants';
+import { APP_REPO_URL } from '@/lib/configConstants';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import {
@@ -73,10 +73,10 @@ export default function HomePageBanner() {
           <div className="bg-card/40 dark:bg-card/40 backdrop-blur-sm p-6 rounded-lg shadow-lg ring-1 ring-border/50 dark:ring-border/50 flex flex-col h-full">
             <div className="flex items-center mb-4">
               <Edit3 className="w-8 h-8 mr-4 text-highlight-success" />
-              <h2 className="text-2xl font-semibold text-foreground dark:text-slate-100">Contribute a Blueprint</h2>
+              <h2 className="text-2xl font-semibold text-foreground dark:text-slate-100">Contribute an Eval</h2>
             </div>
             <p className="text-sm text-foreground/80 dark:text-muted-foreground leading-relaxed flex-grow mb-4">
-              Are you a domain expert? Do you have strong insights and opinions about how AI should behave? Codify your knowledge into a "blueprint". You can view results, share them privately, or propose them to be featured publicly on weval.org itself.
+              Are you a domain expert? Do you have strong insights and opinions about how AI should behave? Codify your knowledge into an <span title="An evaluation, testing whether AI/LLMs provide outputs suited to your domain">eval</span>. You can view results, share them privately, or propose them to be featured publicly on weval.org itself.
             </p>
             <div className="mt-auto pt-4 border-t border-border/30 dark:border-border/30">
               <Link

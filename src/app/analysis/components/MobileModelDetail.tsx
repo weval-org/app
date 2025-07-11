@@ -15,6 +15,7 @@ interface MobileModelDetailProps {
     modelId: string;
     coverageResult: CoverageResult | undefined;
     response: string;
+    idealResponse?: string;
     onBack: () => void;
 }
 
@@ -22,6 +23,7 @@ export const MobileModelDetail: React.FC<MobileModelDetailProps> = ({
     modelId,
     coverageResult,
     response,
+    idealResponse,
     onBack
 }) => {
     const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
@@ -78,6 +80,7 @@ export const MobileModelDetail: React.FC<MobileModelDetailProps> = ({
                 <EvaluationView 
                     assessments={assessments}
                     modelResponse={response}
+                    idealResponse={idealResponse}
                     expandedLogs={expandedLogs}
                     toggleLogExpansion={toggleLogExpansion}
                     isMobile={true}

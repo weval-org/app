@@ -112,6 +112,7 @@ Each item in the list of prompts is an object that can contain the following fie
 | `messages` | `object[]` | An array of message objects for multi-turn conversations. **Required if `prompt` is not present.** Cannot be used with `prompt`. See message formats below. |
 | `ideal` | `string` | **(Optional)** A "gold-standard" answer against which model responses can be compared for semantic similarity. An alias for `idealResponse`. |
 | `system` | `string` | **(Optional)** A system prompt that overrides the global `system` prompt for this specific prompt only. |
+| `citation` | `string` | **(Optional)** A citation or reference for the prompt, such as a URL, paper reference, or source documentation. This provides context about where the prompt or expected response comes from. |
 | `should` | `(string \| object)[]` | **(Optional)** A list of rubric points for the `llm-coverage` evaluation method. Defines the criteria for a successful response. Aliased as `points`, `expect`, `expects`, or `expectations`. See details below. |
 | `should_not` | `(string \| object)[]` | **(Optional)** A list of rubric points defining criteria that a response **should not** meet. It follows the exact same syntax as the `should` block, but the result of each check is inverted (a match becomes a failure, and a non-match becomes a success). |
 
@@ -229,6 +230,7 @@ The system remains backwardly compatible with the original JSON format.
       "id": "p1-json",
       "promptText": "What is JSON?",
       "idealResponse": "A lightweight data-interchange format.",
+      "citation": "https://www.json.org/",
       "points": [
         { "text": "It is a data-interchange format", "multiplier": 1.0 }
       ],

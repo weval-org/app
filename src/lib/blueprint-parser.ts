@@ -5,6 +5,18 @@ import { createHash } from 'crypto';
 import stableStringify from 'json-stable-stringify';
 
 /**
+ * Internal interface for building normalized point objects during parsing.
+ * This represents the object variant of PointDefinition being constructed.
+ */
+interface NormalizedPointObject {
+    text?: string;
+    fn?: string;
+    fnArgs?: any;
+    multiplier?: number;
+    citation?: string;
+}
+
+/**
  * Normalizes a raw array of point definitions from a blueprint into the strict internal PointDefinition[] format.
  * This function handles various syntaxes: simple strings, idiomatic functions (e.g., { $contains: ... }),
  * tuple functions (e.g., ['$contains', ...]), point-citation pairs, and full point objects.
@@ -18,7 +30,7 @@ function _normalizePointArray(pointsArray: any[], promptId: string | undefined):
         return [];
     }
     return pointsArray.map((exp: any): PointDefinition => {
-        const newPoint: Partial<PointDefinition> = {};
+        const newPoint: NormalizedPointObject = {};
 
         // 1. Simple string: "This is a conceptual point."
         if (typeof exp === 'string') {
@@ -215,6 +227,7 @@ export function parseAndNormalizeBlueprint(content: string, fileType: 'json' | '
         finalPrompt.id = p.id;
         finalPrompt.idealResponse = p.ideal || p.idealResponse;
         finalPrompt.system = p.system;
+        finalPrompt.citation = p.citation;
         
         // Consolidate all possible point sources
         const pointsSource = p.should || p.points || p.expect || p.expects || p.expectations;

@@ -83,7 +83,7 @@ export default function DetailedBlueprintCard({ blueprint: bp }: DetailedBluepri
                 <div className="flex flex-wrap items-center gap-2">
                   {(bp.tags && bp.tags.length > 0) && (
                     <>
-                      {bp.tags.map((tag: string) => (
+                      {bp.tags.filter(tag => tag[0] !== '_').map((tag: string) => (
                         <Link href={`/tags/${normalizeTag(tag)}`} key={tag}>
                           <Badge variant="secondary" className="hover:bg-primary/20 transition-colors">{prettifyTag(tag)}</Badge>
                         </Link>

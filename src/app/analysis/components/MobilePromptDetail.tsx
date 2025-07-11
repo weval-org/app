@@ -16,6 +16,7 @@ interface MobilePromptDetailProps {
     modelDisplayName: string;
     coverageResult: CoverageResult | undefined;
     response: string;
+    idealResponse?: string;
     score: number | null;
     rank: 'excellent' | 'good' | 'poor' | 'error';
     onBack: () => void;
@@ -46,6 +47,7 @@ export const MobilePromptDetail: React.FC<MobilePromptDetailProps> = ({
     modelDisplayName,
     coverageResult,
     response,
+    idealResponse,
     score,
     rank,
     onBack
@@ -112,6 +114,7 @@ export const MobilePromptDetail: React.FC<MobilePromptDetailProps> = ({
                 <EvaluationView 
                     assessments={assessments}
                     modelResponse={response}
+                    idealResponse={idealResponse}
                     expandedLogs={expandedLogs}
                     toggleLogExpansion={toggleLogExpansion}
                     isMobile={true}

@@ -87,6 +87,7 @@ export interface WevalPromptConfig {
     idealResponse?: string | null;
     system?: string | null;
     temperature?: number;
+    citation?: string;
 }
 
 export interface WevalConfig {
