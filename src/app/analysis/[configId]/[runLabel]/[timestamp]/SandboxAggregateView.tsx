@@ -21,7 +21,7 @@ const Quote = dynamic(() => import('lucide-react').then(mod => mod.Quote), { ssr
 export interface SandboxAggregateViewProps {
     data: ImportedComparisonDataV2;
     displayedModels: string[];
-    openModelEvaluationDetailModal: (args: { promptId: string; modelId:string; }) => void;
+    openModelEvaluationDetailModal: (args: { promptId: string; modelId:string; variantScores?: Record<number, number | null>; }) => void;
     activeHighlights: Set<ActiveHighlight>;
     handleActiveHighlightsChange: (newHighlights: Set<ActiveHighlight>) => void;
     promptTextsForMacroTable: Record<string, string>;

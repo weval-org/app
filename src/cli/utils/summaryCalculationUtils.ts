@@ -349,4 +349,39 @@ export function calculatePotentialModelDrift(
   }
 
   return mostSignificantDrift;
+}
+
+export function calculateComparativeStats(
+  perModelHybridScores: Map<string, { average: number | null; stddev: number | null }>,
+  targetModelEffectiveId: string,
+): { peerAverageScore: number | null; rank: number | null } {
+  
+  const allScores: { modelId: string; score: number }[] = [];
+  perModelHybridScores.forEach((stats, modelId) => {
+    // Exclude the ideal model from peer calculations
+    if (modelId !== IDEAL_MODEL_ID && stats.average !== null && stats.average !== undefined) {
+      allScores.push({ modelId: modelId, score: stats.average });
+    }
+  });
+
+  if (allScores.length === 0) {
+    return { peerAverageScore: null, rank: null };
+  }
+
+  // Calculate peer average
+  const peers = allScores.filter(s => s.modelId !== targetModelEffectiveId);
+  let peerAverageScore: number | null = null;
+  if (peers.length > 0) {
+    const peerScoreSum = peers.reduce((sum, peer) => sum + peer.score, 0);
+    peerAverageScore = peerScoreSum / peers.length;
+  }
+
+  // Calculate rank
+  allScores.sort((a, b) => b.score - a.score);
+  const rank = allScores.findIndex(s => s.modelId === targetModelEffectiveId) + 1;
+
+  return {
+    peerAverageScore,
+    rank: rank > 0 ? rank : null,
+  };
 } 

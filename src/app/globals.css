@@ -163,16 +163,15 @@
     --coverage-unmet: 0 65% 52%;
     --coverage-grade-0: 0 65% 52%;
     --coverage-grade-1: 0 75% 44%;
-    --coverage-grade-2: 0 70% 24%;
-    --coverage-grade-3: 0 67% 16%;
-    --coverage-grade-4: 0 71% 8%;
-    --coverage-grade-5: 134 61% 12%;
-    --coverage-grade-6: 134 68% 20%;
-    --coverage-grade-7: 134 61% 30%;
-    --coverage-grade-8: 134 61% 40%;
-    --coverage-grade-9: 134 61% 49%;
+    --coverage-grade-2: 0 70% 34%;
+    --coverage-grade-3: 0 67% 26%;
+    --coverage-grade-4: 0 71% 18%;
+    --coverage-grade-5: 134 61% 22%;
+    --coverage-grade-6: 134 68% 27%;
+    --coverage-grade-7: 134 61% 35%;
+    --coverage-grade-8: 134 61% 42%;
+    --coverage-grade-9: 134 61% 53%;
     --coverage-fully-met: 140 61% 63%; 
-
 
     --border-contrast: rgba(255, 255, 255, 0.15);
   }

@@ -11,6 +11,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import PromptContextDisplay from './PromptContextDisplay';
 import { EvaluationView } from './SharedEvaluationComponents';
+import { getHybridScoreColorClass } from '@/app/analysis/utils/colorUtils';
 
 const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
 const Quote = dynamic(() => import('lucide-react').then(mod => mod.Quote), { ssr: false });
@@ -33,6 +34,7 @@ interface ModelEvaluationDetailModalData {
   variantEvaluations: Map<number, ModelEvaluationVariant>;
   initialVariantIndex: number;
   idealResponse?: string;
+  variantScores?: Record<number, number | null>;
 }
 
 interface ModelEvaluationDetailModalProps {
@@ -95,14 +97,6 @@ const ModelEvaluationDetailModalV2: React.FC<ModelEvaluationDetailModalProps> = 
           <div className="h-full flex flex-col min-h-0">
             {/* Mobile Header */}
             <div className="flex items-center gap-3 p-4 border-b bg-card flex-shrink-0">
-              <Button 
-                variant="ghost"
-                size="sm"
-                onClick={onClose}
-                className="flex items-center gap-2 px-3 py-2 hover:bg-muted rounded-lg transition-colors min-h-[44px]"
-              >
-                <span className="font-medium">Close</span>
-              </Button>
               <div className="flex-1 min-w-0">
                 <h2 className="font-semibold text-lg truncate">{displayModelName}</h2>
                 {promptDescription && (
@@ -123,13 +117,21 @@ const ModelEvaluationDetailModalV2: React.FC<ModelEvaluationDetailModalProps> = 
                   {variantKeys.map(index => {
                     const variant = variantEvaluations.get(index);
                     const systemPromptText = variant?.systemPrompt || "[Default System Prompt]";
+                    const score = data.variantScores?.[index];
                     return (
                       <div key={index} className="flex items-start space-x-2">
                         <RadioGroupItem value={String(index)} id={`mobile-variant-${index}`} className="mt-0.5" />
                         <Label htmlFor={`mobile-variant-${index}`} className="font-normal cursor-pointer flex-1" title={systemPromptText}>
-                          <span className="text-sm line-clamp-2">
-                            {systemPromptText}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            {score !== null && score !== undefined && (
+                              <span className={`px-1.5 py-0.5 rounded-sm text-xs font-semibold ${getHybridScoreColorClass(score)}`}>
+                                {(score * 100).toFixed(0)}%
+                              </span>
+                            )}
+                            <span className="text-sm line-clamp-2">
+                              Sys. Variant {index}: {systemPromptText}
+                            </span>
+                          </div>
                         </Label>
                       </div>
                     )
@@ -222,13 +224,21 @@ const ModelEvaluationDetailModalV2: React.FC<ModelEvaluationDetailModalProps> = 
                         {variantKeys.map(index => {
                             const variant = variantEvaluations.get(index);
                             const systemPromptText = variant?.systemPrompt || "[Default System Prompt]";
+                            const score = data.variantScores?.[index];
                             return (
                                 <div key={index} className="flex items-center space-x-2">
                                     <RadioGroupItem value={String(index)} id={`variant-${index}`} />
                                     <Label htmlFor={`variant-${index}`} className="font-normal cursor-pointer" title={systemPromptText}>
-                                        <span className="block max-w-xs truncate text-sm">
-                                            {systemPromptText}
-                                        </span>
+                                        <div className="flex items-center gap-2">
+                                            {score !== null && score !== undefined && (
+                                                <span className={`px-1.5 py-0.5 rounded-sm text-xs font-semibold ${getHybridScoreColorClass(score)}`}>
+                                                    {(score * 100).toFixed(0)}%
+                                                </span>
+                                            )}
+                                            <span className="block max-w-xs truncate text-sm">
+                                                Sys. Variant {index}: {systemPromptText}
+                                            </span>
+                                        </div>
                                     </Label>
                                 </div>
                             )

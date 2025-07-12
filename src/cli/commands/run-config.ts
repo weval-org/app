@@ -426,6 +426,50 @@ interface RunOptions {
     collectionsRepoPath?: string;
 }
 
+async function promptForConfig(): Promise<string> {
+    const inquirer = (await import('inquirer')).default;
+    const chalk = (await import('chalk')).default;
+    const { logger } = getConfig();
+    
+    logger.info(chalk.blue('🔧 Interactive Mode: Missing required parameter'));
+    
+    const { configPath } = await inquirer.prompt([{
+        type: 'input',
+        name: 'configPath',
+        message: 'Enter the path to your local blueprint file (.yml, .yaml, or .json):',
+        validate: (input: string) => {
+            if (!input || input.trim() === '') {
+                return 'Please enter a valid file path.';
+            }
+            return true;
+        }
+    }]);
+    
+    return configPath.trim();
+}
+
+async function promptForBlueprintName(): Promise<string> {
+    const inquirer = (await import('inquirer')).default;
+    const chalk = (await import('chalk')).default;
+    const { logger } = getConfig();
+    
+    logger.info(chalk.blue('🔧 Interactive Mode: Missing required parameter'));
+    
+    const { blueprintName } = await inquirer.prompt([{
+        type: 'input',
+        name: 'blueprintName',
+        message: 'Enter the name of the blueprint from GitHub (e.g., "my-test-blueprint"):',
+        validate: (input: string) => {
+            if (!input || input.trim() === '') {
+                return 'Please enter a valid blueprint name.';
+            }
+            return true;
+        }
+    }]);
+    
+    return blueprintName.trim();
+}
+
 async function runBlueprint(config: ComparisonConfig, options: RunOptions, commitSha?: string | null, blueprintFileName?: string) {
     const { logger: loggerInstance } = getConfig();
 
@@ -779,13 +823,23 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions, commi
     }
 }
 
-async function actionLocal(options: { config: string } & RunOptions) {
+async function actionLocal(options: { config?: string } & RunOptions) {
     const { logger: loggerInstance } = getConfig();
     loggerInstance.info(`Weval 'run-config local' CLI started. Options received: ${JSON.stringify(options)}`);
     
     try {
+        // Check if config path is missing and prompt for it
+        let configPath = options.config;
+        if (!configPath) {
+            configPath = await promptForConfig();
+        }
+        
+        if (!configPath) {
+            throw new Error('Config path is required to proceed.');
+        }
+        
         const config = await loadAndValidateConfig({ 
-            configPath: options.config, 
+            configPath: configPath, 
             collectionsRepoPath: options.collectionsRepoPath,
             isRemote: false,
         });
@@ -799,16 +853,26 @@ async function actionLocal(options: { config: string } & RunOptions) {
     }
 }
 
-async function actionGitHub(options: { name: string } & RunOptions) {
+async function actionGitHub(options: { name?: string } & RunOptions) {
     const { logger: loggerInstance } = getConfig();
     loggerInstance.info(`Weval 'run-config github' CLI started. Options received: ${JSON.stringify(options)}`);
     
     try {
+        // Check if name is missing and prompt for it
+        let blueprintName = options.name;
+        if (!blueprintName) {
+            blueprintName = await promptForBlueprintName();
+        }
+        
+        if (!blueprintName) {
+            throw new Error('Blueprint name is required to proceed.');
+        }
+        
         const githubToken = process.env.GITHUB_TOKEN;
-        const remoteConfig = await fetchBlueprintContentByName(options.name, githubToken, loggerInstance as SimpleLogger);
+        const remoteConfig = await fetchBlueprintContentByName(blueprintName, githubToken, loggerInstance as SimpleLogger);
 
         if (!remoteConfig) {
-            throw new Error(`Failed to load blueprint '${options.name}'. It was not found in the GitHub repository.`);
+            throw new Error(`Failed to load blueprint '${blueprintName}'. It was not found in the GitHub repository.`);
         }
 
         const config = await loadAndValidateConfig({
@@ -836,7 +900,7 @@ async function actionGitHub(options: { name: string } & RunOptions) {
 
 const localCommand = new Command('local')
     .description('Runs an evaluation from a local blueprint file.')
-    .requiredOption('-c, --config <path>', 'Path to the local blueprint file (.yml, .yaml, or .json)')
+    .option('-c, --config <path>', 'Path to the local blueprint file (.yml, .yaml, or .json). If not provided, you will be prompted to enter it.')
     .option('-r, --run-label <runLabelValue>', 'A unique label for this specific execution run. If not provided, a label will be generated based on the blueprint content.')
     .option('--eval-method <methods>', "Comma-separated evaluation methods (embedding, llm-coverage, all)")
     .option('--cache', 'Enable caching for model responses (defaults to false).')
@@ -845,7 +909,7 @@ const localCommand = new Command('local')
 
 const githubCommand = new Command('github')
     .description('Runs an evaluation from a blueprint on the weval/configs GitHub repository.')
-    .requiredOption('-n, --name <name>', 'Name of the blueprint in the GitHub repo (e.g., "my-test-blueprint"), without file extension.')
+    .option('-n, --name <name>', 'Name of the blueprint in the GitHub repo (e.g., "my-test-blueprint"), without file extension. If not provided, you will be prompted to enter it.')
     .option('-r, --run-label <runLabelValue>', 'A unique label for this specific execution run. If not provided, a label will be generated based on the blueprint content.')
     .option('--eval-method <methods>', "Comma-separated evaluation methods (embedding, llm-coverage, all)")
     .option('--cache', 'Enable caching for model responses (defaults to false).')

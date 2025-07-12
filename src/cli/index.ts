@@ -26,6 +26,7 @@ import { backfillExecutiveSummaryCommand } from './commands/backfill-executive-s
 import { repairRunCommand } from './commands/repair-run';
 import { addToPairsCommand } from './commands/add-to-pairs';
 import { deleteFromPairsCommand } from './commands/delete-from-pairs';
+import { generateModelCardCommand } from './commands/generate-model-card';
 
 let isTerminating = false
 const cleanup = () => {
@@ -89,6 +90,7 @@ cli.addCommand(backfillExecutiveSummaryCommand);
 cli.addCommand(repairRunCommand);
 cli.addCommand(addToPairsCommand);
 cli.addCommand(deleteFromPairsCommand);
+cli.addCommand(generateModelCardCommand);
 
 cli.parseAsync(process.argv).catch(err => {
   console.error('CLI Error:', err); 

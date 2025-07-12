@@ -1,0 +1,17 @@
+title: "Model Summary Test Blueprint"
+description: "A simple test to verify model summary generation works correctly"
+tags: [test, model-summary-verification]
+models:
+  - openai:gpt-4o-mini
+  - openai:gpt-4.1-mini
+temperatures: [0.0]
+
+---
+
+id: simple-reasoning
+prompt: "Explain why the sky appears blue during the day."
+ideal: "The sky appears blue due to Rayleigh scattering, where shorter blue wavelengths of sunlight are scattered more by molecules in Earth's atmosphere than longer wavelengths."
+should:
+  - "mentions scattering of light"
+  - "references wavelengths or frequency"
+  - "explains why blue specifically"

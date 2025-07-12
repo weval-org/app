@@ -92,6 +92,7 @@ const streamToString = (stream: Readable): Promise<string> =>
 const HOMEPAGE_SUMMARY_KEY = 'multi/homepage_summary.json';
 const LATEST_RUNS_SUMMARY_KEY = 'multi/latest_runs_summary.json';
 const MODELS_DIR = 'models';
+const MODEL_CARDS_DIR = 'model-cards';
 
 // Helper to create a safe filename from a model ID
 function getSafeModelId(modelId: string): string {
@@ -1171,5 +1172,131 @@ export async function listModelSummaries(): Promise<string[]> {
   }
 
   console.warn('[StorageService] No valid storage provider configured. Cannot list model summaries.');
+  return [];
+}
+
+// --- Model Card Storage Functions ---
+
+export async function saveModelCard(modelId: string, cardData: any): Promise<void> {
+  const safeModelId = getSafeModelId(modelId);
+  const fileName = `${safeModelId}.json`;
+  const fileContent = JSON.stringify(cardData, null, 2);
+
+  if (storageProvider === 's3' && s3Client && s3BucketName) {
+    const s3Key = path.join(MULTI_DIR, MODEL_CARDS_DIR, fileName);
+    try {
+      const command = new PutObjectCommand({
+        Bucket: s3BucketName,
+        Key: s3Key,
+        Body: fileContent,
+        ContentType: 'application/json',
+      });
+      await s3Client.send(command);
+      console.log(`[StorageService] Model card saved to S3: ${s3Key}`);
+    } catch (error) {
+      console.error(`[StorageService] Error saving model card to S3: ${s3Key}`, error);
+      throw error;
+    }
+  } else if (storageProvider === 'local') {
+    const filePath = path.join(RESULTS_DIR, MULTI_DIR, MODEL_CARDS_DIR, fileName);
+    try {
+      await fs.mkdir(path.dirname(filePath), { recursive: true });
+      await fs.writeFile(filePath, fileContent, 'utf-8');
+      console.log(`[StorageService] Model card saved to local disk: ${filePath}`);
+    } catch (error) {
+      console.error(`[StorageService] Error saving model card to local disk: ${filePath}`, error);
+      throw error;
+    }
+  } else {
+    console.warn(`[StorageService] No valid storage provider configured for saveModelCard. Data not saved.`);
+  }
+}
+
+export async function getModelCard(modelId: string): Promise<any | null> {
+  const safeModelId = getSafeModelId(modelId);
+  const fileName = `${safeModelId}.json`;
+  let fileContent: string | null = null;
+
+  if (storageProvider === 's3' && s3Client && s3BucketName) {
+    const s3Key = path.join(MULTI_DIR, MODEL_CARDS_DIR, fileName);
+    try {
+      const command = new GetObjectCommand({ Bucket: s3BucketName, Key: s3Key });
+      const { Body } = await s3Client.send(command);
+      if (Body) {
+        fileContent = await streamToString(Body as Readable);
+      }
+    } catch (error: any) {
+      if (error.name === 'NoSuchKey') {
+        console.log(`[StorageService] Model card not found in S3: ${s3Key}`);
+        return null;
+      }
+      console.error(`[StorageService] Error fetching model card from S3: ${s3Key}`, error);
+      return null;
+    }
+  } else if (storageProvider === 'local') {
+    const filePath = path.join(RESULTS_DIR, MULTI_DIR, MODEL_CARDS_DIR, fileName);
+    try {
+      if (fsSync.existsSync(filePath)) {
+        fileContent = await fs.readFile(filePath, 'utf-8');
+      } else {
+        console.log(`[StorageService] Model card not found locally: ${filePath}`);
+        return null;
+      }
+    } catch (error) {
+      console.error(`[StorageService] Error fetching model card from local disk: ${filePath}`, error);
+      return null;
+    }
+  }
+
+  if (!fileContent) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(fileContent);
+  } catch (error) {
+    console.error(`[StorageService] Error parsing model card for ${modelId}:`, error);
+    return null;
+  }
+}
+
+export async function listModelCards(): Promise<string[]> {
+  const modelCardsDirPrefix = `${MULTI_DIR}/${MODEL_CARDS_DIR}/`;
+
+  if (storageProvider === 's3' && s3Client && s3BucketName) {
+    try {
+      const command = new ListObjectsV2Command({
+        Bucket: s3BucketName,
+        Prefix: modelCardsDirPrefix,
+      });
+      const response = await s3Client.send(command);
+      const modelFiles = response.Contents?.map(obj => path.basename(obj.Key || ''))
+        .filter(name => name.endsWith('.json'))
+        .map(name => name.replace(/\.json$/, '')) || [];
+      console.log(`[StorageService] Listed ${modelFiles.length} model cards from S3.`);
+      return modelFiles;
+    } catch (error) {
+      console.error('[StorageService] Error listing model cards from S3:', error);
+      return [];
+    }
+  } else if (storageProvider === 'local') {
+    const localModelCardsDir = path.join(process.cwd(), RESULTS_DIR, MULTI_DIR, MODEL_CARDS_DIR);
+    try {
+      const entries = await fs.readdir(localModelCardsDir, { withFileTypes: true });
+      const modelFiles = entries
+        .filter(entry => entry.isFile() && entry.name.endsWith('.json'))
+        .map(entry => entry.name.replace(/\.json$/, ''));
+      console.log(`[StorageService] Listed ${modelFiles.length} model cards locally.`);
+      return modelFiles;
+    } catch (error: any) {
+      if (error.code === 'ENOENT') {
+        return []; // Directory doesn't exist, so no cards.
+      }
+      console.error('[StorageService] Error listing model cards locally:', error);
+      return [];
+    }
+  }
+
+  console.warn('[StorageService] No valid storage provider configured. Cannot list model cards.');
   return [];
 } 

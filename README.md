@@ -170,6 +170,21 @@ pnpm cli repair-run <configId/runLabel/timestamp>
 -   `<runIdentifier>`: **(Required)** The unique identifier for the run, typically found in the URL of the analysis page (e.g., `my-config__my-test/my-run-label/2024-01-01T12-00-00-000Z`). Note that subdirectories in a blueprint's path are converted to a double underscore (`__`) in the `configId`.
 -   `--cache`: Enables caching for model responses during the repair. By default, caching is disabled for repairs to ensure fresh results.
 
+### `generate-model-card` (Experimental)
+
+Generates a "model card" by aggregating performance data for all model variants that match a specific pattern. This is useful for creating a high-level summary for a family of models (e.g., all `claude-3-haiku` versions). The command synthesizes data from all relevant evaluation runs and uses an analyst LLM to produce a qualitative summary of the model's strengths, weaknesses, and behavioral patterns.
+
+If the `STORAGE_PROVIDER=s3` environment variable is set, the generated card will be saved to the cloud and become viewable on the web dashboard at the `/cards` page.
+
+**Usage:**
+
+```bash
+pnpm cli generate-model-card --model-pattern <pattern> --run-label <card_run_label>
+```
+
+-   `--model-pattern <pattern>`: **(Required)** A substring to match against model IDs (e.g., `"gpt-4o-mini"`, `"haiku"`). The command will find all model variants containing this pattern.
+-   `--run-label <label>`: **(Required)** A unique label for this model card generation.
+
 ## Blueprint File Structure
 
 Blueprints can be YAML (`.yml`, `.yaml`) or JSON (`.json`) files. They use a "multi-document" YAML structure, separating the main configuration from the list of prompts with a `---` divider for clarity.

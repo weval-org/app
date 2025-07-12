@@ -13,6 +13,7 @@ import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 interface OpenModalOptions {
     promptId: string;
     modelId: string;
+    variantScores?: Record<number, number | null>;
 }
 
 export function usePageInteraction(data: ComparisonDataV2 | null) {
@@ -50,7 +51,7 @@ export function usePageInteraction(data: ComparisonDataV2 | null) {
 
     const closeResponseComparisonModal = () => setResponseComparisonModal(null);
 
-    const prepareModelEvaluationModalData = useCallback(({ promptId, modelId: clickedModelId }: OpenModalOptions): ModelEvaluationDetailModalData | null => {
+    const prepareModelEvaluationModalData = useCallback(({ promptId, modelId: clickedModelId, variantScores }: OpenModalOptions): ModelEvaluationDetailModalData | null => {
         if (!data || !data.evaluationResults?.llmCoverageScores || !data.config || !data.allFinalAssistantResponses || !data.promptContexts) {
             console.error("Cannot open model evaluation modal: core evaluation data is missing.");
             return null;
@@ -138,13 +139,14 @@ export function usePageInteraction(data: ComparisonDataV2 | null) {
             variantEvaluations: variantEvaluations,
             initialVariantIndex: clickedParsed.systemPromptIndex ?? 0,
             idealResponse: idealResponse,
+            variantScores: variantScores,
         };
 
         return modalData;
     }, [data]);
 
-    const openModelEvaluationDetailModal = useCallback(({ promptId, modelId }: OpenModalOptions) => {
-        const modalData = prepareModelEvaluationModalData({ promptId, modelId });
+    const openModelEvaluationDetailModal = useCallback(({ promptId, modelId, variantScores }: OpenModalOptions) => {
+        const modalData = prepareModelEvaluationModalData({ promptId, modelId, variantScores });
         if (modalData) {
             setModelEvaluationModal(modalData);
         }

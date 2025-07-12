@@ -84,7 +84,7 @@ export async function generateAllResponses(
 
                             hasError = checkForErrors(finalAssistantResponseText);
                             if (hasError) {
-                                const errorMatch = finalAssistantResponseText.match(/<error>([\s\S]*)<\/error>/);
+                                const errorMatch = finalAssistantResponseText.match(/<<error>>([\s\S]*)<<\/error>>/);
                                 errorMessage = errorMatch ? errorMatch[1].trim() : `Response contains error markers.`;
                             }
 
@@ -92,7 +92,7 @@ export async function generateAllResponses(
 
                         } catch (error: any) {
                             errorMessage = `Failed to get response for ${finalEffectiveId}: ${error.message || String(error)}`;
-                            finalAssistantResponseText = `<error>${errorMessage}</error>`;
+                            finalAssistantResponseText = `<<error>>${errorMessage}<</error>>`;
                             hasError = true;
                             logger.error(`[PipelineService] ${errorMessage}`);
                             fullConversationHistoryWithResponse = [...messagesForLlm, { role: 'assistant', content: finalAssistantResponseText }];

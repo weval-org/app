@@ -116,7 +116,7 @@ const BetaComparisonClientPage: React.FC<BetaComparisonClientPageProps> = ({ dat
     handleSemanticExtremesClick,
     prepareResponseComparisonModalData,
     prepareModelEvaluationModalData,
-  } = usePageInteraction(comparisonData);
+  } = usePageInteraction(comparisonData, analysisStats?.perSystemVariantHybridScores);
 
   const handleMostDifferentiatingClick = useCallback(() => {
     if (analysisStats?.mostDifferentiatingPrompt?.id) {

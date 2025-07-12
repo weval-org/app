@@ -35,7 +35,7 @@ export interface AggregateAnalysisViewProps {
     runLabel: string;
     timestamp: string;
     excludedModelsList: string[];
-    openModelEvaluationDetailModal: (args: { promptId: string; modelId: string; }) => void;
+    openModelEvaluationDetailModal: (args: { promptId: string; modelId: string; variantScores?: Record<number, number | null>; }) => void;
     resolvedTheme?: string;
     displayedModels: string[];
     modelsForMacroTable: string[];
@@ -271,7 +271,7 @@ export const AggregateAnalysisView: React.FC<AggregateAnalysisViewProps> = ({
                                             configId={configId}
                                             runLabel={runLabel}
                                             safeTimestampFromParams={timestamp}
-                                            onCellClick={(promptId, modelId) => openModelEvaluationDetailModal({ promptId, modelId })}
+                                            onCellClick={(promptId, modelId) => openModelEvaluationDetailModal({ promptId, modelId, variantScores: perSystemVariantHybridScores })}
                                             onActiveHighlightsChange={handleActiveHighlightsChange}
                                             systemPromptIndex={activeSysPromptIndex}
                                             permutationSensitivityMap={permutationSensitivityMap}
@@ -291,7 +291,7 @@ export const AggregateAnalysisView: React.FC<AggregateAnalysisViewProps> = ({
                                     configId={configId}
                                     runLabel={runLabel}
                                     safeTimestampFromParams={timestamp}
-                                    onCellClick={(promptId, modelId) => openModelEvaluationDetailModal({ promptId, modelId })}
+                                    onCellClick={(promptId, modelId) => openModelEvaluationDetailModal({ promptId, modelId, variantScores: perSystemVariantHybridScores })}
                                     onActiveHighlightsChange={handleActiveHighlightsChange}
                                     permutationSensitivityMap={permutationSensitivityMap}
                                     onPromptClick={handlePromptClick}

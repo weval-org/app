@@ -136,7 +136,7 @@ describe('LLMCoverageEvaluator', () => {
             "This is a string point", // keyPointText
             ["[should] This is a string point"], // allOtherKeyPoints
             expect.stringContaining("Prompt for prompt1"), // promptContextText
-            expect.objectContaining({ approach: 'standard' }) // judge object
+            expect.objectContaining({ approach: 'prompt-aware' }) // judge object
         );
 
         const model1Result = result.llmCoverageScores?.['prompt1']?.['model1'];
@@ -236,9 +236,9 @@ describe('LLMCoverageEvaluator', () => {
         expect(model1Result).not.toHaveProperty('error');
         const successResult = model1Result as Exclude<CoverageResult, { error: string } | null>;
         
-        // P1 score: (0.7+0.8)/2 = 0.75. P2 score: (1+1)/2 = 1.0. 
-        // Final avg: (0.75 + 1.0) / 2 = 0.875
-        expect(successResult.avgCoverageExtent).toBeCloseTo(0.88, 2);
+        // P1 score with two prompt-aware judges: (0.8+0.8)/2 = 0.8. P2 score: (1.0+1.0)/2 = 1.0. 
+        // Final avg: (0.8 + 1.0) / 2 = 0.9
+        expect(successResult.avgCoverageExtent).toBeCloseTo(0.9, 2);
         expect(successResult.keyPointsCount).toBe(2);
     });
 
@@ -270,6 +270,140 @@ describe('LLMCoverageEvaluator', () => {
                 { judgeModelId: 'standard(custom:judge1)', coverageExtent: 1.0, reflection: 'Perfect from judge1' },
                 { judgeModelId: 'holistic(custom:judge2)', coverageExtent: 0.5, reflection: 'Partial from judge2' },
             ]));
+        });
+
+        it('should use backup judge when one primary judge fails', async () => {
+            const input = createMockEvaluationInput('prompt-backup-success', points);
+            
+            requestIndividualJudgeSpy.mockImplementation(async (mrt, kpt, aokp, pct, judge) => {
+                if (judge.model === 'openai:gpt-4.1-mini') return { coverage_extent: 0.8, reflection: 'Good from GPT-4' };
+                if (judge.model === 'openrouter:google/gemini-2.5-flash-preview-05-20') return { error: 'Gemini failed' };
+                if (judge.model === 'anthropic:claude-3.5-haiku') return { coverage_extent: 0.6, reflection: 'Backup Claude result' };
+                return { error: 'unexpected judge' };
+            });
+
+            const result = await evaluator.evaluate([input]);
+            const assessment = (result.llmCoverageScores?.['prompt-backup-success']?.['model1'] as any)?.pointAssessments[0];
+
+            // Should have been called 3 times: 2 primary + 1 backup
+            expect(requestIndividualJudgeSpy).toHaveBeenCalledTimes(3);
+            expect(assessment.coverageExtent).toBe(0.7); // (0.8 + 0.6) / 2
+            expect(assessment.judgeModelId).toBe('consensus(prompt-aware-openai-gpt-4-1-mini(openai:gpt-4.1-mini), backup-claude-3-5-haiku(anthropic:claude-3.5-haiku))');
+            expect(assessment.individualJudgements).toHaveLength(2);
+            expect(assessment.reflection).toContain('NOTE: Backup judge was used to supplement failed primary judges.');
+            expect(assessment.error).toBeUndefined(); // Should be no error since backup succeeded
+        });
+
+        it('should not use backup judge when all primary judges succeed', async () => {
+            const input = createMockEvaluationInput('prompt-no-backup-needed', points);
+            
+            requestIndividualJudgeSpy.mockImplementation(async (mrt, kpt, aokp, pct, judge) => {
+                if (judge.model === 'openai:gpt-4.1-mini') return { coverage_extent: 0.8, reflection: 'Good from GPT-4' };
+                if (judge.model === 'openrouter:google/gemini-2.5-flash-preview-05-20') return { coverage_extent: 0.9, reflection: 'Good from Gemini' };
+                return { error: 'unexpected judge' };
+            });
+
+            const result = await evaluator.evaluate([input]);
+            const assessment = (result.llmCoverageScores?.['prompt-no-backup-needed']?.['model1'] as any)?.pointAssessments[0];
+
+            // Should have been called only 2 times: 2 primary judges, no backup
+            expect(requestIndividualJudgeSpy).toHaveBeenCalledTimes(2);
+            expect(assessment.coverageExtent).toBe(0.85); // (0.8 + 0.9) / 2
+            expect(assessment.judgeModelId).toBe('consensus(prompt-aware-openai-gpt-4-1-mini(openai:gpt-4.1-mini), prompt-aware-gemini-2-5-flash-preview-05-20(openrouter:google/gemini-2.5-flash-preview-05-20))');
+            expect(assessment.individualJudgements).toHaveLength(2);
+            expect(assessment.reflection).not.toContain('NOTE: Backup judge was used');
+            expect(assessment.error).toBeUndefined();
+        });
+
+        it('should return error when primary judge fails and backup also fails', async () => {
+            const input = createMockEvaluationInput('prompt-backup-fails', points);
+            
+            requestIndividualJudgeSpy.mockImplementation(async (mrt, kpt, aokp, pct, judge) => {
+                if (judge.model === 'openai:gpt-4.1-mini') return { coverage_extent: 0.8, reflection: 'Good from GPT-4' };
+                if (judge.model === 'openrouter:google/gemini-2.5-flash-preview-05-20') return { error: 'Gemini failed' };
+                if (judge.model === 'anthropic:claude-3.5-haiku') return { error: 'Backup Claude also failed' };
+                return { error: 'unexpected judge' };
+            });
+
+            const result = await evaluator.evaluate([input]);
+            const assessment = (result.llmCoverageScores?.['prompt-backup-fails']?.['model1'] as any)?.pointAssessments[0];
+
+            // Should have been called 3 times: 2 primary + 1 backup
+            expect(requestIndividualJudgeSpy).toHaveBeenCalledTimes(3);
+            expect(assessment.coverageExtent).toBe(0.8); // Only successful judge
+            expect(assessment.error).toBe('1 of 2 judges failed to return a valid assessment. The backup judge was not used or also failed. The final score is based on a partial consensus.');
+            expect(assessment.individualJudgements).toHaveLength(1);
+            expect(assessment.reflection).toContain('WARNING: 1 of 2 judges failed');
+        });
+
+        it('should not use backup judge when custom judges are provided', async () => {
+            const input = createMockEvaluationInput('prompt-custom-no-backup', points);
+            const customJudges: Judge[] = [
+                { model: 'custom:judge1', approach: 'standard' },
+                { model: 'custom:judge2', approach: 'holistic' },
+            ];
+            input.config.evaluationConfig = { 'llm-coverage': { judges: customJudges } as any };
+
+            requestIndividualJudgeSpy.mockImplementation(async (mrt, kpt, aokp, pct, judge) => {
+                if (judge.model === 'custom:judge1') return { coverage_extent: 1.0, reflection: 'Perfect from judge1' };
+                if (judge.model === 'custom:judge2') return { error: 'Custom judge2 failed' };
+                return { error: 'unexpected judge' };
+            });
+
+            const result = await evaluator.evaluate([input]);
+            const assessment = (result.llmCoverageScores?.['prompt-custom-no-backup']?.['model1'] as any)?.pointAssessments[0];
+
+            // Should have been called only 2 times: 2 custom judges, no backup
+            expect(requestIndividualJudgeSpy).toHaveBeenCalledTimes(2);
+            expect(assessment.coverageExtent).toBe(1.0); // Only successful judge
+            expect(assessment.judgeModelId).toBe('consensus(standard(custom:judge1))');
+            expect(assessment.individualJudgements).toHaveLength(1);
+            expect(assessment.reflection).not.toContain('NOTE: Backup judge was used');
+        });
+
+        it('should return error when all judges (including backup) fail', async () => {
+            const input = createMockEvaluationInput('prompt-all-fail-including-backup', points);
+            
+            requestIndividualJudgeSpy.mockImplementation(async (mrt, kpt, aokp, pct, judge) => {
+                return { error: 'All judges failed' };
+            });
+
+            const result = await evaluator.evaluate([input]);
+            const assessment = (result.llmCoverageScores?.['prompt-all-fail-including-backup']?.['model1'] as any)?.pointAssessments[0];
+
+            // Should have been called 3 times: 2 primary + 1 backup
+            expect(requestIndividualJudgeSpy).toHaveBeenCalledTimes(3);
+            expect(assessment.error).toBe('All judges failed in consensus mode.');
+            expect(assessment.coverageExtent).toBeUndefined();
+            expect(assessment.judgeModelId).toBeUndefined();
+        });
+
+        it('should NOT be considered an error by repair-run when backup judge is used successfully', async () => {
+            const input = createMockEvaluationInput('prompt-backup-no-error', points);
+            
+            requestIndividualJudgeSpy.mockImplementation(async (mrt, kpt, aokp, pct, judge) => {
+                if (judge.model === 'openai:gpt-4.1-mini') return { coverage_extent: 0.8, reflection: 'Good from GPT-4' };
+                if (judge.model === 'openrouter:google/gemini-2.5-flash-preview-05-20') return { error: 'Gemini failed' };
+                if (judge.model === 'anthropic:claude-3.5-haiku') return { coverage_extent: 0.6, reflection: 'Backup Claude result' };
+                return { error: 'unexpected judge' };
+            });
+
+            const result = await evaluator.evaluate([input]);
+            const coverageResult = result.llmCoverageScores?.['prompt-backup-no-error']?.['model1'];
+
+            // Verify the structure matches what repair-run expects
+            expect(coverageResult).toBeDefined();
+            expect(coverageResult).not.toHaveProperty('error'); // No error at coverage result level
+            expect(coverageResult?.pointAssessments).toHaveLength(1);
+            
+            const assessment = coverageResult?.pointAssessments?.[0];
+            expect(assessment?.error).toBeUndefined(); // This is the key check - no error field
+            expect(assessment?.coverageExtent).toBe(0.7); // Has valid score
+            expect(assessment?.reflection).toContain('NOTE: Backup judge was used to supplement failed primary judges.');
+
+            // Simulate repair-run's detection logic
+            const wouldRepairRunDetectAsError = coverageResult?.pointAssessments?.some((pa: any) => pa.error);
+            expect(wouldRepairRunDetectAsError).toBe(false); // repair-run should NOT consider this an error
         });
 
         it('should use default judges if `judges` array in config is empty', async () => {

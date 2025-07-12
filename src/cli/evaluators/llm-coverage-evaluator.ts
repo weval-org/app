@@ -33,9 +33,15 @@ interface LLMCoverageEvaluationConfig {
 }
 
 const DEFAULT_JUDGES: Judge[] = [
-    { id: 'standard', model: 'openrouter:google/gemini-2.5-flash-preview-05-20', approach: 'standard' },
-    { id: 'prompt-aware', model: 'openrouter:google/gemini-2.5-flash-preview-05-20', approach: 'prompt-aware' },
+    { id: 'prompt-aware-openai-gpt-4-1-mini', model: 'openai:gpt-4.1-mini', approach: 'prompt-aware' },
+    { id: 'prompt-aware-gemini-2-5-flash-preview-05-20', model: 'openrouter:google/gemini-2.5-flash-preview-05-20', approach: 'prompt-aware' },
 ];
+
+const DEFAULT_BACKUP_JUDGE: Judge = {
+    id: 'backup-claude-3-5-haiku',
+    model: 'anthropic:claude-3.5-haiku',
+    approach: 'prompt-aware'
+};
 
 const CLASSIFICATION_SCALE = [
     // Old Approach: CLASS_ABSENT, CLASS_SLIGHTLY_PRESENT, CLASS_PARTIALLY_PRESENT, CLASS_MAJORLY_PRESENT, CLASS_FULLY_PRESENT
@@ -49,6 +55,15 @@ const CLASSIFICATION_SCALE = [
 interface PointwiseCoverageLLMResult {
     coverage_extent: number;
     reflection: string;
+}
+
+interface JudgeResult {
+    coverage_extent?: number;
+    reflection?: string;
+    judgeModelId?: string;
+    individualJudgements?: IndividualJudgement[];
+    error?: string;
+    judgeLog: string[];
 }
 
 const CALL_TIMEOUT_MS_POINTWISE = 45000;
@@ -140,7 +155,7 @@ export class LLMCoverageEvaluator implements Evaluator {
         promptContextText: string,
         judges?: Judge[],
         judgeMode?: 'failover' | 'consensus' // Legacy
-    ): Promise<(PointwiseCoverageLLMResult & { judgeModelId: string, judgeLog: string[], individualJudgements?: IndividualJudgement[] }) | { error: string, judgeLog: string[] }> {
+    ): Promise<JudgeResult> {
         const judgeLog: string[] = [];
         const pLimitFunction = (await import('p-limit')).default;
         const judgeRequestLimit = pLimitFunction(5);
@@ -155,13 +170,15 @@ export class LLMCoverageEvaluator implements Evaluator {
             this.logger.info(`[LLMCoverageEvaluator] No custom judges configured. Using default set of ${DEFAULT_JUDGES.length} judges.`);
             judgesToUse = DEFAULT_JUDGES;
         }
+        const totalJudgesAttempted = judgesToUse.length;
 
         const allKeyPointTexts = allPointsInPrompt.map(p => `${p.isInverted ? '[should not]' : '[should]'} ${p.displayText}`);
         
+        // Phase 1: Try primary judges
         const evaluationPromises = judgesToUse.map((judge, index) =>
             judgeRequestLimit(async () => {
                 const judgeIdentifier = judge.id || `judge-${index}`;
-                this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- [Consensus] Requesting judge: ${judgeIdentifier} (Model: ${judge.model}, Approach: ${judge.approach}) for KP: "${pointToEvaluate.textToEvaluate!.substring(0, 50)}..."`);
+                this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- [Primary] Requesting judge: ${judgeIdentifier} (Model: ${judge.model}, Approach: ${judge.approach}) for KP: "${pointToEvaluate.textToEvaluate!.substring(0, 50)}..."`);
                 judgeLog.push(`[${judgeIdentifier}] Starting evaluation with model ${judge.model} and approach ${judge.approach}.`);
 
                 const singleEvalResult = await this.requestIndividualJudge(
@@ -184,31 +201,95 @@ export class LLMCoverageEvaluator implements Evaluator {
 
         await Promise.all(evaluationPromises);
 
-        if (successfulJudgements.length > 0) {
-            const totalScore = successfulJudgements.reduce((sum, judgement) => sum + judgement.coverage_extent, 0);
-            const avgScore = totalScore / successfulJudgements.length;
-            const consensusReflection = `Consensus from ${successfulJudgements.length} judge(s). Average score: ${avgScore.toFixed(2)}. See breakdown for individual reflections.`;
-            const consensusJudgeId = `consensus(${successfulJudgements.map(e => e.judgeModelId).join(', ')})`;
-            
-            judgeLog.push(`CONSENSUS: Averaged ${successfulJudgements.length} scores to get ${avgScore.toFixed(2)}.`);
-            this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- Consensus mode SUCCEEDED with ${successfulJudgements.length} judges.`);
+        // Phase 2: Use backup judge if needed
+        const usedBackupJudge = await this.tryBackupJudge(
+            modelResponseText,
+            pointToEvaluate,
+            allKeyPointTexts,
+            promptContextText,
+            successfulJudgements,
+            totalJudgesAttempted,
+            judges,
+            judgeLog
+        );
 
-            return {
-                coverage_extent: parseFloat(avgScore.toFixed(2)),
-                reflection: consensusReflection,
-                judgeModelId: consensusJudgeId,
-                judgeLog,
-                individualJudgements: successfulJudgements.map(j => ({
-                    judgeModelId: j.judgeModelId,
-                    coverageExtent: j.coverage_extent,
-                    reflection: j.reflection
-                })),
-            };
-        } else {
+        if (successfulJudgements.length === 0) {
             const errorMsg = "All judges failed in consensus mode.";
             this.logger.warn(`[LLMCoverageEvaluator-Pointwise] --- ${errorMsg}`);
             judgeLog.push(`FINAL_ERROR: ${errorMsg}`);
             return { error: errorMsg, judgeLog };
+        }
+        
+        const totalScore = successfulJudgements.reduce((sum, judgement) => sum + judgement.coverage_extent, 0);
+        const avgScore = totalScore / successfulJudgements.length;
+        let consensusReflection = `Consensus from ${successfulJudgements.length} judge(s). Average score: ${avgScore.toFixed(2)}. See breakdown for individual reflections.`;
+        const consensusJudgeId = `consensus(${successfulJudgements.map(e => e.judgeModelId).join(', ')})`;
+        
+        let errorField: string | undefined = undefined;
+        if (successfulJudgements.length < totalJudgesAttempted && !usedBackupJudge) {
+            const failedCount = totalJudgesAttempted - successfulJudgements.length;
+            errorField = `${failedCount} of ${totalJudgesAttempted} judges failed to return a valid assessment. The backup judge was not used or also failed. The final score is based on a partial consensus.`;
+            consensusReflection += `\n\nWARNING: ${errorField}`;
+            judgeLog.push(`WARNING: ${errorField}`);
+            this.logger.warn(`[LLMCoverageEvaluator-Pointwise] --- Partial success: ${errorField}`);
+        } else if (usedBackupJudge) {
+            judgeLog.push(`BACKUP_USED: Backup judge was successfully used to supplement failed primary judges.`);
+            consensusReflection += `\n\nNOTE: Backup judge was used to supplement failed primary judges.`;
+        }
+
+        return {
+            coverage_extent: parseFloat(avgScore.toFixed(2)),
+            reflection: consensusReflection,
+            judgeModelId: consensusJudgeId,
+            judgeLog,
+            individualJudgements: successfulJudgements.map(j => ({
+                judgeModelId: j.judgeModelId,
+                coverageExtent: j.coverage_extent,
+                reflection: j.reflection
+            })),
+            error: errorField,
+        };
+    }
+
+    private async tryBackupJudge(
+        modelResponseText: string,
+        pointToEvaluate: NormalizedPoint,
+        allKeyPointTexts: string[],
+        promptContextText: string,
+        successfulJudgements: (PointwiseCoverageLLMResult & { judgeModelId: string })[],
+        totalJudgesAttempted: number,
+        judges?: Judge[],
+        judgeLog: string[] = []
+    ): Promise<boolean> {
+        // Only use backup judge if we have fewer successful judgements than expected 
+        // and we're not using custom judges (to preserve user configurations)
+        if (successfulJudgements.length >= totalJudgesAttempted || (judges && judges.length > 0)) {
+            return false;
+        }
+
+        this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- Only ${successfulJudgements.length}/${totalJudgesAttempted} primary judges succeeded. Trying backup judge...`);
+        judgeLog.push(`PRIMARY_PHASE_COMPLETE: ${successfulJudgements.length}/${totalJudgesAttempted} judges succeeded. Activating backup judge.`);
+        
+        const backupJudgeIdentifier = DEFAULT_BACKUP_JUDGE.id || 'backup-judge';
+        this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- [Backup] Requesting judge: ${backupJudgeIdentifier} (Model: ${DEFAULT_BACKUP_JUDGE.model}, Approach: ${DEFAULT_BACKUP_JUDGE.approach}) for KP: "${pointToEvaluate.textToEvaluate!.substring(0, 50)}..."`);
+        judgeLog.push(`[${backupJudgeIdentifier}] Starting backup evaluation with model ${DEFAULT_BACKUP_JUDGE.model} and approach ${DEFAULT_BACKUP_JUDGE.approach}.`);
+
+        const backupEvalResult = await this.requestIndividualJudge(
+            modelResponseText,
+            pointToEvaluate.textToEvaluate!,
+            allKeyPointTexts,
+            promptContextText,
+            DEFAULT_BACKUP_JUDGE
+        );
+
+        if ('error' in backupEvalResult) {
+            judgeLog.push(`[${backupJudgeIdentifier}] BACKUP FAILED: ${backupEvalResult.error}`);
+            return false;
+        } else {
+            const finalBackupJudgeId = DEFAULT_BACKUP_JUDGE.id ? `${DEFAULT_BACKUP_JUDGE.id}(${DEFAULT_BACKUP_JUDGE.model})` : `${DEFAULT_BACKUP_JUDGE.approach}(${DEFAULT_BACKUP_JUDGE.model})`;
+            judgeLog.push(`[${backupJudgeIdentifier}] BACKUP SUCCEEDED. Score: ${backupEvalResult.coverage_extent}`);
+            successfulJudgements.push({ ...backupEvalResult, judgeModelId: finalBackupJudgeId });
+            return true;
         }
     }
 
@@ -526,7 +607,7 @@ Output: <reflection>The text mentions empathy, which means the criterion is MET 
                                     llmCoverageConfig?.judgeMode
                                 );
 
-                                let finalScore = 'error' in judgeResult ? undefined : judgeResult.coverage_extent;
+                                let finalScore = judgeResult.coverage_extent;
                                 if (finalScore !== undefined && point.isInverted) {
                                     finalScore = 1.0 - finalScore;
                                 }
@@ -534,10 +615,10 @@ Output: <reflection>The text mentions empathy, which means the criterion is MET 
                                 textAssessments.push({
                                     keyPointText: point.displayText,
                                     coverageExtent: finalScore,
-                                    reflection: 'error' in judgeResult ? undefined : `${point.isInverted ? '[INVERTED] ' : ''}${judgeResult.reflection}`,
-                                    error: 'error' in judgeResult ? judgeResult.error : undefined,
-                                    individualJudgements: 'individualJudgements' in judgeResult ? judgeResult.individualJudgements : undefined,
-                                    judgeModelId: 'judgeModelId' in judgeResult ? judgeResult.judgeModelId : undefined,
+                                    reflection: judgeResult.reflection ? `${point.isInverted ? '[INVERTED] ' : ''}${judgeResult.reflection}` : undefined,
+                                    error: judgeResult.error,
+                                    individualJudgements: judgeResult.individualJudgements,
+                                    judgeModelId: judgeResult.judgeModelId,
                                     multiplier: point.multiplier,
                                     citation: point.citation,
                                     isInverted: point.isInverted,

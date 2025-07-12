@@ -161,7 +161,7 @@ describe('executeComparisonPipeline', () => {
     expect(promptResponses['good-model[temp:0.0]']).toBe('Response from good-model');
 
     // Check that the bad model's response is an error message
-    expect(promptResponses['bad-model[temp:0.0]']).toContain('<error>Failed to get response for bad-model[temp:0.0]: This model is broken</error>');
+    expect(promptResponses['bad-model[temp:0.0]']).toContain('<<error>>Failed to get response for bad-model[temp:0.0]: This model is broken<</error>>');
     
     // Check that the error is recorded in the errors object
     expect(savedData.errors).toHaveProperty('p1');

@@ -31,7 +31,7 @@ interface SinglePromptViewProps {
     displayedModels: string[];
     canonicalModels: string[];
     prepareResponseComparisonModalData: (info: Partial<SelectedPairInfo>) => SelectedPairInfo | null;
-    prepareModelEvaluationModalData: (args: { promptId: string; modelId: string; }) => ModelEvaluationDetailModalData | null;
+    prepareModelEvaluationModalData: (args: { promptId: string; modelId: string; variantScores?: Record<number, number | null>; }) => ModelEvaluationDetailModalData | null;
     resolvedTheme?: string;
 }
 
@@ -82,7 +82,7 @@ export const SinglePromptView: React.FC<SinglePromptViewProps> = ({
         }
     };
 
-    const openModelEvaluationDetailModal = (args: { promptId: string; modelId: string; }) => {
+    const openModelEvaluationDetailModal = (args: { promptId: string; modelId: string; variantScores?: Record<number, number | null>; }) => {
         const modalData = prepareModelEvaluationModalData(args);
         if (modalData) {
             setModelEvaluationModal(modalData);

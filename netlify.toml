@@ -11,8 +11,8 @@
   enabled = true
 
 # This will run the 'fetch-and-schedule-evals' function weekly on Sunday at midnight UTC.
-[functions."fetch-and-schedule-evals"]
-  schedule = "0 0 * * 0"
+# [functions."fetch-and-schedule-evals"]
+#   schedule = "0 0 * * 0"
 
 # This will run the 'cleanup-sandbox-runs' function daily at 2 AM UTC.
 [functions."cleanup-sandbox-runs"]
