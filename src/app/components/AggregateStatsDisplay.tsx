@@ -177,7 +177,15 @@ const OverallModelLeaderboard: React.FC<{
             <div className="flex items-center">
               <span className="mr-2.5 w-6 text-right text-muted-foreground">{index + 1}.</span>
               {index < 3 && Award && <Award className={`w-3.5 h-3.5 mr-1.5 ${index === 0 ? 'text-amber-400' : index === 1 ? 'text-slate-400' : 'text-amber-700/80'}`} />}
-              <span className="font-medium text-card-foreground" title={model.modelId}>{getModelDisplayLabel(model.modelId, { hideProvider: true })}</span>
+              <span className="font-medium text-card-foreground" title={model.modelId}>{
+                getModelDisplayLabel(model.modelId, {
+                  hideProvider: true,
+                  hideModelMaker: true,
+                  hideSystemPrompt: true,
+                  hideTemperature: true,
+                  prettifyModelName: true
+                })
+              }</span>
             </div>
             <div className="text-right">
               <span className="font-semibold text-primary">{(model.overallAverageScore * 100).toFixed(1)}%</span>

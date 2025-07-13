@@ -94,7 +94,8 @@ export function getModelDisplayLabel(
         baseId = baseId
             .split('-')
             .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-            .join(' ');
+            .join(' ')
+            .replace('Gpt', 'GPT');
     }
     
     let baseDisplayName = baseId;
