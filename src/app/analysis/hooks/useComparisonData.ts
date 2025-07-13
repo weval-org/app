@@ -7,17 +7,29 @@ import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 export interface UseComparisonDataParams {
     initialData: ImportedComparisonDataV2 | null;
     currentPromptId: string | null;
+    disabled?: boolean;
 }
 
-export const useComparisonData = ({ initialData, currentPromptId }: UseComparisonDataParams) => {
+export const useComparisonData = ({ initialData, currentPromptId, disabled = false }: UseComparisonDataParams) => {
     const [data, setData] = useState<ImportedComparisonDataV2 | null>(initialData);
-    const [loading, setLoading] = useState(!initialData); // Only loading if no initial data
+    const [loading, setLoading] = useState(!initialData && !disabled); // Only loading if no initial data and not disabled
     const [error, setError] = useState<string | null>(null);
     const [promptNotFound, setPromptNotFound] = useState<boolean>(false);
     const [excludedModelsList, setExcludedModelsList] = useState<string[]>([]);
     const [selectedTemperatures, setSelectedTemperatures] = useState<number[]>([]);
 
     useEffect(() => {
+        // Skip all data processing if disabled
+        if (disabled) {
+            setData(null);
+            setLoading(false);
+            setError(null);
+            setPromptNotFound(false);
+            setExcludedModelsList([]);
+            setSelectedTemperatures([]);
+            return;
+        }
+
         // This effect now primarily reacts to data changes, not fetching.
         if (initialData) {
             setData(initialData);
@@ -55,7 +67,7 @@ export const useComparisonData = ({ initialData, currentPromptId }: UseCompariso
                 setSelectedTemperatures(initialData.config.temperatures);
             }
         }
-    }, [initialData, currentPromptId]);
+    }, [initialData, currentPromptId, disabled]);
 
     return { data, loading, error, promptNotFound, excludedModelsList, setExcludedModelsList, selectedTemperatures, setSelectedTemperatures };
 } 

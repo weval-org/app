@@ -4,20 +4,18 @@ import { ModelSummary } from '@/cli/types/model_card_types';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
-import { 
-  Trophy, 
-  Target, 
-  TrendingUp, 
-  AlertTriangle, 
-  Zap, 
-  Brain, 
-  CheckCircle, 
-  XCircle, 
-  Activity, 
-  ArrowLeft, 
-  Star, 
-  Users 
-} from 'lucide-react';
+import dynamic from 'next/dynamic';
+
+const Trophy = dynamic(() => import('lucide-react').then(mod => mod.Trophy), { ssr: false });
+const Target = dynamic(() => import('lucide-react').then(mod => mod.Target), { ssr: false });
+const TrendingUp = dynamic(() => import('lucide-react').then(mod => mod.TrendingUp), { ssr: false });
+const AlertTriangle = dynamic(() => import('lucide-react').then(mod => mod.AlertTriangle), { ssr: false });
+const Brain = dynamic(() => import('lucide-react').then(mod => mod.Brain), { ssr: false });
+const CheckCircle = dynamic(() => import('lucide-react').then(mod => mod.CheckCircle), { ssr: false });
+const XCircle = dynamic(() => import('lucide-react').then(mod => mod.XCircle), { ssr: false });
+const Activity = dynamic(() => import('lucide-react').then(mod => mod.Activity), { ssr: false });
+const ArrowLeft = dynamic(() => import('lucide-react').then(mod => mod.ArrowLeft), { ssr: false });
+const Users = dynamic(() => import('lucide-react').then(mod => mod.Users), { ssr: false });
 
 interface ModelCardPageProps {
   params: Promise<{

@@ -5,19 +5,23 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { getGradedCoverageColor } from '@/app/analysis/utils/colorUtils';
 import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
-import { AllCoverageScores, AllFinalAssistantResponses } from '@/app/analysis/types';
+import { AllCoverageScores } from '@/app/analysis/components/CoverageHeatmapCanvas';
+
+// Define AllFinalAssistantResponses type inline
+type AllFinalAssistantResponses = Record<string, Record<string, string>>; // promptId -> modelId -> response text
 import { useMacroCoverageData, SortOption } from '@/app/analysis/hooks/useMacroCoverageData';
 import { cn } from '@/lib/utils';
-import CoverageTableLegend, { ActiveHighlight } from './CoverageTableLegend';
+import CoverageTableLegend, { ActiveHighlight } from '@/app/analysis/components/CoverageTableLegend';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { CheckedState } from '@radix-ui/react-checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import ModelPerformanceModal from './ModelPerformanceModal';
 import { ComparisonDataV2 as ImportedComparisonDataV2 } from '@/app/utils/types';
-import { useActiveHighlights } from '../hooks/useActiveHighlights';
+import { useAnalysis } from '../context/AnalysisContext';
+import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
+import RefactoredPromptDetailModal from '@/app/analysis/components/RefactoredPromptDetailModal';
 
 const UsersIcon = dynamic(() => import("lucide-react").then((mod) => mod.Users), { ssr: false });
 const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.AlertCircle), { ssr: false });
@@ -29,56 +33,58 @@ const MedalIcon = dynamic(() => import("lucide-react").then((mod) => mod.Medal),
 const InfoIcon = dynamic(() => import("lucide-react").then((mod) => mod.Info), { ssr: false });
 const SearchIcon = dynamic(() => import("lucide-react").then((mod) => mod.Search), { ssr: false });
 
-interface MacroCoverageTableProps {
-    allCoverageScores: AllCoverageScores | undefined | null;
-    promptIds: string[];
-    promptTexts: Record<string, string> | undefined | null;
-    promptContexts?: ImportedComparisonDataV2['promptContexts'];
-    models: string[]; // List of non-ideal model IDs
-    allFinalAssistantResponses?: AllFinalAssistantResponses | null; // Now required for focus mode
-    config: ImportedComparisonDataV2['config'];
-    configId: string;
-    runLabel: string;
-    safeTimestampFromParams: string;
-    onCellClick?: (promptId: string, modelId: string) => void;
-    onModelClick?: (modelId: string) => void;
-    onPromptClick?: (promptId: string) => void;
-    onModelHover?: (modelId: string | null) => void;
-    onActiveHighlightsChange?: (activeHighlights: Set<ActiveHighlight>) => void;
-    systemPromptIndex?: number;
-    permutationSensitivityMap?: Map<string, 'temp' | 'sys' | 'both'>;
-    isSandbox?: boolean;
-    sandboxId?: string;
-}
+const RefactoredMacroCoverageTable: React.FC = () => {
+    const {
+        data,
+        configId,
+        runLabel,
+        timestamp: safeTimestampFromParams,
+        modelsForMacroTable,
+        openModelEvaluationDetailModal,
+        handleActiveHighlightsChange,
+        activeSysPromptIndex: systemPromptIndex,
+        permutationSensitivityMap,
+        promptTextsForMacroTable: promptTexts,
+        isSandbox,
+        sandboxId,
+        activeHighlights,
+        analysisStats,
+        displayedModels,
+        openPromptDetailModal,
+        promptDetailModal,
+        closePromptDetailModal,
+        openModelPerformanceModal,
+    } = useAnalysis();
 
-const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
-    allCoverageScores,
-    promptIds,
-    promptTexts,
-    promptContexts,
-    models,
-    allFinalAssistantResponses,
-    config,
-    configId,
-    runLabel,
-    safeTimestampFromParams,
-    onCellClick,
-    onModelClick,
-    onPromptClick,
-    onModelHover,
-    onActiveHighlightsChange,
-    systemPromptIndex,
-    permutationSensitivityMap,
-    isSandbox,
-    sandboxId,
-}) => {
     const [selectedModelForModal, setSelectedModelForModal] = useState<string | null>(null);
+
     const [markdownModule, setMarkdownModule] = useState<{ ReactMarkdown: any, RemarkGfm: any } | null>(null);
     const [sortOption, setSortOption] = useState<SortOption>('alpha-asc');
     const [highlightBestInClass, setHighlightBestInClass] = useState<boolean>(false);
     const [simplifiedView, setSimplifiedView] = useState<boolean>(false);
     const [errorModalOpen, setErrorModalOpen] = useState<boolean>(false);
     const [errorModalContent, setErrorModalContent] = useState<string>('');
+
+    const onCellClick = (promptId: string, modelId: string) => {
+        openModelEvaluationDetailModal({ promptId, modelId, variantScores: analysisStats?.perSystemVariantHybridScores });
+    };
+
+    const onPromptClick = (promptId: string) => {
+        openPromptDetailModal(promptId);
+    };
+
+    if (!data) {
+        return null;
+    }
+    const { 
+        evaluationResults: { llmCoverageScores: allCoverageScores },
+        promptIds,
+        promptContexts,
+        allFinalAssistantResponses,
+        config,
+    } = data;
+
+    const models = modelsForMacroTable.filter(m => m !== IDEAL_MODEL_ID);
 
     const {
         localSortedModels,
@@ -95,14 +101,6 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
         promptModelRanks,
     } = useMacroCoverageData(allCoverageScores, promptIds, models, sortOption);
 
-    const activeHighlights = useActiveHighlights(
-        allCoverageScores,
-        sortedPromptIds,
-        localSortedModels,
-        promptStats,
-        permutationSensitivityMap
-    );
-
     useEffect(() => {
         Promise.all([
             import('react-markdown'),
@@ -114,10 +112,10 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
 
     useEffect(() => {
         // Notify parent component when highlights change
-        if (onActiveHighlightsChange) {
-            onActiveHighlightsChange(activeHighlights);
+        if (handleActiveHighlightsChange) {
+            handleActiveHighlightsChange(activeHighlights);
         }
-    }, [activeHighlights, onActiveHighlightsChange]);
+    }, [activeHighlights, handleActiveHighlightsChange]);
 
     if (!allCoverageScores) {
         return <p className="p-4 text-muted-foreground italic">Macro coverage data not available at all.</p>;
@@ -273,33 +271,21 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
     const secondColModelAvg = cn(modelAvgScoreHeaderBase, "font-semibold text-primary/80 dark:text-primary/80 bg-muted/70");
 
     const handleModelClick = (modelId: string) => {
-        if (onModelClick) {
-            onModelClick(modelId);
-        } else {
-            console.warn("onModelClick is not defined");
-        }
-    };
-
-    const handlePromptClick = (promptId: string) => {
-        if (onPromptClick) {
-            onPromptClick(promptId);
-        } else {
-            console.warn("onPromptClick is not defined");
-        }
+        // This functionality to open ModelPerformanceModal is not used in the aggregate view,
+        // but keeping the stub in case it's needed in the future.
+        console.warn("onModelClick is not defined in this context");
     };
 
     return (
         <div>
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
-                {onCellClick && (
-                    <Alert className="bg-sky-50 border border-sky-200 text-sky-900 dark:bg-sky-900/20 dark:border-sky-500/30 dark:text-sky-200 w-auto">
-                        <InfoIcon className="h-4 w-4" />
-                        <AlertTitle className="font-semibold">Pro Tip</AlertTitle>
-                        <AlertDescription>
-                            Click on any result cell to open a detailed view.
-                        </AlertDescription>
-                    </Alert>
-                )}
+                <Alert className="bg-sky-50 border border-sky-200 text-sky-900 dark:bg-sky-900/20 dark:border-sky-500/30 dark:text-sky-200 w-auto">
+                    <InfoIcon className="h-4 w-4" />
+                    <AlertTitle className="font-semibold">Pro Tip</AlertTitle>
+                    <AlertDescription>
+                        Click on any result cell to open a detailed view.
+                    </AlertDescription>
+                </Alert>
                 <div className="flex flex-col sm:flex-row sm:items-center gap-4 lg:ml-auto">
                     <div className="flex items-center space-x-2">
                         <Checkbox 
@@ -470,7 +456,10 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                                     const renderSearchButton = () => (
                                         <button 
                                             className="mt-1 px-1.5 py-0.5 bg-primary/10 hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/30 rounded text-primary hover:text-primary/80 transition-colors border border-primary/20 hover:border-primary/40"
-                                            onClick={() => setSelectedModelForModal(modelId)}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                openModelPerformanceModal(modelId);
+                                            }}
                                             title={`View detailed analysis for ${getModelDisplayLabel(parsedModelsMap[modelId])}`}
                                         >
                                             {SearchIcon && <SearchIcon className="w-3 h-3" />}
@@ -650,7 +639,7 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                                         const cellClasses = cn(
                                             "border-x border-border dark:border-slate-700",
                                             "p-1 align-middle relative overflow-hidden", // Equal width columns via table-fixed
-                                            onCellClick ? "cursor-pointer" : ""
+                                            "cursor-pointer"
                                         );
 
                                         const sensitivity = permutationSensitivityMap?.get(`${promptId}:${parsedModel.baseId}`);
@@ -682,12 +671,8 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                                                     shouldHighlight && "transform transition-all duration-300 hover:scale-105"
                                                 )}
                                                 style={{width: `${equalWidthPercent}%`}}
-                                                onMouseEnter={() => onModelHover && onModelHover(modelId)}
-                                                onMouseLeave={() => onModelHover && onModelHover(null)}
                                                 onClick={() => {
-                                                    if (onCellClick) {
-                                                        onCellClick(promptId, modelId);
-                                                    }
+                                                    onCellClick(promptId, modelId);
                                                 }}
                                                 title={titleText || undefined}
                                             >
@@ -756,22 +741,6 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                 </table>
             </div>
             
-            {selectedModelForModal && allFinalAssistantResponses && promptTexts && (
-                <ModelPerformanceModal
-                    isOpen={!!selectedModelForModal}
-                    onClose={() => setSelectedModelForModal(null)}
-                    modelId={selectedModelForModal}
-                    parsedModelsMap={parsedModelsMap}
-                    allCoverageScores={allCoverageScores}
-                    allFinalAssistantResponses={allFinalAssistantResponses}
-                    promptIds={sortedPromptIds}
-                    promptTexts={promptTexts}
-                    calculatePromptAverage={calculatePromptAverage}
-                    config={config}
-                    promptContexts={promptContexts}
-                />
-            )}
-            
             <Dialog open={errorModalOpen} onOpenChange={setErrorModalOpen}>
                 <DialogContent className="max-w-lg">
                     <DialogHeader>
@@ -787,8 +756,10 @@ const MacroCoverageTable: React.FC<MacroCoverageTableProps> = ({
                     </div>
                 </DialogContent>
             </Dialog>
+
+            <RefactoredPromptDetailModal />
         </div>
     );
 };
 
-export default MacroCoverageTable; 
+export default RefactoredMacroCoverageTable; 

@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { MobilePromptList } from './MobilePromptList';
 import { MobilePromptDetail } from './MobilePromptDetail';
-import { AllCoverageScores, AllFinalAssistantResponses } from '../types';
+import { AllCoverageScores, AllFinalAssistantResponses } from '@/app/analysis/types';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 
 export interface PromptPerformance {

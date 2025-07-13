@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { cache } from 'react';
 import { EnhancedRunInfo } from '@/app/utils/homepageDataUtils';
-import ConfigRunsClientPage from './ConfigRunsClientPage';
+import RefactorConfigRunsClientPage from './RefactorConfigRunsClientPage';
 import { getConfigSummary } from '@/lib/storageService';
 
 export interface ApiRunsResponse {
@@ -11,7 +11,7 @@ export interface ApiRunsResponse {
     configTags: string[] | null;
 }
 
-export const revalidate = 3600; // Revalidate once per hour
+export const revalidate = 3600;
 
 type ThisPageProps = {
     params: Promise<{
@@ -41,8 +41,19 @@ const getConfigRunsData = cache(async (configId: string): Promise<ApiRunsRespons
     }
 });
 
-export default async function ConfigRunsPage({ params }: ThisPageProps) {
+export default async function RefactorConfigRunsPage({ params }: ThisPageProps) {
   const thisParams = await params;
   const data = await getConfigRunsData(thisParams.configId);
-  return <ConfigRunsClientPage configId={thisParams.configId} data={data} />;
+  return (
+    <RefactorConfigRunsClientPage 
+      configId={thisParams.configId} 
+      configTitle={data.configTitle || 'Unknown Configuration'}
+      description={data.configDescription || undefined}
+      tags={data.configTags || undefined}
+      runs={data.runs}
+      totalRuns={data.runs.length}
+      currentPage={1}
+      runsPerPage={data.runs.length}
+    />
+  );
 } 

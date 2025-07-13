@@ -1,5 +1,5 @@
 import React from 'react';
-import { AllCoverageScores } from '../types';
+import { AllCoverageScores } from '@/app/analysis/components/CoverageHeatmapCanvas';
 import { parseEffectiveModelId, ParsedModelId } from '@/app/utils/modelIdUtils';
 
 export type SortOption =

@@ -11,6 +11,7 @@ export interface BreadcrumbItem {
   label: string;
   href?: string;
   isCurrent?: boolean;
+  title?: string;
 }
 
 interface BreadcrumbsProps {
@@ -29,7 +30,7 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ items, className }) => {
         <div key={index} className="flex items-center">
           {index > 0 && <ChevronRight className="h-4 w-4 mx-1" />}
           {item.href && !item.isCurrent ? (
-            <Link href={item.href} className="hover:underline">
+            <Link href={item.href} className="hover:underline" title={item.title}>
               {item.label}
             </Link>
           ) : (

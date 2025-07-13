@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { cache } from 'react';
-import RunLabelInstancesClientPage from './RunLabelInstancesClientPage';
+import RefactorRunLabelInstancesClientPage from './RefactorRunLabelInstancesClientPage';
 import { ApiRunsResponse } from '../page';
 import { getConfigSummary } from '@/lib/storageService';
 
@@ -11,7 +11,7 @@ type ThisPageProps = {
     }>;
 };
 
-export const revalidate = 3600; // Revalidate once per hour
+export const revalidate = 3600;
 
 const getRunLabelInstancesData = cache(async (configId: string, runLabel: string): Promise<ApiRunsResponse> => {
     try {
@@ -40,8 +40,8 @@ const getRunLabelInstancesData = cache(async (configId: string, runLabel: string
     }
 });
 
-export default async function RunLabelInstancesPage({ params }: ThisPageProps) {
+export default async function RefactorRunLabelInstancesPage({ params }: ThisPageProps) {
   const thisParams = await params;
   const data = await getRunLabelInstancesData(thisParams.configId, thisParams.runLabel);
-  return <RunLabelInstancesClientPage configId={thisParams.configId} runLabel={thisParams.runLabel} data={data} />;
+  return <RefactorRunLabelInstancesClientPage configId={thisParams.configId} runLabel={thisParams.runLabel} data={data} />;
 } 

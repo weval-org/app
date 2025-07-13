@@ -1,4 +1,5 @@
-import AnalysisPageHeader from '@/app/analysis/components/AnalysisPageHeader';
+import RefactoredAnalysisPageHeader from '@/app/analysis/components/RefactoredAnalysisPageHeader';
+import { AnalysisProvider } from '@/app/analysis/context/AnalysisProvider';
 
 function SkeletonCard() {
     return (
@@ -24,20 +25,18 @@ export default function TaggedBlueprintsLoading() {
   ];
 
   return (
-    <div className="min-h-screen bg-background text-foreground p-4 md:p-8">
-      <div className="fixed inset-0 -z-10 dark:bg-gradient-to-br dark:from-background dark:to-muted/20 bg-gradient-to-br from-background to-muted/10" />
-      <div className="max-w-[1800px] mx-auto">
-        <AnalysisPageHeader
-          breadcrumbs={breadcrumbItems}
-          pageTitle="Evaluations Tagged: ..."
-          contextualInfo={{
-            configTitle: '',
-            runLabel: '',
-            timestamp: '',
-            description: 'Showing all evaluation blueprints that have been tagged with...',
-          }}
-          isSticky={false}
-        />
+    <AnalysisProvider
+      configId=""
+      configTitle=""
+      description="Showing all evaluation blueprints that have been tagged with..."
+      tags={[]}
+      pageTitle="Evaluations Tagged: ..."
+      breadcrumbItems={breadcrumbItems}
+    >
+      <div className="min-h-screen bg-background text-foreground p-4 md:p-8">
+        <div className="fixed inset-0 -z-10 dark:bg-gradient-to-br dark:from-background dark:to-muted/20 bg-gradient-to-br from-background to-muted/10" />
+        <div className="max-w-[1800px] mx-auto">
+          <RefactoredAnalysisPageHeader isSticky={false} />
 
         <main className="max-w-4xl mx-auto mt-6 md:mt-8">
           <div className="space-y-5 md:space-y-6">
@@ -48,7 +47,8 @@ export default function TaggedBlueprintsLoading() {
             </div>
           </div>
         </main>
+        </div>
       </div>
-    </div>
+    </AnalysisProvider>
   );
 } 

@@ -11,10 +11,26 @@ import {
     calculateAverageHybridScoreForRun,
     findIdealExtremes,
     calculateMostDifferentiatingPrompt,
+    OverallCoverageExtremes,
+    HybridScoreExtremes,
+    IdealScoreExtremes,
 } from '@/app/utils/calculationUtils';
 import { parseEffectiveModelId } from '@/app/utils/modelIdUtils';
 
-export const useAnalysisStats = (data: ComparisonDataV2 | null) => {
+export interface AnalysisStats {
+    overallIdealExtremes: IdealScoreExtremes | null;
+    overallAvgCoverageStats: { average: number | null, stddev: number | null } | null;
+    overallCoverageExtremes: OverallCoverageExtremes | null;
+    overallHybridExtremes: HybridScoreExtremes | null;
+    overallRunHybridStats: { average: number | null, stddev: number | null };
+    calculatedPerModelHybridScores: Map<string, { average: number | null; stddev: number | null }>;
+    calculatedPerModelSemanticScores: Map<string, { average: number | null; stddev: number | null }>;
+    perSystemVariantHybridScores: Record<number, number | null>;
+    perTemperatureVariantHybridScores: Record<string, number | null>;
+    mostDifferentiatingPrompt: { id: string; score: number } | null;
+}
+
+export const useAnalysisStats = (data: ComparisonDataV2 | null): AnalysisStats => {
     const calculatedPerModelHybridScores = useMemo(() => {
         if (!data?.evaluationResults?.perModelHybridScores) {
             return new Map<string, { average: number | null; stddev: number | null }>();

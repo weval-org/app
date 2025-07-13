@@ -1,82 +1,114 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import MacroCoverageTable from '@/app/analysis/components/MacroCoverageTable';
-import DatasetStatistics from '@/app/analysis/components/DatasetStatistics';
-import { ActiveHighlight } from '@/app/analysis/components/CoverageTableLegend';
-import DendrogramChart from '@/app/analysis/components/DendrogramChart';
-import SystemPromptsDisplay from '@/app/analysis/components/SystemPromptsDisplay';
+import RefactoredMacroCoverageTable from './RefactoredMacroCoverageTable';
+import RefactoredDatasetStatistics from './RefactoredDatasetStatistics';
+import RefactoredDendrogramChart from './RefactoredDendrogramChart';
+import RefactoredSystemPromptsDisplay from './RefactoredSystemPromptsDisplay';
 import {
     Tabs,
     TabsList,
     TabsTrigger,
 } from "@/components/ui/tabs";
-import {
-    ComparisonDataV2 as ImportedComparisonDataV2,
-    CoverageResult as ImportedCoverageResult,
-} from '@/app/utils/types';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelIdUtils';
 import { getHybridScoreColorClass } from '@/app/analysis/utils/colorUtils';
-import PromptDetailModal from '@/app/analysis/components/PromptDetailModal';
-
-const hclust = require('ml-hclust');
+import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
+import { CoverageResult } from '@/app/utils/types';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import KeyPointCoverageTable from '@/app/analysis/components/KeyPointCoverageTable';
 
 const AlertTriangle = dynamic(() => import("lucide-react").then((mod) => mod.AlertTriangle));
 const HelpCircle = dynamic(() => import("lucide-react").then(mod => mod.HelpCircle));
 
-export interface AggregateAnalysisViewProps {
-    data: ImportedComparisonDataV2;
-    configId: string;
-    runLabel: string;
-    timestamp: string;
-    excludedModelsList: string[];
-    openModelEvaluationDetailModal: (args: { promptId: string; modelId: string; variantScores?: Record<number, number | null>; }) => void;
-    resolvedTheme?: string;
-    displayedModels: string[];
-    modelsForMacroTable: string[];
-    modelsForAggregateView: string[];
-    forceIncludeExcludedModels: boolean;
-    setForceIncludeExcludedModels: (value: boolean) => void;
-    selectedTemperatures: number[];
-    setSelectedTemperatures: React.Dispatch<React.SetStateAction<number[]>>;
-    activeSysPromptIndex: number;
-    setActiveSysPromptIndex: (value: number) => void;
-    activeHighlights: Set<ActiveHighlight>;
-    handleActiveHighlightsChange: (newHighlights: Set<ActiveHighlight>) => void;
-    analysisStats: any;
-    permutationSensitivityMap: Map<string, 'temp' | 'sys' | 'both'>;
-    promptTextsForMacroTable: Record<string, string>;
-}
+const RenderPromptDetails: React.FC<{ promptId: string }> = ({ promptId }) => {
+    const { data } = useAnalysis();
+    if (!data) return null;
 
-export const AggregateAnalysisView: React.FC<AggregateAnalysisViewProps> = ({
-    data,
-    configId,
-    runLabel,
-    timestamp,
-    excludedModelsList,
-    openModelEvaluationDetailModal,
-    resolvedTheme,
-    displayedModels,
-    modelsForMacroTable,
-    modelsForAggregateView,
-    forceIncludeExcludedModels,
-    setForceIncludeExcludedModels,
-    selectedTemperatures,
-    setSelectedTemperatures,
-    activeSysPromptIndex,
-    setActiveSysPromptIndex,
-    activeHighlights,
-    handleActiveHighlightsChange,
-    analysisStats,
-    permutationSensitivityMap,
-    promptTextsForMacroTable,
-}) => {
-    const [selectedPromptIdForModal, setSelectedPromptIdForModal] = React.useState<string | null>(null);
+    const context = data.promptContexts?.[promptId];
+    const promptConfig = data.config.prompts.find(p => p.id === promptId);
+
+    const renderContent = () => {
+        if (!context) {
+            return <div className="text-card-foreground dark:text-card-foreground whitespace-pre-wrap">{promptId}</div>;
+        }
+        if (typeof context === 'string') {
+            return <div className="text-card-foreground dark:text-card-foreground whitespace-pre-wrap">{context}</div>;
+        }
+
+        if (Array.isArray(context)) {
+            if (context.length === 1 && context[0].role === 'user') {
+                return <div className="text-card-foreground dark:text-card-foreground whitespace-pre-wrap">{context[0].content}</div>;
+            }
+            if (context.length > 0) {
+                return (
+                    <>
+                        <p className="text-xs font-semibold text-muted-foreground mt-4">Conversation:</p>
+                        <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar p-1 rounded bg-muted/30 dark:bg-muted/20">
+                            {context.map((msg, index) => (
+                                <div key={index} className={`p-2 rounded-md ${msg.role === 'user' ? 'bg-sky-100 dark:bg-sky-900/50' : 'bg-muted dark:bg-muted/50'}`}>
+                                    <p className="text-xs font-semibold text-muted-foreground dark:text-muted-foreground capitalize">{msg.role}</p>
+                                    <p className="text-sm text-card-foreground dark:text-card-foreground whitespace-pre-wrap">{msg.content}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </>
+                );
+            }
+        }
+        return <div className="text-card-foreground dark:text-card-foreground whitespace-pre-wrap">{promptId}</div>;
+    }
+
+    return (
+        <div className="space-y-4">
+            {promptConfig?.description && (
+                <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground border-l-4 border-primary/20 pl-4 py-1">
+                    <p>{promptConfig.description}</p>
+                </div>
+            )}
+            
+            {promptConfig?.citation && (
+                <div className="flex items-start space-x-1.5 text-xs text-muted-foreground/90 italic border-l-2 border-border pl-3 py-2">
+                    <span>Source: {promptConfig.citation}</span>
+                </div>
+            )}
+            
+            {renderContent()}
+        </div>
+    )
+};
+
+export const RefactoredAggregateAnalysisView: React.FC = () => {
+    const {
+        data,
+        configId,
+        runLabel,
+        timestamp,
+        excludedModelsList,
+        openModelEvaluationDetailModal,
+        displayedModels,
+        modelsForMacroTable,
+        modelsForAggregateView,
+        forceIncludeExcludedModels,
+        selectedTemperatures,
+        setSelectedTemperatures,
+        activeSysPromptIndex,
+        setActiveSysPromptIndex,
+        handleActiveHighlightsChange,
+        analysisStats,
+        permutationSensitivityMap,
+        promptTextsForMacroTable,
+        isSandbox,
+    } = useAnalysis();
+    
+    const [showMacroTable, setShowMacroTable] = useState(false);
+
+    if (!data || !analysisStats) return null;
 
     const {
         overallIdealExtremes,
@@ -84,35 +116,81 @@ export const AggregateAnalysisView: React.FC<AggregateAnalysisViewProps> = ({
         overallCoverageExtremes,
         overallHybridExtremes,
         overallRunHybridStats,
-        calculatedPerModelHybridScores,
-        calculatedPerModelSemanticScores,
         perSystemVariantHybridScores,
         perTemperatureVariantHybridScores
     } = analysisStats;
-
-
-    console.log('Condition on whether PerModelHybridScoresCard will display and its props', {
-        conditionOfDisplay: calculatedPerModelHybridScores.size > 0 && displayedModels.length > 0,
-        calculatedPerModelHybridScores,
-        displayedModels,
-    })
     
     const { promptIds, evalMethodsUsed, allFinalAssistantResponses } = data;
 
-    const handlePromptClick = (promptId: string) => {
-        setSelectedPromptIdForModal(promptId);
-    };
-
-    const handleCloseModal = () => {
-        setSelectedPromptIdForModal(null);
-    };
+    if (!promptIds || promptIds.length === 0) {
+        return (
+            <div className="text-center py-4 text-muted-foreground text-sm">
+                No prompts available for this analysis.
+            </div>
+        );
+    }
+    
+    if (isSandbox) {
+        return (
+            <div className="space-y-8">
+                <div className="flex items-center space-x-2 justify-end">
+                  <Label htmlFor="macro-table-toggle">Show Macro Coverage Table</Label>
+                  <Switch
+                    id="macro-table-toggle"
+                    checked={showMacroTable}
+                    onCheckedChange={setShowMacroTable}
+                  />
+                </div>
+    
+                {showMacroTable ? (
+                    <Card className="shadow-lg border-border dark:border-border">
+                        <CardHeader>
+                            <CardTitle className="text-primary">Macro Coverage Overview</CardTitle>
+                            <CardDescription>
+                                Average key point coverage extent for each model across all prompts.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <RefactoredMacroCoverageTable />
+                        </CardContent>
+                    </Card>
+                ) : (
+                    promptIds.map(promptId => (
+                        <Card key={promptId} className="shadow-lg border-border dark:border-border">
+                            <CardHeader>
+                                <div className="w-full">
+                                    <CardTitle className="text-primary text-base font-semibold mb-2">
+                                        <span className="text-muted-foreground">Prompt: </span> 
+                                        <code className="text-foreground">{promptId}</code>
+                                    </CardTitle>
+                                    <RenderPromptDetails
+                                        promptId={promptId}
+                                    />
+                                </div>
+                            </CardHeader>
+                            <CardContent>
+                                 {data.evaluationResults?.llmCoverageScores?.[promptId] ? (
+                                    <KeyPointCoverageTable
+                                        data={data}
+                                        promptId={promptId}
+                                        displayedModels={displayedModels}
+                                    />
+                                ) : (
+                                    <div className="text-center py-4 text-muted-foreground text-sm">
+                                        No coverage data available for this prompt.
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    ))
+                )}
+            </div>
+        );
+    }
 
     return (
         <>
-            <SystemPromptsDisplay
-                systemPrompts={data.config.systems || []}
-                scores={perSystemVariantHybridScores}
-            />
+            <RefactoredSystemPromptsDisplay />
 
             {excludedModelsList.length > 0 && !forceIncludeExcludedModels && (
                 <Alert variant="destructive">
@@ -138,20 +216,7 @@ export const AggregateAnalysisView: React.FC<AggregateAnalysisViewProps> = ({
             )}
 
 
-            <DatasetStatistics
-                promptStats={data.evaluationResults?.promptStatistics}
-                overallSimilarityMatrix={data.evaluationResults?.similarityMatrix ?? undefined}
-                overallIdealExtremes={overallIdealExtremes || undefined}
-                overallCoverageExtremes={overallCoverageExtremes || undefined}
-                overallAvgCoverageStats={overallAvgCoverageStats || undefined}
-                modelsStrings={displayedModels}
-                overallHybridExtremes={overallHybridExtremes || undefined}
-                promptTexts={promptTextsForMacroTable}
-                allPromptIds={promptIds}
-                overallAverageHybridScore={overallRunHybridStats?.average}
-                overallHybridScoreStdDev={overallRunHybridStats?.stddev}
-                allLlmCoverageScores={data.evaluationResults?.llmCoverageScores}
-            />
+            <RefactoredDatasetStatistics />
             
             {!evalMethodsUsed.includes('llm-coverage') && (
                 <div className="my-6">
@@ -260,49 +325,17 @@ export const AggregateAnalysisView: React.FC<AggregateAnalysisViewProps> = ({
                                                 </div>
                                             </div>
                                         )}
-                                        <MacroCoverageTable
-                                            allCoverageScores={data.evaluationResults.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>>}
-                                            promptIds={promptIds}
-                                            promptTexts={promptTextsForMacroTable}
-                                            promptContexts={data.promptContexts}
-                                            models={modelsForMacroTable.filter(m => m !== IDEAL_MODEL_ID)}
-                                            allFinalAssistantResponses={allFinalAssistantResponses}
-                                            config={data.config}
-                                            configId={configId}
-                                            runLabel={runLabel}
-                                            safeTimestampFromParams={timestamp}
-                                            onCellClick={(promptId, modelId) => openModelEvaluationDetailModal({ promptId, modelId, variantScores: perSystemVariantHybridScores })}
-                                            onActiveHighlightsChange={handleActiveHighlightsChange}
-                                            systemPromptIndex={activeSysPromptIndex}
-                                            permutationSensitivityMap={permutationSensitivityMap}
-                                            onPromptClick={handlePromptClick}
-                                        />
+                                        <RefactoredMacroCoverageTable />
                                     </div>
                                 </Tabs>
                             ) : (
-                                <MacroCoverageTable
-                                    allCoverageScores={data.evaluationResults.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>>}
-                                    promptIds={promptIds}
-                                    promptTexts={promptTextsForMacroTable}
-                                    promptContexts={data.promptContexts}
-                                    models={displayedModels.filter(m => m !== IDEAL_MODEL_ID)}
-                                    allFinalAssistantResponses={allFinalAssistantResponses}
-                                    config={data.config}
-                                    configId={configId}
-                                    runLabel={runLabel}
-                                    safeTimestampFromParams={timestamp}
-                                    onCellClick={(promptId, modelId) => openModelEvaluationDetailModal({ promptId, modelId, variantScores: perSystemVariantHybridScores })}
-                                    onActiveHighlightsChange={handleActiveHighlightsChange}
-                                    permutationSensitivityMap={permutationSensitivityMap}
-                                    onPromptClick={handlePromptClick}
-                                />
+                                <RefactoredMacroCoverageTable />
                             )}
                         </CardContent>
                     </Card>
 
                     {data?.evaluationResults?.similarityMatrix && modelsForAggregateView && modelsForAggregateView.length > 1 && (
                         <>
-
                             <Card className="shadow-lg border-border dark:border-border">
                                 <CardHeader>
                                     <CardTitle className="text-primary text-primary">Model Similarity Dendrogram</CardTitle>
@@ -312,10 +345,7 @@ export const AggregateAnalysisView: React.FC<AggregateAnalysisViewProps> = ({
                                 </CardHeader>
                                 <CardContent>
                                     <div className="h-[600px] w-full">
-                                        <DendrogramChart
-                                            similarityMatrix={data.evaluationResults.similarityMatrix}
-                                            models={modelsForAggregateView}
-                                        />
+                                        <RefactoredDendrogramChart />
                                     </div>
                                 </CardContent>
                             </Card>
@@ -323,14 +353,6 @@ export const AggregateAnalysisView: React.FC<AggregateAnalysisViewProps> = ({
                     )}
                 </>
             )}
-            <PromptDetailModal
-                isOpen={!!selectedPromptIdForModal}
-                onClose={handleCloseModal}
-                promptId={selectedPromptIdForModal}
-                data={data}
-                displayedModels={displayedModels}
-            />
         </>
     );
-};
- 
+}; 

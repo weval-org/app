@@ -56,4 +56,26 @@ export const getHybridScoreColorClass = (
     if (score >= 0.50) return 'bg-highlight-warning/80 text-highlight-warning-foreground';
     if (score > 0) return 'bg-highlight-error/80 text-highlight-error-foreground';
     return 'bg-muted/80 text-muted-foreground';
-}; 
+};
+
+export function getSemanticScoreColorClass(score: number | null | undefined): string {
+    if (score === null || score === undefined || isNaN(score)) {
+        return 'text-muted-foreground';
+    }
+    if (score >= 0.95) return 'text-green-600 dark:text-green-400';
+    if (score >= 0.90) return 'text-lime-600 dark:text-lime-400';
+    if (score >= 0.85) return 'text-yellow-600 dark:text-yellow-400';
+    if (score >= 0.80) return 'text-orange-600 dark:text-orange-400';
+    return 'text-red-600 dark:text-red-400';
+}
+
+export function getCoverageScoreColorClass(score: number | null | undefined): string {
+    if (score === null || score === undefined || isNaN(score)) {
+        return 'text-muted-foreground';
+    }
+    if (score >= 0.9) return 'text-green-600 dark:text-green-400';
+    if (score >= 0.7) return 'text-lime-600 dark:text-lime-400';
+    if (score >= 0.5) return 'text-yellow-600 dark:text-yellow-400';
+    if (score > 0) return 'text-orange-600 dark:text-orange-400';
+    return 'text-red-600 dark:text-red-400';
+} 

@@ -1,9 +1,10 @@
-import BetaComparisonClientPage from '@/app/analysis/[configId]/[runLabel]/[timestamp]/BetaComparisonClientPage';
 import { ComparisonDataV2 } from '@/app/utils/types';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
+import { AnalysisProvider } from '@/app/analysis/context/AnalysisProvider';
+import { SandboxClientPage } from './SandboxClientPage';
 
 interface SandboxResultsPageProps {
   params: Promise<{
@@ -86,7 +87,15 @@ export default async function SandboxResultPage({ params }: SandboxResultsPagePr
   
   const isSandboxRun = true;
 
-  // The BetaComparisonClientPage expects the data in a specific prop.
-  // We pass the fetched data directly to it.
-  return <BetaComparisonClientPage data={data} isSandbox={isSandboxRun} />;
+  return (
+    <AnalysisProvider
+      initialData={data}
+      configId={data.config.id!}
+      runLabel={data.runLabel}
+      timestamp={data.timestamp}
+      isSandbox={isSandboxRun}
+    >
+      <SandboxClientPage />
+    </AnalysisProvider>
+  );
 } 

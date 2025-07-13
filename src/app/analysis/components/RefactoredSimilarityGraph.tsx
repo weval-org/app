@@ -3,9 +3,10 @@
 import React, { useEffect, useRef } from 'react'
 import * as d3 from 'd3'
 import { getModelDisplayLabel, parseEffectiveModelId, IDEAL_MODEL_ID_BASE } from '@/app/utils/modelIdUtils'
+import { SimilarityScore } from '@/types/shared'
 
 interface SimilarityGraphProps {
-  similarityMatrix: Record<string, Record<string, number>>
+  similarityMatrix: SimilarityScore
   models: string[]
   resolvedTheme?: string
 }
@@ -56,7 +57,7 @@ const LEGEND_MARGIN_LEFT = 20;
 const LEGEND_TITLE_FONT_SIZE = '10px';
 const LEGEND_LABEL_FONT_SIZE = '9px';
 
-export default function SimilarityGraph({ similarityMatrix, models, resolvedTheme }: SimilarityGraphProps) {
+export default function RefactoredSimilarityGraph({ similarityMatrix, models, resolvedTheme }: SimilarityGraphProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const gRef = useRef<SVGGElement | null>(null)
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null)
@@ -405,4 +406,4 @@ export default function SimilarityGraph({ similarityMatrix, models, resolvedThem
       <svg ref={svgRef} className="w-full h-full"></svg>
     </div>
   )
-}
+} 

@@ -2,6 +2,21 @@ import { ComparisonDataV2 as FetchedComparisonData, EvaluationResults } from '@/
 
 export const IDEAL_MODEL_ID = 'IDEAL_BENCHMARK';
 
+export interface OverallCoverageExtremes {
+    bestCoverage: { modelId: string; avgScore: number } | null;
+    worstCoverage: { modelId: string; avgScore: number } | null;
+}
+
+export interface HybridScoreExtremes {
+    bestHybrid: { modelId: string; avgScore: number } | null;
+    worstHybrid: { modelId: string; avgScore: number } | null;
+}
+
+export interface IdealScoreExtremes {
+    mostSimilar: { modelId: string; value: number } | null;
+    leastSimilar: { modelId: string; value: number } | null;
+}
+
 /**
  * Calculates the standard deviation of a sample.
  * @param numbers - An array of numbers.
@@ -215,7 +230,7 @@ export const findSimilarityExtremes = (matrix: Record<string, Record<string, num
 export const calculateOverallCoverageExtremes = (
   coverageScores: EvaluationResults['llmCoverageScores'],
   models: string[]
-): { bestCoverage: { modelId: string; avgScore: number } | null; worstCoverage: { modelId: string; avgScore: number } | null } => {
+): OverallCoverageExtremes => {
   if (!coverageScores || models.length === 0) {
     return { bestCoverage: null, worstCoverage: null };
   }
@@ -281,7 +296,7 @@ export const calculateHybridScoreExtremes = (
   coverageScores: EvaluationResults['llmCoverageScores'],
   models: string[],
   idealModelId: string = IDEAL_MODEL_ID
-): { bestHybrid: { modelId: string; avgScore: number } | null; worstHybrid: { modelId: string; avgScore: number } | null } => {
+): HybridScoreExtremes => {
 
   if (!similarityMatrix || !coverageScores || models.length === 0 || !models.includes(idealModelId)) {
     console.warn('[calculateHybridScoreExtremes] Missing required data (per-prompt similarity, coverage, models, or ideal). Returning nulls.');
@@ -411,7 +426,7 @@ export const calculateOverallAverageCoverage = (
 export const findIdealExtremes = (
   matrix: Record<string, Record<string, number>> | undefined,
   idealModelId: string = 'IDEAL_BENCHMARK'
-): { mostSimilar: { modelId: string; value: number } | null; leastSimilar: { modelId: string; value: number } | null } => {
+): IdealScoreExtremes => {
   // Check if the matrix or the specific ideal model data exists
   if (!matrix || !matrix[idealModelId] || typeof matrix[idealModelId] !== 'object') {
     console.warn('[findIdealExtremes] Matrix or Ideal Benchmark data missing or invalid.');
