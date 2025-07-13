@@ -227,9 +227,21 @@ export function useWorkspace(
     
     try {
         const localFilesFromDisk = loadFilesFromLocalStorage();
-        setFiles(localFilesFromDisk);
+        if (localFilesFromDisk.length > 0) {
+            setFiles(localFilesFromDisk);
+            if (!activeBlueprintRef.current) {
+                loadFile(localFilesFromDisk[0]);
+            }
+        }
         
         if (!effectiveForkName) {
+            if (localFilesFromDisk.length === 0) {
+                 const { file, blueprint } = initializeDefaultBlueprint();
+                 saveToLocalStorage(blueprint);
+                 setFiles([file]);
+                 setActiveBlueprint(blueprint);
+                 setEditorContent(blueprint.content);
+            }
             setIsFetchingFiles(false);
             setIsSyncingWithGitHub(false);
             return;
@@ -245,8 +257,14 @@ export function useWorkspace(
             const allFiles = [...localFilesFromDisk, ...remoteFiles];
             setFiles(allFiles);
             
-            if (!activeBlueprint && allFiles.length > 0) {
+            if (!activeBlueprintRef.current && allFiles.length > 0) {
                 loadFile(allFiles[0]);
+            } else if (allFiles.length === 0) {
+                const { file, blueprint } = initializeDefaultBlueprint();
+                saveToLocalStorage(blueprint);
+                setFiles([file]);
+                setActiveBlueprint(blueprint);
+                setEditorContent(blueprint.content);
             }
         } catch (error: any) {
             console.error('[fetchFiles] GitHub API error:', error);
@@ -255,7 +273,6 @@ export function useWorkspace(
                 title: 'GitHub Sync Failed',
                 description: error.message,
             });
-            setFiles(localFilesFromDisk);
         } finally {
             setIsFetchingFiles(false);
             setIsSyncingWithGitHub(false);
@@ -267,11 +284,18 @@ export function useWorkspace(
             title: 'GitHub Sync Failed',
             description: error.message,
         });
-        setFiles(loadFilesFromLocalStorage());
         setIsFetchingFiles(false);
         setIsSyncingWithGitHub(false);
     }
-  }, [isLoggedIn, status, isFetchingFiles, loadFilesFromLocalStorage, forkName, activeBlueprint, toast, loadFile, setSetupMessage, setIsSyncingWithGitHub]);
+  }, [isLoggedIn, status, isFetchingFiles, loadFilesFromLocalStorage, forkName, toast, loadFile, setSetupMessage, setIsSyncingWithGitHub, initializeDefaultBlueprint, saveToLocalStorage]);
+
+  useEffect(() => {
+    // This effect ensures that for logged-in users, we only fetch files *after* the fork name is available.
+    // This resolves a race condition where `loadFile` would be called before the fork name was propagated to its scope.
+    if (isLoggedIn && forkName && files.length === 0 && !isFetchingFiles && status === 'ready') {
+      fetchFiles(false, forkName);
+    }
+  }, [isLoggedIn, forkName, files.length, status, isFetchingFiles, fetchFiles]);
 
   useEffect(() => {
     if (isAuthLoading) {
@@ -293,22 +317,16 @@ export function useWorkspace(
     prevIsLoggedIn.current = isLoggedIn;
 
     if (isLoggedIn) {
-      // Logged in: files will now be loaded EXCLUSIVELY by the `setupWorkspace` function
-      // after it confirms the fork is ready. This prevents race conditions.
+      // Logged in: file loading is now triggered by the useEffect above, which waits for a forkName.
+      // This prevents race conditions during initial setup.
     } else {
-        // For non-logged-in users, handle local files
-        let currentLocalFiles = loadFilesFromLocalStorage();
-
-        if (currentLocalFiles.length === 0) {
-            const { file } = initializeDefaultBlueprint();
-            currentLocalFiles = [file];
-        }
-        setFiles(currentLocalFiles);
-        if (currentLocalFiles.length > 0 && !activeBlueprint) {
-            loadFile(currentLocalFiles[0]);
+        // For non-logged-in users, fetch from local storage.
+        // The fetchFiles function will handle creating a default if storage is empty.
+        if (files.length === 0 && !isFetchingFiles) {
+            fetchFiles();
         }
     }
-  }, [isAuthLoading, isLoggedIn, status, fetchFiles, toast, loadFile, activeBlueprint, loadFilesFromLocalStorage, initializeDefaultBlueprint]);
+  }, [isAuthLoading, isLoggedIn, status, fetchFiles, toast, loadFile, activeBlueprint, loadFilesFromLocalStorage, initializeDefaultBlueprint, files.length, isFetchingFiles]);
 
   const runEvaluation = useCallback(async (models?: string[]) => {
     if (!activeBlueprint) {
@@ -448,9 +466,8 @@ export function useWorkspace(
         return result;
     }
 
-    if (result.success && result.forkName) {
-        await fetchFiles(false, result.forkName);
-    }
+    // No longer calling fetchFiles here; it is now handled by a useEffect hook
+    // that waits for the forkName to be ready.
 
     setStatus('ready');
     setSetupMessage('');
