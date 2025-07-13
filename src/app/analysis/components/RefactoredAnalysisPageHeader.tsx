@@ -43,7 +43,7 @@ const SummaryStatsTable = () => {
     {
       label: (
         <span className="flex items-center gap-1.5">
-          🏆 Best Performer
+          🏆 Best Hybrid Score
           {isSandbox && (
             <TooltipProvider>
               <Tooltip>
@@ -59,7 +59,7 @@ const SummaryStatsTable = () => {
       tooltip: `${performerTooltipText} Model: ${bestPerformingModel ? getModelDisplayLabel(bestPerformingModel.id) : 'N/A'}`,
     },
     { 
-      label: '📉 Worst Performer', 
+      label: '📉 Worst Hybrid Score', 
       item: worstPerformingModel ? <span className="underline cursor-pointer" onClick={() => openModelPerformanceModal(worstPerformingModel!.id)}>{getModelDisplayLabel(worstPerformingModel.id, { hideProvider: true })}</span> : 'N/A',
       value: worstPerformingModel ? `${(worstPerformingModel.score * 100).toFixed(1)}%` : 'N/A', 
       tooltip: `${worstPerformerTooltipText} Model: ${worstPerformingModel ? getModelDisplayLabel(worstPerformingModel.id) : 'N/A'}` 
@@ -71,7 +71,7 @@ const SummaryStatsTable = () => {
         tooltip: `The prompt with the highest standard deviation of scores across models. Prompt ID: ${mostDifferentiatingPrompt?.id}`
     },
     {
-        label: '👯 Most Similar Pair',
+        label: '👯 Most Semantically Similar Pair',
         item: mostSimilarPair ? <><span className="underline cursor-pointer" onClick={() => openModelPerformanceModal(mostSimilarPair!.pair[0])}>{getModelDisplayLabel(mostSimilarPair.pair[0], { hideProvider: true })}</span> vs <span className="underline cursor-pointer" onClick={() => openModelPerformanceModal(mostSimilarPair!.pair[1])}>{getModelDisplayLabel(mostSimilarPair.pair[1], { hideProvider: true })}</span></> : 'N/A',
         value: mostSimilarPair ? `${(mostSimilarPair.value * 100).toFixed(1)}%` : 'N/A',
         tooltip: `The two models with the highest semantic similarity score. Pair: ${mostSimilarPair ? `${getModelDisplayLabel(mostSimilarPair.pair[0])} & ${getModelDisplayLabel(mostSimilarPair.pair[1])}` : 'N/A'}`

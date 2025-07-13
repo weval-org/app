@@ -36,18 +36,17 @@ const RefactoredPromptDetailModal: React.FC = () => {
         let conversationContextValue = context;
         let effectiveSystemPromptValue: string | null = null;
         
-        // Check if system prompt is embedded in conversation context
         if (Array.isArray(context) && context.length > 0 && context[0].role === 'system') {
             effectiveSystemPromptValue = context[0].content;
             conversationContextValue = context.slice(1);
         } else {
-            // Check for prompt-specific system prompt
             const promptConfig = data.config.prompts.find(p => p.id === promptId);
             if (promptConfig?.system) {
                 effectiveSystemPromptValue = promptConfig.system;
-            } else if (typeof data.config.system === 'string') {
-                // Fallback to global system prompt
+            } else if (data.config.system) {
                 effectiveSystemPromptValue = data.config.system;
+            } else if (Array.isArray(data.config.systems) && data.config.systems.length > 0) {
+                effectiveSystemPromptValue = data.config.systems[0];
             }
         }
         
@@ -59,6 +58,7 @@ const RefactoredPromptDetailModal: React.FC = () => {
     }
     
     const promptConfig = data.config.prompts.find(p => p.id === promptId);
+    const hasSystemVariants = Array.isArray(data.config.systems) && data.config.systems.length > 1;
 
     return (
         <Dialog open={isOpen} onOpenChange={closePromptDetailModal}>
@@ -87,7 +87,9 @@ const RefactoredPromptDetailModal: React.FC = () => {
                         
                         {effectiveSystemPrompt && (
                             <div className="mb-4">
-                                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">System Prompt</h4>
+                                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                                    {hasSystemVariants ? 'Base System Prompt' : 'System Prompt'}
+                                </h4>
                                 <div className="p-3 rounded-md bg-green-50 dark:bg-green-900/40 ring-1 ring-green-200 dark:ring-green-800 text-sm text-green-900 dark:text-green-200 whitespace-pre-wrap">
                                     {effectiveSystemPrompt}
                                 </div>

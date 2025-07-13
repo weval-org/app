@@ -85,41 +85,7 @@ const RefactorConfigRunsClientPage: React.FC<RefactorConfigRunsClientPageProps> 
         >
             <RefactoredAnalysisPageHeader />
             
-            <div className="space-y-6">
-                {/* Search and Filter Section */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Filter Runs</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div>
-                            <Input
-                                placeholder="Search runs by label..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="max-w-md"
-                            />
-                        </div>
-                        
-                        {allTags.length > 0 && (
-                            <div>
-                                <h4 className="text-sm font-medium mb-2">Filter by Tags:</h4>
-                                <div className="flex flex-wrap gap-2">
-                                    {allTags.map(tag => (
-                                        <Badge
-                                            key={tag}
-                                            variant={selectedTags.includes(tag) ? "default" : "outline"}
-                                            className="cursor-pointer"
-                                            onClick={() => toggleTag(tag)}
-                                        >
-                                            {prettifyTag(tag)}
-                                        </Badge>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
+            <div className="space-y-6 my-8">
 
                 {/* Runs List */}
                 <Card>

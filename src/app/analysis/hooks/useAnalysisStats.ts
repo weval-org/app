@@ -86,9 +86,12 @@ export const useAnalysisStats = (data: ComparisonDataV2 | null): AnalysisStats =
           ? importedCalculateHybridScoreExtremes(evaluationResults.perPromptSimilarities, llmCoverageScores, effectiveModels, IDEAL_MODEL_ID)
           : null;
 
-        const mostDifferentiatingPrompt = evaluationResults?.perPromptSimilarities
-          ? calculateMostDifferentiatingPrompt(evaluationResults.perPromptSimilarities)
-          : null;
+        const mostDifferentiatingPrompt = calculateMostDifferentiatingPrompt(
+          evaluationResults?.perPromptSimilarities,
+          llmCoverageScores,
+          effectiveModels,
+          promptIds,
+        );
 
         const overallRunHybridStats = (evaluationResults?.perPromptSimilarities && llmCoverageScores && effectiveModels && promptIds)
           ? calculateAverageHybridScoreForRun(evaluationResults.perPromptSimilarities, llmCoverageScores, effectiveModels, promptIds, IDEAL_MODEL_ID)

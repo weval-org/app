@@ -89,11 +89,14 @@ const RefactoredModelPerformanceModal: React.FC = () => {
 
     useEffect(() => {
         if (sortedPrompts.length > 0) {
-            setSelectedPromptId(sortedPrompts[0].promptId);
+            const currentSelectionExists = sortedPrompts.some(p => p.promptId === selectedPromptId);
+            if (!currentSelectionExists) {
+                setSelectedPromptId(sortedPrompts[0].promptId);
+            }
         } else {
             setSelectedPromptId(null);
         }
-    }, [sortedPrompts]);
+    }, [sortedPrompts, selectedPromptId]);
 
     const selectedPromptPerformance = selectedPromptId ? promptPerformances.find(p => p.promptId === selectedPromptId) : null;
     const idealResponse = selectedPromptId && allFinalAssistantResponses ? allFinalAssistantResponses[selectedPromptId]?.[IDEAL_MODEL_ID] : null;

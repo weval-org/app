@@ -470,35 +470,60 @@ export const findIdealExtremes = (
  * Finds the prompt that produced the most diverse (least similar) responses across models.
  * It does this by calculating the average similarity for each prompt and finding the minimum.
  * @param perPromptSimilarities - An object mapping prompt IDs to their similarity matrices.
- * @returns An object with the prompt ID and its low average similarity score, or null.
+ * @returns An object with the prompt ID and its standard deviation score, or null.
  */
 export const calculateMostDifferentiatingPrompt = (
-  perPromptSimilarities: EvaluationResults['perPromptSimilarities'] | undefined
-): { id: string; score: number } | null => {
-  if (!perPromptSimilarities) {
+  perPromptSimilarities: EvaluationResults['perPromptSimilarities'] | undefined,
+  llmCoverageScores: EvaluationResults['llmCoverageScores'] | undefined,
+  effectiveModels: FetchedComparisonData['effectiveModels'] | undefined,
+  promptIds: FetchedComparisonData['promptIds'] | undefined,
+): { id: string; score: number, text?: string } | null => {
+  if (!perPromptSimilarities || !llmCoverageScores || !effectiveModels || !promptIds) {
     return null;
   }
 
-  let minAvgSim = Infinity;
-  let diversePromptId: string | null = null;
+  let maxStdDev = -1;
+  let mostDifferentiatingPromptId: string | null = null;
+  
+  const nonIdealModels = effectiveModels.filter(modelId => modelId !== IDEAL_MODEL_ID);
 
-  for (const promptId in perPromptSimilarities) {
-    const matrix = perPromptSimilarities[promptId];
-    // We check for a valid matrix for the prompt
-    if (matrix && typeof matrix === 'object' && Object.keys(matrix).length > 0) {
-      const avgSim = calculateAverageSimilarity(matrix);
-      // We look for a valid average similarity that is lower than the current minimum
-      if (typeof avgSim === 'number' && !isNaN(avgSim) && avgSim < minAvgSim) {
-        minAvgSim = avgSim;
-        diversePromptId = promptId;
-      }
+  // We need at least 2 models to have a standard deviation
+  if (nonIdealModels.length < 2) {
+      return null;
+  }
+
+  for (const promptId of promptIds) {
+    const promptHybridScores: number[] = [];
+    for (const modelId of nonIdealModels) {
+        const simDataEntry = perPromptSimilarities[promptId]?.[modelId]?.[IDEAL_MODEL_ID] ??
+                               perPromptSimilarities[promptId]?.[IDEAL_MODEL_ID]?.[modelId];
+        const simScore = (typeof simDataEntry === 'number' && !isNaN(simDataEntry)) ? simDataEntry : null;
+
+        const covData = llmCoverageScores[promptId]?.[modelId];
+        const covScore = (covData && !('error' in covData) && typeof covData.avgCoverageExtent === 'number' && !isNaN(covData.avgCoverageExtent))
+            ? covData.avgCoverageExtent
+            : null;
+
+        const hybridScore = calculateHybridScore(simScore, covScore);
+        if (hybridScore !== null) {
+            promptHybridScores.push(hybridScore);
+        }
+    }
+
+    // We need at least 2 scores to calculate standard deviation
+    if (promptHybridScores.length >= 2) {
+        const stdDev = calculateStandardDeviation(promptHybridScores);
+        if (stdDev !== null && stdDev > maxStdDev) {
+            maxStdDev = stdDev;
+            mostDifferentiatingPromptId = promptId;
+        }
     }
   }
 
-  if (diversePromptId && minAvgSim !== Infinity) {
+  if (mostDifferentiatingPromptId && maxStdDev !== -1) {
     return {
-      id: diversePromptId,
-      score: minAvgSim,
+      id: mostDifferentiatingPromptId,
+      score: maxStdDev,
     };
   }
 
