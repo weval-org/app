@@ -14,9 +14,10 @@ interface GlobalConfigCardProps {
   blueprint: ComparisonConfig;
   onUpdate: (bp: ComparisonConfig) => void;
   isEditable: boolean; // Controls if the form fields are interactive
+  isAdvancedMode: boolean;
 }
 
-export function GlobalConfigCard({ blueprint, onUpdate, isEditable }: GlobalConfigCardProps) {
+export function GlobalConfigCard({ blueprint, onUpdate, isEditable, isAdvancedMode }: GlobalConfigCardProps) {
 
   const handleFieldChange = <K extends keyof ComparisonConfig>(field: K, value: ComparisonConfig[K]) => {
     // Prevent phantom updates on initial render for optional fields
@@ -42,28 +43,37 @@ export function GlobalConfigCard({ blueprint, onUpdate, isEditable }: GlobalConf
                     readOnly={!isEditable}
                 />
             </div>
-            <div>
-                <label className="text-sm font-semibold text-foreground" htmlFor="blueprint-description">Description</label>
-                <p className="text-xs text-muted-foreground mb-1.5">A brief explanation of what this blueprint is designed to test.</p>
-                <AutoExpandTextarea
-                    id="blueprint-description"
-                    placeholder="e.g., Tests a model's ability to provide safe and accurate medical information."
-                    value={blueprint.description || ''}
-                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleFieldChange('description', e.target.value)}
-                    minRows={2}
-                    maxRows={6}
-                    className="text-sm"
-                    readOnly={!isEditable}
-                />
-            </div>
-            {blueprint.models && blueprint.models.length > 0 && (
-                 <Alert variant="destructive">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>Models Will Be Ignored</AlertTitle>
-                    <AlertDescription>
-                        Defining models in the blueprint is not supported within the sandbox. Models for evaluation are selected when you click &quot;Run Evaluation.&quot; If you want to submit this as a proposal, please remove the <code>models</code> field.
-                    </AlertDescription>
-                </Alert>
+            {isAdvancedMode && (
+                <>
+                    <div>
+                        <label className="text-sm font-semibold text-foreground" htmlFor="blueprint-description">Description</label>
+                        <p className="text-xs text-muted-foreground mb-1.5">A brief explanation of what this blueprint is designed to test.</p>
+                        <AutoExpandTextarea
+                            id="blueprint-description"
+                            placeholder="e.g., Tests a model's ability to provide safe and accurate medical information."
+                            value={blueprint.description || ''}
+                            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleFieldChange('description', e.target.value)}
+                            minRows={2}
+                            maxRows={6}
+                            className="text-sm"
+                            readOnly={!isEditable}
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="blueprint-system" className="text-sm font-semibold block mb-1">System Prompt (Optional)</label>
+                        <AutoExpandTextarea
+                            id="blueprint-system"
+                            placeholder="You are a helpful assistant."
+                            value={blueprint.system || ''}
+                            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleFieldChange('system', e.target.value)}
+                            minRows={2}
+                            maxRows={6}
+                            className="text-sm"
+                            readOnly={!isEditable}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">A global system prompt to be used for all test cases in this blueprint.</p>
+                    </div>
+                </>
             )}
             {/*
             <div>
@@ -75,20 +85,15 @@ export function GlobalConfigCard({ blueprint, onUpdate, isEditable }: GlobalConf
                 />
             </div>
             */}
-            <div>
-                <label htmlFor="blueprint-system" className="text-sm font-semibold block mb-1">System Prompt (Optional)</label>
-                <AutoExpandTextarea
-                    id="blueprint-system"
-                    placeholder="You are a helpful assistant."
-                    value={blueprint.system || ''}
-                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleFieldChange('system', e.target.value)}
-                    minRows={2}
-                    maxRows={6}
-                    className="text-sm"
-                    readOnly={!isEditable}
-                />
-                <p className="text-xs text-muted-foreground mt-1">A global system prompt to be used for all test cases in this blueprint.</p>
-            </div>
+            {blueprint.models && blueprint.models.length > 0 && (
+                 <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Models Will Be Ignored</AlertTitle>
+                    <AlertDescription>
+                        Defining models in the blueprint is not supported within the sandbox. Models for evaluation are selected when you click &quot;Run Evaluation.&quot; If you want to submit this as a proposal, please remove the <code>models</code> field.
+                    </AlertDescription>
+                </Alert>
+            )}
         </div>
     </Card>
   );

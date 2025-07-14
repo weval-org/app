@@ -106,7 +106,7 @@
     --secondary: 330 3% 24%; /* Same as dark muted */
     --secondary-foreground: 42 63% 94%; /* Same as dark foreground */
     --accent: 52 69.2% 87.3%; /* Same as light accent */
-    --accent-foreground: 42 63% 94%; /* Same as dark foreground */
+    --accent-foreground: 330 3% 19%; /* Dark text for light accent background */
     --exciting: 320 75% 65%;
     --exciting-foreground: 0 0% 100%;
     --destructive: 8 86% 60%; /* Same as light destructive */

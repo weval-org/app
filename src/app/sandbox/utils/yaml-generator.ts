@@ -65,16 +65,16 @@ export function generateMinimalBlueprintYaml(config: ComparisonConfig): string {
             const hasAlternativePaths = p.points.some(point => Array.isArray(point));
             
             if (hasAlternativePaths) {
-                // Preserve nested structure for alternative paths
-                newPrompt.should = p.points.map(point => {
-                    if (Array.isArray(point)) {
+                // Preserve mixed structure for required points and alternative paths
+                newPrompt.should = p.points.map(pointOrPath => {
+                    if (Array.isArray(pointOrPath)) {
                         // This is an alternative path - map each point in the path
-                        return point.map(subPoint => 
+                        return pointOrPath.map(subPoint => 
                             isDefaultPoint(subPoint) ? (subPoint as any).text : subPoint
                         );
                     } else {
-                        // This is a single point that should be in its own path
-                        return [isDefaultPoint(point) ? (point as any).text : point];
+                        // This is a required point, do not wrap it in an array
+                        return isDefaultPoint(pointOrPath) ? (pointOrPath as any).text : pointOrPath;
                     }
                 });
             } else {
@@ -90,13 +90,13 @@ export function generateMinimalBlueprintYaml(config: ComparisonConfig): string {
             const hasAlternativePaths = p.should_not.some(point => Array.isArray(point));
             
             if (hasAlternativePaths) {
-                newPrompt.should_not = p.should_not.map(point => {
-                    if (Array.isArray(point)) {
-                        return point.map(subPoint => 
+                newPrompt.should_not = p.should_not.map(pointOrPath => {
+                    if (Array.isArray(pointOrPath)) {
+                        return pointOrPath.map(subPoint => 
                             isDefaultPoint(subPoint) ? (subPoint as any).text : subPoint
                         );
                     } else {
-                        return [isDefaultPoint(point) ? (point as any).text : point];
+                        return isDefaultPoint(pointOrPath) ? (pointOrPath as any).text : pointOrPath;
                     }
                 });
             } else {

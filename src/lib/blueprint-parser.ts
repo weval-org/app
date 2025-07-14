@@ -52,7 +52,7 @@ function _normalizePointArray(pointsArray: any[], promptId: string | undefined):
                 if (Array.isArray(item)) {
                     return item.length > 0;
                 }
-                return item !== null && item !== undefined && item !== '';
+                return item !== null && item !== undefined;
             });
             
             if (filteredExp.length === 0) {

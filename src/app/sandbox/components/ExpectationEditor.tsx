@@ -12,32 +12,41 @@ import {
     DropdownMenuSeparator,
     DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
+import { useState } from 'react';
+import { useDebouncedCallback } from 'use-debounce';
 
 const Trash2 = dynamic(() => import('lucide-react').then(mod => mod.Trash2));
 
 interface ExpectationEditorProps {
   expectation: PointDefinition;
-  onUpdate: (exp: PointDefinition) => void;
+  onUpdate: (updated: PointDefinition) => void;
   onRemove: () => void;
   variant: 'should' | 'should-not';
   isEditable: boolean;
+  placeholder?: string;
 }
 
-export function ExpectationEditor({ expectation, onUpdate, onRemove, variant, isEditable }: ExpectationEditorProps) {
-  
+const debouncedUpdate = (onUpdate: (updated: PointDefinition) => void, updated: PointDefinition) => {
+  onUpdate(updated);
+};
+
+export function ExpectationEditor({ expectation, onUpdate, onRemove, variant, isEditable, placeholder }: ExpectationEditorProps) {
+  const [innerValue, setInnerValue] = useState(expectation);
+  const debouncedOnUpdate = useDebouncedCallback(onUpdate, 300);
+
   const value = typeof expectation === 'object' && expectation !== null && 'text' in expectation ? expectation.text : '';
 
   const handleUpdate = (newValue: string) => {
     const updatedExp: PointDefinition = typeof expectation === 'object' && expectation !== null
       ? { ...expectation, text: newValue }
       : { text: newValue, multiplier: 1.0 };
-    onUpdate(updatedExp);
+    debouncedOnUpdate(updatedExp);
   };
 
   return (
     <div className="flex items-start gap-2">
       <AutoExpandTextarea
-        placeholder={variant === 'should' ? 'e.g., The response is polite.' : 'e.g., Avoids technical jargon.'}
+        placeholder={placeholder || 'e.g., is empathetic and understanding'}
         value={value}
         onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleUpdate(e.target.value)}
         minRows={1}

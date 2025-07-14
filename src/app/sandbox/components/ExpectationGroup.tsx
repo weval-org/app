@@ -10,15 +10,19 @@ const Plus = dynamic(() => import('lucide-react').then(mod => mod.Plus));
 const CheckCircle = dynamic(() => import('lucide-react').then(mod => mod.CheckCircle));
 const XCircle = dynamic(() => import('lucide-react').then(mod => mod.XCircle));
 
+type ExpectationVariant = 'should' | 'should-not';
+
 interface ExpectationGroupProps {
   title: string | null;
+  description?: string | null;
   expectations: PointDefinition[];
-  onUpdate: (exps: PointDefinition[]) => void;
-  variant: 'should' | 'should-not';
+  onUpdate: (expectations: PointDefinition[]) => void;
+  variant: ExpectationVariant;
   isEditable: boolean;
+  placeholder?: string;
 }
 
-export function ExpectationGroup({ title, expectations, onUpdate, variant, isEditable }: ExpectationGroupProps) {
+export function ExpectationGroup({ title, description, expectations, onUpdate, variant, isEditable, placeholder }: ExpectationGroupProps) {
   const handleAdd = () => {
     const nextState = produce(expectations, draft => {
         draft.push({ text: '', multiplier: 1.0 });
@@ -53,6 +57,7 @@ export function ExpectationGroup({ title, expectations, onUpdate, variant, isEdi
           {title}
         </h4>
       )}
+      {description && <p className="text-xs text-muted-foreground mb-2">{description}</p>}
       <div className={`${title ? 'pl-5' : ''} space-y-2`}>
         {expectations.map((exp, index) => (
           <ExpectationEditor
@@ -62,6 +67,7 @@ export function ExpectationGroup({ title, expectations, onUpdate, variant, isEdi
             onRemove={() => handleRemove(index)}
             variant={variant}
             isEditable={isEditable}
+            placeholder={placeholder || "e.g., is empathetic and understanding"}
           />
         ))}
         {isEditable && (

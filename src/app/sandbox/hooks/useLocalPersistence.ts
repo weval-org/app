@@ -8,16 +8,8 @@ import { ActiveBlueprint, BlueprintFile } from './useWorkspace';
 const LOCAL_STORAGE_BLUEPRINT_KEY = 'sandboxV2_blueprints';
 const IMPORT_BLUEPRINT_KEY = 'weval_sandbox_import_v2';
 
-export const DEFAULT_BLUEPRINT_CONTENT = `title: "Welcome to the Sandbox!"
-description: "This is a blueprint for testing AI models. Edit this file or create your own to get started. Use the 'Run Evaluation' button to see how different models respond."
----
-prompt: |
-  Explain the concept of a 'large language model' to a 5-year-old.
-  Include a simple analogy.
-should:
-  - "The explanation should be easy for a child to understand."
-  - "It must use an analogy to illustrate the concept."
-  - "The tone should be friendly and encouraging."`;
+export const DEFAULT_BLUEPRINT_CONTENT = `title: My New Blueprint
+prompts: []`;
 
 export function useLocalPersistence() {
   const { toast } = useToast();

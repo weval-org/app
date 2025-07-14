@@ -23,6 +23,8 @@ import {
 } from '@/components/ui/dialog';
 import { AutoExtendModal } from './AutoExtendModal';
 import { useToast } from '@/components/ui/use-toast';
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
 
 const Plus = dynamic(() => import('lucide-react').then(mod => mod.Plus));
 const Sparkles = dynamic(() => import('lucide-react').then(mod => mod.Sparkles));
@@ -46,7 +48,23 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
     const [isAutoExtendModalOpen, setIsAutoExtendModalOpen] = useState(false);
     const [isExtending, setIsExtending] = useState(false);
     const [showGuide, setShowGuide] = useState(true);
+    const [isAdvancedMode, setIsAdvancedMode] = useState(false);
     const { toast } = useToast();
+
+    useEffect(() => {
+        if (!parsedBlueprint) return;
+
+        const hasGlobalAdvancedOptions = !!parsedBlueprint.description || !!parsedBlueprint.system;
+        const hasAlternativePaths = parsedBlueprint.prompts.some(p => 
+            p.points && p.points.some(point => Array.isArray(point))
+        );
+
+        if (hasGlobalAdvancedOptions || hasAlternativePaths) {
+            setIsAdvancedMode(true);
+        } else {
+            setIsAdvancedMode(false);
+        }
+    }, [parsedBlueprint]);
 
     // Load guide visibility state from localStorage on mount
     useEffect(() => {
@@ -195,7 +213,15 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
     }
 
     return (
-        <div className="p-3 space-y-3 bg-background relative">
+        <div className="p-3 space-y-3 bg-background relative h-full">
+            <div className="flex items-center justify-between pb-2">
+                <div></div>
+                <div className="flex items-center space-x-2">
+                    <Switch id="advanced-mode" checked={isAdvancedMode} onCheckedChange={setIsAdvancedMode} disabled={!isEditable} />
+                    <Label htmlFor="advanced-mode" className="text-sm font-medium">Advanced Options</Label>
+                </div>
+            </div>
+
             {showGuide && (
                 <Card className="border-primary/20 bg-primary/5">
                     <CardHeader className="pb-3">
@@ -224,17 +250,6 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
                             <p><strong>2. Add prompts:</strong> Create prompts with evaluation criteria (what counts as a good response?)</p>
                             <p><strong>3. Run evaluation:</strong> Test your prompts across multiple AI models and see detailed comparisons</p>
                         </div>
-                        {onShowTour && (
-                            <Button 
-                                variant="outline" 
-                                size="sm" 
-                                onClick={onShowTour}
-                                className="mt-3"
-                            >
-                                <HelpCircle className="w-4 h-4 mr-2" />
-                                Take the Interactive Tour
-                            </Button>
-                        )}
                     </CardContent>
                 </Card>
             )}
@@ -243,6 +258,7 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
                 blueprint={parsedBlueprint}
                 onUpdate={handleUpdate}
                 isEditable={isEditable}
+                isAdvancedMode={isAdvancedMode}
             />
             <div className="space-y-3">
                 {parsedBlueprint.prompts.map((prompt, index) => (
@@ -253,6 +269,7 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
                         onRemove={() => handleRemovePrompt(index)}
                         onDuplicate={() => handleDuplicatePrompt(index)}
                         isEditable={isEditable}
+                        isAdvancedMode={isAdvancedMode}
                     />
                 ))}
             </div>
@@ -260,22 +277,24 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
                 <Button 
                     variant="outline" 
                     disabled={!isEditable}
-                    size="sm"
+                    size={parsedBlueprint.prompts && parsedBlueprint.prompts.length > 0 ? "sm" : "lg"}
                     onClick={handleAddPrompt}
                 >
                     <Plus className="h-4 w-4 mr-2" />
-                    Add Prompt
+                    {parsedBlueprint.prompts && parsedBlueprint.prompts.length > 0 ? "Add Prompt" : "Add your first prompt"}
                 </Button>
-                <Button 
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsAutoExtendModalOpen(true)}
-                    disabled={isExtending}
-                    className="bg-exciting text-exciting-foreground border-exciting hover:bg-exciting/90 hover:text-exciting-foreground"
-                >
-                    <Sparkles className="h-4 w-4 mr-2" />
-                        {isExtending ? 'Extending...' : 'Auto-extend'}
-                </Button>
+                {parsedBlueprint.prompts && parsedBlueprint.prompts.length > 0 && (
+                    <Button 
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsAutoExtendModalOpen(true)}
+                        disabled={isExtending}
+                        className="bg-exciting text-exciting-foreground border-exciting hover:bg-exciting/90 hover:text-exciting-foreground"
+                    >
+                        <Sparkles className="h-4 w-4 mr-2" />
+                            {isExtending ? 'Extending...' : 'Auto-extend'}
+                    </Button>
+                )}
             </div>
 
             <AutoExtendModal

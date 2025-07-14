@@ -6,7 +6,6 @@ import { AutoExpandTextarea } from '@/components/ui/textarea';
 import dynamic from 'next/dynamic';
 import React, { useState, useEffect } from 'react';
 import {
-  ComparisonConfig,
   PointDefinition,
   PromptConfig as WevalPromptConfig,
 } from '@/cli/types/cli_types';
@@ -21,9 +20,7 @@ import {
     DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Label } from '@/components/ui/label';
 import { useMobile } from '../hooks/useMobile';
-import { Separator } from '@/components/ui/separator';
 
 const Trash2 = dynamic(() => import('lucide-react').then(mod => mod.Trash2));
 const Copy = dynamic(() => import('lucide-react').then(mod => mod.Copy));
@@ -39,81 +36,70 @@ interface PromptCardProps {
   onRemove: () => void;
   onDuplicate: () => void;
   isEditable: boolean;
+  isAdvancedMode: boolean;
 }
 
-export function PromptCard({ prompt, onUpdate, onRemove, onDuplicate, isEditable }: PromptCardProps) {
-  // Helper function to normalize points into rubric paths
-  const normalizeToRubricPaths = (points?: PointDefinition[]): (PointDefinition[])[] => {
-    if (!points || points.length === 0) {
-      return [[]]; // Single empty path
-    }
-
-    // Check if any point is an array (alternative path)
-    const hasAlternativePaths = points.some(p => Array.isArray(p));
-
-    if (hasAlternativePaths) {
-      // This is already a list of alternative paths
-      return points as (PointDefinition[])[];
-    } else {
-      // This is a flat list - treat as one path
-      return [points];
-    }
-  };
-
-  const [rubricPaths, setRubricPaths] = useState<(PointDefinition[])[]>(normalizeToRubricPaths(prompt.points));
+export function PromptCard({ prompt, onUpdate, onRemove, onDuplicate, isEditable, isAdvancedMode }: PromptCardProps) {
+  const [requiredPoints, setRequiredPoints] = useState<PointDefinition[]>([]);
+  const [alternativePaths, setAlternativePaths] = useState<(PointDefinition[])[]>([]);
   const [activeTab, setActiveTab] = useState('path-0');
   const { isMobile } = useMobile();
 
   useEffect(() => {
-    setRubricPaths(normalizeToRubricPaths(prompt.points));
-    // Reset the active tab when the prompt changes to avoid out-of-bounds errors
-    setActiveTab('path-0');
+    const points = prompt.points || [];
+    const reqs = points.filter(p => !Array.isArray(p)) as PointDefinition[];
+    const alts = points.filter(p => Array.isArray(p)) as (PointDefinition[])[];
+
+    setRequiredPoints(reqs);
+    setAlternativePaths(alts);
+
+    if (alts.length > 0) {
+      setActiveTab('path-0');
+    }
   }, [prompt.points]);
 
-  const handleUpdatePath = (pathIndex: number, newPoints: PointDefinition[]) => {
-      const newPaths = produce(rubricPaths, draft => {
-          draft[pathIndex] = newPoints;
-      });
-      setRubricPaths(newPaths);
-      
-      // Serialize back to the prompt - for multiple paths, use nested arrays
-      let serializedPoints: PointDefinition[];
-      if (newPaths.length <= 1) {
-          // Single path - return flat array
-          serializedPoints = newPaths[0] || [];
-      } else {
-          // Multiple paths - return array with nested arrays
-          serializedPoints = newPaths;
-      }
-      
-      const nextState = produce(prompt, draft => {
-          draft.points = serializedPoints;
-      });
-      onUpdate(nextState);
+  const serializeAndPropagateUpdate = (
+    newRequired: PointDefinition[],
+    newAlts: (PointDefinition[])[]
+  ) => {
+    // We don't filter empty paths here, to allow the user to have an empty path while editing.
+    // The YAML generator or parser can handle final cleanup if needed.
+    const serializedPoints: PointDefinition[] = [...newRequired, ...newAlts];
+    
+    const nextState = produce(prompt, draft => {
+      draft.points = serializedPoints;
+    });
+    onUpdate(nextState);
+  };
+
+  const handleUpdateRequired = (newPoints: PointDefinition[]) => {
+    setRequiredPoints(newPoints);
+    serializeAndPropagateUpdate(newPoints, alternativePaths);
+  };
+
+  const handleUpdateAlternativePath = (pathIndex: number, newPoints: PointDefinition[]) => {
+    const newPaths = produce(alternativePaths, draft => {
+      draft[pathIndex] = newPoints;
+    });
+    setAlternativePaths(newPaths);
+    serializeAndPropagateUpdate(requiredPoints, newPaths);
   };
 
   const handleAddPath = () => {
-      const newPaths = produce(rubricPaths, draft => {
-          // Add a new path with one empty criterion, just like "Add criterion" does
-          draft.push([{ text: '', multiplier: 1.0 }]);
-      });
-      setRubricPaths(newPaths);
-      setActiveTab(`path-${newPaths.length - 1}`);
-      
-      // Since we now have multiple paths, serialize as nested arrays
-      const nextState = produce(prompt, draft => {
-          draft.points = newPaths;
-      });
-      onUpdate(nextState);
+    const newPaths = produce(alternativePaths, draft => {
+      draft.push([{ text: '', multiplier: 1.0 }]);
+    });
+    setAlternativePaths(newPaths);
+    setActiveTab(`path-${newPaths.length - 1}`);
+    serializeAndPropagateUpdate(requiredPoints, newPaths);
   };
 
   const handleRemovePath = (pathIndex: number) => {
-    if (rubricPaths.length <= 1) return;
-
+    if (alternativePaths.length === 0) return;
+    
     let nextActiveTab = activeTab;
     const deletedTabValue = `path-${pathIndex}`;
 
-    // Determine the next active tab before modifying the paths
     if (activeTab === deletedTabValue) {
         nextActiveTab = `path-${Math.max(0, pathIndex - 1)}`;
     } else {
@@ -123,32 +109,17 @@ export function PromptCard({ prompt, onUpdate, onRemove, onDuplicate, isEditable
         }
     }
 
-    const newPaths = produce(rubricPaths, draft => {
+    const newPaths = produce(alternativePaths, draft => {
         draft.splice(pathIndex, 1);
     });
 
-    setRubricPaths(newPaths);
+    setAlternativePaths(newPaths);
     setActiveTab(nextActiveTab);
-    
-    // Serialize back to the prompt
-    let serializedPoints: PointDefinition[];
-    if (newPaths.length <= 1) {
-        // Single path - return flat array
-        serializedPoints = newPaths[0] || [];
-    } else {
-        // Multiple paths - return array with nested arrays
-        serializedPoints = newPaths;
-    }
-    
-    const nextState = produce(prompt, draft => {
-        draft.points = serializedPoints;
-    });
-    onUpdate(nextState);
+    serializeAndPropagateUpdate(requiredPoints, newPaths);
   };
 
   const getPromptText = () => {
     if (!prompt.messages || prompt.messages.length === 0) return '';
-    // The prompt is the content of the last message for single-turn, which is what this editor supports
     return prompt.messages[0].content;
   };
 
@@ -170,139 +141,80 @@ export function PromptCard({ prompt, onUpdate, onRemove, onDuplicate, isEditable
     onUpdate(nextState);
   };
 
-  const setField = (field: 'points' | 'should_not', value: any) => {
+  const setShouldNotField = (value: any) => {
     const nextState = produce(prompt, draft => {
-        (draft as any)[field] = value;
+        draft.should_not = value;
     });
     onUpdate(nextState);
   };
 
-  const hasMultiplePaths = rubricPaths.length > 1;
-
-  let layout: 'base' | 'tabs' | 'horizontal' = 'base';
-  if (hasMultiplePaths) {
-      if (!isMobile && rubricPaths.length <= 3) {
-          layout = 'horizontal';
-      } else {
-          layout = 'tabs';
-      }
-  }
+  const hasMultiplePaths = alternativePaths.length > 1;
 
   const renderRubric = () => {
-    switch (layout) {
-        case 'horizontal':
-            return (
-                <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
-                        <CheckCircle className="w-4 h-4" />
-                        <h4 className="font-semibold text-sm">
-                            With as much detail as possible, describe what constitutes a good response:
-                        </h4>
-                    </div>
-                    <div className="pl-6">
-                        <p className="text-xs text-muted-foreground mb-2">A valid response must satisfy all criteria in at least ONE of the following paths.</p>
-                        <div className="flex flex-row items-start gap-4 pt-2">
-                            {rubricPaths.map((path, index) => (
-                                <React.Fragment key={index}>
-                                    <div className="flex-1 space-y-2 rounded-lg border p-3">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <p className="font-semibold text-sm text-muted-foreground">Path {index + 1}</p>
-                                            {isEditable && (
-                                                <button
-                                                    onClick={() => handleRemovePath(index)}
-                                                    className="rounded-full p-0.5 hover:bg-muted-foreground/20 text-muted-foreground hover:text-foreground"
-                                                    aria-label={`Remove Path ${index + 1}`}
-                                                >
-                                                    <X className="h-3.5 w-3.5" />
-                                                </button>
-                                            )}
-                                        </div>
-                                        <ExpectationGroup
-                                            title={null}
-                                            expectations={path || []}
-                                            onUpdate={(newPoints) => handleUpdatePath(index, newPoints)}
-                                            variant="should"
-                                            isEditable={isEditable}
-                                        />
-                                    </div>
-                                    {index < rubricPaths.length - 1 && <Separator orientation="vertical" className="h-auto" />}
-                                </React.Fragment>
-                            ))}
-                            {isEditable && rubricPaths.length < 3 && (
-                                <Button size="icon" variant="outline" onClick={handleAddPath} className="h-9 w-9 mt-12 flex-shrink-0" title="Add alternative path">
-                                    <Plus className="h-4 w-4" />
-                                </Button>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            );
-        case 'tabs':
-            return (
-                <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
-                        <CheckCircle className="w-4 h-4" />
-                        <h4 className="font-semibold text-sm">
-                            With as much detail as possible, describe what constitutes a good response:
-                        </h4>
-                    </div>
-                    <div className="pl-6">
-                        <p className="text-xs text-muted-foreground mb-2">A valid response must satisfy all criteria in at least ONE of the following paths.</p>
-                        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                            <TabsList>
-                                {rubricPaths.map((_, index) => (
-                                    <TabsTrigger key={index} value={`path-${index}`} className="pr-2">
-                                        Path {index + 1}
-                                        {isEditable && rubricPaths.length > 1 && (
-                                            <button
-                                                onClick={(e) => {
-                                                    e.preventDefault();
-                                                    e.stopPropagation();
-                                                    handleRemovePath(index);
-                                                }}
-                                                className="ml-2 rounded-full p-0.5 hover:bg-muted-foreground/20"
-                                                aria-label={`Remove Path ${index + 1}`}
-                                            >
-                                                <X className="h-3.5 w-3.5" />
-                                            </button>
-                                        )}
-                                    </TabsTrigger>
-                                ))}
+    return (
+      <div className="space-y-4">
+        <ExpectationGroup
+            title="Required Criteria"
+            description="All criteria here MUST be met for a good response."
+            expectations={requiredPoints}
+            onUpdate={handleUpdateRequired}
+            variant="should"
+            isEditable={isEditable}
+            placeholder="Add a required criterion..."
+        />
+
+        {isAdvancedMode && alternativePaths.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
+                <CheckCircle className="w-4 h-4" />
+                <h4 className="font-semibold text-sm">
+                  Alternative Paths: Additionally, criteria must be met in AT LEAST ONE of the following paths.
+                </h4>
+            </div>
+            <div className="pl-1">
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                    <TabsList className="flex flex-wrap h-auto justify-start">
+                        {alternativePaths.map((_, index) => (
+                            <div key={index} className="relative group flex items-center">
+                                <TabsTrigger value={`path-${index}`} className="pr-7">
+                                    Path {index + 1}
+                                </TabsTrigger>
                                 {isEditable && (
-                                    <Button size="icon" variant="ghost" onClick={handleAddPath} className="h-9 w-9 ml-1" title="Add alternative path">
-                                        <Plus className="h-4 w-4" />
-                                    </Button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            handleRemovePath(index);
+                                        }}
+                                        className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded-full p-0.5 hover:bg-muted-foreground/20 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                                        aria-label={`Remove Path ${index + 1}`}
+                                    >
+                                        <X className="h-3.5 w-3.5" />
+                                    </button>
                                 )}
-                            </TabsList>
-                            {rubricPaths.map((path, index) => (
-                                <TabsContent key={index} value={`path-${index}`} className="pt-2">
-                                    <ExpectationGroup
-                                        title={null}
-                                        expectations={path || []}
-                                        onUpdate={(newPoints) => handleUpdatePath(index, newPoints)}
-                                        variant="should"
-                                        isEditable={isEditable}
-                                    />
-                                </TabsContent>
-                            ))}
-                        </Tabs>
-                    </div>
-                </div>
-            );
-        case 'base':
-        default:
-            return (
-                <div>
-                    <ExpectationGroup
-                        title="With as much detail as possible, describe what constitutes a good response:"
-                        expectations={rubricPaths[0] || []}
-                        onUpdate={(newPoints) => handleUpdatePath(0, newPoints)}
-                        variant="should"
-                        isEditable={isEditable}
-                    />
-                </div>
-            );
-    }
+                            </div>
+                        ))}
+                    </TabsList>
+                    {alternativePaths.map((path, index) => (
+                        <TabsContent key={index} value={`path-${index}`} className="pt-2">
+                              <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+                                <ExpectationGroup
+                                    title={null}
+                                    expectations={path || []}
+                                    onUpdate={(newPoints) => handleUpdateAlternativePath(index, newPoints)}
+                                    variant="should"
+                                    isEditable={isEditable}
+                                    placeholder="Add a criterion for this path..."
+                                />
+                            </div>
+                        </TabsContent>
+                    ))}
+                </Tabs>
+            </div>
+          </div>
+        )}
+      </div>
+    )
   };
 
   return (
@@ -343,63 +255,63 @@ export function PromptCard({ prompt, onUpdate, onRemove, onDuplicate, isEditable
         <CardContent className="p-4">
             <div className="space-y-4">
                 <div>
-                <label className="text-sm font-semibold text-foreground">Prompt</label>
-                <p className="text-xs text-muted-foreground mb-1.5">The exact question or instruction for the AI. Be specific.</p>
-                
-                {prompt.messages && prompt.messages.length > 1 ? (
-                    <div className="space-y-2 rounded-md border p-3 bg-muted/50">
-                        {prompt.messages.map((message, index) => (
-                            <div key={index} className="flex flex-col">
-                                <span className="text-xs font-semibold capitalize text-muted-foreground">{message.role}</span>
-                                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                            </div>
-                        ))}
-                        <p className="text-xs text-center text-muted-foreground pt-2">Multi-turn prompts are currently read-only in the form view.</p>
-                    </div>
-                ) : (
-                    <AutoExpandTextarea
-                        placeholder="e.g., Write a short story about a robot who discovers music."
-                        value={getPromptText()}
-                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handlePromptTextChange(e.target.value)}
-                        minRows={2}
-                        maxRows={8}
-                        className="text-sm"
-                        readOnly={!isEditable}
-                    />
-                )}
+                  <label className="text-sm font-semibold text-foreground">Prompt</label>
+                  <p className="text-xs text-muted-foreground mb-1.5">The exact question or instruction for the AI. Be specific.</p>
+                  
+                  {prompt.messages && prompt.messages.length > 1 ? (
+                      <div className="space-y-2 rounded-md border p-3 bg-muted/50">
+                          {prompt.messages.map((message, index) => (
+                              <div key={index} className="flex flex-col">
+                                  <span className="text-xs font-semibold capitalize text-muted-foreground">{message.role}</span>
+                                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                              </div>
+                          ))}
+                          <p className="text-xs text-center text-muted-foreground pt-2">Multi-turn prompts are currently read-only in the form view.</p>
+                      </div>
+                  ) : (
+                      <AutoExpandTextarea
+                          placeholder="e.g., Write a short story about a robot who discovers music."
+                          value={getPromptText()}
+                          onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handlePromptTextChange(e.target.value)}
+                          minRows={2}
+                          maxRows={8}
+                          className="text-sm"
+                          readOnly={!isEditable}
+                      />
+                  )}
                 </div>
+
                 <div>
-                <label className="text-sm font-semibold text-foreground">Ideal Response <span className="text-xs font-normal text-muted-foreground">(Optional)</span></label>
-                <p className="text-xs text-muted-foreground mb-1.5">A "gold-standard" answer to compare against for semantic similarity.</p>
-                <AutoExpandTextarea
-                    placeholder="e.g., Unit 734 processed the auditory input..."
-                    value={prompt.idealResponse || ''}
-                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleIdealResponseChange(e.target.value)}
-                    minRows={2}
-                    maxRows={8}
-                    className="text-sm"
-                    readOnly={!isEditable}
-                />
+                  <label className="text-sm font-semibold text-foreground">Ideal Response <span className="text-xs font-normal text-muted-foreground">(Optional)</span></label>
+                  <p className="text-xs text-muted-foreground mb-1.5">A "gold-standard" answer to compare against for semantic similarity.</p>
+                  <AutoExpandTextarea
+                      placeholder="e.g., Robo 734 processed the auditory input..."
+                      value={prompt.idealResponse || ''}
+                      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleIdealResponseChange(e.target.value)}
+                      minRows={2}
+                      maxRows={8}
+                      className="text-sm"
+                      readOnly={!isEditable}
+                  />
                 </div>
-                <div className="space-y-3">
+                
+                {/* Rubric Section */}
+                <div className="space-y-3 pt-2">
                     {renderRubric()}
-                    {/* 
-                    Temporarily deprecated - users can express negative criteria using plain language 
-                    in the "should" section instead (e.g., "should be professional and avoid slang")
-                    ONLY show it if the YAML has a "should_not" section
-                    */}
+
+                    {/* Should Not Section (remains as is) */}
                     {prompt.should_not && prompt.should_not.length > 0 && (
                     <ExpectationGroup
                         title="The response SHOULD NOT..."
                         expectations={prompt.should_not || []}
-                        onUpdate={exps => setField('should_not', exps)}
+                        onUpdate={setShouldNotField}
                         variant="should-not"
                         isEditable={isEditable}
                     />)}
                 </div>
             </div>
         </CardContent>
-        {isEditable && layout === 'base' && (
+        {isEditable && isAdvancedMode && (
             <CardFooter className="px-4 pb-4 pt-0">
                 <Button
                     size="sm"
@@ -408,7 +320,7 @@ export function PromptCard({ prompt, onUpdate, onRemove, onDuplicate, isEditable
                     className="text-muted-foreground h-8 p-1 font-medium -ml-1"
                 >
                     <Plus className="h-3.5 w-3.5 mr-1.5" />
-                    Add Alternative Path
+                    Add Path
                 </Button>
             </CardFooter>
         )}
