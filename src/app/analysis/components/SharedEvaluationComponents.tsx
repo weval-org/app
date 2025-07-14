@@ -371,7 +371,7 @@ export const EvaluationView: React.FC<{
 
     // Desktop: Side-by-side layout with response and criteria
     return (
-        <div className="flex flex-1 flex-col gap-4 text-sm lg:flex-row lg:gap-x-4 min-h-0">
+        <div className="flex flex-1 flex-col gap-4 text-sm lg:flex-row lg:gap-x-4 min-h-0 px-4 md:px-6 py-4">
             {/* Left Panel: Model Response */}
             <div className="flex flex-1 flex-col rounded-lg border border-border/50 bg-muted/20 p-3 lg:w-2/5 min-h-0">
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 min-h-0 flex flex-col">
@@ -404,18 +404,18 @@ export const EvaluationView: React.FC<{
                 <div className="custom-scrollbar min-h-0 flex-grow space-y-3 overflow-y-auto pr-2 pt-2">
                     {(requiredPoints.criticalFailures.length > 0 || requiredPoints.majorGaps.length > 0 || requiredPoints.passed.length > 0) && (
                         <div className="mb-4">
-                            <h4 className="font-bold text-base text-primary flex items-center mb-2">
+                            {/* <h4 className="font-bold text-base text-primary flex items-center mb-2">
                                 Required Criteria
-                            </h4>
+                            </h4> */}
                             {renderCategorizedAssessments(requiredPoints)}
                         </div>
                     )}
                     
                     {alternativePaths.length > 0 && (
                         <div>
-                            <h4 className="font-bold text-base text-primary flex items-center mb-2">
+                            {/* <h4 className="font-bold text-base text-primary flex items-center mb-2">
                                 Alternative Paths (OR Logic)
-                            </h4>
+                            </h4> */}
                             <div className="space-y-4">
                                 {alternativePaths.map((path, index) => (
                                     <div key={path.pathId} className={cn(

@@ -35,6 +35,7 @@ interface AnalysisProviderProps {
     runLabel?: string;
     timestamp?: string;
     isSandbox?: boolean;
+    sandboxId?: string;
     children: React.ReactNode;
 }
 
@@ -49,6 +50,7 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
     runLabel: runLabelFromProps,
     timestamp: timestampFromProps,
     isSandbox: isSandboxFromProps,
+    sandboxId: sandboxIdFromProps,
     children 
 }) => {
     const router = useRouter();
@@ -452,6 +454,7 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
         breadcrumbItems,
         summaryStats,
         isSandbox,
+        sandboxId: sandboxIdFromProps,
         normalizedExecutiveSummary,
         modelPerformanceModal,
         openModelPerformanceModal,

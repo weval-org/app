@@ -94,6 +94,7 @@ export default async function SandboxResultPage({ params }: SandboxResultsPagePr
       runLabel={data.runLabel}
       timestamp={data.timestamp}
       isSandbox={isSandboxRun}
+      sandboxId={runId}
     >
       <SandboxClientPage />
     </AnalysisProvider>

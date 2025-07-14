@@ -14,11 +14,9 @@ import {
     TabsList,
     TabsTrigger,
 } from "@/components/ui/tabs";
-import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelIdUtils';
 import { getHybridScoreColorClass } from '@/app/analysis/utils/colorUtils';
 import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
-import { CoverageResult } from '@/app/utils/types';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import KeyPointCoverageTable from '@/app/analysis/components/KeyPointCoverageTable';

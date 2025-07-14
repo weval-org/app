@@ -91,6 +91,8 @@ const CoverageTableLegend: React.FC<CoverageTableLegendProps> = ({ activeHighlig
             </div>
         </div>
 
+
+
         {/* Highlight Key Section (conditional) */}
         {!simplifiedView && sortedActiveItems.length > 0 && (
             <div>

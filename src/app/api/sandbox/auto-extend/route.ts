@@ -68,8 +68,6 @@ export async function POST(req: NextRequest) {
         
         const fullPrompt = `Here is the existing blueprint:\n\n\`\`\`yaml\n${existingBlueprintContent}\n\`\`\`\n\nHere is the guidance on how to extend it (guidance may be empty): "<GUIDANCE>${guidance}</GUIDANCE>"`;
 
-        console.log('Full prompt:', fullPrompt);
-
         const generatedYaml = await getModelResponse({
             modelId: GENERATOR_MODEL,
             messages: [{ role: 'user', content: fullPrompt }],

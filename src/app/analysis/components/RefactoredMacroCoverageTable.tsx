@@ -5,7 +5,6 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { getGradedCoverageColor } from '@/app/analysis/utils/colorUtils';
 import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
-import { AllCoverageScores } from '@/app/analysis/components/CoverageHeatmapCanvas';
 
 // Define AllFinalAssistantResponses type inline
 type AllFinalAssistantResponses = Record<string, Record<string, string>>; // promptId -> modelId -> response text
@@ -18,7 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { CheckedState } from '@radix-ui/react-checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ComparisonDataV2 as ImportedComparisonDataV2 } from '@/app/utils/types';
+import { ComparisonDataV2 as ImportedComparisonDataV2, PointAssessment } from '@/app/utils/types';
 import { useAnalysis } from '../context/AnalysisContext';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import RefactoredPromptDetailModal from '@/app/analysis/components/RefactoredPromptDetailModal';
@@ -209,50 +208,306 @@ const RefactoredMacroCoverageTable: React.FC = () => {
             );
         }
 
-        // Detailed view: show individual key point segments
+        // Group assessments by path for detailed view
+        const requiredAssessments: PointAssessment[] = [];
+        const pathGroups: Record<string, PointAssessment[]> = {};
+        
+        assessments.forEach(assessment => {
+            if (assessment.pathId) {
+                if (!pathGroups[assessment.pathId]) {
+                    pathGroups[assessment.pathId] = [];
+                }
+                pathGroups[assessment.pathId].push(assessment);
+            } else {
+                requiredAssessments.push(assessment);
+            }
+        });
+
+        // Find best path (same logic as detailed view)
+        let bestPathId: string | null = null;
+        let bestScore = -1;
+        
+        Object.entries(pathGroups).forEach(([pathId, pathAssessments]) => {
+            const validAssessments = pathAssessments.filter(a => a.coverageExtent !== undefined);
+            if (validAssessments.length > 0) {
+                const totalScore = validAssessments.reduce((sum, a) => sum + a.coverageExtent!, 0);
+                const avgScore = totalScore / validAssessments.length;
+                if (avgScore > bestScore) {
+                    bestScore = avgScore;
+                    bestPathId = pathId;
+                }
+            }
+        });
+
         const totalMultiplier = assessments.reduce((sum, assessment) => sum + (assessment.multiplier ?? 1), 0);
+        const pathEntries = Object.entries(pathGroups).sort((a, b) => {
+            // Sort paths by ID, but put best path first
+            const aId = parseInt(a[0].split('_')[1] || '0');
+            const bId = parseInt(b[0].split('_')[1] || '0');
+            if (a[0] === bestPathId) return -1;
+            if (b[0] === bestPathId) return 1;
+            return aId - bId;
+        });
+
+        // Check if we have multiple paths to show striped backgrounds
+        const hasMultiplePaths = pathEntries.length > 1 || (pathEntries.length > 0 && requiredAssessments.length > 0);
+
+        // Debug logging for choose-your-own-adventure-start
+        if (promptId === 'choose-your-own-adventure-start') {
+            console.log(`[DEBUG PATHS] ${promptId}:`, {
+                hasMultiplePaths,
+                pathEntries: pathEntries.length,
+                requiredAssessments: requiredAssessments.length,
+                pathDetails: pathEntries.map(([pathId, assessments]) => ({ pathId, count: assessments.length })),
+                bestPathId
+            });
+        }
+
+        // Define path background colors/patterns - MUCH MORE OBVIOUS
+        const pathBackgroundStyles = [
+            'bg-blue-500/80',      // Path 1 - very obvious blue
+            'bg-purple-500/80',    // Path 2 - very obvious purple
+            'bg-green-500/80',     // Path 3 - very obvious green
+            'bg-orange-500/80',    // Path 4 - very obvious orange
+            'bg-pink-500/80',      // Path 5 - very obvious pink
+        ];
+
+        // Create background stripe layers if we have multiple paths
+        const renderBackgroundStripes = () => {
+            if (!hasMultiplePaths) {
+                if (promptId === 'choose-your-own-adventure-start') {
+                    console.log(`[DEBUG STRIPES] ${promptId}: No multiple paths detected, not rendering backgrounds`);
+                }
+                return null;
+            }
+
+            if (promptId === 'choose-your-own-adventure-start') {
+                console.log(`[DEBUG STRIPES] ${promptId}: Rendering backgrounds for multiple paths`);
+            }
+
+            const backgroundSegments = [];
+            let currentPosition = 0;
+
+            // Add background for required assessments if any
+            if (requiredAssessments.length > 0) {
+                const requiredMultiplier = requiredAssessments.reduce((sum, assessment) => sum + (assessment.multiplier ?? 1), 0);
+                const requiredWidthPercent = totalMultiplier > 0 ? (requiredMultiplier / totalMultiplier) * 100 : 0;
+                
+                if (promptId === 'choose-your-own-adventure-start') {
+                    console.log(`[DEBUG STRIPES] Adding required background: ${requiredWidthPercent}% width`);
+                }
+                
+                backgroundSegments.push(
+                    <div
+                        key="required-bg"
+                        className="absolute h-full bg-slate-500/80 z-0"
+                        style={{
+                            left: `${currentPosition}%`,
+                            width: `${requiredWidthPercent}%`,
+                        }}
+                    />
+                );
+                currentPosition += requiredWidthPercent;
+            }
+
+            // Add background for each path
+            pathEntries.forEach(([pathId, pathAssessments], index) => {
+                const pathMultiplier = pathAssessments.reduce((sum, assessment) => sum + (assessment.multiplier ?? 1), 0);
+                const pathWidthPercent = totalMultiplier > 0 ? (pathMultiplier / totalMultiplier) * 100 : 0;
+                const isBestPath = pathId === bestPathId;
+                
+                const bgStyle = pathBackgroundStyles[index % pathBackgroundStyles.length];
+                
+                if (promptId === 'choose-your-own-adventure-start') {
+                    console.log(`[DEBUG STRIPES] Adding path ${pathId} background: ${pathWidthPercent}% width, style: ${bgStyle}, isBest: ${isBestPath}`);
+                }
+                
+                backgroundSegments.push(
+                    <div
+                        key={`path-${pathId}-bg`}
+                        className={cn(
+                            "absolute z-0",
+                            bgStyle
+                        )}
+                        style={{
+                            left: `${currentPosition}%`,
+                            width: `${pathWidthPercent}%`,
+                            height: '120%', // Make it extend beyond the cell
+                            top: '-10%',   // Start above the cell
+                        }}
+                        title={`Path ${parseInt(pathId.split('_')[1] || '0') + 1}${isBestPath ? ' (Best Path)' : ''}`}
+                    />
+                );
+                currentPosition += pathWidthPercent;
+            });
+
+            if (promptId === 'choose-your-own-adventure-start') {
+                console.log(`[DEBUG STRIPES] Created ${backgroundSegments.length} background segments`);
+            }
+
+            return backgroundSegments;
+        };
+
+        const renderAssessmentSegments = (assessmentList: PointAssessment[], pathLabel?: string, pathIndex?: number) => {
+            return assessmentList.map((assessment, index) => {
+                const originalIndex = assessments.indexOf(assessment);
+                let isConsideredPresent: boolean;
+                if ((assessment as any).isInverted) {
+                    // For inverted ('should not'), a high score is a pass (good)
+                    isConsideredPresent = assessment.coverageExtent !== undefined && assessment.coverageExtent >= 0.7;
+                } else {
+                    // For normal ('should'), a score > 0.3 is considered present (good)
+                    isConsideredPresent = assessment.coverageExtent !== undefined && assessment.coverageExtent > 0.3;
+                }
+                
+                const bgColorClass = getGradedCoverageColor(isConsideredPresent, assessment.coverageExtent);
+                const pointMultiplier = assessment.multiplier ?? 1;
+                const segmentWidthPercent = totalMultiplier > 0 ? (pointMultiplier / totalMultiplier) * 100 : (1 / nKeyPoints) * 100;
+                
+                // Get path indicator classes for top border
+                const pathBorderClasses = [
+                    'border-t-4 border-blue-500',
+                    'border-t-4 border-purple-500', 
+                    'border-t-4 border-green-500',
+                    'border-t-4 border-orange-500',
+                    'border-t-4 border-pink-500'
+                ];
+                const pathTextClasses = [
+                    'text-blue-500',
+                    'text-purple-500',
+                    'text-green-500', 
+                    'text-orange-500',
+                    'text-pink-500'
+                ];
+                const pathBorderClass = pathIndex !== undefined ? pathBorderClasses[pathIndex % pathBorderClasses.length] : null;
+                const pathTextClass = pathIndex !== undefined ? pathTextClasses[pathIndex % pathTextClasses.length] : null;
+                const isBestPath = assessment.pathId === bestPathId;
+                
+                let pointTooltip = `(model: ${getModelDisplayLabel(parsedModelsMap[modelId])})\n`;
+                
+                if (pathLabel) {
+                    pointTooltip += `${pathLabel} - Criterion ${index + 1}: "${assessment.keyPointText}"`;
+                    if (assessment.pathId === bestPathId) {
+                        pointTooltip += '\n✓ BEST PATH';
+                    }
+                } else {
+                    pointTooltip += `Criterion ${originalIndex + 1}: "${assessment.keyPointText}"`;
+                }
+
+                if ((assessment as any).isInverted) {
+                    pointTooltip += `\nType: Should NOT be present`;
+                    pointTooltip += `\nStatus: ${isConsideredPresent ? 'Passed (Not Present)' : 'VIOLATION (Present)'}`;
+                } else {
+                    pointTooltip += `\nType: Should be present`;
+                    pointTooltip += `\nStatus: ${isConsideredPresent ? 'Present' : 'Not Present'}`;
+                }
+
+                if (assessment.coverageExtent !== undefined) pointTooltip += `\nExtent: ${(assessment.coverageExtent * 100).toFixed(1)}%`;
+                if (assessment.multiplier && assessment.multiplier !== 1) pointTooltip += `\nMultiplier: x${assessment.multiplier}`;
+                if (assessment.reflection) pointTooltip += `\nReflection: ${assessment.reflection}`;
+                if (assessment.error) pointTooltip += `\nError: ${assessment.error}`;
+                if (assessment.citation) pointTooltip += `\nCitation: ${assessment.citation}`;
+                
+                return (
+                    <div
+                        key={`${assessment.pathId || 'required'}-${originalIndex}`}
+                        title={pointTooltip}
+                        className={cn(
+                            "h-full bg-opacity-90 dark:bg-opacity-95 relative z-20",
+                            bgColorClass,
+                            pathBorderClass
+                        )}
+                        style={{ 
+                            width: `${segmentWidthPercent}%`,
+                            borderRight: index < assessmentList.length - 1 ? '1px solid #00000020' : 'none'
+                        }}
+                    >
+                        {/* Add path label on first segment of each path */}
+                        {index === 0 && pathLabel && pathTextClass && (
+                            <div 
+                                className={cn(
+                                    "absolute -top-5 left-1/2 -translate-x-1/2 font-bold z-30 bg-white dark:bg-gray-800 px-1 rounded-sm border border-gray-200 dark:border-gray-600",
+                                    isVeryNarrowLayout ? "text-[10px]" : isNarrowLayout ? "text-[11px]" : "text-xs",
+                                    pathTextClass
+                                )}
+                                style={{ whiteSpace: 'nowrap' }}
+                            >
+                                {pathLabel}{isBestPath ? ' ★' : ''}
+                            </div>
+                        )}
+                    </div>
+                );
+            });
+        };
+
+        const backgroundStripes = renderBackgroundStripes();
+        
+        if (promptId === 'choose-your-own-adventure-start') {
+            console.log(`[DEBUG RENDER] ${promptId}: About to render with backgrounds:`, backgroundStripes ? 'YES' : 'NO');
+        }
 
         return (
-            <div className="flex w-full h-6 rounded-sm overflow-hidden ring-1 ring-border/50 dark:ring-slate-600/50 max-w-full" title={tooltipText}>
-                {assessments.map((assessment, index) => {
-                    let isConsideredPresent: boolean;
-                    if ((assessment as any).isInverted) {
-                        // For inverted ('should not'), a high score is a pass (good)
-                        isConsideredPresent = assessment.coverageExtent !== undefined && assessment.coverageExtent >= 0.7;
-                    } else {
-                        // For normal ('should'), a score > 0.3 is considered present (good)
-                        isConsideredPresent = assessment.coverageExtent !== undefined && assessment.coverageExtent > 0.3;
-                    }
+            <div className="relative w-full h-6 rounded-sm ring-1 ring-border/50 dark:ring-slate-600/50 max-w-full" 
+                 style={{ marginTop: hasMultiplePaths ? '16px' : '0px', overflow: 'visible' }} 
+                 title={tooltipText}>
+                {/* Background stripes layer */}
+                {backgroundStripes}
+                
+                {/* Segments layer */}
+                <div className="relative z-10 flex h-full">
+                    {/* Render required assessments first */}
+                    {requiredAssessments.length > 0 && renderAssessmentSegments(requiredAssessments)}
                     
-                    const bgColorClass = getGradedCoverageColor(isConsideredPresent, assessment.coverageExtent);
-                    const pointMultiplier = assessment.multiplier ?? 1;
-                    const segmentWidthPercent = totalMultiplier > 0 ? (pointMultiplier / totalMultiplier) * 100 : (1 / nKeyPoints) * 100;
+                    {/* Render alternative paths */}
+                    {pathEntries.map(([pathId, pathAssessments], pathIndex) => {
+                        const pathNumber = parseInt(pathId.split('_')[1] || '0') + 1;
+                        const pathLabel = isVeryNarrowLayout ? `${pathNumber}` : `Path ${pathNumber}`;
+                        return renderAssessmentSegments(pathAssessments, pathLabel, pathIndex);
+                    })}
                     
-                    let pointTooltip = `(model: ${getModelDisplayLabel(parsedModelsMap[modelId])})\nCriterion ${index + 1}/${nKeyPoints}: "${assessment.keyPointText}"`;
+                    {/* Fallback for when no paths are detected - render all assessments in order */}
+                    {requiredAssessments.length === 0 && pathEntries.length === 0 && (
+                        assessments.map((assessment, index) => {
+                            let isConsideredPresent: boolean;
+                            if ((assessment as any).isInverted) {
+                                // For inverted ('should not'), a high score is a pass (good)
+                                isConsideredPresent = assessment.coverageExtent !== undefined && assessment.coverageExtent >= 0.7;
+                            } else {
+                                // For normal ('should'), a score > 0.3 is considered present (good)
+                                isConsideredPresent = assessment.coverageExtent !== undefined && assessment.coverageExtent > 0.3;
+                            }
+                            
+                            const bgColorClass = getGradedCoverageColor(isConsideredPresent, assessment.coverageExtent);
+                            const pointMultiplier = assessment.multiplier ?? 1;
+                            const segmentWidthPercent = totalMultiplier > 0 ? (pointMultiplier / totalMultiplier) * 100 : (1 / nKeyPoints) * 100;
+                            
+                            let pointTooltip = `(model: ${getModelDisplayLabel(parsedModelsMap[modelId])})\nCriterion ${index + 1}/${nKeyPoints}: "${assessment.keyPointText}"`;
 
-                    if ((assessment as any).isInverted) {
-                        pointTooltip += `\nType: Should NOT be present`;
-                        pointTooltip += `\nStatus: ${isConsideredPresent ? 'Passed (Not Present)' : 'VIOLATION (Present)'}`;
-                    } else {
-                        pointTooltip += `\nType: Should be present`;
-                        pointTooltip += `\nStatus: ${isConsideredPresent ? 'Present' : 'Not Present'}`;
-                    }
+                            if ((assessment as any).isInverted) {
+                                pointTooltip += `\nType: Should NOT be present`;
+                                pointTooltip += `\nStatus: ${isConsideredPresent ? 'Passed (Not Present)' : 'VIOLATION (Present)'}`;
+                            } else {
+                                pointTooltip += `\nType: Should be present`;
+                                pointTooltip += `\nStatus: ${isConsideredPresent ? 'Present' : 'Not Present'}`;
+                            }
 
-                    if (assessment.coverageExtent !== undefined) pointTooltip += `\nExtent: ${(assessment.coverageExtent * 100).toFixed(1)}%`;
-                    if (assessment.multiplier && assessment.multiplier !== 1) pointTooltip += `\nMultiplier: x${assessment.multiplier}`;
-                    if (assessment.reflection) pointTooltip += `\nReflection: ${assessment.reflection}`;
-                    if (assessment.error) pointTooltip += `\nError: ${assessment.error}`;
-                    if (assessment.citation) pointTooltip += `\nCitation: ${assessment.citation}`;
-                    
-                    return (
-                        <div
-                            key={index}
-                            title={pointTooltip}
-                            className={`h-full ${bgColorClass} bg-opacity-60 dark:bg-opacity-70`}
-                            style={{ width: `${segmentWidthPercent}%`, borderRight: index < nKeyPoints - 1 ? '1px solid #00000030' : 'none' }}
-                        />
-                    );
-                })}
+                            if (assessment.coverageExtent !== undefined) pointTooltip += `\nExtent: ${(assessment.coverageExtent * 100).toFixed(1)}%`;
+                            if (assessment.multiplier && assessment.multiplier !== 1) pointTooltip += `\nMultiplier: x${assessment.multiplier}`;
+                            if (assessment.reflection) pointTooltip += `\nReflection: ${assessment.reflection}`;
+                            if (assessment.error) pointTooltip += `\nError: ${assessment.error}`;
+                            if (assessment.citation) pointTooltip += `\nCitation: ${assessment.citation}`;
+                            
+                            return (
+                                <div
+                                    key={index}
+                                    title={pointTooltip}
+                                    className={`h-full ${bgColorClass} bg-opacity-90 dark:bg-opacity-95 relative z-20`}
+                                    style={{ width: `${segmentWidthPercent}%`, borderRight: index < nKeyPoints - 1 ? '1px solid #00000020' : 'none' }}
+                                />
+                            );
+                        })
+                    )}
+                </div>
             </div>
         );
     };
@@ -260,21 +515,18 @@ const RefactoredMacroCoverageTable: React.FC = () => {
     // Calculate equal width percentage for model columns (excluding fixed-width first two columns)
     const modelColumnsCount = localSortedModels.length;
     const equalWidthPercent = modelColumnsCount > 0 ? (100 / modelColumnsCount).toFixed(2) : "100";
+    
+    // Calculate responsive sizing for path labels (once, not per path)
+    const isNarrowByPercent = parseFloat(equalWidthPercent) < 8; // Less than 8% width per column
+    const isVeryNarrowByPercent = parseFloat(equalWidthPercent) < 5; // Less than 5% width per column
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768; // Tailwind md breakpoint
+    const isSmallMobile = typeof window !== 'undefined' && window.innerWidth < 640; // Tailwind sm breakpoint
+    const isNarrowLayout = isNarrowByPercent || isMobile;
+    const isVeryNarrowLayout = isVeryNarrowByPercent || isSmallMobile;
     const headerCellStyle = "border border-border dark:border-slate-700 px-2 py-2.5 text-center font-semibold align-bottom overflow-hidden";
-    const modelNameHeaderStyle = cn(headerCellStyle, "text-foreground dark:text-slate-200");
     const mIndexHeaderStyle = cn(headerCellStyle, "text-foreground dark:text-slate-200");
     const firstColHeader = cn(headerCellStyle, "text-primary bg-muted");
     const secondColHeader = cn(headerCellStyle, "text-primary bg-muted text-left");
-
-    const modelAvgScoreHeaderBase = "border-x border-b border-border dark:border-slate-700 px-2 py-1.5 text-center text-[10px] overflow-hidden";
-    const firstColModelAvg = cn(modelAvgScoreHeaderBase, "font-semibold text-primary/80 dark:text-primary/80 bg-muted/70");
-    const secondColModelAvg = cn(modelAvgScoreHeaderBase, "font-semibold text-primary/80 dark:text-primary/80 bg-muted/70");
-
-    const handleModelClick = (modelId: string) => {
-        // This functionality to open ModelPerformanceModal is not used in the aggregate view,
-        // but keeping the stub in case it's needed in the future.
-        console.warn("onModelClick is not defined in this context");
-    };
 
     return (
         <div>
@@ -671,9 +923,7 @@ const RefactoredMacroCoverageTable: React.FC = () => {
                                                     shouldHighlight && "transform transition-all duration-300 hover:scale-105"
                                                 )}
                                                 style={{width: `${equalWidthPercent}%`}}
-                                                onClick={() => {
-                                                    onCellClick(promptId, modelId);
-                                                }}
+                                                onClick={() => onCellClick(promptId, modelId)}
                                                 title={titleText || undefined}
                                             >
                                                 {/* Only show icons and detailed segments in detailed view */}

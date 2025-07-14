@@ -10,6 +10,7 @@ import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
 import RefactoredAnalysisPageHeader from '@/app/analysis/components/RefactoredAnalysisPageHeader';
 import RefactoredModelPerformanceModal from '@/app/analysis/components/RefactoredModelPerformanceModal';
 import RefactoredPromptDetailModal from '@/app/analysis/components/RefactoredPromptDetailModal';
+import RefactoredModelEvaluationDetailModal from '@/app/analysis/components/RefactoredModelEvaluationDetailModal';
 import CoverageHeatmapCanvas from '@/app/analysis/components/CoverageHeatmapCanvas';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 
@@ -117,6 +118,7 @@ export const SandboxClientPage: React.FC = () => {
 
             <RefactoredModelPerformanceModal />
             <RefactoredPromptDetailModal />
+            <RefactoredModelEvaluationDetailModal />
         </div>
     );
 }; 

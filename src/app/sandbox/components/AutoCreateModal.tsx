@@ -23,6 +23,7 @@ interface AutoCreateModalProps {
 export function AutoCreateModal({ onGenerated, isOpen, onOpenChange }: AutoCreateModalProps) {
     const [goal, setGoal] = useState('');
     const [wikiUrl, setWikiUrl] = useState('');
+    const [guidance, setGuidance] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('freeform');
     const { toast } = useToast();
@@ -93,7 +94,7 @@ export function AutoCreateModal({ onGenerated, isOpen, onOpenChange }: AutoCreat
           const response = await fetch('/api/sandbox/auto-wiki', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ wikiUrl }),
+            body: JSON.stringify({ wikiUrl, guidance }),
           });
     
           const data = await response.json();
@@ -135,6 +136,7 @@ export function AutoCreateModal({ onGenerated, isOpen, onOpenChange }: AutoCreat
           onGenerated(data.yaml);
           onOpenChange(false);
           setWikiUrl('');
+          setGuidance('');
         } catch (error: any) {
           toast({
             variant: 'destructive',
@@ -185,14 +187,26 @@ export function AutoCreateModal({ onGenerated, isOpen, onOpenChange }: AutoCreat
                         </div>
                     </TabsContent>
                     <TabsContent value="wiki">
-                        <div className="py-4">
-                            <Label htmlFor="wiki-url" className="mb-2 block">Enter a Wikipedia URL:</Label>
-                             <Input
-                                id="wiki-url"
-                                value={wikiUrl}
-                                onChange={(e) => setWikiUrl(e.target.value)}
-                                placeholder="https://en.wikipedia.org/wiki/Stoicism"
-                            />
+                        <div className="py-4 space-y-4">
+                            <div>
+                                <Label htmlFor="wiki-url" className="mb-2 block">Enter a Wikipedia URL:</Label>
+                                <Input
+                                    id="wiki-url"
+                                    value={wikiUrl}
+                                    onChange={(e) => setWikiUrl(e.target.value)}
+                                    placeholder="https://en.wikipedia.org/wiki/Stoicism"
+                                />
+                            </div>
+                             <div>
+                                <Label htmlFor="guidance-textarea" className="mb-2 block">Optional Guidance:</Label>
+                                <Textarea
+                                    id="guidance-textarea"
+                                    placeholder="e.g., Focus on the early life of the subject, create prompts that compare this topic to Platonism..."
+                                    value={guidance}
+                                    onChange={(e) => setGuidance(e.target.value)}
+                                    className="min-h-[100px]"
+                                />
+                            </div>
                         </div>
                     </TabsContent>
                 </Tabs>

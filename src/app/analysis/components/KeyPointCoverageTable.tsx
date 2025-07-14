@@ -374,7 +374,7 @@ const KeyPointCoverageTable: React.FC<KeyPointCoverageTableProps> = ({
                 Select a model on the left to see a detailed breakdown of how its response covers the evaluation criteria.
             </CardDescription>
         </CardHeader>
-        <CardContent className="h-96 flex flex-col">
+        <CardContent className="flex flex-col">
             {modelViewContent}
         </CardContent>
     </Card>

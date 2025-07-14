@@ -29,17 +29,18 @@ const autoWikiSchema = z.object({
       }
     },
     { message: 'Please provide a valid Wikipedia URL.' }
-  )
+  ),
+  guidance: z.string().optional(),
 });
 
-const getSystemPrompt = (articleTitle: string, articleSummary: string) => `
+const getSystemPrompt = (articleTitle: string, articleSummary: string, guidance?: string) => `
 ${EXPERT_PREAMBLE} Your task is to analyze the provided text from a Wikipedia article and generate a Weval blueprint structure.
 
 The goal is NOT to simply summarize the article. Instead, you must identify the most "potent" and "testable" claims, nuances, and potential areas of confusion within the text. Create prompts that test a model's ability to reason accurately about this specific information.
 
 **Article Title:** ${articleTitle}
 **Summary:** ${articleSummary}
-
+${guidance ? `\n**User Guidance:**\n${guidance}\n` : ''}
 **Instructions:**
 1.  **Generate a Blueprint:** Create a complete blueprint configuration as JSON.
 2.  **Title and Description:** Write a clear \`title\` and \`description\`.
@@ -130,7 +131,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: friendlyError.message }, { status: 400 });
     }
 
-    const { wikiUrl } = validation.data;
+    const { wikiUrl, guidance } = validation.data;
     const wikiInfo = extractWikipediaInfo(wikiUrl);
 
     if (!wikiInfo) {
@@ -168,7 +169,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Prepare the request for the LLM
-    const systemPrompt = getSystemPrompt(title, articleSummary);
+    const systemPrompt = getSystemPrompt(title, articleSummary, guidance);
     
     // 3. Call the LLM to generate the blueprint
     const generatedYaml = await getModelResponse({
