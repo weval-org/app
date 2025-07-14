@@ -5,12 +5,12 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { RefactoredAggregateAnalysisView } from '@/app/analysis/components/RefactoredAggregateAnalysisView';
+import { AggregateAnalysisView } from '@/app/analysis/components/AggregateAnalysisView';
 import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
-import RefactoredAnalysisPageHeader from '@/app/analysis/components/RefactoredAnalysisPageHeader';
-import RefactoredModelPerformanceModal from '@/app/analysis/components/RefactoredModelPerformanceModal';
-import RefactoredPromptDetailModal from '@/app/analysis/components/RefactoredPromptDetailModal';
-import RefactoredModelEvaluationDetailModal from '@/app/analysis/components/RefactoredModelEvaluationDetailModal';
+import AnalysisPageHeader from '@/app/analysis/components/AnalysisPageHeader';
+import ModelPerformanceModal from '@/app/analysis/components/ModelPerformanceModal';
+import PromptDetailModal from '@/app/analysis/components/PromptDetailModal';
+import ModelEvaluationDetailModal from '@/app/analysis/components/ModelEvaluationDetailModal';
 import CoverageHeatmapCanvas from '@/app/analysis/components/CoverageHeatmapCanvas';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 
@@ -104,8 +104,8 @@ export const SandboxClientPage: React.FC = () => {
                     </Button>
                 </AlertDescription>
             </Alert>
-            <RefactoredAnalysisPageHeader headerWidget={headerWidgetContent} />
-            <RefactoredAggregateAnalysisView />
+            <AnalysisPageHeader headerWidget={headerWidgetContent} />
+            <AggregateAnalysisView />
 
             <div className="mt-12 text-center border-t border-border pt-8">
                 <Button asChild size="lg">
@@ -116,9 +116,9 @@ export const SandboxClientPage: React.FC = () => {
                 </Button>
             </div>
 
-            <RefactoredModelPerformanceModal />
-            <RefactoredPromptDetailModal />
-            <RefactoredModelEvaluationDetailModal />
+            <ModelPerformanceModal />
+            <PromptDetailModal />
+            <ModelEvaluationDetailModal />
         </div>
     );
 }; 

@@ -3,13 +3,13 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAnalysis } from '../context/AnalysisContext';
-import RefactoredSimilarityGraph from './RefactoredSimilarityGraph';
+import SimilarityGraph from './SimilarityGraph';
 
-interface RefactoredPromptResponsesConsistencyProps {
+interface PromptResponsesConsistencyProps {
     models: string[];
 }
 
-const RefactoredPromptResponsesConsistency: React.FC<RefactoredPromptResponsesConsistencyProps> = ({ models }) => {
+const PromptResponsesConsistency: React.FC<PromptResponsesConsistencyProps> = ({ models }) => {
     const { data, currentPromptId } = useAnalysis();
 
     if (!data || !currentPromptId || !data.evaluationResults?.perPromptSimilarities || !data.evaluationResults.perPromptSimilarities[currentPromptId]) {
@@ -40,11 +40,11 @@ const RefactoredPromptResponsesConsistency: React.FC<RefactoredPromptResponsesCo
             </CardHeader>
             <CardContent>
                 <div className="h-96">
-                    <RefactoredSimilarityGraph models={models} similarityMatrix={similarityData} />
+                    <SimilarityGraph models={models} similarityMatrix={similarityData} />
                 </div>
             </CardContent>
         </Card>
     );
 };
 
-export default RefactoredPromptResponsesConsistency; 
+export default PromptResponsesConsistency; 

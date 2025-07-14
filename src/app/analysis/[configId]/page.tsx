@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { cache } from 'react';
 import { EnhancedRunInfo } from '@/app/utils/homepageDataUtils';
-import RefactorConfigRunsClientPage from './RefactorConfigRunsClientPage';
+import ConfigRunsClientPage from './ConfigRunsClientPage';
 import { getConfigSummary } from '@/lib/storageService';
 
 export interface ApiRunsResponse {
@@ -41,11 +41,11 @@ const getConfigRunsData = cache(async (configId: string): Promise<ApiRunsRespons
     }
 });
 
-export default async function RefactorConfigRunsPage({ params }: ThisPageProps) {
+export default async function ConfigRunsPage({ params }: ThisPageProps) {
   const thisParams = await params;
   const data = await getConfigRunsData(thisParams.configId);
   return (
-    <RefactorConfigRunsClientPage 
+    <ConfigRunsClientPage 
       configId={thisParams.configId} 
       configTitle={data.configTitle || 'Unknown Configuration'}
       description={data.configDescription || undefined}

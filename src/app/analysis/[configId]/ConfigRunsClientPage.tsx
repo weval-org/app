@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useState, useCallback } from 'react';
-import RefactoredAnalysisPageHeader from '@/app/analysis/components/RefactoredAnalysisPageHeader';
+import AnalysisPageHeader from '@/app/analysis/components/AnalysisPageHeader';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,7 @@ import { fromSafeTimestamp, formatTimestampForDisplay } from '@/lib/timestampUti
 import dynamic from 'next/dynamic';
 const AlertCircle = dynamic(() => import('lucide-react').then(mod => mod.AlertCircle), { ssr: false });
 
-interface RefactorConfigRunsClientPageProps {
+interface ConfigRunsClientPageProps {
     configId: string;
     configTitle: string;
     description?: string;
@@ -25,7 +25,7 @@ interface RefactorConfigRunsClientPageProps {
     runsPerPage: number;
 }
 
-const RefactorConfigRunsClientPage: React.FC<RefactorConfigRunsClientPageProps> = ({
+const ConfigRunsClientPage: React.FC<ConfigRunsClientPageProps> = ({
     configId,
     configTitle,
     description,
@@ -83,7 +83,7 @@ const RefactorConfigRunsClientPage: React.FC<RefactorConfigRunsClientPageProps> 
             pageTitle={pageTitle}
             breadcrumbItems={breadcrumbItems}
         >
-            <RefactoredAnalysisPageHeader />
+            <AnalysisPageHeader />
             
             <div className="space-y-6 my-8">
 
@@ -143,4 +143,4 @@ const RefactorConfigRunsClientPage: React.FC<RefactorConfigRunsClientPageProps> 
     );
 };
 
-export default RefactorConfigRunsClientPage; 
+export default ConfigRunsClientPage; 

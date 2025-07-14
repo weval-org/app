@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { Card } from '@/components/ui/card'
 import { fromSafeTimestamp } from '@/lib/timestampUtils';
 import { EnhancedRunInfo } from '@/app/utils/homepageDataUtils';
-import RefactoredAnalysisPageHeader from '@/app/analysis/components/RefactoredAnalysisPageHeader';
+import AnalysisPageHeader from '@/app/analysis/components/AnalysisPageHeader';
 import { AnalysisProvider } from '@/app/analysis/context/AnalysisProvider';
 import CoverageHeatmapCanvas from '@/app/analysis/components/CoverageHeatmapCanvas';
 import { ApiRunsResponse } from '../page';
@@ -30,7 +30,7 @@ const getHybridScoreColor = (score: number | null | undefined): string => {
   return 'text-red-600';
 };
 
-export default function RefactorRunLabelInstancesClientPage({ configId, runLabel, data }: { configId: string, runLabel: string, data: ApiRunsResponse }) {
+export default function RunLabelInstancesClientPage({ configId, runLabel, data }: { configId: string, runLabel: string, data: ApiRunsResponse }) {
   const { runs: allRunsForThisConfig, configTitle, configDescription, configTags } = data;
 
   const runInstances = useMemo(() => {
@@ -91,7 +91,7 @@ export default function RefactorRunLabelInstancesClientPage({ configId, runLabel
     >
       <div className="min-h-screen p-4 md:p-8">
         <div className="mx-auto">
-          <RefactoredAnalysisPageHeader
+          <AnalysisPageHeader
             actions={headerActions}
             isSticky={false}
           />

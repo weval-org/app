@@ -25,7 +25,7 @@ interface ModelEvaluationVariant {
     systemPrompt: string | null;
 }
 
-const RefactoredModelEvaluationDetailModal: React.FC = () => {
+const ModelEvaluationDetailModal: React.FC = () => {
     const {
         data,
         modelEvaluationModal,
@@ -331,4 +331,4 @@ const RefactoredModelEvaluationDetailModal: React.FC = () => {
     );
 };
 
-export default RefactoredModelEvaluationDetailModal; 
+export default ModelEvaluationDetailModal; 

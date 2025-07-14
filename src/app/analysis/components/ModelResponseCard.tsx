@@ -8,11 +8,11 @@ import { useAnalysis } from '../context/AnalysisContext';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { getHybridScoreColorClass } from '@/app/analysis/utils/colorUtils';
 
-interface RefactoredModelResponseCardProps {
+interface ModelResponseCardProps {
     modelId: string;
 }
 
-const RefactoredModelResponseCard: React.FC<RefactoredModelResponseCardProps> = ({ modelId }) => {
+const ModelResponseCard: React.FC<ModelResponseCardProps> = ({ modelId }) => {
     const { data, analysisStats, currentPromptId, openModelEvaluationDetailModal } = useAnalysis();
 
     if (!data || !currentPromptId) return null;
@@ -101,4 +101,4 @@ const RefactoredModelResponseCard: React.FC<RefactoredModelResponseCardProps> = 
     );
 };
 
-export default RefactoredModelResponseCard; 
+export default ModelResponseCard; 

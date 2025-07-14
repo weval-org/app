@@ -7,7 +7,7 @@ import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 
 const hclust = require('ml-hclust');
 
-const RefactoredDendrogramChart = () => {
+const DendrogramChart = () => {
     const { data, modelsForAggregateView: models } = useAnalysis();
     const svgRef = useRef<SVGSVGElement>(null);
     const similarityMatrix = data?.evaluationResults?.similarityMatrix;
@@ -153,4 +153,4 @@ const RefactoredDendrogramChart = () => {
     );
 };
 
-export default RefactoredDendrogramChart; 
+export default DendrogramChart; 

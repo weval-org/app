@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { getHybridScoreColorClass } from '@/app/analysis/utils/colorUtils';
 import { useAnalysis } from '../context/AnalysisContext';
 
-const RefactoredSystemPromptsDisplay = () => {
+const SystemPromptsDisplay = () => {
     const { analysisStats, data } = useAnalysis();
 
     if (!data?.config?.systems || data.config.systems.length <= 1) {
@@ -50,4 +50,4 @@ const RefactoredSystemPromptsDisplay = () => {
     );
 };
 
-export default RefactoredSystemPromptsDisplay; 
+export default SystemPromptsDisplay; 

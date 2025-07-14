@@ -5,11 +5,11 @@ import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
 import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 
-import RefactoredModelResponseCard from './RefactoredModelResponseCard';
-import RefactoredPromptResponsesConsistency from './RefactoredPromptResponsesConsistency';
-import RefactoredModelResponseCardGrid from './RefactoredModelResponseCardGrid';
+import ModelResponseCard from './ModelResponseCard';
+import PromptResponsesConsistency from './PromptResponsesConsistency';
+import ModelResponseCardGrid from './ModelResponseCardGrid';
 
-export const RefactoredSinglePromptView: React.FC = () => {
+export const SinglePromptView: React.FC = () => {
     const {
         data,
         currentPromptId,
@@ -23,17 +23,17 @@ export const RefactoredSinglePromptView: React.FC = () => {
 
     return (
         <div className="space-y-8">
-            <RefactoredModelResponseCardGrid>
+            <ModelResponseCardGrid>
                 {displayedModels.map((modelId) => (
-                    <RefactoredModelResponseCard
+                    <ModelResponseCard
                         key={modelId}
                         modelId={modelId}
                     />
                 ))}
-            </RefactoredModelResponseCardGrid>
+            </ModelResponseCardGrid>
             
             {data.evaluationResults?.perPromptSimilarities?.[currentPromptId] && (
-                <RefactoredPromptResponsesConsistency
+                <PromptResponsesConsistency
                     models={canonicalModels}
                 />
             )}

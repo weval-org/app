@@ -12,21 +12,21 @@ import {
     IDEAL_MODEL_ID,
 } from '@/app/utils/calculationUtils';
 import DownloadResultsButton from '@/app/analysis/components/DownloadResultsButton';
-import RefactoredModelEvaluationDetailModal from '@/app/analysis/components/RefactoredModelEvaluationDetailModal';
+import ModelEvaluationDetailModal from '@/app/analysis/components/ModelEvaluationDetailModal';
 import DebugPanel from '@/app/analysis/components/DebugPanel';
 import CoverageHeatmapCanvas from '@/app/analysis/components/CoverageHeatmapCanvas';
 import { getBlueprintPathFromId } from '@/app/utils/blueprintIdUtils';
 import { BLUEPRINT_CONFIG_REPO_URL } from '@/lib/configConstants';
-import { RefactoredSinglePromptView } from '@/app/analysis/components/RefactoredSinglePromptView';
-import { RefactoredAggregateAnalysisView } from '@/app/analysis/components/RefactoredAggregateAnalysisView';
+import { SinglePromptView } from '@/app/analysis/components/SinglePromptView';
+import { AggregateAnalysisView } from '@/app/analysis/components/AggregateAnalysisView';
 import { useToast } from '@/components/ui/use-toast';
 import { generateMinimalBlueprintYaml } from '@/app/sandbox/utils/yaml-generator';
 import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
-import RefactoredAnalysisPageHeader from '@/app/analysis/components/RefactoredAnalysisPageHeader';
+import AnalysisPageHeader from '@/app/analysis/components/AnalysisPageHeader';
 import { fromSafeTimestamp, formatTimestampForDisplay } from '@/lib/timestampUtils';
-import RefactoredModelPerformanceModal from '@/app/analysis/components/RefactoredModelPerformanceModal';
+import ModelPerformanceModal from '@/app/analysis/components/ModelPerformanceModal';
 import { PromptSelector } from '@/app/analysis/components/PromptSelector';
-import RefactoredPromptDetailModal from '@/app/analysis/components/RefactoredPromptDetailModal';
+import PromptDetailModal from '@/app/analysis/components/PromptDetailModal';
 
 const FlaskConical = dynamic(() => import('lucide-react').then(mod => mod.FlaskConical));
 const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.AlertCircle))
@@ -38,7 +38,7 @@ const FileCode2 = dynamic(() => import("lucide-react").then((mod) => mod.FileCod
 const FileText = dynamic(() => import("lucide-react").then((mod) => mod.FileText));
 
 
-export const RefactorClientPage: React.FC = () => {
+export const ClientPage: React.FC = () => {
     const router = useRouter();
     const { toast } = useToast();
 
@@ -191,7 +191,7 @@ export const RefactorClientPage: React.FC = () => {
 
     return (
         <div className="mx-auto p-4 md:p-6 lg:p-8 space-y-8">
-            <RefactoredAnalysisPageHeader
+            <AnalysisPageHeader
                 actions={headerActions}
                 headerWidget={headerWidgetContent}
             />
@@ -199,9 +199,9 @@ export const RefactorClientPage: React.FC = () => {
             <PromptSelector />
 
             {currentPromptId ? (
-                <RefactoredSinglePromptView />
+                <SinglePromptView />
             ) : (
-                <RefactoredAggregateAnalysisView />
+                <AggregateAnalysisView />
             )}
 
             <DebugPanel 
@@ -212,9 +212,9 @@ export const RefactorClientPage: React.FC = () => {
             />
 
 
-            <RefactoredModelEvaluationDetailModal />
-            <RefactoredModelPerformanceModal />
-            <RefactoredPromptDetailModal />
+            <ModelEvaluationDetailModal />
+            <ModelPerformanceModal />
+            <PromptDetailModal />
         </div>
     )
 } 

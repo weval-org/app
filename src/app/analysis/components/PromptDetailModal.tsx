@@ -13,7 +13,7 @@ const Quote = dynamic(() => import('lucide-react').then(mod => mod.Quote), { ssr
 const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
 const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
 
-const RefactoredPromptDetailModal: React.FC = () => {
+const PromptDetailModal: React.FC = () => {
     const {
         data,
         promptDetailModal,
@@ -111,4 +111,4 @@ const RefactoredPromptDetailModal: React.FC = () => {
     );
 };
 
-export default RefactoredPromptDetailModal; 
+export default PromptDetailModal; 

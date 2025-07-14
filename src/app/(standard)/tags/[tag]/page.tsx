@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { getComparisonRunInfo, EnhancedComparisonConfigInfo } from '@/app/utils/homepageDataUtils';
 import { Button } from '@/components/ui/button';
 import dynamic from 'next/dynamic';
-import RefactoredAnalysisPageHeader from '@/app/analysis/components/RefactoredAnalysisPageHeader';
+import AnalysisPageHeader from '@/app/analysis/components/AnalysisPageHeader';
 import { AnalysisProvider } from '@/app/analysis/context/AnalysisProvider';
 import { normalizeTag } from '@/app/utils/tagUtils';
 import BrowseAllBlueprintsSection from '@/app/components/home/BrowseAllBlueprintsSection';
@@ -100,7 +100,7 @@ export default async function TaggedBlueprintsPage({ params }: { params: Promise
       <div className="min-h-screen bg-background text-foreground p-4 md:p-8">
         <div className="fixed inset-0 -z-10 dark:bg-gradient-to-br dark:from-background dark:to-muted/20 bg-gradient-to-br from-background to-muted/10" />
         <div className="max-w-[1800px] mx-auto">
-          <RefactoredAnalysisPageHeader isSticky={false} />
+          <AnalysisPageHeader isSticky={false} />
 
         <main className="max-w-4xl mx-auto mt-6 md:mt-8">
           {filteredConfigs.length === 0 && (

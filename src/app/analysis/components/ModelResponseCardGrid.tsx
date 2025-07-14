@@ -1,6 +1,6 @@
 import React from 'react';
 
-const RefactoredModelResponseCardGrid = ({ children }: { children: React.ReactNode }) => {
+const ModelResponseCardGrid = ({ children }: { children: React.ReactNode }) => {
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {children}
@@ -8,4 +8,4 @@ const RefactoredModelResponseCardGrid = ({ children }: { children: React.ReactNo
     );
 };
 
-export default RefactoredModelResponseCardGrid; 
+export default ModelResponseCardGrid; 

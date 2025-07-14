@@ -43,7 +43,7 @@ interface HeadlineStatRow {
   tooltip?: string;
 }
 
-const RefactoredDatasetStatistics = () => {
+const DatasetStatistics = () => {
     const { data, analysisStats, displayedModels: modelsStrings, promptTextsForMacroTable: promptTexts } = useAnalysis();
 
     if (!data || !analysisStats) return null;
@@ -136,12 +136,12 @@ const RefactoredDatasetStatistics = () => {
         let stdDevDisplay = '';
         let stdDevColorClass = '';
         if (typeof overallAvgCoverageStats.stddev === 'number') {
-            stdDevDisplay = ` (\u00B1${(overallAvgCoverageStats.stddev * 100).toFixed(1)}%)`;
+            stdDevDisplay = ` (\u00B1${(overallAvgCoverageStats.stddev).toFixed(1)}%)`;
             stdDevColorClass = getStdDevColor(overallAvgCoverageStats.stddev * 100, true);
         }
         headlineStatsTableData.push({
             label: "Overall Average Key Point Coverage",
-            value: `${(overallAvgCoverageStats.average * 100).toFixed(1)}%<span class="${stdDevColorClass}">${stdDevDisplay}</span>`,
+            value: `${(overallAvgCoverageStats.average).toFixed(1)}%<span class="${stdDevColorClass}">${stdDevDisplay}</span>`,
             tooltip: "Grand average of all individual model-prompt key point coverage scores. StdDev (±) reflects variability around this grand mean, also in percentage points. A smaller StdDev suggests more consistent coverage scores across all model-prompt pairs; a larger StdDev indicates more diverse performance."
         });
     }
@@ -517,4 +517,4 @@ const RefactoredDatasetStatistics = () => {
     );
 };
 
-export default RefactoredDatasetStatistics; 
+export default DatasetStatistics; 

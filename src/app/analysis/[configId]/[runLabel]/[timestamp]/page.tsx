@@ -4,7 +4,7 @@ import { generateAnalysisPageMetadata } from '@/app/utils/metadataUtils';
 import { notFound } from 'next/navigation';
 import { ComparisonDataV2 } from '@/app/utils/types';
 import { getResultByFileName } from '@/lib/storageService';
-import { RefactorClientPage } from './RefactorClientPage';
+import { ClientPage } from './ClientPage';
 import { AnalysisProvider } from '@/app/analysis/context/AnalysisProvider';
 
 type ThisPageProps = {
@@ -60,7 +60,7 @@ const getComparisonData = cache(async (params: ThisPageProps['params']): Promise
   }
 });
 
-export default async function RefactorComparisonPage(props: ThisPageProps) {
+export default async function ComparisonPage(props: ThisPageProps) {
   const data = await getComparisonData(props.params);
   const { configId, runLabel, timestamp } = await props.params;
 
@@ -71,7 +71,7 @@ export default async function RefactorComparisonPage(props: ThisPageProps) {
         runLabel={runLabel}
         timestamp={timestamp}
     >
-        <RefactorClientPage />
+        <ClientPage />
     </AnalysisProvider>
   );
 } 

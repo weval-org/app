@@ -57,7 +57,7 @@ const LEGEND_MARGIN_LEFT = 20;
 const LEGEND_TITLE_FONT_SIZE = '10px';
 const LEGEND_LABEL_FONT_SIZE = '9px';
 
-export default function RefactoredSimilarityGraph({ similarityMatrix, models, resolvedTheme }: SimilarityGraphProps) {
+export default function SimilarityGraph({ similarityMatrix, models, resolvedTheme }: SimilarityGraphProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const gRef = useRef<SVGGElement | null>(null)
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null)

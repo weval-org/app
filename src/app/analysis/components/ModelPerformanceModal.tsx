@@ -28,7 +28,7 @@ interface PromptPerformance {
     rank: 'excellent' | 'good' | 'poor' | 'error';
 }
 
-const RefactoredModelPerformanceModal: React.FC = () => {
+const ModelPerformanceModal: React.FC = () => {
     const {
         data,
         modelPerformanceModal,
@@ -225,4 +225,4 @@ const RefactoredModelPerformanceModal: React.FC = () => {
     );
 };
 
-export default RefactoredModelPerformanceModal; 
+export default ModelPerformanceModal; 

@@ -5,10 +5,10 @@ import dynamic from 'next/dynamic';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import RefactoredMacroCoverageTable from './RefactoredMacroCoverageTable';
-import RefactoredDatasetStatistics from './RefactoredDatasetStatistics';
-import RefactoredDendrogramChart from './RefactoredDendrogramChart';
-import RefactoredSystemPromptsDisplay from './RefactoredSystemPromptsDisplay';
+import MacroCoverageTable from './MacroCoverageTable';
+import DatasetStatistics from './DatasetStatistics';
+import DendrogramChart from './DendrogramChart';
+import SystemPromptsDisplay from './SystemPromptsDisplay';
 import {
     Tabs,
     TabsList,
@@ -81,7 +81,7 @@ const RenderPromptDetails: React.FC<{ promptId: string }> = ({ promptId }) => {
     )
 };
 
-export const RefactoredAggregateAnalysisView: React.FC = () => {
+export const AggregateAnalysisView: React.FC = () => {
     const {
         data,
         configId,
@@ -149,7 +149,7 @@ export const RefactoredAggregateAnalysisView: React.FC = () => {
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <RefactoredMacroCoverageTable />
+                            <MacroCoverageTable />
                         </CardContent>
                     </Card>
                 ) : (
@@ -188,7 +188,7 @@ export const RefactoredAggregateAnalysisView: React.FC = () => {
 
     return (
         <>
-            <RefactoredSystemPromptsDisplay />
+            <SystemPromptsDisplay />
 
             {excludedModelsList.length > 0 && !forceIncludeExcludedModels && (
                 <Alert variant="destructive">
@@ -214,7 +214,7 @@ export const RefactoredAggregateAnalysisView: React.FC = () => {
             )}
 
 
-            <RefactoredDatasetStatistics />
+            <DatasetStatistics />
             
             {!evalMethodsUsed.includes('llm-coverage') && (
                 <div className="my-6">
@@ -323,11 +323,11 @@ export const RefactoredAggregateAnalysisView: React.FC = () => {
                                                 </div>
                                             </div>
                                         )}
-                                        <RefactoredMacroCoverageTable />
+                                        <MacroCoverageTable />
                                     </div>
                                 </Tabs>
                             ) : (
-                                <RefactoredMacroCoverageTable />
+                                <MacroCoverageTable />
                             )}
                         </CardContent>
                     </Card>
@@ -343,7 +343,7 @@ export const RefactoredAggregateAnalysisView: React.FC = () => {
                                 </CardHeader>
                                 <CardContent>
                                     <div className="h-[600px] w-full">
-                                        <RefactoredDendrogramChart />
+                                        <DendrogramChart />
                                     </div>
                                 </CardContent>
                             </Card>

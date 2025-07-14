@@ -17,7 +17,7 @@ const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
 const Sparkles = dynamic(() => import("lucide-react").then(mod => mod.Sparkles));
 const InfoIcon = dynamic(() => import("lucide-react").then(mod => mod.Info));
 
-export interface RefactoredAnalysisPageHeaderProps {
+export interface AnalysisPageHeaderProps {
   actions?: React.ReactNode;
   headerWidget?: React.ReactNode;
   children?: React.ReactNode;
@@ -96,7 +96,7 @@ const SummaryStatsTable = () => {
   );
 };
 
-const RefactoredAnalysisPageHeader: React.FC<RefactoredAnalysisPageHeaderProps> = ({
+const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
   actions,
   headerWidget,
   children,
@@ -200,4 +200,4 @@ const RefactoredAnalysisPageHeader: React.FC<RefactoredAnalysisPageHeaderProps> 
   );
 };
 
-export default RefactoredAnalysisPageHeader; 
+export default AnalysisPageHeader; 
