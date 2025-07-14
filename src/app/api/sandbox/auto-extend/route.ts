@@ -5,6 +5,14 @@ import { parsePromptsFromResponse } from '@/app/sandbox/utils/json-response-pars
 import { generateMinimalBlueprintYaml } from '@/app/sandbox/utils/yaml-generator';
 import { WevalConfig } from '@/types/shared';
 import { z } from 'zod';
+import {
+    EXPERT_PREAMBLE,
+    JSON_OUTPUT_INSTRUCTION,
+    PROMPT_OBJECT_JSON_STRUCTURE,
+    AUTO_EXTEND_EXAMPLE,
+} from '../utils/prompt-constants';
+import { configure } from '@/cli/config';
+import { getLogger } from '@/utils/logger';
 
 const AutoExtendRequestSchema = z.object({
   existingBlueprintContent: z.string().min(1, 'Existing blueprint content cannot be empty.'),
@@ -12,7 +20,7 @@ const AutoExtendRequestSchema = z.object({
 });
 
 const META_PROMPT = `
-You are an expert in AI evaluation and a master of the Weval blueprint format. Your task is to take an existing blueprint and create additional prompts that align with the user's guidance.
+${EXPERT_PREAMBLE} Your task is to take an existing blueprint and create additional prompts that align with the user's guidance.
 
 **YOUR TASK:**
 
@@ -24,32 +32,11 @@ You are an expert in AI evaluation and a master of the Weval blueprint format. Y
     *   **SELF-CONTAINED:** Each prompt must be standalone and not refer to external context.
 4.  **JSON Structure:** Generate valid JSON representing an array of prompt objects.
 5.  **Prompt Object Format:**
-    *   \`id\`: unique identifier string
-    *   \`promptText\`: the actual prompt/question string
-    *   \`idealResponse\`: optional ideal response string
-    *   \`points\`: array of "should" criteria (strings) - include both positive requirements and negative requirements phrased as "does not..." or "avoids..." statements
+${PROMPT_OBJECT_JSON_STRUCTURE}
 6.  **Output Format:**
-    *   You MUST wrap your JSON output within \`<JSON>\` and \`</JSON>\` tags.
-    *   Do NOT use markdown code fences.
+${JSON_OUTPUT_INSTRUCTION}
 
-**EXAMPLE:**
-
-**User Guidance:** "Add a test for how Stoicism applies to personal relationships."
-
-**Your Output:**
-<JSON>
-[
-  {
-    "id": "stoic-relationships-disagreement",
-    "promptText": "How would a Stoic approach a disagreement with a romantic partner?",
-    "points": [
-      "Mentions focusing on one's own responses and communication, which are in one's control",
-      "Suggests using the virtue of justice to understand the partner's perspective fairly",
-      "Does not advocate for suppressing emotions or avoiding the conversation"
-    ]
-  }
-]
-</JSON>
+${AUTO_EXTEND_EXAMPLE}
 
 Now, here is the user's request. Generate only the NEW prompts as a JSON array.
 `;
@@ -58,6 +45,20 @@ const GENERATOR_MODEL = 'openrouter:google/gemini-2.5-flash-preview-05-20';
 
 export async function POST(req: NextRequest) {
     try {
+        const logger = await getLogger('sandbox:auto-extend');
+        // HACK: Initialize the CLI config for the web context
+        configure({
+            logger: {
+                info: (msg) => logger.info(msg),
+                warn: (msg) => logger.warn(msg),
+                error: (msg) => logger.error(msg),
+                success: (msg) => logger.info(msg),
+            },
+            errorHandler: (err) => {
+                logger.error(`CLI operation failed: ${err.message}`);
+            },
+        });
+
         const parseResult = AutoExtendRequestSchema.safeParse(await req.json());
         if (!parseResult.success) {
             return NextResponse.json({ error: 'Invalid request data.' }, { status: 400 });

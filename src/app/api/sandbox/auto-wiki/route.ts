@@ -4,6 +4,15 @@ import { getModelResponse } from '@/cli/services/llm-service';
 import { checkForErrors } from '@/cli/utils/response-utils';
 import { parseWevalConfigFromResponse } from '@/app/sandbox/utils/json-response-parser';
 import { fromZodError } from 'zod-validation-error';
+import {
+    EXPERT_PREAMBLE,
+    CRITERIA_QUALITY_INSTRUCTION,
+    JSON_OUTPUT_INSTRUCTION,
+    FULL_BLUEPRINT_JSON_STRUCTURE,
+    SELF_CONTAINED_PROMPTS_INSTRUCTION
+} from '../utils/prompt-constants';
+import { configure } from '@/cli/config';
+import { getLogger } from '@/utils/logger';
 
 const WIKI_GENERATOR_MODEL = 'openrouter:google/gemini-2.5-flash-preview-05-20';
 const MAX_TEXT_LENGTH = 300000; // A safe character limit for the context window
@@ -24,7 +33,7 @@ const autoWikiSchema = z.object({
 });
 
 const getSystemPrompt = (articleTitle: string, articleSummary: string) => `
-You are an expert AI Test Engineer specializing in creating robust evaluation blueprints for Large Language Models. Your task is to analyze the provided text from a Wikipedia article and generate a Weval blueprint structure.
+${EXPERT_PREAMBLE} Your task is to analyze the provided text from a Wikipedia article and generate a Weval blueprint structure.
 
 The goal is NOT to simply summarize the article. Instead, you must identify the most "potent" and "testable" claims, nuances, and potential areas of confusion within the text. Create prompts that test a model's ability to reason accurately about this specific information.
 
@@ -39,34 +48,27 @@ The goal is NOT to simply summarize the article. Instead, you must identify the 
     *   **Avoid Trivial Questions:** Do not ask for simple fact retrieval. The answer should not be a single sentence that can be copied directly from the text.
     *   **Vary Prompt Style:** Use a mix of direct questions, requests for explanation, and scenario-based tests.
 4.  **Self-Contained Prompts (CRITICAL):**
-    *   **The generated prompts must NOT refer to the source article.** They must be standalone questions that test a model's knowledge on the topic.
-    *   **Bad Example:** "According to the article, why did the company fail?"
-    *   **Good Example:** "What were the primary reasons for the failure of the company 'Global MegaCorp' in 2023, and what role did its CEO play?"
+${SELF_CONTAINED_PROMPTS_INSTRUCTION}
 5.  **Define 'points' Criteria (CRITICAL):**
-    *   **Be Specific and Self-Contained:** Each criterion must be a clear, fully-qualified statement that can be understood and judged without needing to re-read the original prompt. Imagine a "blind" judge who only sees the model's response and the criterion.
-    *   **Include Both Positive and Negative Criteria:** Use positive statements to describe both what responses should include AND what they should avoid. For negative criteria, phrase them as "does not..." or "avoids..." statements.
+${CRITERIA_QUALITY_INSTRUCTION}
     *   For example, instead of "Mentions the three branches," write "States that the three branches of government are the legislative, executive, and judicial branches."
 6.  **JSON Structure Format:**
-    *   \`title\`: string - blueprint title based on the article
-    *   \`description\`: string - blueprint description
-    *   \`models\`: array of strings - can be empty []
-    *   \`prompts\`: array of prompt objects with:
-        - \`id\`: unique identifier string
-        - \`promptText\`: the actual prompt/question string
-        - \`idealResponse\`: optional ideal response string
-        - \`points\`: array of "should" criteria (strings)
+${FULL_BLUEPRINT_JSON_STRUCTURE}
 7.  **Output Format:**
-    *   You MUST wrap your JSON output within \`<JSON>\` and \`</JSON>\` tags.
-    *   Do NOT use markdown code fences.
+${JSON_OUTPUT_INSTRUCTION}
 
-**Example of a Potent Prompt:**
+**Example of a Potent Prompt with Alternative Paths:**
 
-If the article is about "Stoicism", a weak prompt would be "What is Stoicism?".
-A potent prompt would be: "Explain the Stoic concept of 'apatheia' and how it differs from the modern definition of 'apathy'."
+If the article is about the "Extinction of the dinosaurs," a potent prompt would be: "Explain the leading scientific theories for the Cretaceous-Paleogene extinction event."
 *   **points:**
-    *   - "Defines apatheia as a state of being free from emotional disturbance, achieved through virtue and reason"
-    *   - "Contrasts apatheia with the modern definition of apathy, which implies a lack of care or interest"
-    *   - "Does not equate the Stoic concept of apatheia with being emotionless or robotic"
+    *   - [
+    *   -     "Describes the impact hypothesis, involving an asteroid or comet striking the Earth",
+    *   -     "Mentions the Chicxulub crater as key evidence for the impact"
+    *   -   ],
+    *   - [
+    *   -     "Describes the volcanism hypothesis, involving the Deccan Traps",
+    *   -     "Explains how massive volcanic eruptions could alter the climate"
+    *   -   ]
 
 Now, analyze the following article text and generate the complete blueprint structure as JSON.
 `;
@@ -100,6 +102,20 @@ function extractWikipediaInfo(url: string): { title: string; lang: string } | nu
 
 export async function POST(req: NextRequest) {
   try {
+    const logger = await getLogger('sandbox:auto-wiki');
+    // HACK: Initialize the CLI config for the web context
+    configure({
+        logger: {
+            info: (msg) => logger.info(msg),
+            warn: (msg) => logger.warn(msg),
+            error: (msg) => logger.error(msg),
+            success: (msg) => logger.info(msg),
+        },
+        errorHandler: (err) => {
+            logger.error(`CLI operation failed: ${err.message}`);
+        },
+    });
+
     // Dynamically import ESM modules
     const wtfModule = await import('wtf_wikipedia');
     const wtf = wtfModule.default;

@@ -42,31 +42,69 @@ interface PromptCardProps {
 }
 
 export function PromptCard({ prompt, onUpdate, onRemove, onDuplicate, isEditable }: PromptCardProps) {
-  const [rubricPaths, setRubricPaths] = useState<(PointDefinition[])[]>([prompt.points || []]);
+  // Helper function to normalize points into rubric paths
+  const normalizeToRubricPaths = (points?: PointDefinition[]): (PointDefinition[])[] => {
+    if (!points || points.length === 0) {
+      return [[]]; // Single empty path
+    }
+
+    // Check if any point is an array (alternative path)
+    const hasAlternativePaths = points.some(p => Array.isArray(p));
+
+    if (hasAlternativePaths) {
+      // This is already a list of alternative paths
+      return points as (PointDefinition[])[];
+    } else {
+      // This is a flat list - treat as one path
+      return [points];
+    }
+  };
+
+  const [rubricPaths, setRubricPaths] = useState<(PointDefinition[])[]>(normalizeToRubricPaths(prompt.points));
   const [activeTab, setActiveTab] = useState('path-0');
   const { isMobile } = useMobile();
 
   useEffect(() => {
-      // Reset the paths when the active prompt changes.
-      setRubricPaths([prompt.points || []]);
-      setActiveTab('path-0');
-  }, [prompt.id, prompt.points]);
+    setRubricPaths(normalizeToRubricPaths(prompt.points));
+    // Reset the active tab when the prompt changes to avoid out-of-bounds errors
+    setActiveTab('path-0');
+  }, [prompt.points]);
 
   const handleUpdatePath = (pathIndex: number, newPoints: PointDefinition[]) => {
       const newPaths = produce(rubricPaths, draft => {
           draft[pathIndex] = newPoints;
       });
       setRubricPaths(newPaths);
-      // NOTE: This is a "dumb" component for now.
-      // In a real implementation, this would call onUpdate with the modified prompt.
+      
+      // Serialize back to the prompt - for multiple paths, use nested arrays
+      let serializedPoints: PointDefinition[];
+      if (newPaths.length <= 1) {
+          // Single path - return flat array
+          serializedPoints = newPaths[0] || [];
+      } else {
+          // Multiple paths - return array with nested arrays
+          serializedPoints = newPaths;
+      }
+      
+      const nextState = produce(prompt, draft => {
+          draft.points = serializedPoints;
+      });
+      onUpdate(nextState);
   };
 
   const handleAddPath = () => {
       const newPaths = produce(rubricPaths, draft => {
-          draft.push([]);
+          // Add a new path with one empty criterion, just like "Add criterion" does
+          draft.push([{ text: '', multiplier: 1.0 }]);
       });
       setRubricPaths(newPaths);
       setActiveTab(`path-${newPaths.length - 1}`);
+      
+      // Since we now have multiple paths, serialize as nested arrays
+      const nextState = produce(prompt, draft => {
+          draft.points = newPaths;
+      });
+      onUpdate(nextState);
   };
 
   const handleRemovePath = (pathIndex: number) => {
@@ -91,6 +129,21 @@ export function PromptCard({ prompt, onUpdate, onRemove, onDuplicate, isEditable
 
     setRubricPaths(newPaths);
     setActiveTab(nextActiveTab);
+    
+    // Serialize back to the prompt
+    let serializedPoints: PointDefinition[];
+    if (newPaths.length <= 1) {
+        // Single path - return flat array
+        serializedPoints = newPaths[0] || [];
+    } else {
+        // Multiple paths - return array with nested arrays
+        serializedPoints = newPaths;
+    }
+    
+    const nextState = produce(prompt, draft => {
+        draft.points = serializedPoints;
+    });
+    onUpdate(nextState);
   };
 
   const getPromptText = () => {

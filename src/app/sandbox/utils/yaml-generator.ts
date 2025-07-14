@@ -61,15 +61,49 @@ export function generateMinimalBlueprintYaml(config: ComparisonConfig): string {
 
         // Simplify 'points' to 'should' and convert default points to simple strings
         if (p.points && p.points.length > 0) {
-            newPrompt.should = p.points.map(point => 
-                isDefaultPoint(point) ? (point as any).text : point
-            );
+            // Check if we have alternative paths (nested arrays)
+            const hasAlternativePaths = p.points.some(point => Array.isArray(point));
+            
+            if (hasAlternativePaths) {
+                // Preserve nested structure for alternative paths
+                newPrompt.should = p.points.map(point => {
+                    if (Array.isArray(point)) {
+                        // This is an alternative path - map each point in the path
+                        return point.map(subPoint => 
+                            isDefaultPoint(subPoint) ? (subPoint as any).text : subPoint
+                        );
+                    } else {
+                        // This is a single point that should be in its own path
+                        return [isDefaultPoint(point) ? (point as any).text : point];
+                    }
+                });
+            } else {
+                // Flat structure - simplify default points to strings
+                newPrompt.should = p.points.map(point => 
+                    isDefaultPoint(point) ? (point as any).text : point
+                );
+            }
         }
 
         if (p.should_not && p.should_not.length > 0) {
-            newPrompt.should_not = p.should_not.map(point => 
-                isDefaultPoint(point) ? (point as any).text : point
-            );
+            // Apply the same logic to should_not
+            const hasAlternativePaths = p.should_not.some(point => Array.isArray(point));
+            
+            if (hasAlternativePaths) {
+                newPrompt.should_not = p.should_not.map(point => {
+                    if (Array.isArray(point)) {
+                        return point.map(subPoint => 
+                            isDefaultPoint(subPoint) ? (subPoint as any).text : subPoint
+                        );
+                    } else {
+                        return [isDefaultPoint(point) ? (point as any).text : point];
+                    }
+                });
+            } else {
+                newPrompt.should_not = p.should_not.map(point => 
+                    isDefaultPoint(point) ? (point as any).text : point
+                );
+            }
         }
 
         if (p.promptText) {
