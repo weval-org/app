@@ -10,12 +10,13 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ChevronsUpDown } from 'lucide-react';
-import { Quote } from 'lucide-react';
-import { Server } from 'lucide-react';
-import { CheckCircle } from 'lucide-react';
-import { ThumbsDown } from 'lucide-react';
-import { Trophy } from 'lucide-react';
+
+const ChevronsUpDown = dynamic(() => import('lucide-react').then(mod => mod.ChevronsUpDown), { ssr: false });
+const Quote = dynamic(() => import('lucide-react').then(mod => mod.Quote), { ssr: false });
+const Server = dynamic(() => import('lucide-react').then(mod => mod.Server), { ssr: false });
+const CheckCircle = dynamic(() => import('lucide-react').then(mod => mod.CheckCircle), { ssr: false });
+const ThumbsDown = dynamic(() => import('lucide-react').then(mod => mod.ThumbsDown), { ssr: false });
+const Trophy = dynamic(() => import('lucide-react').then(mod => mod.Trophy), { ssr: false });
 
 const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
 const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
