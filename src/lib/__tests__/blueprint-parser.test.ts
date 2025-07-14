@@ -128,7 +128,7 @@ prompts:
       - "A simple conceptual point."
       - "Covers the 'prudent man' rule.": "Investment Advisers Act of 1940"
       - $contains: "fiduciary"
-      - ['$ends_with', '.']
+      - { fn: "ends_with", fnArgs: "." }
       - { text: "A weighted conceptual point.", weight: 3.0 }
       - { fn: "matches", arg: "[0-9]+", weight: 0.5 }
     should_not:
@@ -257,13 +257,141 @@ prompts:
             ['Invalid JSON syntax', `{"id": "json-fail", "prompts": [}`, 'json', 'Failed to parse JSON blueprint'],
             ['Empty YAML file', ``, 'yaml', 'YAML blueprint is empty or contains only null documents.'],
             ['Point with text and fn', `- prompt: p\n  should:\n    - point: "t"\n      fn: "f"`, 'yaml', "Point cannot have both 'text' and 'fn' defined"],
-            ['Invalid tuple function', `- prompt: p\n  should:\n    - ['contains', 'missing dollar']`, 'yaml', "first element must be a function name starting with '$'"],
             ['Malformed shorthand message', `- prompt: p\n  messages:\n    - { user: "u", assistant: "a" }`, 'yaml', 'Each message in the shorthand format must have exactly one key'],
             ['Invalid multiplier value', `- prompt: p\n  should:\n    - point: "bad weight"\n      weight: 101`, 'yaml', 'Point multiplier must be a number between 0.1 and 10'],
             ['Invalid point format', `- prompt: p\n  should:\n    - 123`, 'yaml', 'Point must be a string, array, or object'],
             ['Point object with no valid content', `- prompt: p\n  should:\n    - weight: 2.0`, 'yaml', "Point must define 'text', a function ('fn' or '$...'), or a 'Point: Citation' pair"]
         ])('should throw for %s', (_, content, type, expectedError) => {
             expect(() => parseAndNormalizeBlueprint(content, type as 'yaml' | 'json')).toThrow(expectedError);
+        });
+    });
+
+    describe('Alternative Paths (Nested Arrays)', () => {
+        test('should parse nested arrays as alternative paths', () => {
+            const yamlWithNestedArrays = `
+- prompt: "Test prompt"
+  should:
+    - - "is kind and polite"
+      - $contains: "recipe"
+    - - "asks clarifying questions"
+      - "offers to help"
+`;
+            const result = parseAndNormalizeBlueprint(yamlWithNestedArrays, 'yaml');
+            
+            expect(result.prompts).toHaveLength(1);
+            const prompt = result.prompts[0];
+            expect(prompt.points).toBeDefined();
+            
+            // The parser should preserve the nested structure
+            expect(prompt.points).toEqual([
+                [
+                    { text: "is kind and polite", multiplier: 1.0 },
+                    { fn: "contains", fnArgs: "recipe", multiplier: 1.0 }
+                ],
+                [
+                    { text: "asks clarifying questions", multiplier: 1.0 },
+                    { text: "offers to help", multiplier: 1.0 }
+                ]
+            ]);
+        });
+
+        test('should handle mixed flat and nested arrays', () => {
+            const yamlWithMixed = `
+- prompt: "Test prompt"
+  should:
+    - "always required point"
+    - - "path 1 point A"
+      - "path 1 point B"
+    - - "path 2 single point"
+    - $contains: "always required word"
+`;
+            const result = parseAndNormalizeBlueprint(yamlWithMixed, 'yaml');
+            
+            expect(result.prompts).toHaveLength(1);
+            const prompt = result.prompts[0];
+            expect(prompt.points).toBeDefined();
+            
+            // Should handle both flat and nested structures
+            expect(prompt.points).toEqual([
+                { text: "always required point", multiplier: 1.0 },
+                [
+                    { text: "path 1 point A", multiplier: 1.0 },
+                    { text: "path 1 point B", multiplier: 1.0 }
+                ],
+                [
+                    { text: "path 2 single point", multiplier: 1.0 }
+                ],
+                { fn: "contains", fnArgs: "always required word", multiplier: 1.0 }
+            ]);
+        });
+
+        test('should handle nested arrays in should_not', () => {
+            const yamlWithNestedShouldNot = `
+- prompt: "Test prompt"
+  should_not:
+    - - "is rude"
+      - "is dismissive"
+    - - "provides misinformation"
+`;
+            const result = parseAndNormalizeBlueprint(yamlWithNestedShouldNot, 'yaml');
+            
+            expect(result.prompts).toHaveLength(1);
+            const prompt = result.prompts[0];
+            expect(prompt.should_not).toBeDefined();
+            
+            expect(prompt.should_not).toEqual([
+                [
+                    { text: "is rude", multiplier: 1.0 },
+                    { text: "is dismissive", multiplier: 1.0 }
+                ],
+                [
+                    { text: "provides misinformation", multiplier: 1.0 }
+                ]
+            ]);
+        });
+
+        test('should handle empty nested arrays gracefully', () => {
+            const yamlWithEmptyArrays = `
+- prompt: "Test prompt"
+  should:
+    - []
+    - - "valid point"
+    - []
+`;
+            const result = parseAndNormalizeBlueprint(yamlWithEmptyArrays, 'yaml');
+            
+            expect(result.prompts).toHaveLength(1);
+            const prompt = result.prompts[0];
+            expect(prompt.points).toBeDefined();
+            
+            // Should filter out empty arrays
+            expect(prompt.points).toEqual([
+                [
+                    { text: "valid point", multiplier: 1.0 }
+                ]
+            ]);
+        });
+
+        test('should preserve backwards compatibility with flat arrays', () => {
+            const yamlWithFlatArrays = `
+- prompt: "Test prompt"
+  should:
+    - "simple point"
+    - $contains: "word"
+    - { fn: "ends_with", fnArgs: "." }
+`;
+            const result = parseAndNormalizeBlueprint(yamlWithFlatArrays, 'yaml');
+            
+            expect(result.prompts).toHaveLength(1);
+            const prompt = result.prompts[0];
+            expect(prompt.points).toBeDefined();
+            
+            // Should handle flat arrays as before
+            expect(prompt.points).toEqual([
+                { text: "simple point", multiplier: 1.0 },
+                { fn: "contains", fnArgs: "word", multiplier: 1.0 },
+                { fn: "ends_with", fnArgs: ".", multiplier: 1.0 }
+            ]);
         });
     });
 }); 

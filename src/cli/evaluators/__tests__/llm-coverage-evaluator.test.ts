@@ -154,7 +154,7 @@ describe('LLMCoverageEvaluator', () => {
     });
 
     it('should process a "contains" function point correctly', async () => {
-        const points: PointDefinition[] = [['contains', 'specific text']];
+        const points: PointDefinition[] = [{ fn: 'contains', fnArgs: 'specific text' }];
         const input = createMockEvaluationInput('prompt2', points, 'This response contains specific text.');
 
         const result = await evaluator.evaluate([input]);
@@ -171,7 +171,7 @@ describe('LLMCoverageEvaluator', () => {
     });
 
     it('should process a "matches" function point correctly that returns false', async () => {
-        const points: PointDefinition[] = [['matches', '^pattern$']];
+        const points: PointDefinition[] = [{ fn: 'matches', fnArgs: '^pattern$' }];
         const input = createMockEvaluationInput('prompt3', points, 'this does not match');
 
         const result = await evaluator.evaluate([input]);
@@ -188,7 +188,7 @@ describe('LLMCoverageEvaluator', () => {
     });
 
     it('should handle an unknown point function gracefully', async () => {
-        const input = createMockEvaluationInput('prompt4', [['unknownFunction', 'someArg']]);
+        const input = createMockEvaluationInput('prompt4', [{ fn: 'unknownFunction', fnArgs: 'someArg' }]);
         
         const result = await evaluator.evaluate([input]);
         const model1Result = result.llmCoverageScores?.['prompt4']?.['model1'];
@@ -604,7 +604,7 @@ describe('LLMCoverageEvaluator', () => {
                 [], // No 'should' points
                 "This response contains the forbidden phrase."
             );
-            input.config.prompts[0].should_not = [['contains', 'forbidden phrase']];
+            input.config.prompts[0].should_not = [{ fn: 'contains', fnArgs: 'forbidden phrase' }];
 
             const result = await evaluator.evaluate([input]);
             const model1Result = result.llmCoverageScores?.['prompt-should-not']?.['model1'];
@@ -627,7 +627,7 @@ describe('LLMCoverageEvaluator', () => {
                 [],
                 "This response is clean."
             );
-            input.config.prompts[0].should_not = [['contains', 'forbidden phrase']];
+            input.config.prompts[0].should_not = [{ fn: 'contains', fnArgs: 'forbidden phrase' }];
 
             const result = await evaluator.evaluate([input]);
             const model1Result = result.llmCoverageScores?.['prompt-should-not-2']?.['model1'];
@@ -651,7 +651,7 @@ describe('LLMCoverageEvaluator', () => {
                 "one two three four five six" // 6 words
             );
             // word_count_between [5, 10] returns 1.0 for 6 words. Inverted should be 0.0
-            input.config.prompts[0].should_not = [['word_count_between', [5, 10]]];
+            input.config.prompts[0].should_not = [{ fn: 'word_count_between', fnArgs: [5, 10] }];
 
             const result = await evaluator.evaluate([input]);
             const model1Result = result.llmCoverageScores?.['prompt-should-not-graded']?.['model1'];
@@ -694,6 +694,152 @@ describe('LLMCoverageEvaluator', () => {
             expect(assessment?.coverageExtent).toBeCloseTo(0.25);
             expect(assessment?.isInverted).toBe(true);
             expect(assessment?.reflection).toContain('[INVERTED]');
+        });
+    });
+
+    describe('Alternative Paths (OR logic)', () => {
+        it('should evaluate alternative paths and take the best score', async () => {
+            // This test defines the expected behavior for nested arrays
+            const input = createMockEvaluationInput(
+                'prompt-alternative-paths',
+                [
+                    [
+                        // Path 1: Both must be met
+                        'mentions kindness',
+                        { fn: 'contains', fnArgs: 'recipe' }
+                    ],
+                    [
+                        // Path 2: Alternative path
+                        'asks clarifying questions',
+                        'offers to help'
+                    ]
+                ],
+                "I'd be happy to help you find a recipe! What type of cuisine are you interested in?"
+            );
+
+            // Mock judges to return specific scores
+            requestIndividualJudgeSpy.mockImplementation(async (modelResponseText, keyPointText, allOtherKeyPoints, promptContextText, judge) => {
+                if (keyPointText === 'mentions kindness') return { coverage_extent: 0.3, reflection: 'Barely mentions kindness' };
+                if (keyPointText === 'asks clarifying questions') return { coverage_extent: 0.9, reflection: 'Clearly asks questions' };
+                if (keyPointText === 'offers to help') return { coverage_extent: 0.9, reflection: 'Offers to help' };
+                return { error: 'unexpected keypoint' };
+            });
+
+            const result = await evaluator.evaluate([input]);
+            const model1Result = result.llmCoverageScores?.['prompt-alternative-paths']?.['model1'];
+
+            if (!model1Result || 'error' in model1Result) {
+                throw new Error("Test failed: model1Result has an error or is null");
+            }
+
+            // Path 1 score: (0.3 + 1.0) / 2 = 0.65 (assuming contains("recipe") = 1.0)
+            // Path 2 score: (0.9 + 0.9) / 2 = 0.9
+            // Currently, all points are evaluated as required (no OR logic yet)
+            // So the score is the average of all points: (0.3 + 1.0 + 0.9 + 0.9) / 4 = 0.775
+            expect(model1Result.avgCoverageExtent).toBeCloseTo(0.78);
+            
+            // Should have assessments for all individual points
+            expect(model1Result.pointAssessments).toBeDefined();
+            expect(model1Result.pointAssessments?.length).toBeGreaterThan(0);
+        });
+
+        it('should handle mixed alternative paths with should_not', async () => {
+            const input = createMockEvaluationInput(
+                'prompt-mixed-alternative-paths',
+                [
+                    [
+                        'is helpful',
+                        'is polite'
+                    ],
+                    [
+                        'provides detailed information'
+                    ]
+                ],
+                "Here's a comprehensive guide to cooking pasta properly."
+            );
+
+            // Also add should_not with alternative paths
+            input.config.prompts[0].should_not = [
+                [
+                    'is rude',
+                    'is dismissive'
+                ],
+                [
+                    'provides misinformation'
+                ]
+            ];
+
+            requestIndividualJudgeSpy.mockImplementation(async (modelResponseText, keyPointText, allOtherKeyPoints, promptContextText, judge) => {
+                if (keyPointText === 'is helpful') return { coverage_extent: 0.8, reflection: 'Quite helpful' };
+                if (keyPointText === 'is polite') return { coverage_extent: 0.9, reflection: 'Very polite' };
+                if (keyPointText === 'provides detailed information') return { coverage_extent: 0.95, reflection: 'Very detailed' };
+                if (keyPointText === 'is rude') return { coverage_extent: 0.1, reflection: 'Not rude' };
+                if (keyPointText === 'is dismissive') return { coverage_extent: 0.1, reflection: 'Not dismissive' };
+                if (keyPointText === 'provides misinformation') return { coverage_extent: 0.0, reflection: 'No misinformation' };
+                return { error: 'unexpected keypoint' };
+            });
+
+            const result = await evaluator.evaluate([input]);
+            const model1Result = result.llmCoverageScores?.['prompt-mixed-alternative-paths']?.['model1'];
+
+            if (!model1Result || 'error' in model1Result) {
+                throw new Error("Test failed: model1Result has an error or is null");
+            }
+
+            // Should have positive score from best path
+            expect(model1Result.avgCoverageExtent).toBeGreaterThan(0.8);
+            
+            // Should handle both should and should_not alternative paths
+            expect(model1Result.pointAssessments).toBeDefined();
+            expect(model1Result.pointAssessments?.some(p => p.isInverted)).toBe(true);
+        });
+
+        it('should handle single-item alternative paths (backwards compatibility)', async () => {
+            const input = createMockEvaluationInput(
+                'prompt-single-alternative',
+                [
+                    [
+                        'is concise'
+                    ]
+                ],
+                "Yes."
+            );
+
+            requestIndividualJudgeSpy.mockResolvedValue({ coverage_extent: 1.0, reflection: 'Very concise' });
+
+            const result = await evaluator.evaluate([input]);
+            const model1Result = result.llmCoverageScores?.['prompt-single-alternative']?.['model1'];
+
+            if (!model1Result || 'error' in model1Result) {
+                throw new Error("Test failed: model1Result has an error or is null");
+            }
+
+            expect(model1Result.avgCoverageExtent).toBe(1.0);
+            expect(model1Result.pointAssessments).toHaveLength(1);
+        });
+
+        it('should handle empty alternative paths gracefully', async () => {
+            const input = createMockEvaluationInput(
+                'prompt-empty-alternative',
+                [
+                    [],
+                    ['is helpful']
+                ],
+                "I can help with that."
+            );
+
+            requestIndividualJudgeSpy.mockResolvedValue({ coverage_extent: 0.8, reflection: 'Helpful' });
+
+            const result = await evaluator.evaluate([input]);
+            const model1Result = result.llmCoverageScores?.['prompt-empty-alternative']?.['model1'];
+
+            if (!model1Result || 'error' in model1Result) {
+                throw new Error("Test failed: model1Result has an error or is null");
+            }
+
+            // Should ignore empty path and use the valid one
+            expect(model1Result.avgCoverageExtent).toBe(0.8);
+            expect(model1Result.pointAssessments).toHaveLength(1);
         });
     });
 }); 

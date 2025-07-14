@@ -1,12 +1,12 @@
 import * as yaml from 'js-yaml';
-import { ComparisonConfig, PointDefinition, PromptConfig } from '@/cli/types/cli_types';
+import { ComparisonConfig, PointDefinition, SinglePointDefinition, PromptConfig } from '@/cli/types/cli_types';
 import { ConversationMessage } from '@/types/shared';
 import { createHash } from 'crypto';
 import stableStringify from 'json-stable-stringify';
 
 /**
  * Internal interface for building normalized point objects during parsing.
- * This represents the object variant of PointDefinition being constructed.
+ * This represents the object variant of SinglePointDefinition being constructed.
  */
 interface NormalizedPointObject {
     text?: string;
@@ -19,7 +19,7 @@ interface NormalizedPointObject {
 /**
  * Normalizes a raw array of point definitions from a blueprint into the strict internal PointDefinition[] format.
  * This function handles various syntaxes: simple strings, idiomatic functions (e.g., { $contains: ... }),
- * tuple functions (e.g., ['$contains', ...]), point-citation pairs, and full point objects.
+ * tuple functions (e.g., ['$contains', ...]), point-citation pairs, nested arrays (alternative paths), and full point objects.
  *
  * @param pointsArray The raw array of points from the blueprint.
  * @param promptId The ID of the prompt for error reporting.
@@ -29,6 +29,7 @@ function _normalizePointArray(pointsArray: any[], promptId: string | undefined):
     if (!Array.isArray(pointsArray)) {
         return [];
     }
+    
     return pointsArray.map((exp: any): PointDefinition => {
         const newPoint: NormalizedPointObject = {};
 
@@ -37,14 +38,45 @@ function _normalizePointArray(pointsArray: any[], promptId: string | undefined):
             return { text: exp, multiplier: 1.0 };
         }
 
-        // 2. Tuple function: ['$contains', 'some text']
+        // 2. Array handling: Could be nested array (alternative path) only
         if (Array.isArray(exp)) {
-            if (typeof exp[0] !== 'string' || !exp[0].startsWith('$')) {
-                throw new Error(`Invalid tuple function in prompt '${promptId}': The first element must be a function name starting with '$'. Found: ${JSON.stringify(exp[0])}`);
+            // Check if this is an alternative path (nested array)
+            if (exp.length > 0 && Array.isArray(exp[0])) {
+                // This is a nested array - not supported at this level
+                throw new Error(`Nested arrays within nested arrays are not supported in prompt '${promptId}'. Found: ${JSON.stringify(exp)}`);
             }
-            newPoint.fn = exp[0].substring(1);
-            newPoint.fnArgs = exp.length > 2 ? exp.slice(1) : exp[1];
-        } 
+            
+            // This is an alternative path (nested array): ['point1', 'point2', ['$func', 'arg']]
+            // Filter out empty arrays first
+            const filteredExp = exp.filter((item: any) => {
+                if (Array.isArray(item)) {
+                    return item.length > 0;
+                }
+                return item !== null && item !== undefined && item !== '';
+            });
+            
+            if (filteredExp.length === 0) {
+                // Return empty array to be filtered out later
+                return [];
+            }
+            
+            // Process each element in the nested array as a single point
+            const alternativePath = filteredExp.map((nestedExp: any) => {
+                if (Array.isArray(nestedExp)) {
+                    // Nested arrays within alternative paths are not supported
+                    throw new Error(`Nested arrays within alternative paths are not supported in prompt '${promptId}'. Found: ${JSON.stringify(nestedExp)}`);
+                } else if (typeof nestedExp === 'string') {
+                    return { text: nestedExp, multiplier: 1.0 };
+                } else if (typeof nestedExp === 'object' && nestedExp !== null) {
+                    // Handle object points within alternative paths
+                    return _normalizePointArray([nestedExp], promptId)[0];
+                } else {
+                    throw new Error(`Invalid point format in alternative path in prompt '${promptId}'. Point must be a string or object. Found: ${JSON.stringify(nestedExp)}`);
+                }
+            });
+            
+            return alternativePath;
+        }
         
         // 3. Object-based points
         else if (typeof exp === 'object' && exp !== null) {
@@ -77,7 +109,7 @@ function _normalizePointArray(pointsArray: any[], promptId: string | undefined):
             throw new Error(`Invalid point format in prompt '${promptId}': Point must be a string, array, or object. Found: ${JSON.stringify(exp)}`);
         }
 
-        // --- Validation and Cleanup ---
+        // --- Validation and Cleanup for single points ---
         if (newPoint.fn && newPoint.text) {
             throw new Error(`Invalid point in prompt '${promptId}': Point cannot have both 'text' and 'fn' defined. Found: ${JSON.stringify(exp)}`);
         }
@@ -104,6 +136,12 @@ function _normalizePointArray(pointsArray: any[], promptId: string | undefined):
         }
 
         return newPoint as PointDefinition;
+    }).filter(point => {
+        // Filter out empty alternative paths
+        if (Array.isArray(point)) {
+            return point.length > 0;
+        }
+        return true;
     });
 }
 

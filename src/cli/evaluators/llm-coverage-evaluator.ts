@@ -84,31 +84,83 @@ export class LLMCoverageEvaluator implements Evaluator {
         if (!points) {
             return [];
         }
-        return points.map((pointDef) => {
+        
+        const normalizedPoints: NormalizedPoint[] = [];
+        
+        points.forEach((pointDef, index) => {
             if (typeof pointDef === 'string') {
-                return {
+                normalizedPoints.push({
                     id: pointDef,
                     displayText: pointDef,
                     textToEvaluate: pointDef,
                     multiplier: 1,
                     isFunction: false,
                     isInverted,
-                };
-            }
-            if (Array.isArray(pointDef)) {
-                const [fnName, fnArgs] = pointDef;
-                const displayText = `Function: ${fnName}(${JSON.stringify(fnArgs)})`;
-                return {
-                    id: displayText,
-                    displayText: displayText,
-                    multiplier: 1,
-                    isFunction: true,
-                    functionName: fnName,
-                    functionArgs: fnArgs,
-                    isInverted,
-                };
-            }
-            if (typeof pointDef === 'object' && pointDef !== null) {
+                });
+            } else if (Array.isArray(pointDef)) {
+                // This is an alternative path (nested array) - flatten all points but mark them with the same pathId
+                const pathId = `path_${index}`;
+                pointDef.forEach(nestedPoint => {
+                    if (typeof nestedPoint === 'string') {
+                        normalizedPoints.push({
+                            id: nestedPoint,
+                            displayText: nestedPoint,
+                            textToEvaluate: nestedPoint,
+                            multiplier: 1,
+                            isFunction: false,
+                            isInverted,
+                            pathId,
+                        });
+                    } else if (typeof nestedPoint === 'object' && nestedPoint !== null && !Array.isArray(nestedPoint)) {
+                        const { text, fn, fnArgs, arg, multiplier, citation, ...rest } = nestedPoint as any;
+                        
+                        if (multiplier !== undefined && (typeof multiplier !== 'number' || multiplier < 0.1 || multiplier > 10)) {
+                            throw new Error(`Point multiplier must be a number between 0.1 and 10. Found ${multiplier}. Prompt ID: '${promptId}'`);
+                        }
+
+                        const standardKeys = ['text', 'fn', 'fnArgs', 'arg', 'multiplier', 'citation'];
+                        const idiomaticFnName = Object.keys(rest).find(k => !standardKeys.includes(k) && k.startsWith('$'));
+
+                        if (text && (fn || idiomaticFnName)) {
+                            throw new Error(`Point object cannot have both 'text' and a function ('fn' or idiomatic). Prompt ID: '${promptId}'`);
+                        }
+
+                        if (text) {
+                            normalizedPoints.push({
+                                id: text,
+                                displayText: text,
+                                textToEvaluate: text,
+                                multiplier: multiplier ?? 1,
+                                citation,
+                                isFunction: false,
+                                isInverted,
+                                pathId,
+                            });
+                        } else {
+                            const fnName = fn || (idiomaticFnName ? idiomaticFnName.substring(1) : undefined);
+                            if (!fnName) {
+                                throw new Error(`Point object must have 'text', 'fn', or an idiomatic function name (starting with $). Found: ${JSON.stringify(nestedPoint)}`);
+                            }
+
+                            const effectiveFnArgs = fnArgs ?? arg ?? (idiomaticFnName ? (nestedPoint as any)[idiomaticFnName] : undefined);
+                            const displayText = `Function: ${fnName}(${JSON.stringify(effectiveFnArgs)})`;
+                            normalizedPoints.push({
+                                id: displayText,
+                                displayText: displayText,
+                                multiplier: multiplier ?? 1,
+                                citation,
+                                isFunction: true,
+                                functionName: fnName,
+                                functionArgs: effectiveFnArgs,
+                                isInverted,
+                                pathId,
+                            });
+                        }
+                    } else {
+                        throw new Error(`Invalid nested point definition found in prompt '${promptId}': ${JSON.stringify(nestedPoint)}`);
+                    }
+                });
+            } else if (typeof pointDef === 'object' && pointDef !== null) {
                 const { text, fn, fnArgs, arg, multiplier, citation, ...rest } = pointDef;
                 
                 if (multiplier !== undefined && (typeof multiplier !== 'number' || multiplier < 0.1 || multiplier > 10)) {
@@ -123,29 +175,40 @@ export class LLMCoverageEvaluator implements Evaluator {
                 }
 
                 if (text) {
-                     return { id: text, displayText: text, textToEvaluate: text, multiplier: multiplier ?? 1, citation, isFunction: false, isInverted };
-                }
-                
-                const fnName = fn || (idiomaticFnName ? idiomaticFnName.substring(1) : undefined);
-                if (!fnName) {
-                    throw new Error(`Point object must have 'text', 'fn', or an idiomatic function name (starting with $). Found: ${JSON.stringify(pointDef)}`);
-                }
+                    normalizedPoints.push({
+                        id: text,
+                        displayText: text,
+                        textToEvaluate: text,
+                        multiplier: multiplier ?? 1,
+                        citation,
+                        isFunction: false,
+                        isInverted,
+                    });
+                } else {
+                    const fnName = fn || (idiomaticFnName ? idiomaticFnName.substring(1) : undefined);
+                    if (!fnName) {
+                        throw new Error(`Point object must have 'text', 'fn', or an idiomatic function name (starting with $). Found: ${JSON.stringify(pointDef)}`);
+                    }
 
-                const effectiveFnArgs = fnArgs ?? arg ?? (idiomaticFnName ? pointDef[idiomaticFnName] : undefined);
-                const displayText = `Function: ${fnName}(${JSON.stringify(effectiveFnArgs)})`;
-                return {
-                    id: displayText,
-                    displayText: displayText,
-                    multiplier: multiplier ?? 1,
-                    citation,
-                    isFunction: true,
-                    functionName: fnName,
-                    functionArgs: effectiveFnArgs,
-                    isInverted,
-                };
+                    const effectiveFnArgs = fnArgs ?? arg ?? (idiomaticFnName ? pointDef[idiomaticFnName] : undefined);
+                    const displayText = `Function: ${fnName}(${JSON.stringify(effectiveFnArgs)})`;
+                    normalizedPoints.push({
+                        id: displayText,
+                        displayText: displayText,
+                        multiplier: multiplier ?? 1,
+                        citation,
+                        isFunction: true,
+                        functionName: fnName,
+                        functionArgs: effectiveFnArgs,
+                        isInverted,
+                    });
+                }
+            } else {
+                throw new Error(`Invalid point definition found in prompt '${promptId}': ${JSON.stringify(pointDef)}`);
             }
-            throw new Error(`Invalid point definition found in prompt '${promptId}': ${JSON.stringify(pointDef)}`);
         });
+        
+        return normalizedPoints;
     }
 
     private async evaluateSinglePoint(

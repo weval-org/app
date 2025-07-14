@@ -63,8 +63,8 @@ export interface WevalEvaluationResults {
 type AtLeastNOfArg = [number, string[]];
 type PointFunctionArgs = string | number | boolean | null | (string | number | boolean)[] | AtLeastNOfArg | Record<string, unknown>;
 
-// A Point can be a simple string, a function call tuple, or a rich object.
-export type PointDefinition =
+// A single point definition - can be a simple string, a function call tuple, or a rich object.
+export type SinglePointDefinition =
     string |
     [string, PointFunctionArgs] |
     {
@@ -76,6 +76,10 @@ export type PointDefinition =
         citation?: string;
         [key: string]: any;
     };
+
+// A Point can be a single point or an array of points (representing an alternative path).
+// This supports the OR logic where each inner array represents an alternative path.
+export type PointDefinition = SinglePointDefinition | SinglePointDefinition[];
 
 export interface WevalPromptConfig {
     id: string;

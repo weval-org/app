@@ -11,7 +11,7 @@ const CheckCircle = dynamic(() => import('lucide-react').then(mod => mod.CheckCi
 const XCircle = dynamic(() => import('lucide-react').then(mod => mod.XCircle));
 
 interface ExpectationGroupProps {
-  title: string;
+  title: string | null;
   expectations: PointDefinition[];
   onUpdate: (exps: PointDefinition[]) => void;
   variant: 'should' | 'should-not';
@@ -47,11 +47,13 @@ export function ExpectationGroup({ title, expectations, onUpdate, variant, isEdi
 
   return (
     <div className="space-y-2">
-      <h4 className={`font-semibold text-sm flex items-center gap-2 ${styles.titleColor}`}>
-        <styles.Icon className="w-4 h-4" />
-        {title}
-      </h4>
-      <div className="pl-5 space-y-2">
+      {title && (
+        <h4 className={`font-semibold text-sm flex items-center gap-2 ${styles.titleColor}`}>
+          <styles.Icon className="w-4 h-4" />
+          {title}
+        </h4>
+      )}
+      <div className={`${title ? 'pl-5' : ''} space-y-2`}>
         {expectations.map((exp, index) => (
           <ExpectationEditor
             key={index}

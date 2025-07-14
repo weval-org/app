@@ -113,8 +113,8 @@ Each item in the list of prompts is an object that can contain the following fie
 | `ideal` | `string` | **(Optional)** A "gold-standard" answer against which model responses can be compared for semantic similarity. An alias for `idealResponse`. |
 | `system` | `string` | **(Optional)** A system prompt that overrides the global `system` prompt for this specific prompt only. |
 | `citation` | `string` | **(Optional)** A citation or reference for the prompt, such as a URL, paper reference, or source documentation. This provides context about where the prompt or expected response comes from. |
-| `should` | `(string \| object)[]` | **(Optional)** A list of rubric points for the `llm-coverage` evaluation method. Defines the criteria for a successful response. Aliased as `points`, `expect`, `expects`, or `expectations`. See details below. |
-| `should_not` | `(string \| object)[]` | **(Optional)** A list of rubric points defining criteria that a response **should not** meet. It follows the exact same syntax as the `should` block, but the result of each check is inverted (a match becomes a failure, and a non-match becomes a success). |
+| `should` | `(string \| object)[] \| (string \| object)[][]` | **(Optional)** A list of rubric points for the `llm-coverage` evaluation method. Defines the criteria for a successful response. To define alternative valid paths ("OR" logic), this can be a list of lists. Aliased as `points`, `expect`, `expects`, or `expectations`. See details below. |
+| `should_not` | `(string \| object)[] \| (string \| object)[][]` | **(Optional)** A list of rubric points defining criteria that a response **should not** meet. It follows the exact same syntax as the `should` block, including support for a list of lists to create alternative "should not" paths. |
 
 #### Message Formats (`messages` array)
 
@@ -149,6 +149,32 @@ These blocks define the criteria for rubric-based evaluation. The `should` block
 
 Each item in these arrays is a point definition, processed in the following order of precedence:
 
+#### Defining Alternative Rubric Paths (OR logic)
+
+By default, all criteria within a `should` or `should_not` block are treated as an "AND" condition—a response must satisfy all of them to be considered fully successful.
+
+To express an "OR" condition, where a response is considered valid if it satisfies one of several distinct sets of criteria, you can use a **nested list**. Each inner list is a complete, alternative rubric path.
+
+```yaml
+should:
+  # Path 1: A response is valid if it meets BOTH of these criteria...
+  - - "is kind and polite."
+    - $contains: "Here is a recipe"
+
+  # OR Path 2: ...or if it meets BOTH of these other criteria.
+  - - "is inquisitive and asks a clarifying question."
+    - "offers to find a recipe based on user's preferences."
+
+  # OR Path 3: ...or if it just does this one thing.
+  - - "politely declines because it cannot guarantee recipe quality."
+```
+
+If the parser detects a nested list like this, it will evaluate each inner list as a separate path. A response only needs to satisfy one of these paths to be considered successful for the `should` block. The same logic applies to `should_not`.
+
+If no nesting is used, the block is parsed as a single path, preserving full backward compatibility with older blueprints.
+
+#### Point Definition Formats
+
 1.  **Plain Language Rubric (LLM-Judged Check)**: This is the simplest and most powerful way to create a rubric. Each string is a criterion that an AI "judge" will evaluate for its conceptual presence in the model's response.
     ```yaml
     should:
@@ -167,15 +193,12 @@ Each item in these arrays is a point definition, processed in the following orde
         : "SEC Rule on Fiduciary Duty"
     ```
 
-3.  **Idiomatic Function (Deterministic Check)**: A quick way to perform exact, programmatic checks. **All idiomatic function calls must be prefixed with a `$`** to distinguish them from citable points. They can be defined as an object or a more concise array ("tuple").
+3.  **Idiomatic Function (Deterministic Check)**: A quick way to perform exact, programmatic checks. **All idiomatic function calls must be prefixed with a `$`** to distinguish them from citable points.
     ```yaml
     should:
       # Object syntax (recommended)
       - $contains: "fiduciary duty"  # Case-sensitive check
       - $icontains: "fiduciary duty" # Case-insensitive
-
-      # Tuple syntax (for simple functions)
-      - ['$ends_with', '.']
 
       # List-based checks
       - $contains_any_of: ["fiduciary", "duty"]  # True if any are found

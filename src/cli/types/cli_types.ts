@@ -7,6 +7,7 @@ import {
     IndividualJudgement,
     EvaluationMethod,
     PointDefinition,
+    SinglePointDefinition,
     WevalPromptConfig as PromptConfig,
     WevalConfig as ComparisonConfig,
     WevalResult as FinalComparisonOutputV2,
@@ -19,6 +20,7 @@ import {
 export type {
     EvaluationMethod,
     PointDefinition,
+    SinglePointDefinition,
     PromptConfig,
     ComparisonConfig,
     FinalComparisonOutputV2,
@@ -37,6 +39,7 @@ export interface NormalizedPoint {
     citation?: string;
     isFunction: boolean;
     isInverted?: boolean; // To track if the point came from should_not
+    pathId?: string; // To track which alternative path this point belongs to
     // Fields for LLM-based evaluation
     textToEvaluate?: string;
     // Fields for function-based evaluation
