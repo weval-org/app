@@ -169,7 +169,49 @@ should:
   - - "politely declines because it cannot guarantee recipe quality."
 ```
 
-If the parser detects a nested list like this, it will evaluate each inner list as a separate path. A response only needs to satisfy one of these paths to be considered successful for the `should` block. The same logic applies to `should_not`.
+**Scoring Behavior**: When alternative paths are used, the system calculates the average score for *each* path independently. The final score for the entire block is then the **highest** of these path scores.
+
+**Mixing Required and Alternative Paths**
+
+You can also mix required points with a block of alternative paths. This powerful combination allows you to define core criteria that *must* be met, alongside several optional ways to satisfy other parts of the rubric.
+
+When mixing, the score for the alternative path block (the highest-scoring path) is treated as a single point and is averaged with all the other required points.
+
+```yaml
+should:
+  # This point is ALWAYS required
+  - "The response must be in English."
+
+  # This is a block of alternative paths. The score for this block
+  # will be the score of the best-performing path inside it.
+  - - # Path 1: Direct Answer
+      - "Provides the correct answer."
+      - $contains: "42"
+    - # Path 2: Asks for Clarification
+      - "Asks what 'the meaning of life' refers to."
+
+  # This function check is also ALWAYS required
+  - $word_count_between: [10, 200]
+```
+
+In the example above, the final score will be the average of:
+1.  The score for "The response must be in English."
+2.  The score for the *best* of (Path 1, Path 2).
+3.  The score for the `$word_count_between` check.
+
+**Alternative Paths in `should_not`**
+
+The same logic applies to the `should_not` block. This is useful for defining multiple, distinct failure modes. A response fails if it satisfies *any* of the alternative "should not" paths.
+
+```yaml
+should_not:
+  # Fail if the response is BOTH rude AND dismissive
+  - - "is rude"
+    - "is dismissive"
+
+  # OR fail if the response contains specific forbidden phrases
+  - - $contains_any_of: ["I am not a lawyer", "This is not legal advice"]
+```
 
 If no nesting is used, the block is parsed as a single path, preserving full backward compatibility with older blueprints.
 

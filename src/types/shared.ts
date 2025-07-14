@@ -26,6 +26,7 @@ export interface PointAssessment {
     judgeLog?: string[];
     individualJudgements?: IndividualJudgement[];
     isInverted?: boolean;
+    pathId?: string; // Used for alternative paths (OR logic)
 }
 
 // A container for the results of an llm-coverage evaluation for a single

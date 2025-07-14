@@ -89,6 +89,12 @@ The judge's categorical classification is mapped to a quantitative score.
     \text{avgCoverageExtent} = \frac{\sum_{i=1}^{N} S_i \cdot w_i}{\sum_{i=1}^{N} w_i}
     ```
 
+*   **Handling of Alternative Paths (OR Logic)**: When a blueprint uses nested lists to define alternative rubric paths, the scoring logic is adjusted to handle the "OR" condition:
+    1.  **Path Grouping**: All points are grouped by their path. Points not in a nested list are considered "required."
+    2.  **Path Scoring**: The weighted average score for each individual path is calculated using the standard formula above.
+    3.  **Best Path Selection**: The system identifies the single path with the highest average score. This becomes the score for the entire alternative path block.
+    4.  **Final Aggregation**: The final `avgCoverageExtent` is the weighted average of all "required" points and the score of the single best alternative path. The entire block of alternative paths is treated as a single point with a default weight of 1.
+
 #### Judge Reliability Mechanisms
 
 We recognize that using LLMs as judges is a complex process susceptible to various cognitive biases, such as positional preference, order effects, and sensitivity to prompt phrasing. For a detailed analysis of these challenges, see the Collective Intelligence Project's research on the topic: *[LLM Judges Are Unreliable](https://www.cip.org/blog/llm-judges-are-unreliable)*. The reliability mechanisms below are designed as direct countermeasures to these known issues.

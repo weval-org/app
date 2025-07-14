@@ -10,6 +10,12 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ChevronsUpDown } from 'lucide-react';
+import { Quote } from 'lucide-react';
+import { Server } from 'lucide-react';
+import { CheckCircle } from 'lucide-react';
+import { ThumbsDown } from 'lucide-react';
+import { Trophy } from 'lucide-react';
 
 const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
 const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
@@ -17,11 +23,6 @@ const AlertTriangle = dynamic(() => import('lucide-react').then(mod => mod.Alert
 const MessageSquare = dynamic(() => import('lucide-react').then(mod => mod.MessageSquare), { ssr: false });
 const ChevronDown = dynamic(() => import('lucide-react').then(mod => mod.ChevronDown), { ssr: false });
 const ChevronUp = dynamic(() => import('lucide-react').then(mod => mod.ChevronUp), { ssr: false });
-const ChevronsUpDown = dynamic(() => import('lucide-react').then(mod => mod.ChevronsUpDown), { ssr: false });
-const Quote = dynamic(() => import('lucide-react').then(mod => mod.Quote), { ssr: false });
-const Server = dynamic(() => import('lucide-react').then(mod => mod.Server), { ssr: false });
-const CheckCircle = dynamic(() => import('lucide-react').then(mod => mod.CheckCircle), { ssr: false });
-const ThumbsDown = dynamic(() => import('lucide-react').then(mod => mod.ThumbsDown), { ssr: false });
 
 const getScoreColor = (score?: number): string => {
     if (score === undefined || score === null || isNaN(score)) return 'bg-slate-500';
@@ -208,26 +209,61 @@ export const EvaluationView: React.FC<{
         });
     };
     
-    const { criticalFailures, majorGaps, passed } = useMemo(() => {
-        const criticalFailures: PointAssessment[] = [];
-        const majorGaps: PointAssessment[] = [];
-        const passed: PointAssessment[] = [];
+    const { requiredPoints, alternativePaths, bestPathId } = useMemo(() => {
+        const required: PointAssessment[] = [];
+        const paths: Record<string, PointAssessment[]> = {};
 
         assessments.forEach(a => {
-            if (a.isInverted && a.coverageExtent !== undefined && a.coverageExtent < 0.7) {
-                criticalFailures.push(a);
-            } else if (!a.isInverted && a.coverageExtent !== undefined && a.coverageExtent < 0.4) {
-                majorGaps.push(a);
+            if (a.pathId) {
+                if (!paths[a.pathId]) {
+                    paths[a.pathId] = [];
+                }
+                paths[a.pathId].push(a);
             } else {
-                passed.push(a);
+                required.push(a);
             }
         });
-        
-        criticalFailures.sort((a,b) => (a.coverageExtent ?? 1) - (b.coverageExtent ?? 1));
-        majorGaps.sort((a,b) => (a.coverageExtent ?? 1) - (b.coverageExtent ?? 1));
-        passed.sort((a,b) => (b.coverageExtent ?? 0) - (a.coverageExtent ?? 0));
 
-        return { criticalFailures, majorGaps, passed };
+        let bestPath: { id: string | null; score: number } = { id: null, score: -1 };
+        
+        Object.entries(paths).forEach(([pathId, pathAssessments]) => {
+            const validAssessments = pathAssessments.filter(a => a.coverageExtent !== undefined);
+            if (validAssessments.length > 0) {
+                const totalScore = validAssessments.reduce((sum, a) => sum + a.coverageExtent!, 0);
+                const avgScore = totalScore / validAssessments.length;
+                if (avgScore > bestPath.score) {
+                    bestPath = { id: pathId, score: avgScore };
+                }
+            }
+        });
+
+        const categorize = (list: PointAssessment[]) => {
+            const criticalFailures: PointAssessment[] = [];
+            const majorGaps: PointAssessment[] = [];
+            const passed: PointAssessment[] = [];
+            list.forEach(a => {
+                if (a.isInverted && a.coverageExtent !== undefined && a.coverageExtent < 0.7) {
+                    criticalFailures.push(a);
+                } else if (!a.isInverted && a.coverageExtent !== undefined && a.coverageExtent < 0.4) {
+                    majorGaps.push(a);
+                } else {
+                    passed.push(a);
+                }
+            });
+            criticalFailures.sort((a,b) => (a.coverageExtent ?? 1) - (b.coverageExtent ?? 1));
+            majorGaps.sort((a,b) => (a.coverageExtent ?? 1) - (b.coverageExtent ?? 1));
+            passed.sort((a,b) => (b.coverageExtent ?? 0) - (a.coverageExtent ?? 0));
+            return { criticalFailures, majorGaps, passed };
+        };
+
+        return {
+            requiredPoints: categorize(required),
+            alternativePaths: Object.entries(paths).map(([pathId, pathAssessments]) => ({
+                pathId,
+                ...categorize(pathAssessments),
+            })).sort((a,b) => parseInt(a.pathId.split('_')[1]) - parseInt(b.pathId.split('_')[1])),
+            bestPathId: bestPath.id,
+        };
     }, [assessments]);
 
     const renderAssessmentList = (list: PointAssessment[]) => (
@@ -245,6 +281,35 @@ export const EvaluationView: React.FC<{
                 />
             )
         })
+    );
+
+    const renderCategorizedAssessments = (categorized: { criticalFailures: PointAssessment[], majorGaps: PointAssessment[], passed: PointAssessment[] }) => (
+        <>
+            {categorized.criticalFailures.length > 0 && (
+                <div>
+                    <h4 className="font-bold text-base text-red-600 dark:text-red-500 flex items-center mb-2" title="A critical failure occurs when the model does something it was explicitly told not to do.">
+                        <ThumbsDown className="h-5 w-5 mr-2" /> Critical Failures ({categorized.criticalFailures.length})
+                    </h4>
+                    <div className="space-y-3">{renderAssessmentList(categorized.criticalFailures)}</div>
+                </div>
+            )}
+            {categorized.majorGaps.length > 0 && (
+                 <div>
+                    <h4 className="font-bold text-base text-orange-600 dark:text-orange-500 flex items-center mb-2" title="A major gap occurs when the model fails to include a key positive requirement.">
+                        <AlertTriangle className="h-5 w-5 mr-2" /> Major Gaps ({categorized.majorGaps.length})
+                    </h4>
+                    <div className="space-y-3">{renderAssessmentList(categorized.majorGaps)}</div>
+                </div>
+            )}
+            {categorized.passed.length > 0 && (
+                <div>
+                    <h4 className="font-bold text-base text-green-600 dark:text-green-500 flex items-center mb-2">
+                        <CheckCircle className="h-5 w-5 mr-2" /> Passed Criteria ({categorized.passed.length})
+                    </h4>
+                    <div className="space-y-3">{renderAssessmentList(categorized.passed)}</div>
+                </div>
+            )}
+        </>
     );
 
     if (isMobile) {
@@ -281,30 +346,20 @@ export const EvaluationView: React.FC<{
                         Criteria Evaluation ({assessments.length})
                     </h3>
                     <div className="space-y-4">
-                        {criticalFailures.length > 0 && (
-                            <div>
-                                <h4 className="font-bold text-base text-red-600 dark:text-red-500 flex items-center mb-2" title="A critical failure occurs when the model does something it was explicitly told not to do.">
-                                    <ThumbsDown className="h-5 w-5 mr-2" /> Critical Failures ({criticalFailures.length})
-                                </h4>
-                                <div className="space-y-3">{renderAssessmentList(criticalFailures)}</div>
-                            </div>
-                        )}
-                        {majorGaps.length > 0 && (
-                             <div>
-                                <h4 className="font-bold text-base text-orange-600 dark:text-orange-500 flex items-center mb-2" title="A major gap occurs when the model fails to include a key positive requirement.">
-                                    <AlertTriangle className="h-5 w-5 mr-2" /> Major Gaps ({majorGaps.length})
-                                </h4>
-                                <div className="space-y-3">{renderAssessmentList(majorGaps)}</div>
-                            </div>
-                        )}
-                        {passed.length > 0 && (
-                            <div>
-                                <h4 className="font-bold text-base text-green-600 dark:text-green-500 flex items-center mb-2">
-                                    <CheckCircle className="h-5 w-5 mr-2" /> Passed Criteria ({passed.length})
-                                </h4>
-                                <div className="space-y-3">{renderAssessmentList(passed)}</div>
-                            </div>
-                        )}
+                        {renderCategorizedAssessments({ 
+                            criticalFailures: [
+                                ...requiredPoints.criticalFailures, 
+                                ...alternativePaths.flatMap(p => p.criticalFailures)
+                            ],
+                            majorGaps: [
+                                ...requiredPoints.majorGaps,
+                                ...alternativePaths.flatMap(p => p.majorGaps)
+                            ],
+                            passed: [
+                                ...requiredPoints.passed,
+                                ...alternativePaths.flatMap(p => p.passed)
+                            ]
+                        })}
                         {assessments.length === 0 && (
                             <p className="text-muted-foreground italic text-sm">No criteria assessments available.</p>
                         )}
@@ -347,30 +402,42 @@ export const EvaluationView: React.FC<{
                     Criteria Evaluation ({assessments.length})
                 </h3>
                 <div className="custom-scrollbar min-h-0 flex-grow space-y-3 overflow-y-auto pr-2 pt-2">
-                    {criticalFailures.length > 0 && (
+                    {(requiredPoints.criticalFailures.length > 0 || requiredPoints.majorGaps.length > 0 || requiredPoints.passed.length > 0) && (
+                        <div className="mb-4">
+                            <h4 className="font-bold text-base text-primary flex items-center mb-2">
+                                Required Criteria
+                            </h4>
+                            {renderCategorizedAssessments(requiredPoints)}
+                        </div>
+                    )}
+                    
+                    {alternativePaths.length > 0 && (
                         <div>
-                            <h4 className="font-bold text-base text-red-600 dark:text-red-500 flex items-center mb-2" title="A critical failure occurs when the model does something it was explicitly told not to do.">
-                                <ThumbsDown className="h-5 w-5 mr-2" /> Critical Failures ({criticalFailures.length})
+                            <h4 className="font-bold text-base text-primary flex items-center mb-2">
+                                Alternative Paths (OR Logic)
                             </h4>
-                            <div className="space-y-3">{renderAssessmentList(criticalFailures)}</div>
+                            <div className="space-y-4">
+                                {alternativePaths.map((path, index) => (
+                                    <div key={path.pathId} className={cn(
+                                        "rounded-lg border p-3",
+                                        path.pathId === bestPathId ? "border-green-500 bg-green-50/30 dark:bg-green-900/10" : "border-border/50"
+                                    )}>
+                                        <div className="flex justify-between items-center mb-2">
+                                            <h5 className="font-semibold text-muted-foreground">Path #{index + 1}</h5>
+                                            {path.pathId === bestPathId && (
+                                                <Badge variant="default" className="bg-green-600 hover:bg-green-700">
+                                                    <Trophy className="h-3.5 w-3.5 mr-1" />
+                                                    Best Path
+                                                </Badge>
+                                            )}
+                                        </div>
+                                        {renderCategorizedAssessments(path)}
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
-                    {majorGaps.length > 0 && (
-                         <div>
-                            <h4 className="font-bold text-base text-orange-600 dark:text-orange-500 flex items-center mb-2" title="A major gap occurs when the model fails to include a key positive requirement.">
-                                <AlertTriangle className="h-5 w-5 mr-2" /> Major Gaps ({majorGaps.length})
-                            </h4>
-                            <div className="space-y-3">{renderAssessmentList(majorGaps)}</div>
-                        </div>
-                    )}
-                    {passed.length > 0 && (
-                        <div>
-                            <h4 className="font-bold text-base text-green-600 dark:text-green-500 flex items-center mb-2">
-                                <CheckCircle className="h-5 w-5 mr-2" /> Passed Criteria ({passed.length})
-                            </h4>
-                            <div className="space-y-3">{renderAssessmentList(passed)}</div>
-                        </div>
-                    )}
+
                     {assessments.length === 0 && (
                         <p className="text-muted-foreground italic text-sm">No criteria assessments available.</p>
                     )}

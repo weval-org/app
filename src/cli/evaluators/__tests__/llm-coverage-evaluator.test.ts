@@ -734,9 +734,8 @@ describe('LLMCoverageEvaluator', () => {
 
             // Path 1 score: (0.3 + 1.0) / 2 = 0.65 (assuming contains("recipe") = 1.0)
             // Path 2 score: (0.9 + 0.9) / 2 = 0.9
-            // Currently, all points are evaluated as required (no OR logic yet)
-            // So the score is the average of all points: (0.3 + 1.0 + 0.9 + 0.9) / 4 = 0.775
-            expect(model1Result.avgCoverageExtent).toBeCloseTo(0.78);
+            // With OR logic, the best path score is selected: max(0.65, 0.9) = 0.9
+            expect(model1Result.avgCoverageExtent).toBeCloseTo(0.9);
             
             // Should have assessments for all individual points
             expect(model1Result.pointAssessments).toBeDefined();

@@ -27,15 +27,12 @@ The `should` block accepts a list where each item can be in one of these formats
     ```
     *   **What it means**: This is functionally identical to defining a `text` point with a `citation`, but is more concise.
 
-3.  **Idiomatic Function Call (Deterministic Check)**: A quick way to perform exact, programmatic checks. **All idiomatic function calls must be prefixed with a `$`** to distinguish them from citable points. They can be defined as an object or a more concise array ("tuple").
+3.  **Idiomatic Function Call (Deterministic Check)**: A quick way to perform exact, programmatic checks. **All idiomatic function calls must be prefixed with a `$`** to distinguish them from citable points. They are defined as an object where the key is the function name and the value is the argument.
     ```yaml
     should:
-      # Object syntax (recommended)
+      # Object syntax
       - $contains: "fiduciary duty"  # Case-sensitive check
       - $icontains: "fiduciary duty" # Case-insensitive
-
-      # Tuple syntax (for simple functions)
-      - ['$ends_with', '.']
 
       # List-based checks
       - $contains_any_of: ["fiduciary", "duty"]  # True if any are found
@@ -71,6 +68,19 @@ The `should` block accepts a list where each item can be in one of these formats
         citation: "Style guide rule #5"
     ```
     *   **What it means**: This allows fine-grained control. The `point` field (or its alias `text`) signals an LLM-judged evaluation, while the `fn` field signals a direct function call. The `weight` (`multiplier`) affects this point's score in the final average, and `citation` is for documentation.
+
+5.  **Alternative Paths (OR Logic)**: To express an "OR" condition, where a response is valid if it satisfies one of several distinct sets of criteria, you can use a **nested list**. Each inner list is a complete, alternative rubric path. This is a powerful feature for defining multiple valid approaches to a prompt.
+    ```yaml
+    should:
+      # Path 1: A response is valid if it meets BOTH of these criteria...
+      - - "is kind and polite."
+        - $contains: "Here is a recipe"
+
+      # OR Path 2: ...or if it meets BOTH of these other criteria.
+      - - "is inquisitive and asks a clarifying question."
+        - "offers to find a recipe based on user's preferences."
+    ```
+    *   **What it means**: The evaluation will calculate a score for Path 1 and a score for Path 2. The final score for this `should` block will be the **higher** of the two path scores. The same logic applies to `should_not`.
 
 ---
 
@@ -154,7 +164,9 @@ This path is for `fn`-based points and is deterministic.
 For each model response, after all its `points` have been evaluated down one of the two paths:
 
 1.  **Collect Assessments**: The system collects all the individual `PointAssessment` objects.
-2.  **Calculate Average**: It calculates the final `avgCoverageExtent`. This is a **weighted average**. The `coverageExtent` of each point is multiplied by its `multiplier` (which defaults to 1), and the sum is divided by the sum of all multipliers. This is why a `weight` of `3.0` makes a point three times as important as a standard point.
+2.  **Calculate Final Score**: It calculates the final `avgCoverageExtent` using the `aggregateCoverageScores` function. This function handles both simple lists and alternative paths:
+    *   **For a simple list of points**: It calculates a weighted average. The `coverageExtent` of each point is multiplied by its `multiplier` (which defaults to 1), and the sum is divided by the sum of all multipliers.
+    *   **For alternative paths**: It first calculates the weighted average score for *each* path. Then, it takes the **highest** of these path scores as the final score for the OR block. If there are other "required" points outside the OR block, the best path score is averaged with them.
 3.  **Package Result**: The final average score, plus the list of all individual `PointAssessment` objects, is packaged into a `CoverageResult` object.
 
 ---

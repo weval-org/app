@@ -64,6 +64,128 @@ describe('aggregateCoverageScores', () => {
         ];
         expect(aggregateCoverageScores(assessments)).toBe(0);
     });
+
+    describe('Alternative Paths (OR logic)', () => {
+        it('should evaluate alternative paths and return the best path score', () => {
+            const assessments: PointAssessment[] = [
+                // Path 1: Average score of 0.4
+                { keyPointText: 'path1-point1', coverageExtent: 0.8, pathId: 'path_1' },
+                { keyPointText: 'path1-point2', coverageExtent: 0.0, pathId: 'path_1' },
+                // Path 2: Average score of 0.9
+                { keyPointText: 'path2-point1', coverageExtent: 0.8, pathId: 'path_2' },
+                { keyPointText: 'path2-point2', coverageExtent: 1.0, pathId: 'path_2' },
+            ];
+            // Path 1: (0.8 + 0.0) / 2 = 0.4
+            // Path 2: (0.8 + 1.0) / 2 = 0.9
+            // Should return max(0.4, 0.9) = 0.9
+            expect(aggregateCoverageScores(assessments)).toBe(0.9);
+        });
+
+        it('should handle weighted points within alternative paths', () => {
+            const assessments: PointAssessment[] = [
+                // Path 1: Weighted average
+                { keyPointText: 'path1-point1', coverageExtent: 1.0, multiplier: 3.0, pathId: 'path_1' },
+                { keyPointText: 'path1-point2', coverageExtent: 0.0, multiplier: 1.0, pathId: 'path_1' },
+                // Path 2: Weighted average
+                { keyPointText: 'path2-point1', coverageExtent: 0.5, multiplier: 2.0, pathId: 'path_2' },
+                { keyPointText: 'path2-point2', coverageExtent: 0.8, multiplier: 1.0, pathId: 'path_2' },
+            ];
+            // Path 1: (1.0 * 3.0 + 0.0 * 1.0) / (3.0 + 1.0) = 3.0 / 4.0 = 0.75
+            // Path 2: (0.5 * 2.0 + 0.8 * 1.0) / (2.0 + 1.0) = 1.8 / 3.0 = 0.6
+            // Should return max(0.75, 0.6) = 0.75
+            expect(aggregateCoverageScores(assessments)).toBe(0.75);
+        });
+
+        it('should handle mixed alternative paths and required points', () => {
+            const assessments: PointAssessment[] = [
+                // Required points (no pathId)
+                { keyPointText: 'required1', coverageExtent: 0.8 },
+                { keyPointText: 'required2', coverageExtent: 0.6 },
+                // Alternative path 1
+                { keyPointText: 'path1-point1', coverageExtent: 0.2, pathId: 'path_1' },
+                { keyPointText: 'path1-point2', coverageExtent: 0.4, pathId: 'path_1' },
+                // Alternative path 2
+                { keyPointText: 'path2-point1', coverageExtent: 1.0, pathId: 'path_2' },
+            ];
+            // Required points average: (0.8 + 0.6) / 2 = 0.7
+            // Path 1: (0.2 + 0.4) / 2 = 0.3
+            // Path 2: 1.0 / 1 = 1.0
+            // Best path is path 2 with 1.0
+            // Final score: average of required points (0.7) and best path (1.0) = (0.7 + 1.0) / 2 = 0.85
+            expect(aggregateCoverageScores(assessments)).toBe(0.85);
+        });
+
+        it('should handle single-point alternative paths', () => {
+            const assessments: PointAssessment[] = [
+                { keyPointText: 'path1-only', coverageExtent: 0.3, pathId: 'path_1' },
+                { keyPointText: 'path2-only', coverageExtent: 0.9, pathId: 'path_2' },
+                { keyPointText: 'path3-only', coverageExtent: 0.1, pathId: 'path_3' },
+            ];
+            // Each path has only one point, so path scores are: 0.3, 0.9, 0.1
+            // Should return max(0.3, 0.9, 0.1) = 0.9
+            expect(aggregateCoverageScores(assessments)).toBe(0.9);
+        });
+
+        it('should handle alternative paths with some undefined scores', () => {
+            const assessments: PointAssessment[] = [
+                // Path 1: One valid, one undefined
+                { keyPointText: 'path1-point1', coverageExtent: 0.8, pathId: 'path_1' },
+                { keyPointText: 'path1-point2', coverageExtent: undefined, pathId: 'path_1' },
+                // Path 2: Both valid
+                { keyPointText: 'path2-point1', coverageExtent: 0.5, pathId: 'path_2' },
+                { keyPointText: 'path2-point2', coverageExtent: 0.7, pathId: 'path_2' },
+            ];
+            // Path 1: 0.8 (undefined scores ignored)
+            // Path 2: (0.5 + 0.7) / 2 = 0.6
+            // Should return max(0.8, 0.6) = 0.8
+            expect(aggregateCoverageScores(assessments)).toBe(0.8);
+        });
+
+        it('should handle alternative paths where entire path has undefined scores', () => {
+            const assessments: PointAssessment[] = [
+                // Path 1: All undefined (should be ignored)
+                { keyPointText: 'path1-point1', coverageExtent: undefined, pathId: 'path_1' },
+                { keyPointText: 'path1-point2', coverageExtent: undefined, pathId: 'path_1' },
+                // Path 2: Valid scores
+                { keyPointText: 'path2-point1', coverageExtent: 0.4, pathId: 'path_2' },
+                { keyPointText: 'path2-point2', coverageExtent: 0.6, pathId: 'path_2' },
+            ];
+            // Path 1: ignored (all undefined)
+            // Path 2: (0.4 + 0.6) / 2 = 0.5
+            // Should return 0.5
+            expect(aggregateCoverageScores(assessments)).toBe(0.5);
+        });
+
+        it('should return 0 if all alternative paths have undefined scores', () => {
+            const assessments: PointAssessment[] = [
+                { keyPointText: 'path1-point1', coverageExtent: undefined, pathId: 'path_1' },
+                { keyPointText: 'path2-point1', coverageExtent: undefined, pathId: 'path_2' },
+            ];
+            expect(aggregateCoverageScores(assessments)).toBe(0);
+        });
+    });
+
+    describe('Backwards Compatibility', () => {
+        it('should maintain backwards compatibility with assessments without pathId', () => {
+            const assessments: PointAssessment[] = [
+                { keyPointText: 'p1', coverageExtent: 0.8 },
+                { keyPointText: 'p2', coverageExtent: 0.6 },
+                { keyPointText: 'p3', coverageExtent: 1.0 },
+            ];
+            // Should work exactly like the old behavior: (0.8 + 0.6 + 1.0) / 3 = 0.8
+            expect(aggregateCoverageScores(assessments)).toBeCloseTo(0.8);
+        });
+
+        it('should handle empty pathId same as no pathId', () => {
+            const assessments: PointAssessment[] = [
+                { keyPointText: 'p1', coverageExtent: 0.8, pathId: '' },
+                { keyPointText: 'p2', coverageExtent: 0.6, pathId: undefined },
+                { keyPointText: 'p3', coverageExtent: 1.0 }, // no pathId
+            ];
+            // Should treat all as required points: (0.8 + 0.6 + 1.0) / 3 = 0.8
+            expect(aggregateCoverageScores(assessments)).toBeCloseTo(0.8);
+        });
+    });
 });
 
 describe('evaluateFunctionPoints', () => {

@@ -96,6 +96,7 @@ This object contains the detailed evaluation for a single rubric item.
   "citation": string, // Optional citation associated with the point
   "judgeModelId": string, // The identifier for the judge(s). For a consensus, this will be like `consensus(judge1(model), judge2(model))`.
   "isInverted": boolean, // True if the point came from a `should_not` block
+  "pathId": string, // (Optional) An identifier present if the point belongs to an alternative path (OR logic) block. All points in the same path share a `pathId`.
   "judgeLog": string[], // (Debug) Log of steps taken by the judge logic
   "individualJudgements": IndividualJudgement[] // (Debug) The raw outputs from each judge in a consensus call
 }

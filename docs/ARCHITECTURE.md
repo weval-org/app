@@ -83,7 +83,7 @@ Each component in the diagrams above has a specific role in the ecosystem.
 ### Core Services (Shared Logic)
 These are the foundational services used across all workflows, ensuring evaluation consistency.
 -   **`comparison-pipeline-service.ts`**: The central orchestrator that manages a single evaluation run. It takes a configuration, generates model responses, and calls the necessary evaluators.
--   **`llm-coverage-evaluator.ts`**: Implements the rubric-based scoring logic. It uses "judge" LLMs to assess responses against the `should` and `should_not` criteria defined in a blueprint.
+-   **`llm-coverage-evaluator.ts`**: Implements the rubric-based scoring logic. It uses "judge" LLMs to assess responses against the `should` and `should_not` criteria defined in a blueprint. It supports complex rubrics including alternative paths (OR logic), where the best-performing path is selected.
 -   **`storageService.ts`**: A critical abstraction layer that handles all file I/O, allowing the system to seamlessly read and write from either the local filesystem or a cloud provider like AWS S3.
 -   **`summaryCalculationUtils.ts`**: Contains the post-processing logic for calculating aggregate metrics like the **Hybrid Score**, model performance drift, and leaderboard rankings. This service operates on completed raw result files.
 
@@ -160,7 +160,7 @@ graph TD;
             
             K --> L & O;
 
-            T["Aggregate Point Scores<br>(Weighted Average)"]:::eval;
+            T["Aggregate Point Scores<br>(Handles OR logic & weighting)"]:::eval;
             U[("avgCoverageExtent Score")]:::score;
             N --> T;
             S --> T;

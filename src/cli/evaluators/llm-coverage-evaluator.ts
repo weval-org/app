@@ -685,6 +685,7 @@ Output: <reflection>The text mentions empathy, which means the criterion is MET 
                                     multiplier: point.multiplier,
                                     citation: point.citation,
                                     isInverted: point.isInverted,
+                                    pathId: point.pathId,
                                 });
                             }
                         }
