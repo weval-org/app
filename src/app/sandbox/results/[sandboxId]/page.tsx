@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
 import { AnalysisProvider } from '@/app/analysis/context/AnalysisProvider';
-import { SandboxClientPage } from './SandboxClientPage';
+import { SandboxClientPage } from './SandboxResultsClientPage';
 
 interface SandboxResultsPageProps {
   params: Promise<{

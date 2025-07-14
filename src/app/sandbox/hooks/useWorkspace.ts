@@ -65,12 +65,14 @@ export function useWorkspace(
   const [files, setFiles] = useState<BlueprintFile[]>([]);
   const [activeBlueprint, setActiveBlueprint] = useState<ActiveBlueprint | null>(null);
 
-  // New state to track unsaved changes
   const [editorContent, setEditorContent] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
 
   const activeBlueprintRef = useRef(activeBlueprint);
   activeBlueprintRef.current = activeBlueprint;
+
+  const isDirtyRef = useRef(isDirty);
+  isDirtyRef.current = isDirty;
 
   const { 
     runId, 
@@ -101,27 +103,23 @@ export function useWorkspace(
   } = useGitHub(isLoggedIn, username);
 
   const {
-    localFiles,
     loadFilesFromLocalStorage,
     initializeDefaultBlueprint,
     saveToLocalStorage,
     deleteFromLocalStorage,
     renameInLocalStorage,
     importBlueprint,
-    setLocalFiles,
   } = useLocalPersistence();
 
   const [deletingFilePath, setDeletingFilePath] = useState<string | null>(null);
 
   const prevIsLoggedIn = useRef(isLoggedIn);
 
-  // Ref to hold the latest state that callbacks might need.
   const stateRef = useRef({ isLoggedIn, forkName });
   useEffect(() => {
     stateRef.current = { isLoggedIn, forkName };
   }, [isLoggedIn, forkName]);
 
-  // Effect to update dirty status
   useEffect(() => {
     if (activeBlueprint && editorContent !== null) {
         setIsDirty(activeBlueprint.content !== editorContent);
@@ -133,7 +131,7 @@ export function useWorkspace(
   const loadFile = useCallback(async (file: BlueprintFile | ActiveBlueprint, options: { force?: boolean } = {}) => {
     const { force = false } = options;
     console.log(`[loadFile] Loading file: ${file.path}`);
-    if (isDirty && !force) {
+    if (isDirtyRef.current && !force) {
         const discard = window.confirm("You have unsaved changes that will be lost. Are you sure you want to switch files?");
         if (!discard) return;
     }
@@ -147,7 +145,7 @@ export function useWorkspace(
     setEditorContent(null);
 
     try {
-        if ('content' in file) { // It's already an ActiveBlueprint
+        if ('content' in file) {
             setActiveBlueprint(file);
             setEditorContent(file.content);
             return;
@@ -176,9 +174,8 @@ export function useWorkspace(
     } finally {
         setIsFetchingFileContent(false);
     }
-  }, [toast, isDirty, loadFileContentFromGitHub]);
+  }, [toast, loadFileContentFromGitHub]);
 
-  // Effect to handle blueprint imports from results pages - runs for both logged-in and anonymous users
   useEffect(() => {
     if (isAuthLoading) return;
 
@@ -194,14 +191,12 @@ export function useWorkspace(
       }
       const finalBlueprint = { ...importedBlueprint, name: finalName, path: `local/${uuidv4()}_${finalName}` };
       
-      saveToLocalStorage(finalBlueprint);
-      const updatedLocalFiles = [finalBlueprint, ...currentLocalFiles];
+      const newFiles = saveToLocalStorage(finalBlueprint, currentLocalFiles);
       
-      setFiles(updatedLocalFiles);
-      setLocalFiles(updatedLocalFiles);
+      setFiles(newFiles);
       loadFile(finalBlueprint);
     }
-  }, [isAuthLoading, importBlueprint, loadFilesFromLocalStorage, saveToLocalStorage, setLocalFiles, loadFile]);
+  }, [isAuthLoading, importBlueprint, loadFilesFromLocalStorage, saveToLocalStorage, loadFile]);
 
   const fetchFiles = useCallback(async (forceRefresh = false, providedForkName?: string) => {
     const effectiveForkName = providedForkName || forkName;
@@ -237,7 +232,7 @@ export function useWorkspace(
         if (!effectiveForkName) {
             if (localFilesFromDisk.length === 0) {
                  const { file, blueprint } = initializeDefaultBlueprint();
-                 saveToLocalStorage(blueprint);
+                 saveToLocalStorage(blueprint, []);
                  setFiles([file]);
                  setActiveBlueprint(blueprint);
                  setEditorContent(blueprint.content);
@@ -261,7 +256,7 @@ export function useWorkspace(
                 loadFile(allFiles[0]);
             } else if (allFiles.length === 0) {
                 const { file, blueprint } = initializeDefaultBlueprint();
-                saveToLocalStorage(blueprint);
+                saveToLocalStorage(blueprint, []);
                 setFiles([file]);
                 setActiveBlueprint(blueprint);
                 setEditorContent(blueprint.content);
@@ -290,8 +285,6 @@ export function useWorkspace(
   }, [isLoggedIn, status, isFetchingFiles, loadFilesFromLocalStorage, forkName, toast, loadFile, setSetupMessage, setIsSyncingWithGitHub, initializeDefaultBlueprint, saveToLocalStorage]);
 
   useEffect(() => {
-    // This effect ensures that for logged-in users, we only fetch files *after* the fork name is available.
-    // This resolves a race condition where `loadFile` would be called before the fork name was propagated to its scope.
     if (isLoggedIn && forkName && files.length === 0 && !isFetchingFiles && status === 'ready') {
       fetchFiles(false, forkName);
     }
@@ -306,10 +299,7 @@ export function useWorkspace(
       setFiles([]);
       setActiveBlueprint(null);
       if (isLoggedIn) {
-        // Previously, this cleared local files. Now we preserve them
-        // so they can be merged with GitHub files upon login.
       } else {
-        // When logging out, we clear the GitHub cache.
         window.localStorage.removeItem('sandboxV2_github_files_cache');
         window.localStorage.removeItem('sandboxV2_pr_statuses_cache');
       }
@@ -317,16 +307,12 @@ export function useWorkspace(
     prevIsLoggedIn.current = isLoggedIn;
 
     if (isLoggedIn) {
-      // Logged in: file loading is now triggered by the useEffect above, which waits for a forkName.
-      // This prevents race conditions during initial setup.
     } else {
-        // For non-logged-in users, fetch from local storage.
-        // The fetchFiles function will handle creating a default if storage is empty.
         if (files.length === 0 && !isFetchingFiles) {
             fetchFiles();
         }
     }
-  }, [isAuthLoading, isLoggedIn, status, fetchFiles, toast, loadFile, activeBlueprint, loadFilesFromLocalStorage, initializeDefaultBlueprint, files.length, isFetchingFiles]);
+  }, [isAuthLoading, isLoggedIn, status, fetchFiles, files.length, isFetchingFiles]);
 
   const runEvaluation = useCallback(async (models?: string[]) => {
     if (!activeBlueprint) {
@@ -339,37 +325,36 @@ export function useWorkspace(
         return;
     }
 
-    setStatus('running_eval');
+    setStatusState('running_eval');
     try {
         await performRun(models);
     } finally {
-        setStatus('ready');
+        setStatusState('ready');
     }
   }, [activeBlueprint, toast, performRun, isDirty]);
   
   const handleSave = async () => {
-    if (!activeBlueprint || !editorContent || !isDirty) return;
+    if (!activeBlueprint || !editorContent || !isDirty) {
+      return;
+    }
 
-    setStatus('saving');
+    setStatusState('saving');
     try {
         if (activeBlueprint.isLocal) {
             const updatedBlueprint = { ...activeBlueprint, content: editorContent };
-            saveToLocalStorage(updatedBlueprint);
-            setActiveBlueprint(updatedBlueprint); // Update the "source of truth" content
+            const newFiles = saveToLocalStorage(updatedBlueprint, files);
+            setFiles(newFiles);
+            setActiveBlueprint(updatedBlueprint); 
         } else {
-            // This is an update to a GitHub file
             if (!activeBlueprint.branchName || activeBlueprint.branchName === 'main') {
                 toast({ variant: "destructive", title: "Cannot Save", description: "This file is not on a feature branch and cannot be edited directly." });
-                setStatus('ready');
+                setStatusState('ready');
                 return;
             }
             const updatedFile = await updateFileOnGitHub(activeBlueprint.path, editorContent, activeBlueprint.sha, activeBlueprint.branchName);
             if (updatedFile) {
-                // Update the active blueprint with the new content and SHA
                 const refreshedBlueprint = { ...activeBlueprint, ...updatedFile, content: editorContent };
                 setActiveBlueprint(refreshedBlueprint);
-
-                // Update the file in the main list as well
                 setFiles(files.map(f => f.path === updatedFile.path ? { ...f, ...updatedFile } : f));
             }
         }
@@ -380,12 +365,12 @@ export function useWorkspace(
             description: e.message,
         });
     } finally {
-        setStatus('ready');
+        setStatusState('ready');
     }
   };
 
   const promoteBlueprint = useCallback(async (filename: string, content: string): Promise<BlueprintFile | null> => {
-    setStatus('saving');
+    setStatusState('saving');
     try {
         const newFile = await promoteBlueprintToBranch(filename, content);
         if (newFile) {
@@ -393,7 +378,7 @@ export function useWorkspace(
         }
         return newFile;
     } finally {
-        setStatus('ready');
+        setStatusState('ready');
     }
   }, [promoteBlueprintToBranch, fetchFiles]);
 
@@ -404,8 +389,6 @@ export function useWorkspace(
   ) => {
     const { showToast = true, toastTitle = "Blueprint Created", toastDescription = `New file '${filename}' created.` } = options;
 
-    // This logic is now the same for both logged-in and anonymous users.
-    // We always create a local blueprint first. The user can then "promote" it.
     const newFile: BlueprintFile = {
       path: `local/${uuidv4()}-${filename}`,
       name: filename,
@@ -430,12 +413,9 @@ export function useWorkspace(
 
     const updatedBlueprint = { ...newBlueprint, name: finalName, path: newFile.path };
 
-    saveToLocalStorage(updatedBlueprint);
+    const newFiles = saveToLocalStorage(updatedBlueprint, files);
     
-    // Update the main files list for the UI
-    setFiles(currentFiles => [updatedBlueprint, ...currentFiles]);
-    // Also update the dedicated list of local files for persistence
-    setLocalFiles(currentLocalFiles => [updatedBlueprint, ...currentLocalFiles]);
+    setFiles(newFiles);
     
     loadFile(updatedBlueprint, { force: true });
 
@@ -443,50 +423,45 @@ export function useWorkspace(
       toast({ title: toastTitle, description: toastDescription });
     }
     return updatedBlueprint;
-  }, [toast, files, saveToLocalStorage, setLocalFiles, loadFile]);
+  }, [toast, files, saveToLocalStorage, loadFile]);
 
   const createBlueprint = useCallback(async (filename: string) => {
     return createBlueprintWithContent(filename, DEFAULT_BLUEPRINT_CONTENT);
   }, [createBlueprintWithContent]);
 
   const setupWorkspace = useCallback(async (createFork = false) => {
-    setStatus('setting_up');
+    setStatusState('setting_up');
     const result = await setupGitHubWorkspace(createFork);
 
     if (result.error || result.authFailure) {
-        setStatus('idle');
+        setStatusState('idle');
         if (result.authFailure) {
-            // Further action might be needed here, e.g., clearing auth state
         }
         return result;
     }
 
     if (result.forkCreationRequired) {
-        setStatus('ready');
+        setStatusState('ready');
         return result;
     }
 
-    // No longer calling fetchFiles here; it is now handled by a useEffect hook
-    // that waits for the forkName to be ready.
-
-    setStatus('ready');
+    setStatusState('ready');
     setSetupMessage('');
     return result;
-  }, [setupGitHubWorkspace, fetchFiles, setSetupMessage]);
+  }, [setupGitHubWorkspace]);
 
   const deleteBlueprint = useCallback(async (blueprint: BlueprintFile | ActiveBlueprint, options: { silent?: boolean } = {}) => {
     const { silent = false } = options;
-    console.log(`[deleteBlueprint] Deleting: ${blueprint.path}, isLocal: ${blueprint.isLocal}`);
-    
+    const wasActive = activeBlueprint?.path === blueprint.path;
+
     if (blueprint.isLocal) {
         try {
-            const updatedLocalFiles = deleteFromLocalStorage(blueprint, localFiles);
-            setFiles(currentFiles => [...currentFiles.filter(f => !f.isLocal), ...updatedLocalFiles]);
+            const updatedFiles = deleteFromLocalStorage(blueprint, files);
+            setFiles(updatedFiles);
             
-            if (activeBlueprint?.path === blueprint.path) {
-                const remainingFiles = files.filter(f => f.path !== blueprint.path);
-                if (remainingFiles.length > 0) {
-                    loadFile(remainingFiles[0]);
+            if (wasActive) {
+                if (updatedFiles.length > 0) {
+                    loadFile(updatedFiles[0]);
                 } else {
                     setActiveBlueprint(null);
                 }
@@ -503,7 +478,6 @@ export function useWorkspace(
         return;
     }
 
-    // For GitHub files
     if (!blueprint.branchName) {
         toast({ variant: 'destructive', title: 'Delete Error', description: 'Cannot delete a file that is not on a feature branch.' });
         return;
@@ -512,12 +486,12 @@ export function useWorkspace(
     try {
         await deleteFileFromGitHub(blueprint.path, blueprint.sha, blueprint.branchName);
 
-        setFiles(currentFiles => currentFiles.filter(f => f.path !== blueprint.path));
+        const newFiles = files.filter(f => f.path !== blueprint.path);
+        setFiles(newFiles);
         
-        if (activeBlueprint?.path === blueprint.path) {
-            const remainingFiles = files.filter(f => f.path !== blueprint.path);
-            if (remainingFiles.length > 0) {
-                loadFile(remainingFiles[0]);
+        if (wasActive) {
+            if (newFiles.length > 0) {
+                loadFile(newFiles[0]);
             } else {
                 setActiveBlueprint(null);
             }
@@ -533,7 +507,7 @@ export function useWorkspace(
     } finally {
         setDeletingFilePath(null);
     }
-  }, [activeBlueprint, files, loadFile, deleteFromLocalStorage, localFiles, deleteFileFromGitHub]);
+  }, [activeBlueprint?.path, files, loadFile, deleteFromLocalStorage, deleteFileFromGitHub, toast]);
 
   const createPullRequest = useCallback(async (data: { title: string; body: string }) => {
     if (!activeBlueprint || !activeBlueprint.branchName) {
@@ -543,7 +517,7 @@ export function useWorkspace(
         toast({ variant: 'destructive', title: 'Unsaved Changes', description: 'Please save your changes before creating a proposal.' });
         throw new Error('Unsaved changes');
     }
-    setStatus('creating_pr');
+    setStatusState('creating_pr');
     try {
         const { prData, newPrStatus } = await createPullRequestOnGitHub(data, activeBlueprint);
         
@@ -561,17 +535,16 @@ export function useWorkspace(
 
         return prData;
     } finally {
-        setStatus('ready');
+        setStatusState('ready');
     }
   }, [activeBlueprint, createPullRequestOnGitHub, isDirty, toast]);
 
   const closeProposal = useCallback(async (prNumber: number) => {
-    setStatus('closing_pr');
+    setStatusState('closing_pr');
     try {
         const { updatedPrStatuses, closedPath } = await closePullRequestOnGitHub(prNumber);
 
         if (closedPath) {
-            // Update files list
             setFiles(currentFiles => 
                 currentFiles.map(f => 
                     f.prStatus?.number === prNumber 
@@ -580,7 +553,6 @@ export function useWorkspace(
                 )
             );
 
-            // Update active blueprint if it matches
             if (activeBlueprint?.prStatus?.number === prNumber) {
                 setActiveBlueprint({ 
                     ...activeBlueprint, 
@@ -589,12 +561,11 @@ export function useWorkspace(
             }
         }
     } finally {
-        setStatus('ready');
+        setStatusState('ready');
     }
   }, [activeBlueprint, closePullRequestOnGitHub]);
 
   const duplicateBlueprint = async (sourceFile: BlueprintFile) => {
-    console.log(`[duplicateBlueprint] Starting duplication for: ${sourceFile.path}`);
     try {
         setStatusState('saving');
         
@@ -657,10 +628,10 @@ export function useWorkspace(
     if (message) {
         setSetupMessage(message);
     }
-  }, [setSetupMessage]);
+  }, []);
 
   const renameBlueprint = useCallback(async (blueprint: BlueprintFile | ActiveBlueprint, newName: string) => {
-    setStatus('saving', 'Renaming...');
+    setStatusState('saving');
     let renamedFile: BlueprintFile | null = null;
 
     try {
@@ -675,31 +646,27 @@ export function useWorkspace(
         }
 
         if (renamedFile) {
-            // Update the master file list
             setFiles(currentFiles => 
                 currentFiles.map(f => f.path === blueprint.path ? renamedFile! : f)
             );
 
-            // If the renamed file is the currently active one, we need to reload it
-            // to update the editor state and clear the dirty flag.
             if (activeBlueprint?.path === blueprint.path) {
                 await loadFile(renamedFile, { force: true });
             }
         }
     } catch (error: any) {
-        // The child hooks (renameInLocalStorage, renameFileOnGitHub) are responsible for showing toasts on error.
-        // We just need to reset the status.
         console.error("Rename failed:", error);
     } finally {
-        setStatus('ready');
+        setStatusState('ready');
     }
-  }, [activeBlueprint, loadFile, renameInLocalStorage, renameFileOnGitHub, setStatus]);
+  }, [activeBlueprint, loadFile, renameInLocalStorage, renameFileOnGitHub]);
 
-  // Load files on initial mount
   useEffect(() => {
     const allFiles = loadFilesFromLocalStorage();
     if (allFiles.length === 0) {
-        const { blueprint } = initializeDefaultBlueprint();
+        const { blueprint, file } = initializeDefaultBlueprint();
+        saveToLocalStorage(blueprint, []);
+        setFiles([file]);
         setActiveBlueprint(blueprint);
         setEditorContent(blueprint.content);
     } else {
@@ -707,9 +674,11 @@ export function useWorkspace(
         const fileToLoad = allFiles.find((f: BlueprintFile) => f.path === lastActivePath) || allFiles[0];
         if (fileToLoad) {
             loadFile(fileToLoad);
+        } else {
+            setFiles(allFiles);
         }
     }
-  }, [initializeDefaultBlueprint, loadFilesFromLocalStorage]);
+  }, [initializeDefaultBlueprint, loadFilesFromLocalStorage, loadFile, saveToLocalStorage, setActiveBlueprint, setEditorContent]);
 
   return {
     status,

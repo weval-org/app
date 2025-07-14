@@ -21,17 +21,13 @@ should:
 
 export function useLocalPersistence() {
   const { toast } = useToast();
-  const [localFiles, setLocalFiles] = useState<BlueprintFile[]>([]);
 
   const loadFilesFromLocalStorage = useCallback(() => {
     try {
       const storedFiles = window.localStorage.getItem(LOCAL_STORAGE_BLUEPRINT_KEY);
-      const files = storedFiles ? JSON.parse(storedFiles) : [];
-      setLocalFiles(files);
-      return files;
+      return storedFiles ? JSON.parse(storedFiles) : [];
     } catch (e) {
       console.error("Failed to load files from local storage", e);
-      setLocalFiles([]);
       return [];
     }
   }, []);
@@ -50,31 +46,34 @@ export function useLocalPersistence() {
     };
     window.localStorage.setItem(LOCAL_STORAGE_BLUEPRINT_KEY, JSON.stringify([defaultFile]));
     window.localStorage.setItem(defaultFile.path, JSON.stringify(defaultBlueprint));
-    setLocalFiles([defaultFile]);
     return { file: defaultFile, blueprint: defaultBlueprint };
   }, []);
 
-  const saveToLocalStorage = useCallback((blueprint: ActiveBlueprint) => {
+  const saveToLocalStorage = useCallback((blueprint: ActiveBlueprint, currentFiles: BlueprintFile[]) => {
     try {
       const blueprintWithTimestamp = { ...blueprint, lastModified: new Date().toISOString() };
       window.localStorage.setItem(blueprint.path, JSON.stringify(blueprintWithTimestamp));
       
-      setLocalFiles(currentFiles => {
-        const otherFiles = currentFiles.filter(f => f.path !== blueprint.path);
-        const newFileEntry: BlueprintFile = { 
-          name: blueprint.name, 
-          path: blueprint.path, 
-          sha: blueprint.sha,
-          isLocal: true,
-          lastModified: blueprintWithTimestamp.lastModified
-        };
-        const updatedLocalFiles = [...otherFiles, newFileEntry];
-        window.localStorage.setItem(LOCAL_STORAGE_BLUEPRINT_KEY, JSON.stringify(updatedLocalFiles));
-        return updatedLocalFiles;
-      });
+      const otherFiles = currentFiles.filter(f => f.path !== blueprint.path);
+      const newFileEntry: BlueprintFile = { 
+        name: blueprint.name, 
+        path: blueprint.path, 
+        sha: blueprint.sha,
+        isLocal: true,
+        lastModified: blueprintWithTimestamp.lastModified
+      };
+      const updatedLocalFiles = [newFileEntry, ...otherFiles.filter(f => f.isLocal)];
+      
+      const remoteFiles = currentFiles.filter(f => !f.isLocal);
+      const allFiles = [...updatedLocalFiles, ...remoteFiles];
+
+      window.localStorage.setItem(LOCAL_STORAGE_BLUEPRINT_KEY, JSON.stringify(allFiles));
+      
       toast({ title: "Blueprint Saved", description: "Your changes have been saved locally." });
+      return allFiles;
     } catch (e: any) {
       toast({ variant: 'destructive', title: 'Error saving to Local Storage', description: e.message });
+      return currentFiles; // Return original files on error
     }
   }, [toast]);
 
@@ -83,7 +82,6 @@ export function useLocalPersistence() {
           window.localStorage.removeItem(blueprint.path);
           const updatedFiles = currentLocalFiles.filter((f: BlueprintFile) => f.path !== blueprint.path);
           window.localStorage.setItem(LOCAL_STORAGE_BLUEPRINT_KEY, JSON.stringify(updatedFiles));
-          setLocalFiles(updatedFiles);
           toast({ title: "Blueprint Deleted", description: `${blueprint.name} has been removed from your local drafts.` });
           return updatedFiles;
       } catch (e: any) {
@@ -123,7 +121,6 @@ export function useLocalPersistence() {
         const files = storedFiles ? JSON.parse(storedFiles) : [];
         const updatedFiles = files.map((f: BlueprintFile) => f.path === oldBlueprint.path ? newFile : f);
         window.localStorage.setItem(LOCAL_STORAGE_BLUEPRINT_KEY, JSON.stringify(updatedFiles));
-        setLocalFiles(updatedFiles);
 
         // Delete the old file
         window.localStorage.removeItem(oldBlueprint.path);
@@ -173,13 +170,11 @@ export function useLocalPersistence() {
   }, [toast]);
 
   return {
-    localFiles,
     loadFilesFromLocalStorage,
     initializeDefaultBlueprint,
     saveToLocalStorage,
     deleteFromLocalStorage,
     renameInLocalStorage,
     importBlueprint,
-    setLocalFiles,
   };
 } 

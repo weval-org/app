@@ -19,6 +19,10 @@ interface GlobalConfigCardProps {
 export function GlobalConfigCard({ blueprint, onUpdate, isEditable }: GlobalConfigCardProps) {
 
   const handleFieldChange = <K extends keyof ComparisonConfig>(field: K, value: ComparisonConfig[K]) => {
+    // Prevent phantom updates on initial render for optional fields
+    if (blueprint[field] === undefined && value === '') {
+      return;
+    }
     onUpdate({ ...blueprint, [field]: value });
   };
 

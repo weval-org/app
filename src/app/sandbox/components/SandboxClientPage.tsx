@@ -182,7 +182,7 @@ function SandboxClientPageInternal() {
         if (user?.isLoggedIn && !setupInitiatedRef.current) {
             handleWorkspaceSetup();
         }
-    }, [user?.isLoggedIn, clearAuth]);
+    }, [user?.isLoggedIn, clearAuth, setupWorkspace]);
 
     // Reset setup flag when user logs out
     useEffect(() => {

@@ -1,5 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import { useLocalPersistence, DEFAULT_BLUEPRINT_CONTENT } from './useLocalPersistence';
+import { ActiveBlueprint, BlueprintFile } from './useWorkspace';
 
 // Mocking useToast
 const mockToast = jest.fn();
@@ -30,15 +31,19 @@ describe('useLocalPersistence', () => {
     jest.restoreAllMocks();
   });
 
-  test('should initialize with no files and then load them', () => {
+  test('loadFilesFromLocalStorage should return files from storage', () => {
     const { result } = renderHook(() => useLocalPersistence());
-    expect(result.current.localFiles).toEqual([]);
+    
+    // Should be empty initially
+    let files = result.current.loadFilesFromLocalStorage();
+    expect(files).toEqual([]);
 
-    act(() => {
-      result.current.loadFilesFromLocalStorage();
-    });
-
-    expect(result.current.localFiles).toEqual([]);
+    // Should return stored files
+    const mockFiles = [{ name: 'test.yml', path: 'local/test.yml' }];
+    localStorageMock['sandboxV2_blueprints'] = JSON.stringify(mockFiles);
+    
+    files = result.current.loadFilesFromLocalStorage();
+    expect(files).toEqual(mockFiles);
   });
 
   test('initializeDefaultBlueprint should create and save a default blueprint', () => {
@@ -50,23 +55,24 @@ describe('useLocalPersistence', () => {
       newBlueprint = blueprint;
     });
 
-    expect(result.current.localFiles).toHaveLength(1);
-    expect(result.current.localFiles[0].name).toBe('local-draft.yml');
+    expect(newBlueprint.name).toBe('local-draft.yml');
     expect(newBlueprint.content).toBe(DEFAULT_BLUEPRINT_CONTENT);
 
     // Check if it was saved to localStorage
-    const storedFiles = JSON.parse(localStorageMock['sandboxV2_blueprints']);
-    expect(storedFiles).toHaveLength(1);
-    expect(storedFiles[0].name).toBe('local-draft.yml');
+    const storedIndex = JSON.parse(localStorageMock['sandboxV2_blueprints']);
+    expect(storedIndex).toHaveLength(1);
+    expect(storedIndex[0].name).toBe('local-draft.yml');
 
-    const storedBlueprint = JSON.parse(localStorageMock[result.current.localFiles[0].path]);
+    const storedBlueprint = JSON.parse(localStorageMock[storedIndex[0].path]);
     expect(storedBlueprint.content).toBe(DEFAULT_BLUEPRINT_CONTENT);
   });
 
-  test('saveToLocalStorage should save a new blueprint and update the file list', () => {
+  test('saveToLocalStorage should save a blueprint and return the updated file list', () => {
     const { result } = renderHook(() => useLocalPersistence());
 
-    const newBlueprint = {
+    const initialFile: BlueprintFile = { path: 'local/initial.yml', name: 'initial.yml', sha: '1', isLocal: true, lastModified: '2023-01-01T00:00:00.000Z' };
+    
+    const newBlueprint: ActiveBlueprint = {
       path: 'local/new-test.yml',
       name: 'new-test.yml',
       sha: 'new-sha',
@@ -75,15 +81,19 @@ describe('useLocalPersistence', () => {
       lastModified: '2023-01-01T00:00:00.000Z',
     };
 
+    let updatedFiles: BlueprintFile[] = [];
     act(() => {
-      result.current.saveToLocalStorage(newBlueprint);
+      updatedFiles = result.current.saveToLocalStorage(newBlueprint, [initialFile]);
     });
 
-    expect(result.current.localFiles).toHaveLength(1);
-    expect(result.current.localFiles[0].name).toBe('new-test.yml');
+    // Should return the updated list of files
+    expect(updatedFiles).toHaveLength(2);
+    expect(updatedFiles.find(f => f.name === 'new-test.yml')).toBeDefined();
+    expect(updatedFiles.find(f => f.name === 'initial.yml')).toBeDefined();
 
-    const storedFiles = JSON.parse(localStorageMock['sandboxV2_blueprints']);
-    expect(storedFiles[0].name).toBe('new-test.yml');
+    // Check localStorage
+    const storedIndex = JSON.parse(localStorageMock['sandboxV2_blueprints']);
+    expect(storedIndex).toHaveLength(2);
 
     const storedBlueprint = JSON.parse(localStorageMock['local/new-test.yml']);
     expect(storedBlueprint.content).toBe('title: New Test');
@@ -94,85 +104,65 @@ describe('useLocalPersistence', () => {
     });
   });
 
-  test('deleteFromLocalStorage should remove a blueprint', () => {
+  test('deleteFromLocalStorage should remove a blueprint and return the updated list', () => {
     const { result } = renderHook(() => useLocalPersistence());
 
-    // First, add a blueprint to delete
-    let initialFiles: { file: any; blueprint: any; } | undefined;
-    act(() => {
-      initialFiles = result.current.initializeDefaultBlueprint();
-    });
-
-    // Assert that the blueprint was added
-    expect(result.current.localFiles).toHaveLength(1);
-    if (!initialFiles) {
-        throw new Error("Test setup failed: initialFiles was not initialized.");
-    }
+    const file1: BlueprintFile = { name: 'file1.yml', path: 'local/file1.yml', sha: '1', isLocal: true, lastModified: '2023-01-01T00:00:00.000Z' };
+    const file2: BlueprintFile = { name: 'file2.yml', path: 'local/file2.yml', sha: '2', isLocal: true, lastModified: '2023-01-01T00:00:00.000Z' };
+    const initialFiles = [file1, file2];
+    localStorageMock[file1.path] = JSON.stringify(file1);
+    localStorageMock[file2.path] = JSON.stringify(file2);
+    localStorageMock['sandboxV2_blueprints'] = JSON.stringify(initialFiles);
     
-    // Now, delete the blueprint
+    let updatedFiles: BlueprintFile[] = [];
     act(() => {
-      result.current.deleteFromLocalStorage(initialFiles!.file, result.current.localFiles);
+      updatedFiles = result.current.deleteFromLocalStorage(file1, initialFiles);
     });
 
-    // Assert that the blueprint was removed
-    expect(result.current.localFiles).toHaveLength(0);
-    expect(localStorageMock['sandboxV2_blueprints']).toBe('[]');
-    expect(localStorageMock[initialFiles!.file.path]).toBeUndefined();
+    // Assert that the blueprint was removed from the returned list
+    expect(updatedFiles).toHaveLength(1);
+    expect(updatedFiles[0].name).toBe('file2.yml');
+    
+    // Assert that localStorage was updated
+    expect(localStorageMock['sandboxV2_blueprints']).toBe(JSON.stringify([file2]));
+    expect(localStorageMock[file1.path]).toBeUndefined();
     expect(mockToast).toHaveBeenCalledWith({
         title: "Blueprint Deleted",
-        description: `${initialFiles!.file.name} has been removed from your local drafts.`,
+        description: `file1.yml has been removed from your local drafts.`,
     });
   });
 
   test('renameInLocalStorage should successfully rename a blueprint', () => {
     const { result } = renderHook(() => useLocalPersistence());
 
-    // First, create a blueprint to rename
-    let initialFiles: { file: any; blueprint: any; } | undefined;
+    let initialFile: BlueprintFile;
     act(() => {
-      initialFiles = result.current.initializeDefaultBlueprint();
+      // Use initializeDefaultBlueprint to set up the initial state in localStorageMock
+      const { file } = result.current.initializeDefaultBlueprint();
+      initialFile = file;
     });
 
-    expect(result.current.localFiles).toHaveLength(1);
-    if (!initialFiles) {
-        throw new Error("Test setup failed: initialFiles was not initialized.");
-    }
+    const originalPath = initialFile!.path;
 
-    const originalFile = initialFiles.file;
-    const originalPath = originalFile.path;
-
-    // Rename the blueprint
     let renamedFile: any;
     act(() => {
-      renamedFile = result.current.renameInLocalStorage(originalFile, 'renamed-blueprint.yml');
+      renamedFile = result.current.renameInLocalStorage(initialFile, 'renamed-blueprint.yml');
     });
 
-    // Assert that the rename was successful
     expect(renamedFile).not.toBeNull();
     expect(renamedFile.name).toBe('renamed-blueprint.yml');
-    expect(renamedFile.path).not.toBe(originalPath); // Should have a new path
-    expect(renamedFile.path).toMatch(/^local\/[a-f0-9-]+\.yml$/); // Should be a new UUID path
+    expect(renamedFile.path).not.toBe(originalPath);
+    expect(renamedFile.path).toMatch(/^local\/[a-f0-9-]+\.yml$/);
 
-    // Check that the local files state was updated
-    expect(result.current.localFiles).toHaveLength(1);
-    expect(result.current.localFiles[0].name).toBe('renamed-blueprint.yml');
-    expect(result.current.localFiles[0].path).toBe(renamedFile.path);
-
-    // Check that localStorage was updated correctly
-    const storedFiles = JSON.parse(localStorageMock['sandboxV2_blueprints']);
-    expect(storedFiles).toHaveLength(1);
-    expect(storedFiles[0].name).toBe('renamed-blueprint.yml');
-    expect(storedFiles[0].path).toBe(renamedFile.path);
-
-    // Check that the new file content exists in localStorage
+    const storedIndex = JSON.parse(localStorageMock['sandboxV2_blueprints']);
+    expect(storedIndex).toHaveLength(1);
+    expect(storedIndex[0].name).toBe('renamed-blueprint.yml');
+    
     const newFileContent = JSON.parse(localStorageMock[renamedFile.path]);
     expect(newFileContent.name).toBe('renamed-blueprint.yml');
-    expect(newFileContent.content).toBe(DEFAULT_BLUEPRINT_CONTENT);
 
-    // Check that the old file was removed from localStorage
     expect(localStorageMock[originalPath]).toBeUndefined();
-
-    // Check that success toast was shown
+    
     expect(mockToast).toHaveBeenCalledWith({
       title: "Blueprint Renamed",
       description: "Renamed to renamed-blueprint.yml.",
@@ -190,13 +180,11 @@ describe('useLocalPersistence', () => {
       lastModified: '2023-01-01T00:00:00.000Z',
     };
 
-    // Try to rename a file that doesn't exist in localStorage
     let renamedFile: any;
     act(() => {
       renamedFile = result.current.renameInLocalStorage(nonExistentFile, 'new-name.yml');
     });
 
-    // Should return null and show error toast
     expect(renamedFile).toBeNull();
     expect(mockToast).toHaveBeenCalledWith({
       variant: 'destructive',
@@ -208,8 +196,7 @@ describe('useLocalPersistence', () => {
   test('renameInLocalStorage should preserve file content and metadata', () => {
     const { result } = renderHook(() => useLocalPersistence());
 
-    // Create a blueprint with custom content
-    const customBlueprint = {
+    const customBlueprint: ActiveBlueprint = {
       path: 'local/custom-test.yml',
       name: 'custom-test.yml',
       sha: 'custom-sha',
@@ -218,17 +205,9 @@ describe('useLocalPersistence', () => {
       lastModified: '2023-01-01T00:00:00.000Z',
     };
 
-    // Manually set up the file in localStorage
     localStorageMock['sandboxV2_blueprints'] = JSON.stringify([customBlueprint]);
     localStorageMock[customBlueprint.path] = JSON.stringify(customBlueprint);
 
-    act(() => {
-      result.current.loadFilesFromLocalStorage();
-    });
-
-    expect(result.current.localFiles).toHaveLength(1);
-
-    // Rename the blueprint
     let renamedFile: any;
     act(() => {
       renamedFile = result.current.renameInLocalStorage(customBlueprint, 'renamed-custom.yml');
@@ -236,14 +215,12 @@ describe('useLocalPersistence', () => {
 
     expect(renamedFile).not.toBeNull();
     expect(renamedFile.name).toBe('renamed-custom.yml');
-    expect(renamedFile.sha).toBe('custom-sha'); // Should preserve SHA
+    expect(renamedFile.sha).toBe('custom-sha');
     expect(renamedFile.isLocal).toBe(true);
 
-    // Check that content was preserved
     const newFileContent = JSON.parse(localStorageMock[renamedFile.path]);
     expect(newFileContent.content).toBe('title: "Custom Blueprint"\ndescription: "Test content"');
     expect(newFileContent.sha).toBe('custom-sha');
-    expect(newFileContent.lastModified).toBeDefined();
     expect(new Date(newFileContent.lastModified).getTime()).toBeGreaterThan(new Date('2023-01-01T00:00:00.000Z').getTime());
   });
 }); 

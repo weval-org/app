@@ -84,13 +84,11 @@ describe('useWorkspace', () => {
         });
 
         mockUseLocalPersistence.mockReturnValue({
-            localFiles: [],
             loadFilesFromLocalStorage: mockLoadFilesFromLocalStorage,
             initializeDefaultBlueprint: mockInitializeDefaultBlueprint,
             saveToLocalStorage: mockSaveToLocalStorage,
             deleteFromLocalStorage: mockDeleteFromLocalStorage,
             renameInLocalStorage: mockRenameInLocalStorage,
-            setLocalFiles: mockSetLocalFiles,
             importBlueprint: jest.fn().mockReturnValue(null),
         });
 
@@ -104,6 +102,47 @@ describe('useWorkspace', () => {
 
     afterEach(() => {
         mockLoadFilesFromLocalStorage.mockReturnValue([]);
+    });
+
+    // Test for saving a dirty LOCAL file
+    test('handleSave should save a modified local file via persistence hook', async () => {
+        const localFile: ActiveBlueprint = { name: 'local.yml', path: 'local/local.yml', sha: 'local-sha', content: 'original content', isLocal: true, lastModified: '2023-01-01T00:00:00.000Z' };
+        
+        // Setup: Start with one local file
+        mockLoadFilesFromLocalStorage.mockReturnValue([localFile]);
+
+        const { result } = renderHook(() => useWorkspace(false, null, false));
+        
+        // Initial load effect
+        await act(async () => {
+            await result.current.loadFile(localFile);
+        });
+        
+        // Make a change
+        await act(async () => {
+            result.current.setEditorContent('new local content');
+        });
+
+        // The mock now needs to handle the second argument
+        mockSaveToLocalStorage.mockImplementation((blueprint, currentFiles) => {
+            // Return a representation of the updated file list
+            return currentFiles.map((f: BlueprintFile) => f.path === blueprint.path ? { ...f, name: blueprint.name, sha: blueprint.sha } : f);
+        });
+
+        await act(async () => {
+            await result.current.handleSave();
+        });
+
+        const expectedBlueprintToSave = {
+            ...localFile,
+            content: 'new local content',
+        };
+        
+        expect(mockSaveToLocalStorage).toHaveBeenCalledWith(expectedBlueprintToSave, [localFile]);
+        
+        // Check that the active blueprint reflects the saved state and is no longer dirty
+        expect(result.current.activeBlueprint?.content).toBe('new local content');
+        expect(result.current.isDirty).toBe(false);
     });
 
     // Test for saving a dirty GITHUB file
