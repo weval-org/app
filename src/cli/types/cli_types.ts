@@ -15,6 +15,7 @@ import {
     LLMCoverageScores,
     WevalEvaluationResults,
 } from '@/types/shared';
+import { BlueprintSummaryInfo } from '@/app/utils/blueprintSummaryUtils';
 
 // Re-exporting aliases for local consistency throughout the CLI
 export type {
@@ -27,6 +28,8 @@ export type {
     SimilarityScore,
     LLMCoverageScores
 };
+
+export type SearchableBlueprintSummary = BlueprintSummaryInfo & { searchText: string };
 
 /**
  * The unified internal representation of a point after normalization.
@@ -97,8 +100,14 @@ export interface LLMCoverageEvaluationConfig {
     judges?: Judge[];
 }
 
-interface EvaluationConfig {
-    // ... existing code ...
-}
+export { IDEAL_MODEL_ID };
 
-export { IDEAL_MODEL_ID }; 
+export interface SearchDoc {
+    id: string; // configId/runLabel/timestamp
+    configId: string;
+    configTitle: string;
+    runLabel: string;
+    timestamp: string;
+    tags: string[];
+    searchText: string;
+} 

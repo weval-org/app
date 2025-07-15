@@ -149,6 +149,17 @@ pnpm cli run-config github --name udhr-misattribution-absurd-framing --run-label
 
 -   `--name <name>`: **(Required)** Name of the blueprint in the `weval/configs` repo (without extension). Can include subdirectories, e.g., `subdir/my-blueprint`.
 
+### `generate-search-index`
+
+Builds a search index file from all existing evaluation runs. This command iterates through every run, extracts key text fields (title, description, tags, executive summary), and compiles them into a single `search-index.json` file. This file is then used by the web interface's search functionality.
+
+```bash
+pnpm cli generate-search-index
+```
+
+-   `--verbose`: Enable verbose logging for detailed processing steps.
+-   `--dry-run`: Log what would be generated without saving the index file.
+
 ### `backfill-prompt-contexts`
 
 A utility to update older result files to the current multi-turn conversation format.

@@ -4,11 +4,11 @@ import { EnhancedComparisonConfigInfo } from '@/app/utils/homepageDataUtils';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import nextDynamic from 'next/dynamic';
-import { PaginationControls } from './PaginationControls';
 import { fromSafeTimestamp } from '@/lib/timestampUtils';
 import { normalizeTag } from '@/app/utils/tagUtils';
 import { processBlueprintSummaries, BlueprintSummaryInfo } from '@/app/utils/blueprintSummaryUtils';
 import DetailedBlueprintCard from '@/app/components/home/DetailedBlueprintCard';
+import { SearchEvaluations } from './SearchEvaluations';
 
 const ArrowLeft = nextDynamic(() => import('lucide-react').then(mod => mod.ArrowLeft));
 const TagIcon = nextDynamic(() => import('lucide-react').then(mod => mod.Tag));
@@ -73,36 +73,11 @@ export default async function AllBlueprintsPage(props: {
                     </Button>
                 </div>
                 
-                <div className="space-y-4">
-                    {blueprints.map(bp => (
-                        <DetailedBlueprintCard key={bp.configId} blueprint={bp} />
-                    ))}
-                </div>
-
-                {totalPages > 1 && (
-                    <PaginationControls currentPage={currentPage} totalPages={totalPages} />
-                )}
-
-                {sortedTags.length > 0 && (
-                    <section id="tags-section" className="mt-12">
-                        <h2 className="text-2xl font-semibold tracking-tight text-foreground mb-6">Browse by Tag</h2>
-                        <div className="flex flex-wrap gap-2">
-                            {sortedTags.map(tag => (
-                                <Link href={`/tags/${normalizeTag(tag)}`} key={tag}>
-                                    <div className="bg-card/80 dark:bg-card/60 p-5 rounded-lg border border-border dark:border-border/60 shadow-sm hover:shadow-md hover:border-primary/30 dark:hover:border-primary/50 transition-all duration-200">
-                                        <div className="flex items-center gap-2">
-                                            {TagIcon && <TagIcon className="w-4 h-4 text-primary" />}
-                                            <h3 className="font-medium text-foreground">{tag}</h3>
-                                        </div>
-                                        <div className="text-xs text-muted-foreground/80 dark:text-muted-foreground/80 mt-3 flex items-center justify-between">
-                                            {/* Future: could add blueprint count per tag here */}
-                                        </div>
-                                    </div>
-                                </Link>
-                            ))}
-                        </div>
-                    </section>
-                )}
+                <SearchEvaluations 
+                    initialBlueprints={blueprints} 
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                />
             </main>
         </div>
     );

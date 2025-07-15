@@ -1,4 +1,5 @@
 import fs from 'fs/promises';
+import fsSync from 'fs';
 import path from 'path';
 import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command, DeleteObjectsCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { RESULTS_DIR, MULTI_DIR } from '@/cli/constants'; // Assuming these are still relevant for local path structure
@@ -22,6 +23,7 @@ import {
 } from '@/cli/utils/summaryCalculationUtils';
 import { fromSafeTimestamp } from '@/lib/timestampUtils';
 import { ModelSummary } from '@/types/shared';
+import { SearchDoc, SearchableBlueprintSummary } from '@/cli/types/cli_types';
 
 const storageProvider = process.env.STORAGE_PROVIDER || (process.env.NODE_ENV === 'development' ? 'local' : 's3');
 
@@ -379,7 +381,6 @@ export async function saveConfigSummary(configId: string, summaryData: EnhancedC
 
 // Helper to ensure fs-sync is only imported where used if it's a conditional dependency.
 // For simplicity, assuming it's available. If not, adjust local file checks.
-import fsSync from 'fs';
 
 /**
  * Saves the comparison result.
@@ -1299,4 +1300,59 @@ export async function listModelCards(): Promise<string[]> {
 
   console.warn('[StorageService] No valid storage provider configured. Cannot list model cards.');
   return [];
+}
+
+export async function saveSearchIndex(index: SearchableBlueprintSummary[]): Promise<number> {
+    const filePath = 'search-index.json';
+    const fileContent = JSON.stringify(index, null, 2);
+    const fileSizeInBytes = Buffer.byteLength(fileContent, 'utf8');
+
+    if (storageProvider === 's3') {
+        if (!s3Client || !s3BucketName) {
+            throw new Error('S3 client or bucket name is not configured.');
+        }
+        await s3Client.send(new PutObjectCommand({
+            Bucket: s3BucketName,
+            Key: filePath,
+            Body: fileContent,
+            ContentType: 'application/json',
+        }));
+        console.log(`[StorageService] Search index saved to S3: ${filePath}`);
+    } else {
+        // For local, save it to the root of the .results directory
+        const localFilePath = path.join(RESULTS_DIR, filePath);
+        await fs.mkdir(path.dirname(localFilePath), { recursive: true });
+        await fs.writeFile(localFilePath, fileContent);
+        console.log(`[StorageService] Search index saved locally: ${localFilePath}`);
+    }
+    return fileSizeInBytes;
+}
+
+export async function getSearchIndex(): Promise<SearchableBlueprintSummary[] | null> {
+    const filePath = 'search-index.json';
+    try {
+        if (storageProvider === 's3') {
+            if (!s3Client || !s3BucketName) throw new Error('S3 client or bucket name not configured.');
+            const command = new GetObjectCommand({ Bucket: s3BucketName, Key: filePath });
+            const { Body } = await s3Client.send(command);
+            if (!Body) return null;
+            const bodyString = await streamToString(Body as Readable);
+            return JSON.parse(bodyString);
+        } else {
+            const localFilePath = path.join(RESULTS_DIR, filePath);
+            try {
+                await fs.access(localFilePath);
+            } catch {
+                return null; // File does not exist
+            }
+            const data = await fs.readFile(localFilePath, 'utf-8');
+            return JSON.parse(data);
+        }
+    } catch (error: any) {
+        if (error.name === 'NoSuchKey' || error.code === 'ENOENT') {
+            return null; // File doesn't exist, return null which is an expected condition
+        }
+        console.error(`[StorageService] Failed to get search index: ${error.message}`);
+        throw error;
+    }
 } 
