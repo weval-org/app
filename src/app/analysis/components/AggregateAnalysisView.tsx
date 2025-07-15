@@ -334,7 +334,7 @@ export const AggregateAnalysisView: React.FC = () => {
 
                     {data?.evaluationResults?.similarityMatrix && modelsForAggregateView && modelsForAggregateView.length > 1 && (
                         <>
-                            <Card className="shadow-lg border-border dark:border-border">
+                            <Card className="hidden md:block shadow-lg border-border dark:border-border">
                                 <CardHeader>
                                     <CardTitle className="text-primary text-primary">Model Similarity Dendrogram</CardTitle>
                                     <CardDescription>

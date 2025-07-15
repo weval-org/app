@@ -266,7 +266,7 @@ const MacroCoverageTable: React.FC = () => {
     const [markdownModule, setMarkdownModule] = useState<{ ReactMarkdown: any, RemarkGfm: any } | null>(null);
     const [sortOption, setSortOption] = useState<SortOption>('alpha-asc');
     const [highlightBestInClass, setHighlightBestInClass] = useState<boolean>(false);
-    const [simplifiedView, setSimplifiedView] = useState<boolean>(false);
+    const [simplifiedView, setSimplifiedView] = useState<boolean>(true);
     const [errorModalOpen, setErrorModalOpen] = useState<boolean>(false);
     const [errorModalContent, setErrorModalContent] = useState<string>('');
 
@@ -335,8 +335,8 @@ const MacroCoverageTable: React.FC = () => {
     const promptColWidth = simplifiedView ? '450px' : '200px';
     
     // Calculate minimum width: fixed columns + (model columns × 45px minimum)
-    const fixedColsWidth = 50 + parseInt(promptColWidth); // score col (50px) + prompt col
-    const modelColsMinWidth = localSortedModels.length * 45; // 45px minimum per model column
+    const fixedColsWidth = 60 + parseInt(promptColWidth); // score col (50px) + prompt col
+    const modelColsMinWidth = localSortedModels.length * 60; // 45px minimum per model column
     const diagonalHeaderSpace = 70; // space for diagonal header
     const calculatedMinWidth = fixedColsWidth + modelColsMinWidth + diagonalHeaderSpace;
 
@@ -407,9 +407,12 @@ const MacroCoverageTable: React.FC = () => {
             return (
                 <div className="w-full h-full flex flex-col items-center justify-center gap-1" title={tooltipText}>
                     <div className={`w-full h-3 rounded-sm ${bgColorClass}`} />
-                    <span className="text-xs text-foreground font-medium">
-                        {avgExtent !== undefined ? `${(avgExtent * 100).toFixed(0)}%` : 'N/A'}
-                    </span>
+                    <div className="flex items-center gap-1">
+                        {InfoIcon && <InfoIcon className="w-3 h-3 text-muted-foreground/60" />}
+                        <span className="text-xs text-foreground font-medium">
+                            {avgExtent !== undefined ? `${(avgExtent * 100).toFixed(0)}%` : 'N/A'}
+                        </span>
+                    </div>
                 </div>
             );
         }
@@ -458,17 +461,6 @@ const MacroCoverageTable: React.FC = () => {
         // Check if we have multiple paths to show striped backgrounds
         const hasMultiplePaths = pathEntries.length > 1 || (pathEntries.length > 0 && requiredAssessments.length > 0);
 
-        // Debug logging for choose-your-own-adventure-start
-        if (promptId === 'choose-your-own-adventure-start') {
-            console.log(`[DEBUG PATHS] ${promptId}:`, {
-                hasMultiplePaths,
-                pathEntries: pathEntries.length,
-                requiredAssessments: requiredAssessments.length,
-                pathDetails: pathEntries.map(([pathId, assessments]) => ({ pathId, count: assessments.length })),
-                bestPathId
-            });
-        }
-
         // Define path background colors/patterns - MUCH MORE OBVIOUS
         const pathBackgroundStyles = [
             'bg-blue-500/80',      // Path 1 - very obvious blue
@@ -481,14 +473,7 @@ const MacroCoverageTable: React.FC = () => {
         // Create background stripe layers if we have multiple paths
         const renderBackgroundStripes = () => {
             if (!hasMultiplePaths) {
-                if (promptId === 'choose-your-own-adventure-start') {
-                    console.log(`[DEBUG STRIPES] ${promptId}: No multiple paths detected, not rendering backgrounds`);
-                }
                 return null;
-            }
-
-            if (promptId === 'choose-your-own-adventure-start') {
-                console.log(`[DEBUG STRIPES] ${promptId}: Rendering backgrounds for multiple paths`);
             }
 
             const backgroundSegments = [];
@@ -498,10 +483,6 @@ const MacroCoverageTable: React.FC = () => {
             if (requiredAssessments.length > 0) {
                 const requiredMultiplier = requiredAssessments.reduce((sum, assessment) => sum + (assessment.multiplier ?? 1), 0);
                 const requiredWidthPercent = totalMultiplier > 0 ? (requiredMultiplier / totalMultiplier) * 100 : 0;
-                
-                if (promptId === 'choose-your-own-adventure-start') {
-                    console.log(`[DEBUG STRIPES] Adding required background: ${requiredWidthPercent}% width`);
-                }
                 
                 backgroundSegments.push(
                     <div
@@ -524,10 +505,6 @@ const MacroCoverageTable: React.FC = () => {
                 
                 const bgStyle = pathBackgroundStyles[index % pathBackgroundStyles.length];
                 
-                if (promptId === 'choose-your-own-adventure-start') {
-                    console.log(`[DEBUG STRIPES] Adding path ${pathId} background: ${pathWidthPercent}% width, style: ${bgStyle}, isBest: ${isBestPath}`);
-                }
-                
                 backgroundSegments.push(
                     <div
                         key={`path-${pathId}-bg`}
@@ -546,10 +523,6 @@ const MacroCoverageTable: React.FC = () => {
                 );
                 currentPosition += pathWidthPercent;
             });
-
-            if (promptId === 'choose-your-own-adventure-start') {
-                console.log(`[DEBUG STRIPES] Created ${backgroundSegments.length} background segments`);
-            }
 
             return backgroundSegments;
         };
@@ -632,8 +605,8 @@ const MacroCoverageTable: React.FC = () => {
                         {index === 0 && pathLabel && pathTextClass && (
                             <div 
                                 className={cn(
-                                    "absolute -top-5 left-1/2 -translate-x-1/2 font-bold z-30 bg-white dark:bg-gray-800 px-1 rounded-sm border border-gray-200 dark:border-gray-600",
-                                    isVeryNarrowLayout ? "text-[10px]" : isNarrowLayout ? "text-[11px]" : "text-xs",
+                                    "font-mono absolute -top-5 left-1/2 -translate-x-1/2 z-30 bg-white dark:bg-gray-800 px-1 rounded-sm border border-gray-200 dark:border-gray-600",
+                                    isVeryNarrowLayout ? "text-[9px]" : isNarrowLayout ? "text-[10px]" : "text-xs",
                                     pathTextClass
                                 )}
                                 style={{ whiteSpace: 'nowrap' }}
@@ -647,10 +620,6 @@ const MacroCoverageTable: React.FC = () => {
         };
 
         const backgroundStripes = renderBackgroundStripes();
-        
-        if (promptId === 'choose-your-own-adventure-start') {
-            console.log(`[DEBUG RENDER] ${promptId}: About to render with backgrounds:`, backgroundStripes ? 'YES' : 'NO');
-        }
 
         return (
             <div className="relative w-full h-6 rounded-sm ring-1 ring-border/50 dark:ring-slate-600/50 max-w-full" 
@@ -748,14 +717,14 @@ const MacroCoverageTable: React.FC = () => {
                     <div className="flex items-center space-x-2">
                         <Checkbox 
                             id="simplified-view"
-                            checked={simplifiedView}
-                            onCheckedChange={(checked: CheckedState) => setSimplifiedView(checked === true)}
+                            checked={!simplifiedView}
+                            onCheckedChange={(checked: CheckedState) => setSimplifiedView(checked === false)}
                         />
                         <Label 
                             htmlFor="simplified-view" 
                             className="text-sm font-medium cursor-pointer"
                         >
-                            Simplified view
+                            Advanced view
                         </Label>
                     </div>
                     <div className="flex items-center space-x-2">
@@ -953,11 +922,16 @@ const MacroCoverageTable: React.FC = () => {
                                             }
                                         }
 
-                                        const cellClasses = cn(
-                                            "border-x border-border dark:border-slate-700",
-                                            "p-1 align-middle relative overflow-hidden", // Equal width columns via table-fixed
-                                            "cursor-pointer"
-                                        );
+                                                                const cellClasses = cn(
+                            "border-x border-border dark:border-slate-700",
+                            "p-1 align-middle relative overflow-hidden", // Equal width columns via table-fixed
+                            "cursor-pointer",
+                            "hover:bg-slate-100 dark:hover:bg-slate-700",
+                            "hover:shadow-md hover:shadow-primary/10",
+                            "focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-1",
+                            "transition-all duration-200 ease-in-out",
+                            "hover:scale-[1.02] active:scale-[0.98]"
+                        );
 
                                         const sensitivity = permutationSensitivityMap?.get(`${promptId}:${parsedModel.baseId}`);
 

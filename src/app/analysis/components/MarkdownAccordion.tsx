@@ -116,7 +116,7 @@ export const MarkdownAccordion: React.FC<MarkdownAccordionProps> = ({ content })
               {section.title}
             </span>
           </CollapsibleTrigger>
-          <CollapsibleContent className="pb-4 pt-1 pl-8">
+          <CollapsibleContent className="pb-4 pt-1 pl-4">
             <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground dark:text-slate-400">
                 <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
                     {section.content}

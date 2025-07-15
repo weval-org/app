@@ -32,11 +32,11 @@ export const SinglePromptView: React.FC = () => {
                 ))}
             </ModelResponseCardGrid>
             
-            {data.evaluationResults?.perPromptSimilarities?.[currentPromptId] && (
+            {/* {data.evaluationResults?.perPromptSimilarities?.[currentPromptId] && (
                 <PromptResponsesConsistency
                     models={canonicalModels}
                 />
-            )}
+            )} */}
         </div>
     );
 }; 
