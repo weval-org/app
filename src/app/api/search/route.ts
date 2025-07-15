@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSearchIndex } from '@/lib/storageService';
 import { SearchableBlueprintSummary } from '@/cli/types/cli_types';
 
+// Force dynamic rendering - no caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 let fuse: any | null = null;
 let lastIndexFetchTime = 0;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -85,10 +89,13 @@ export async function GET(request: NextRequest) {
 
         const results = fuseInstance.search(query);
         const searchDocs = results.map((result: any) => result.item);
-        
+
         return NextResponse.json(searchDocs, {
             headers: {
-                'Cache-Control': 's-maxage=60, stale-while-revalidate=300',
+                'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+                'Pragma': 'no-cache',
+                'Expires': '0',
+                'Vary': 'q', // Vary on query parameter
             },
         });
     } catch (error: any) {
