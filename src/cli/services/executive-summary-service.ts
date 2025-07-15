@@ -60,8 +60,8 @@ etc.
             useCache: false,
         });
 
-        if (checkForErrors(summaryText)) {
-            const errorMessage = `Summarizer model returned an error: ${summaryText}`;
+        if (!summaryText || summaryText.trim() === '') {
+            const errorMessage = `Summarizer model returned an empty response.`;
             logger.error(errorMessage);
             return { error: errorMessage };
         }

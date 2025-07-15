@@ -11,7 +11,9 @@ import { generateExecutiveSummary } from '../services/executive-summary-service'
 
 const SUMMARIZER_MODEL_ID = 'openrouter:google/gemini-2.5-flash-preview-05-20';
 
-async function actionBackfillExecutiveSummary(options: {
+async function actionBackfillExecutiveSummary(
+    runIdentifier: string | undefined,
+    options: {
     verbose?: boolean;
     configId?: string;
     runLabel?: string;
@@ -24,14 +26,32 @@ async function actionBackfillExecutiveSummary(options: {
     if (options.dryRun) {
         logger.warn('--- DRY RUN MODE --- No files will be written.');
     }
+    
+    let effectiveOptions = { ...options };
 
-    if (options.timestamp && (!options.configId || !options.runLabel)) {
+    if (runIdentifier) {
+        const parts = runIdentifier.split('/');
+        if (parts.length !== 3) {
+            logger.error('Invalid run identifier format. Expected "configId/runLabel/timestamp".');
+            return;
+        }
+        const [configId, runLabel, timestamp] = parts;
+        
+        if (options.configId || options.runLabel || options.timestamp) {
+            logger.warn('A run identifier was provided, so --config-id, --run-label, and --timestamp flags will be ignored.');
+        }
+
+        effectiveOptions = { ...options, configId, runLabel, timestamp };
+    }
+
+
+    if (effectiveOptions.timestamp && (!effectiveOptions.configId || !effectiveOptions.runLabel)) {
         logger.error('When using --timestamp, you must also provide --config-id and --run-label.');
         return;
     }
 
     try {
-        const configIds = options.configId ? [options.configId] : await listConfigIds();
+        const configIds = effectiveOptions.configId ? [effectiveOptions.configId] : await listConfigIds();
         if (!configIds || configIds.length === 0) {
             logger.warn('No configuration IDs found. Nothing to backfill.');
             return;
@@ -44,11 +64,11 @@ async function actionBackfillExecutiveSummary(options: {
 
         for (const configId of configIds) {
             let runs = await listRunsForConfig(configId);
-            if (options.runLabel) {
-                runs = runs.filter(run => run.runLabel === options.runLabel);
+            if (effectiveOptions.runLabel) {
+                runs = runs.filter(run => run.runLabel === effectiveOptions.runLabel);
             }
-            if (options.timestamp) {
-                runs = runs.filter(run => run.timestamp === options.timestamp);
+            if (effectiveOptions.timestamp) {
+                runs = runs.filter(run => run.timestamp === effectiveOptions.timestamp);
             }
 
             if (runs.length === 0) {
@@ -111,10 +131,11 @@ async function actionBackfillExecutiveSummary(options: {
 
 export const backfillExecutiveSummaryCommand = new Command('backfill-executive-summary')
     .description('Backfills the executive summary for existing evaluation runs.')
+    .argument('[runIdentifier]', 'Optional. A specific run to backfill, in "configId/runLabel/timestamp" format.')
     .option('-v, --verbose', 'Enable verbose logging for detailed processing steps.')
-    .option('--config-id <id>', 'Only backfill for a specific configuration ID.')
-    .option('--run-label <label>', 'Only backfill for a specific run label.')
-    .option('--timestamp <timestamp>', 'Only backfill for a specific run timestamp. Requires --config-id and --run-label.')
+    .option('--config-id <id>', 'Only backfill for a specific configuration ID. Ignored if runIdentifier is provided.')
+    .option('--run-label <label>', 'Only backfill for a specific run label. Ignored if runIdentifier is provided.')
+    .option('--timestamp <timestamp>', 'Only backfill for a specific run timestamp. Requires --config-id and --run-label. Ignored if runIdentifier is provided.')
     .option('--dry-run', 'Log what would be changed without saving files.')
     .option('--overwrite', 'Overwrite existing executive summaries.')
     .action(actionBackfillExecutiveSummary); 

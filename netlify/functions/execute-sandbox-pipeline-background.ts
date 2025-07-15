@@ -89,6 +89,30 @@ export const handler: BackgroundHandler = async (event) => {
     );
     const config = parseAndNormalizeBlueprint(blueprintContent, 'yaml');
 
+    // --- Sanitize System Prompts (mirroring run-config logic) ---
+    // If 'system' is an array, treat it as the 'systems' permutation array.
+    if (Array.isArray(config.system)) {
+        if (config.systems && config.systems.length > 0) {
+            logger.warn(`Both 'system' (as an array) and 'systems' are defined. Using 'systems' and ignoring the array in 'system'.`);
+        } else {
+            logger.info(`Found 'system' field is an array. Treating it as the 'systems' array for permutation.`);
+            config.systems = config.system;
+        }
+        // Unset 'system' to avoid conflicts.
+        config.system = undefined;
+    }
+    // In the sandbox, we don't permute over system prompts in the same way.
+    // We will just use the first valid one if multiple are provided.
+    // For now, if `systems` exists, let's just pick the first non-null one for simplicity.
+    if (Array.isArray(config.systems) && config.systems.length > 0) {
+        const firstValidSystem = config.systems.find(s => s !== null);
+        config.system = firstValidSystem; // This could be a string or undefined
+        logger.info(`Sandbox mode: Found 'systems' array. Using first valid entry as the main system prompt.`);
+        // Clear the systems array so it's not used for permutation by generateAllResponses
+        config.systems = undefined; 
+    }
+    // --- End Sanitize System Prompts ---
+
     // --- NORMALIZE TAGS ---
     if (config.tags) {
         const originalTags = [...config.tags];
