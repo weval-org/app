@@ -844,11 +844,7 @@ const MacroCoverageTable: React.FC = () => {
                                                 title={`View details for prompt ID ${promptId}: ${getPromptText(promptId)}`}
                                             >
                                                 <span className={promptTextContainerClasses} style={promptTextContainerStyle}>
-                                                    {!simplifiedView && (
-                                                        <>
-                                                            <small style={{fontSize: "0.8em", fontFamily: "monospace", color: "hsl(var(--muted-foreground))"}}>{promptId}</small><br/>
-                                                        </>
-                                                    )}
+                                                    <small style={{fontSize: "0.8em", fontFamily: "monospace", color: "hsl(var(--muted-foreground))"}}>{promptId}</small><br/>
                                                     {getPromptText(promptId)}
                                                 </span>
                                             </button>
@@ -859,11 +855,7 @@ const MacroCoverageTable: React.FC = () => {
                                                 title={`View details for prompt ID ${promptId}: ${getPromptText(promptId)}`}
                                             >
                                                 <span className={promptTextContainerClasses} style={promptTextContainerStyle}>
-                                                    {!simplifiedView && (
-                                                        <>
-                                                            <small style={{fontSize: "0.8em", fontFamily: "monospace", color: "hsl(var(--muted-foreground))"}}>{promptId}</small><br/>
-                                                        </>
-                                                    )}
+                                                    <small style={{fontSize: "0.8em", fontFamily: "monospace", color: "hsl(var(--muted-foreground))"}}>{promptId}</small><br/>
                                                     {getPromptText(promptId)}
                                                 </span>
                                             </Link>

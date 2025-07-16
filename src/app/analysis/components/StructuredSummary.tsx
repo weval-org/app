@@ -4,16 +4,19 @@ import { useState, useEffect } from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { StructuredInsights, ModelGrades } from '@/types/shared';
 import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
+import { GRADING_DIMENSIONS, getGradingDimension } from '@/lib/grading-criteria';
 import dynamic from 'next/dynamic';
 
-const ChevronRight = dynamic(() => import('lucide-react').then(mod => mod.ChevronRight));
-const Star = dynamic(() => import('lucide-react').then(mod => mod.Star));
-const TrendingUp = dynamic(() => import('lucide-react').then(mod => mod.TrendingUp));
-const TrendingDown = dynamic(() => import('lucide-react').then(mod => mod.TrendingDown));
-const Eye = dynamic(() => import('lucide-react').then(mod => mod.Eye));
-const Award = dynamic(() => import('lucide-react').then(mod => mod.Award));
+const ChevronRight = dynamic(() => import('lucide-react').then(mod => mod.ChevronRight), { ssr: false });
+const Star = dynamic(() => import('lucide-react').then(mod => mod.Star), { ssr: false });
+const TrendingUp = dynamic(() => import('lucide-react').then(mod => mod.TrendingUp), { ssr: false });
+const TrendingDown = dynamic(() => import('lucide-react').then(mod => mod.TrendingDown), { ssr: false });
+const Eye = dynamic(() => import('lucide-react').then(mod => mod.Eye), { ssr: false });
+const Award = dynamic(() => import('lucide-react').then(mod => mod.Award), { ssr: false });
+const Info = dynamic(() => import('lucide-react').then(mod => mod.Info), { ssr: false });
 const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
 const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
 
@@ -36,20 +39,11 @@ const gradeColors = {
   poor: 'text-red-600 dark:text-red-400'
 };
 
-const gradeLabels = {
-  adherence: 'Adherence',
-  clarity: 'Clarity',
-  tone: 'Tone',
-  depth: 'Depth',
-  coherence: 'Coherence',
-  helpfulness: 'Helpfulness',
-  credibility: 'Credibility',
-  empathy: 'Empathy',
-  creativity: 'Creativity',
-  safety: 'Safety',
-  argumentation: 'Argumentation',
-  efficiency: 'Efficiency'
-};
+// Generate grade labels from centralized data
+const gradeLabels = GRADING_DIMENSIONS.reduce((acc, dimension) => {
+  acc[dimension.key] = dimension.label;
+  return acc;
+}, {} as Record<string, string>);
 
 function cleanOutModelProviders(text: string): string {
   return text.replace(/(?:openrouter|openai|anthropic|together|xai|google):(?=[\w-.]+\/[\w-.]+)/ig, '');
@@ -69,8 +63,31 @@ function getGradeLabel(score: number): string {
   return 'Poor';
 }
 
+const DimensionLabel: React.FC<{ 
+  dimensionKey: string; 
+  label: string;
+  onShowInfo: (dimension: any) => void;
+}> = ({ dimensionKey, label, onShowInfo }) => {
+  const dimension = getGradingDimension(dimensionKey);
+  
+  if (!dimension) {
+    return <span className="font-medium text-muted-foreground">{label}</span>;
+  }
+
+  return (
+    <button 
+      onClick={() => onShowInfo(dimension)}
+      className="flex items-center space-x-2 hover:text-foreground transition-colors cursor-pointer min-w-0 w-full text-left py-1 px-1 rounded hover:bg-muted/50"
+    >
+      <Info className="w-3 h-3 text-muted-foreground/60 hover:text-muted-foreground flex-shrink-0" />
+      <span className="font-medium text-muted-foreground truncate">{label}</span>
+    </button>
+  );
+};
+
 const ModelGradesDisplay: React.FC<{ grades: ModelGrades[] }> = ({ grades }) => {
   const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set());
+  const [selectedDimension, setSelectedDimension] = useState<any>(null);
   
   if (!grades.length) return null;
 
@@ -139,7 +156,7 @@ const ModelGradesDisplay: React.FC<{ grades: ModelGrades[] }> = ({ grades }) => 
                     }`}>
                       #{rank}
                     </div>
-                    <h4 className="font-semibold text-foreground">
+                    <h4 className="font-semibold text-foreground m-0">
                       {getModelDisplayLabel(modelData.modelId)}
                     </h4>
                   </div>
@@ -230,7 +247,11 @@ const ModelGradesDisplay: React.FC<{ grades: ModelGrades[] }> = ({ grades }) => 
                         return (
                           <div key={key} className="space-y-1">
                             <div className="flex justify-between items-center text-xs">
-                              <span className="font-medium text-muted-foreground">{label}</span>
+                              <DimensionLabel 
+                                dimensionKey={key} 
+                                label={label} 
+                                onShowInfo={setSelectedDimension}
+                              />
                               <span className={`font-semibold ${getGradeColor(score)}`}>
                                 {score.toFixed(1)}
                               </span>
@@ -247,6 +268,33 @@ const ModelGradesDisplay: React.FC<{ grades: ModelGrades[] }> = ({ grades }) => 
           </div>
         );
       })}
+      
+      {/* Dimension Info Modal */}
+      <Dialog open={!!selectedDimension} onOpenChange={(open) => !open && setSelectedDimension(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{selectedDimension?.label}</DialogTitle>
+            <DialogDescription>{selectedDimension?.description}</DialogDescription>
+          </DialogHeader>
+          <div className="mt-4">
+            <h4 className="font-medium mb-3">Scoring Guide:</h4>
+            <div className="space-y-3">
+              <div className="flex items-start space-x-3">
+                <span className="font-medium text-green-600 min-w-[3rem]">8-10:</span>
+                <span className="text-sm">{selectedDimension?.scoringGuidance?.excellent}</span>
+              </div>
+              <div className="flex items-start space-x-3">
+                <span className="font-medium text-blue-600 min-w-[3rem]">4-7:</span>
+                <span className="text-sm">{selectedDimension?.scoringGuidance?.fair}</span>
+              </div>
+              <div className="flex items-start space-x-3">
+                <span className="font-medium text-red-600 min-w-[3rem]">1-3:</span>
+                <span className="text-sm">{selectedDimension?.scoringGuidance?.poor}</span>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

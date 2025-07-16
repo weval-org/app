@@ -357,7 +357,7 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
 
           {/* General description and config info for both views */}
           {!isInSinglePromptView && hasDescription && (
-            <div className="mt-2 text-sm text-muted-foreground dark:text-slate-400 prose prose-sm dark:prose-invert max-w-none">
+            <div className="mt-3 text-sm text-muted-foreground dark:text-slate-400 prose prose-sm dark:prose-invert max-w-none">
               <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
                 {description!}
               </ReactMarkdown>

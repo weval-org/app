@@ -71,7 +71,7 @@ export const ClientPage: React.FC = () => {
             promptIds={data.promptIds}
             models={displayedModels.filter(m => m !== IDEAL_MODEL_ID)}
             width={100}
-            height={50}
+            height={40}
             className="rounded-md border border-border dark:border-border shadow-sm"
           />
         );

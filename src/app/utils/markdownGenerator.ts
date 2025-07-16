@@ -237,6 +237,30 @@ export async function generateRunMarkdown(data: ComparisonDataV2, options: Markd
     if (description) md += `**Description:** ${description}\n`;
     if (config?.tags && config.tags.length > 0) md += `**Tags:** ${config.tags.map(t => `\`${t}\``).join(', ')}\n`;
 
+    // Add system prompt configuration information
+    if (config) {
+        // Handle different system prompt configurations
+        if (Array.isArray(config.systems) && config.systems.length > 0) {
+            md += `**System Prompt Strategy:** Permutation testing with ${config.systems.length} variants\n`;
+            md += `**System Prompts:**\n`;
+            config.systems.forEach((sys, index) => {
+                if (sys === null) {
+                    md += `  ${index + 1}. (No system prompt)\n`;
+                } else {
+                    const truncatedSys = sys.length > 100 ? sys.substring(0, 100) + '...' : sys;
+                    md += `  ${index + 1}. "${escapeMarkdown(truncatedSys)}"\n`;
+                }
+            });
+        } else if (config.system || config.systemPrompt) {
+            const systemPrompt = config.system || config.systemPrompt;
+            const truncatedSys = systemPrompt!.length > 100 ? systemPrompt!.substring(0, 100) + '...' : systemPrompt;
+            md += `**System Prompt Strategy:** Single global system prompt\n`;
+            md += `**System Prompt:** "${escapeMarkdown(truncatedSys!)}"\n`;
+        } else {
+            md += `**System Prompt Strategy:** No global system prompt (models use default behavior)\n`;
+        }
+    }
+
     if (truncateLength) {
         md += `\n**Note:** All model responses in this report have been truncated to a maximum of ${truncateLength} characters.\n`;
     }
@@ -397,6 +421,35 @@ function buildMarkdown(data: WevalResult, truncationRatio: number = 1.0): string
     if (data.sourceCommitSha) {
         md += `**Commit SHA:** \`${data.sourceCommitSha.substring(0, 7)}\`\n`;
     }
+    
+    // Add system prompt configuration information
+    if (data.config) {
+        if (data.config.tags && data.config.tags.length > 0) {
+            md += `**Tags:** ${data.config.tags.map(t => `\`${t}\``).join(', ')}\n`;
+        }
+        
+        // Handle different system prompt configurations
+        if (Array.isArray(data.config.systems) && data.config.systems.length > 0) {
+            md += `**System Prompt Strategy:** Permutation testing with ${data.config.systems.length} variants\n`;
+            md += `**System Prompts:**\n`;
+            data.config.systems.forEach((sys, index) => {
+                if (sys === null) {
+                    md += `  ${index + 1}. (No system prompt)\n`;
+                } else {
+                    const truncatedSys = sys.length > 100 ? sys.substring(0, 100) + '...' : sys;
+                    md += `  ${index + 1}. "${escapeMarkdown(truncatedSys)}"\n`;
+                }
+            });
+        } else if (data.config.system || data.config.systemPrompt) {
+            const systemPrompt = data.config.system || data.config.systemPrompt;
+            const truncatedSys = systemPrompt!.length > 100 ? systemPrompt!.substring(0, 100) + '...' : systemPrompt;
+            md += `**System Prompt Strategy:** Single global system prompt\n`;
+            md += `**System Prompt:** "${escapeMarkdown(truncatedSys!)}"\n`;
+        } else {
+            md += `**System Prompt Strategy:** No global system prompt (models use default behavior)\n`;
+        }
+    }
+    
     md += `\n---\n\n`;
 
     md += `## Overall Results\n\n`;
