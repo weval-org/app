@@ -138,10 +138,41 @@ export interface WevalResult {
     errors?: Record<string, Record<string, string>>;
     evaluationResults: WevalEvaluationResults;
     excludedModels?: string[];
-    executiveSummary?: {
-        modelId: string;
-        content: string;
-    }
+    executiveSummary?: ExecutiveSummary;
+}
+
+// New structured executive summary types
+export interface StructuredInsights {
+    keyFindings: string[];
+    strengths: string[];
+    weaknesses: string[];
+    patterns: string[];
+    grades?: ModelGrades[];
+}
+
+export interface ModelGrades {
+    modelId: string;
+    grades: {
+        adherence: number;
+        clarity: number;
+        tone: number;
+        depth: number;
+        coherence: number;
+        helpfulness: number;
+        credibility: number;
+        empathy: number;
+        creativity: number;
+        safety: number;
+        argumentation: number;
+        efficiency: number;
+    };
+}
+
+export interface ExecutiveSummary {
+    modelId: string;
+    content: string;
+    structured?: StructuredInsights; // New: parsed structured data
+    isStructured?: boolean; // Flag to indicate if this uses structured format
 }
 
 // --- New Types for Model-Specific Summaries ---

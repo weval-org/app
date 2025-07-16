@@ -309,7 +309,7 @@ describe('LLMCoverageEvaluator', () => {
             // Should have been called only 2 times: 2 primary judges, no backup
             expect(requestIndividualJudgeSpy).toHaveBeenCalledTimes(2);
             expect(assessment.coverageExtent).toBe(0.85); // (0.8 + 0.9) / 2
-            expect(assessment.judgeModelId).toBe('consensus(prompt-aware-openai-gpt-4-1-mini(openai:gpt-4.1-mini), prompt-aware-gemini-2-5-flash-preview-05-20(google/gemini-2.5-flash))');
+            expect(assessment.judgeModelId).toBe('consensus(prompt-aware-openai-gpt-4-1-mini(openai:gpt-4.1-mini), prompt-aware-gemini-2-5-flash-preview-05-20(openrouter:google/gemini-2.5-flash))');
             expect(assessment.individualJudgements).toHaveLength(2);
             expect(assessment.reflection).not.toContain('NOTE: Backup judge was used');
             expect(assessment.error).toBeUndefined();

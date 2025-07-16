@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
 import Link from 'next/link';
 import { MarkdownAccordion } from '@/app/analysis/components/MarkdownAccordion';
+import { StructuredSummary } from '@/app/analysis/components/StructuredSummary';
 import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { prettifyTag, normalizeTag } from '@/app/utils/tagUtils';
@@ -403,7 +404,11 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
             className="w-full lg:flex-1 bg-muted/50 dark:bg-slate-900/40 pb-4 px-4 rounded-lg flex flex-col"
           >
             <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground dark:text-slate-300">
+              {data.executiveSummary?.isStructured && data.executiveSummary?.structured ? (
+                <StructuredSummary insights={data.executiveSummary.structured} />
+              ) : (
                 <MarkdownAccordion content={normalizedExecutiveSummary} />
+              )}
             </div>
           </div>
         )}
