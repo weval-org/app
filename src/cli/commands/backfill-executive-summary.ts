@@ -9,7 +9,7 @@ import {
 import { WevalResult } from '@/types/shared';
 import { generateExecutiveSummary } from '../services/executive-summary-service';
 
-const SUMMARIZER_MODEL_ID = 'openrouter:google/gemini-2.5-flash-preview-05-20';
+const SUMMARIZER_MODEL_ID = 'openrouter:google/gemini-2.5-flash';
 
 async function actionBackfillExecutiveSummary(
     runIdentifier: string | undefined,

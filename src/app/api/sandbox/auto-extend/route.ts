@@ -41,7 +41,7 @@ ${AUTO_EXTEND_EXAMPLE}
 Now, here is the user's request. Generate only the NEW prompts as a JSON array.
 `;
 
-const GENERATOR_MODEL = 'openrouter:google/gemini-2.5-flash-preview-05-20';
+const GENERATOR_MODEL = 'openrouter:google/gemini-2.5-flash';
 
 export async function POST(req: NextRequest) {
     try {

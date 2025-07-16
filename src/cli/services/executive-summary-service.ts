@@ -4,7 +4,7 @@ import { getModelResponse } from './llm-service';
 import { checkForErrors } from '../utils/response-utils';
 import { getConfig } from '../config';
 
-const SUMMARIZER_MODEL_ID = 'openrouter:google/gemini-2.5-flash-preview-05-20';
+const SUMMARIZER_MODEL_ID = 'openrouter:google/gemini-2.5-flash';
 const MAX_CHARS = 400000; // ~130k tokens
 
 type Logger = ReturnType<typeof getConfig>['logger'];

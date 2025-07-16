@@ -277,7 +277,7 @@ describe('LLMCoverageEvaluator', () => {
             
             requestIndividualJudgeSpy.mockImplementation(async (mrt, kpt, aokp, pct, judge) => {
                 if (judge.model === 'openai:gpt-4.1-mini') return { coverage_extent: 0.8, reflection: 'Good from GPT-4' };
-                if (judge.model === 'openrouter:google/gemini-2.5-flash-preview-05-20') return { error: 'Gemini failed' };
+                if (judge.model === 'openrouter:google/gemini-2.5-flash') return { error: 'Gemini failed' };
                 if (judge.model === 'anthropic:claude-3.5-haiku') return { coverage_extent: 0.6, reflection: 'Backup Claude result' };
                 return { error: 'unexpected judge' };
             });
@@ -299,7 +299,7 @@ describe('LLMCoverageEvaluator', () => {
             
             requestIndividualJudgeSpy.mockImplementation(async (mrt, kpt, aokp, pct, judge) => {
                 if (judge.model === 'openai:gpt-4.1-mini') return { coverage_extent: 0.8, reflection: 'Good from GPT-4' };
-                if (judge.model === 'openrouter:google/gemini-2.5-flash-preview-05-20') return { coverage_extent: 0.9, reflection: 'Good from Gemini' };
+                if (judge.model === 'openrouter:google/gemini-2.5-flash') return { coverage_extent: 0.9, reflection: 'Good from Gemini' };
                 return { error: 'unexpected judge' };
             });
 
@@ -309,7 +309,7 @@ describe('LLMCoverageEvaluator', () => {
             // Should have been called only 2 times: 2 primary judges, no backup
             expect(requestIndividualJudgeSpy).toHaveBeenCalledTimes(2);
             expect(assessment.coverageExtent).toBe(0.85); // (0.8 + 0.9) / 2
-            expect(assessment.judgeModelId).toBe('consensus(prompt-aware-openai-gpt-4-1-mini(openai:gpt-4.1-mini), prompt-aware-gemini-2-5-flash-preview-05-20(openrouter:google/gemini-2.5-flash-preview-05-20))');
+            expect(assessment.judgeModelId).toBe('consensus(prompt-aware-openai-gpt-4-1-mini(openai:gpt-4.1-mini), prompt-aware-gemini-2-5-flash-preview-05-20(google/gemini-2.5-flash))');
             expect(assessment.individualJudgements).toHaveLength(2);
             expect(assessment.reflection).not.toContain('NOTE: Backup judge was used');
             expect(assessment.error).toBeUndefined();
@@ -320,7 +320,7 @@ describe('LLMCoverageEvaluator', () => {
             
             requestIndividualJudgeSpy.mockImplementation(async (mrt, kpt, aokp, pct, judge) => {
                 if (judge.model === 'openai:gpt-4.1-mini') return { coverage_extent: 0.8, reflection: 'Good from GPT-4' };
-                if (judge.model === 'openrouter:google/gemini-2.5-flash-preview-05-20') return { error: 'Gemini failed' };
+                if (judge.model === 'openrouter:google/gemini-2.5-flash') return { error: 'Gemini failed' };
                 if (judge.model === 'anthropic:claude-3.5-haiku') return { error: 'Backup Claude also failed' };
                 return { error: 'unexpected judge' };
             });
@@ -383,7 +383,7 @@ describe('LLMCoverageEvaluator', () => {
             
             requestIndividualJudgeSpy.mockImplementation(async (mrt, kpt, aokp, pct, judge) => {
                 if (judge.model === 'openai:gpt-4.1-mini') return { coverage_extent: 0.8, reflection: 'Good from GPT-4' };
-                if (judge.model === 'openrouter:google/gemini-2.5-flash-preview-05-20') return { error: 'Gemini failed' };
+                if (judge.model === 'openrouter:google/gemini-2.5-flash') return { error: 'Gemini failed' };
                 if (judge.model === 'anthropic:claude-3.5-haiku') return { coverage_extent: 0.6, reflection: 'Backup Claude result' };
                 return { error: 'unexpected judge' };
             });

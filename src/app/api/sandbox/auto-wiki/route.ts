@@ -14,7 +14,7 @@ import {
 import { configure } from '@/cli/config';
 import { getLogger } from '@/utils/logger';
 
-const WIKI_GENERATOR_MODEL = 'openrouter:google/gemini-2.5-flash-preview-05-20';
+const WIKI_GENERATOR_MODEL = 'openrouter:google/gemini-2.5-flash';
 const MAX_TEXT_LENGTH = 300000; // A safe character limit for the context window
 
 const autoWikiSchema = z.object({

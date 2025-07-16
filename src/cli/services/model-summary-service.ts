@@ -4,7 +4,7 @@ import { getModelResponse } from './llm-service';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
-const ANALYST_MODEL_ID = 'openrouter:google/gemini-2.5-flash-preview-05-20';
+const ANALYST_MODEL_ID = 'openrouter:google/gemini-2.5-flash';
 const MAX_CONTEXT_TOKENS = 750_000;
 
 function parseAnalystResponse(responseText: string): Omit<Required<ModelSummary>['analyticalSummary'], 'lastUpdated'> {

@@ -43,7 +43,7 @@ ${AUTO_CREATE_EXAMPLE}
 Now, here is the user's request. Generate the complete blueprint structure as JSON strictly following all rules.
 `;
 
-const GENERATOR_MODEL = 'openrouter:google/gemini-2.5-flash-preview-05-20';
+const GENERATOR_MODEL = 'openrouter:google/gemini-2.5-flash';
 
 const autoCreateSchema = z.object({
     goal: z.string().min(1, 'Goal is required'),

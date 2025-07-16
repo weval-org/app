@@ -16,7 +16,7 @@ export interface YamlParseOptions {
 
 const DEFAULT_OPTIONS: Required<YamlParseOptions> = {
   enableSelfCorrection: true,
-  modelId: 'openrouter:google/gemini-2.5-flash-preview-05-20',
+  modelId: 'openrouter:google/gemini-2.5-flash',
   maxRetries: 1
 };
 
