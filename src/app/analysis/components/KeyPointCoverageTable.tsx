@@ -156,6 +156,14 @@ const ModelView: React.FC<{
     systemPrompts?: (string | null)[] | null;
     promptSimilarities: Record<string, Record<string, number>> | null;
 }> = ({ displayedModels, promptCoverageScores, promptResponses, systemPrompts, promptSimilarities }) => {
+
+    displayedModels = displayedModels.filter(modelId => {
+        const parsed = parseEffectiveModelId(modelId);
+        // Don't show ideal model id as a distinct model in the key coverage area
+        // as the inner coverage area has a tabbed interface for seeing that.
+        return parsed.baseId.toLowerCase() !== 'ideal_model_id';
+    });
+
     const [selectedModelId, setSelectedModelId] = useState<string | null>(
         displayedModels.length > 0 ? displayedModels[0] : null
     );
