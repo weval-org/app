@@ -151,7 +151,7 @@ const GRADING_INSTRUCTIONS = `
 - Higher scores (7+) should be reserved for clearly superior performance
 - Lower scores (below 5) indicate notable deficiencies`;
 
-function parseStructuredSummary(content: string): StructuredInsights | null {
+export function parseStructuredSummary(content: string): StructuredInsights | null {
     try {
         const keyFindings: string[] = [];
         const strengths: string[] = [];
@@ -195,25 +195,26 @@ function parseStructuredSummary(content: string): StructuredInsights | null {
             });
         }
 
+        console.log('[big debug]', content);
+
         // Extract grades
         const gradeMatches = content.match(/<grade\s+model="([^"]+)">(.*?)<\/grade>/gs);
         if (gradeMatches) {
             gradeMatches.forEach(match => {
                 const modelMatch = match.match(/model="([^"]+)"/);
+                const rawModelId = modelMatch && modelMatch[1].trim().replace(/[\[\(](?:sys|temp|tmp):.*/i, '').trim();
+        
                 const gradeContent = match.replace(/<grade[^>]*>|<\/grade>/g, '').trim();
+
+                console.log({rawModelId, modelMatch, gradeContent});
                 
-                if (modelMatch && gradeContent) {
-                    let modelId = modelMatch[1].trim();
+                if (rawModelId && gradeContent) {
                     
-                    // Clean up the model name to handle variations
-                    // Remove any provider prefixes that might have crept in
-                    if (modelId.includes(':')) {
-                        modelId = modelId.split(':').pop() || modelId;
-                    }
-                    
+                    // Keep the raw model ID to preserve all information (provider, system prompts, temperature, etc.)
+                    // The frontend can handle display formatting using modelIdUtils
                     const gradeData = parseGradeContent(gradeContent);
                     if (gradeData) {
-                        grades.push({ modelId, grades: gradeData });
+                        grades.push({ modelId: rawModelId, grades: gradeData });
                     }
                 }
             });
@@ -238,7 +239,7 @@ function parseStructuredSummary(content: string): StructuredInsights | null {
 }
 
 // Regex patterns to match dimension names to property keys
-const GRADE_DIMENSION_PATTERNS = {
+export const GRADE_DIMENSION_PATTERNS = {
     adherence: /adherence|instruction/i,
     clarity: /clarity|readability/i,
     tone: /tone|style/i,
@@ -253,7 +254,7 @@ const GRADE_DIMENSION_PATTERNS = {
     efficiency: /efficiency|succinctness/i
 } as const;
 
-function parseGradeContent(content: string): ModelGrades['grades'] | null {
+export function parseGradeContent(content: string): ModelGrades['grades'] | null {
     try {
         const grades = {
             adherence: 0,
@@ -293,7 +294,7 @@ function parseGradeContent(content: string): ModelGrades['grades'] | null {
     }
 }
 
-function extractScore(line: string): number | null {
+export function extractScore(line: string): number | null {
     // Match patterns like "8/10", "8", "8.5", etc.
     const match = line.match(/(\d+(?:\.\d+)?)(?:\/10)?/);
     if (match) {
@@ -319,8 +320,16 @@ export async function generateExecutiveSummary(
 
         // Get list of evaluated models for grading
         const evaluatedModels = resultData.effectiveModels.filter(m => m !== 'ideal' && m !== IDEAL_MODEL_ID);
-        const modelList = evaluatedModels.map(m => getModelDisplayLabel(m, { hideProvider: true })).join(', ');
-        const modelListForGrading = evaluatedModels.map(m => getModelDisplayLabel(m, { hideProvider: true }));
+        const modelList = evaluatedModels.map(m => getModelDisplayLabel(m, {
+            hideProvider: true,
+            hideSystemPrompt: true,
+            hideTemperature: true
+        })).join(', ');
+        const modelListForGrading = evaluatedModels.map(m => getModelDisplayLabel(m, {
+            hideProvider: true,
+            hideSystemPrompt: true,
+            hideTemperature: true
+        }));
 
         const systemPrompt = `You are an expert AI analyst. The following is a markdown report of a comprehensive evaluation run comparing multiple large language models on a specific set of tasks. Your goal is to synthesize this data and extract the most important, actionable insights for a human reader.
 
@@ -361,7 +370,7 @@ ${GRADING_CRITERIA_DETAILED}
 ${GRADING_INSTRUCTIONS}
 
 ==== FINAL IMPORTANT REQUIREMENTS: ====
-1. You MUST analyze ALL models that participated in this evaluation
+1. You MUST analyze ALL models that participated in this evaluation, though you can ignore system prompts and temperatures for the purposes of GRADING.
 2. You MUST provide grades for EVERY model listed above - no exceptions
 3. Be highly specific, using verbatim quotes and specific examples from the evaluation
 4. Focus on actionable insights that would help someone choose between these models

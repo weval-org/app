@@ -70,42 +70,183 @@ function getGradeLabel(score: number): string {
 }
 
 const ModelGradesDisplay: React.FC<{ grades: ModelGrades[] }> = ({ grades }) => {
+  const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set());
+  
   if (!grades.length) return null;
 
+  // Calculate overall scores and sort models by performance
+  const modelsWithOverallScore = grades.map(modelGrade => {
+    const gradeValues = Object.values(modelGrade.grades);
+    const overallScore = gradeValues.reduce((sum, score) => sum + score, 0) / gradeValues.length;
+    
+    // Find top 2 strengths and weaknesses
+    const dimensionScores = Object.entries(modelGrade.grades).map(([dim, score]) => ({
+      dimension: gradeLabels[dim as keyof typeof gradeLabels],
+      score
+    }));
+    
+    const strengths = dimensionScores
+      .filter(d => d.score >= 7)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 2);
+      
+    const weaknesses = dimensionScores
+      .filter(d => d.score < 6)
+      .sort((a, b) => a.score - b.score)
+      .slice(0, 2);
+
+    return {
+      ...modelGrade,
+      overallScore,
+      strengths,
+      weaknesses
+    };
+  }).sort((a, b) => b.overallScore - a.overallScore);
+
+  const toggleModel = (modelId: string) => {
+    setExpandedModels(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(modelId)) {
+        newSet.delete(modelId);
+      } else {
+        newSet.add(modelId);
+      }
+      return newSet;
+    });
+  };
+
   return (
-    <div className="space-y-6">
-      {grades.map((modelGrade, index) => (
-        <div key={index} className="bg-muted/30 dark:bg-slate-800/30 rounded-lg p-4">
-          <h4 className="font-semibold text-foreground mb-4 flex items-center">
-            <Award className="w-4 h-4 mr-2 text-primary" />
-            {getModelDisplayLabel(modelGrade.modelId)}
-          </h4>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {Object.entries(gradeLabels).map(([key, label]) => {
-              const score = modelGrade.grades[key as keyof typeof modelGrade.grades];
-              const percentage = (score / 10) * 100;
-              
-              return (
-                <div key={key} className="space-y-2">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="font-medium text-muted-foreground">{label}</span>
-                    <span className={`font-semibold ${getGradeColor(score)}`}>
-                      {score.toFixed(1)}/10
-                    </span>
+    <div className="space-y-3">
+      {modelsWithOverallScore.map((modelData, index) => {
+        const isExpanded = expandedModels.has(modelData.modelId);
+        const rank = index + 1;
+        
+        return (
+          <div key={modelData.modelId} className="bg-muted/30 dark:bg-slate-800/30 rounded-lg border border-border/50">
+            {/* Summary Row */}
+            <div 
+              className="p-4 cursor-pointer hover:bg-muted/50 transition-colors rounded-lg"
+              onClick={() => toggleModel(modelData.modelId)}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3 flex-1">
+                  <div className="flex items-center space-x-2">
+                    <div className={`text-sm font-bold px-2 py-1 rounded ${
+                      rank === 1 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' :
+                      rank === 2 ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300' :
+                      rank === 3 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300' :
+                      'bg-muted text-muted-foreground'
+                    }`}>
+                      #{rank}
+                    </div>
+                    <h4 className="font-semibold text-foreground">
+                      {getModelDisplayLabel(modelData.modelId)}
+                    </h4>
                   </div>
-                  <Progress 
-                    value={percentage} 
-                    className="h-2"
-                  />
-                  <div className="text-xs text-muted-foreground">
-                    {getGradeLabel(score)}
+                  
+                  <div className="flex items-center space-x-4 flex-1">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm text-muted-foreground">Overall:</span>
+                      <span className={`font-semibold text-lg ${getGradeColor(modelData.overallScore)}`}>
+                        {modelData.overallScore.toFixed(1)}/10
+                      </span>
+                    </div>
+                    
+                    {/* Quick highlights */}
+                    <div className="hidden sm:flex items-center space-x-4 text-xs">
+                      {modelData.strengths.length > 0 && (
+                        <div className="flex items-center space-x-1">
+                          <TrendingUp className="w-3 h-3 text-green-600" />
+                          <span className="text-muted-foreground">
+                            {modelData.strengths[0].dimension}
+                          </span>
+                        </div>
+                      )}
+                      {modelData.weaknesses.length > 0 && (
+                        <div className="flex items-center space-x-1">
+                          <TrendingDown className="w-3 h-3 text-red-600" />
+                          <span className="text-muted-foreground">
+                            {modelData.weaknesses[0].dimension}
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              );
-            })}
+                
+                <ChevronRight className={`w-4 h-4 text-muted-foreground transform transition-transform ${
+                  isExpanded ? 'rotate-90' : ''
+                }`} />
+              </div>
+            </div>
+
+            {/* Expanded Details */}
+            {isExpanded && (
+              <div className="px-4 pb-4 border-t border-border/30">
+                <div className="pt-4 space-y-4">
+                  {/* Strengths & Weaknesses */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {modelData.strengths.length > 0 && (
+                      <div>
+                        <h5 className="text-sm font-medium text-green-600 dark:text-green-400 mb-2 flex items-center">
+                          <TrendingUp className="w-3 h-3 mr-1" />
+                          Top Strengths
+                        </h5>
+                        <div className="space-y-1">
+                          {modelData.strengths.map((strength, i) => (
+                            <div key={i} className="text-xs bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded">
+                              <span className="font-medium">{strength.dimension}:</span> {strength.score.toFixed(1)}/10
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {modelData.weaknesses.length > 0 && (
+                      <div>
+                        <h5 className="text-sm font-medium text-red-600 dark:text-red-400 mb-2 flex items-center">
+                          <TrendingDown className="w-3 h-3 mr-1" />
+                          Areas for Improvement
+                        </h5>
+                        <div className="space-y-1">
+                          {modelData.weaknesses.map((weakness, i) => (
+                            <div key={i} className="text-xs bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded">
+                              <span className="font-medium">{weakness.dimension}:</span> {weakness.score.toFixed(1)}/10
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Full Grade Breakdown */}
+                  <div>
+                    <h5 className="text-sm font-medium text-muted-foreground mb-3">Complete Grade Breakdown</h5>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {Object.entries(gradeLabels).map(([key, label]) => {
+                        const score = modelData.grades[key as keyof typeof modelData.grades];
+                        const percentage = (score / 10) * 100;
+                        
+                        return (
+                          <div key={key} className="space-y-1">
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="font-medium text-muted-foreground">{label}</span>
+                              <span className={`font-semibold ${getGradeColor(score)}`}>
+                                {score.toFixed(1)}
+                              </span>
+                            </div>
+                            <Progress value={percentage} className="h-1.5" />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 };
@@ -233,7 +374,7 @@ export const StructuredSummary: React.FC<StructuredSummaryProps> = ({ insights }
               <Award className="w-4 h-4" />
             </div>
             <span className="flex-1 font-semibold group-hover:text-primary text-base">
-              Model Grades
+              Qualitative Model Grades
             </span>
             <Badge variant="secondary" className="ml-2 text-xs">
               {insights.grades?.length || 0} models graded
