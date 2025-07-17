@@ -250,6 +250,53 @@ prompts:
             const prompt = result.prompts[0];
             expect(prompt.id).toBe('hash-a123cf388be1');
         });
+
+        test('should correctly parse prompt-level description and citation in YAML', () => {
+            const yamlWithCitation = `
+- id: test-prompt
+  prompt: "What is Beejamrut?"
+  description: "A test prompt about Beejamrut"
+  ideal: "Beejamrut is an organic bio-fertilizer."
+  citation: "https://www.youtube.com/watch?v=example"
+  should:
+    - "Should mention organic bio-fertilizer"
+`;
+            const result = parseAndNormalizeBlueprint(yamlWithCitation, 'yaml');
+            
+            expect(result.prompts).toHaveLength(1);
+            const prompt = result.prompts[0];
+            expect(prompt.id).toBe('test-prompt');
+            expect(prompt.description).toBe('A test prompt about Beejamrut');
+            expect(prompt.citation).toBe('https://www.youtube.com/watch?v=example');
+            expect(prompt.idealResponse).toBe('Beejamrut is an organic bio-fertilizer.');
+            expect(prompt.points).toHaveLength(1);
+        });
+
+        test('should correctly parse prompt-level description and citation in JSON', () => {
+            const jsonWithCitation = `{
+                "prompts": [
+                    {
+                        "id": "test-prompt",
+                        "promptText": "What is Beejamrut?",
+                        "description": "A test prompt about Beejamrut",
+                        "idealResponse": "Beejamrut is an organic bio-fertilizer.",
+                        "citation": "https://www.youtube.com/watch?v=example",
+                        "points": [
+                            { "text": "Should mention organic bio-fertilizer", "multiplier": 1.0 }
+                        ]
+                    }
+                ]
+            }`;
+            const result = parseAndNormalizeBlueprint(jsonWithCitation, 'json');
+            
+            expect(result.prompts).toHaveLength(1);
+            const prompt = result.prompts[0];
+            expect(prompt.id).toBe('test-prompt');
+            expect(prompt.description).toBe('A test prompt about Beejamrut');
+            expect(prompt.citation).toBe('https://www.youtube.com/watch?v=example');
+            expect(prompt.idealResponse).toBe('Beejamrut is an organic bio-fertilizer.');
+            expect(prompt.points).toHaveLength(1);
+        });
     });
 
     describe('Error Handling', () => {

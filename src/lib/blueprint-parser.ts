@@ -263,6 +263,7 @@ export function parseAndNormalizeBlueprint(content: string, fileType: 'json' | '
 
         // Normalize other prompt fields
         finalPrompt.id = p.id;
+        finalPrompt.description = p.description;
         finalPrompt.idealResponse = p.ideal || p.idealResponse;
         finalPrompt.system = p.system;
         finalPrompt.citation = p.citation;

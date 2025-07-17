@@ -20,6 +20,7 @@ async function actionBackfillExecutiveSummary(
     timestamp?: string;
     dryRun?: boolean;
     overwrite?: boolean;
+    latestOnly?: boolean;
 }) {
     const { logger } = getConfig();
     logger.info('Starting Executive Summary backfill process...');
@@ -71,6 +72,11 @@ async function actionBackfillExecutiveSummary(
                 runs = runs.filter(run => run.timestamp === effectiveOptions.timestamp);
             }
 
+            // If latest-only is specified, only take the most recent run from the (potentially filtered) list
+            if (options.latestOnly && runs.length > 0) {
+                runs = [runs[0]];
+            }
+
             if (runs.length === 0) {
                 if (options.verbose) logger.info(`- No matching runs found for config ${configId}, skipping.`);
                 continue;
@@ -89,13 +95,31 @@ async function actionBackfillExecutiveSummary(
                         return;
                     }
 
-                    if (resultData.executiveSummary && !options.overwrite) {
-                        if (options.verbose) logger.info(`  Skipping ${runFileName}: summary already exists.`);
+                    // If a summary exists in the new *structured* format, skip unless --overwrite is used.
+                    // This allows overwriting old string-based or unstructured object summaries by default.
+                    const summaryIsStructured = resultData.executiveSummary &&
+                                                  typeof resultData.executiveSummary === 'object' &&
+                                                  (resultData.executiveSummary as any).isStructured === true;
+
+                    if (summaryIsStructured && !options.overwrite) {
+                        if (options.latestOnly) {
+                            logger.info(`  Skipping latest run for ${configId}: Structured executive summary already exists.`);
+                        } else if (options.verbose) {
+                            logger.info(`  Skipping ${runFileName}: summary already exists in the structured format.`);
+                        }
                         return;
                     }
 
                     try {
-                        logger.info(`  Generating summary for ${runFileName}...`);
+                        if (options.latestOnly) {
+                            if (summaryIsStructured && options.overwrite) {
+                                logger.info(`  Processing latest run for ${configId}: Overwriting existing structured executive summary.`);
+                            } else {
+                                logger.info(`  Processing latest run for ${configId}: Generating new executive summary.`);
+                            }
+                        } else {
+                            logger.info(`  Generating summary for ${runFileName}...`);
+                        }
                         
                         const summaryResult = await generateExecutiveSummary(resultData, logger);
 
@@ -138,4 +162,5 @@ export const backfillExecutiveSummaryCommand = new Command('backfill-executive-s
     .option('--timestamp <timestamp>', 'Only backfill for a specific run timestamp. Requires --config-id and --run-label. Ignored if runIdentifier is provided.')
     .option('--dry-run', 'Log what would be changed without saving files.')
     .option('--overwrite', 'Overwrite existing executive summaries.')
+    .option('--latest-only', 'Only process the latest run for each configuration.')
     .action(actionBackfillExecutiveSummary); 

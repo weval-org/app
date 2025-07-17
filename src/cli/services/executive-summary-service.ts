@@ -68,7 +68,7 @@ export function parseStructuredSummary(content: string): StructuredInsights | nu
         if (gradeMatches) {
             gradeMatches.forEach(match => {
                 const modelMatch = match.match(/model="([^"]+)"/);
-                const rawModelId = modelMatch && modelMatch[1].trim().replace(/[\[\(](?:sys|temp|tmp):.*/i, '').trim();
+                const rawModelId = modelMatch && modelMatch[1].trim();
         
                 const gradeContent = match.replace(/<grade[^>]*>|<\/grade>/g, '').trim();
 

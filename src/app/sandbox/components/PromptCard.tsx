@@ -141,6 +141,20 @@ export function PromptCard({ prompt, onUpdate, onRemove, onDuplicate, isEditable
     onUpdate(nextState);
   };
 
+  const handleDescriptionChange = (newText: string) => {
+    const nextState = produce(prompt, draft => {
+        draft.description = newText;
+    });
+    onUpdate(nextState);
+  };
+
+  const handleCitationChange = (newText: string) => {
+    const nextState = produce(prompt, draft => {
+        draft.citation = newText;
+    });
+    onUpdate(nextState);
+  };
+
   const setShouldNotField = (value: any) => {
     const nextState = produce(prompt, draft => {
         draft.should_not = value;
@@ -280,6 +294,38 @@ export function PromptCard({ prompt, onUpdate, onRemove, onDuplicate, isEditable
                       />
                   )}
                 </div>
+
+                {isAdvancedMode && (
+                    <>
+                        <div>
+                            <label className="text-sm font-semibold text-foreground">Description <span className="text-xs font-normal text-muted-foreground">(Optional)</span></label>
+                            <p className="text-xs text-muted-foreground mb-1.5">A brief explanation of what this specific prompt is designed to test.</p>
+                            <AutoExpandTextarea
+                                placeholder="e.g., Tests the model's ability to provide creative writing with specific constraints."
+                                value={prompt.description || ''}
+                                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleDescriptionChange(e.target.value)}
+                                minRows={2}
+                                maxRows={6}
+                                className="text-sm"
+                                readOnly={!isEditable}
+                            />
+                        </div>
+
+                        <div>
+                            <label className="text-sm font-semibold text-foreground">Citation <span className="text-xs font-normal text-muted-foreground">(Optional)</span></label>
+                            <p className="text-xs text-muted-foreground mb-1.5">Source or reference for this prompt (e.g., URL, paper, documentation).</p>
+                            <AutoExpandTextarea
+                                placeholder="e.g., https://example.com/source or Smith et al. (2023)"
+                                value={prompt.citation || ''}
+                                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleCitationChange(e.target.value)}
+                                minRows={1}
+                                maxRows={3}
+                                className="text-sm"
+                                readOnly={!isEditable}
+                            />
+                        </div>
+                    </>
+                )}
 
                 <div>
                   <label className="text-sm font-semibold text-foreground">Ideal Response <span className="text-xs font-normal text-muted-foreground">(Optional)</span></label>
