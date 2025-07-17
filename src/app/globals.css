@@ -92,19 +92,19 @@
 
   .dark {
     --background: 330 3% 19%; /* Inverted from light foreground */
-    --foreground: 42 63% 94%; /* Inverted from light background */
+    --foreground: 45 61% 94%; /* Warm cream color #F9F4E6 */
     --muted: 330 3% 24%; /* Derived from dark background */
-    --muted-foreground: 42 63% 84%; /* Derived from dark foreground */
+    --muted-foreground: 45 61% 84%; /* Derived from warm foreground */
     --popover: 330 3% 24%; /* Same as dark surface */
-    --popover-foreground: 42 63% 94%; /* Same as dark foreground */
+    --popover-foreground: 45 61% 94%; /* Same as dark foreground */
     --card: 330 3% 24%; /* Same as dark surface */
-    --card-foreground: 42 63% 94%; /* Same as dark foreground */
+    --card-foreground: 45 61% 94%; /* Same as dark foreground */
     --border: 330 3% 29%; /* Derived from dark background */
     --input: 330 3% 29%; /* Derived from dark background */
     --primary: 166 75% 73%;
     --primary-foreground: 340 100% 11.4%;
     --secondary: 330 3% 24%; /* Same as dark muted */
-    --secondary-foreground: 42 63% 94%; /* Same as dark foreground */
+    --secondary-foreground: 45 61% 94%; /* Same as dark foreground */
     --accent: 52 69.2% 87.3%; /* Same as light accent */
     --accent-foreground: 330 3% 19%; /* Dark text for light accent background */
     --exciting: 320 75% 65%;

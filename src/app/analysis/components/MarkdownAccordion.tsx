@@ -93,7 +93,7 @@ export const MarkdownAccordion: React.FC<MarkdownAccordionProps> = ({ content })
   // Just render the original markdown content.
   if (sections.length === 0) {
     return (
-        <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground dark:text-slate-300">
+        <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground">
             <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{content}</ReactMarkdown>
         </div>
     );
@@ -102,7 +102,7 @@ export const MarkdownAccordion: React.FC<MarkdownAccordionProps> = ({ content })
   return (
     <div className="text-sm">
       {preamble && (
-          <div className="pb-4 prose prose-sm dark:prose-invert max-w-none text-muted-foreground dark:text-slate-300">
+                      <div className="pb-4 prose prose-sm dark:prose-invert max-w-none text-muted-foreground">
             <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
                 {preamble}
             </ReactMarkdown>
@@ -117,7 +117,7 @@ export const MarkdownAccordion: React.FC<MarkdownAccordionProps> = ({ content })
             </span>
           </CollapsibleTrigger>
           <CollapsibleContent className="pb-4 pt-1 pl-4">
-            <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground dark:text-slate-400">
+            <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground">
                 <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
                     {section.content}
                 </ReactMarkdown>

@@ -150,7 +150,7 @@ const ModelGradesDisplay: React.FC<{ grades: ModelGrades[] }> = ({ grades }) => 
                   <div className="flex items-center space-x-2">
                     <div className={`text-sm font-bold px-2 py-1 rounded ${
                       rank === 1 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' :
-                      rank === 2 ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300' :
+                      rank === 2 ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-foreground' :
                       rank === 3 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300' :
                       'bg-muted text-muted-foreground'
                     }`}>
@@ -398,7 +398,7 @@ export const StructuredSummary: React.FC<StructuredSummaryProps> = ({ insights }
               {section.items.map((item, index) => (
                 <div 
                   key={index}
-                  className="text-muted-foreground dark:text-slate-400 bg-muted/20 dark:bg-slate-800/20 rounded-md p-3 border-l-2 border-border prose prose-sm dark:prose-invert max-w-none"
+                  className="text-muted-foreground bg-muted/20 dark:bg-slate-800/20 rounded-md p-3 border-l-2 border-border prose prose-sm dark:prose-invert max-w-none"
                 >
                   <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
                     {cleanOutModelProviders(item)}

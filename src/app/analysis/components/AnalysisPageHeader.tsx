@@ -346,7 +346,7 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
               )}
               
               <div className="bg-muted/50 dark:bg-slate-900/40 p-4 rounded-lg">
-                <h3 className="text-sm font-semibold text-foreground dark:text-slate-200 mb-3 flex items-center">
+                <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center">
                   <MessageSquare className="w-4 h-4 mr-2 text-primary" />
                   Prompt Content
                 </h3>
@@ -357,7 +357,7 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
 
           {/* General description and config info for both views */}
           {!isInSinglePromptView && hasDescription && (
-            <div className="mt-3 text-sm text-muted-foreground dark:text-slate-400 prose prose-sm dark:prose-invert max-w-none">
+            <div className="mt-3 text-sm text-foreground prose prose-sm dark:prose-invert max-w-none">
               <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
                 {description!}
               </ReactMarkdown>
@@ -365,14 +365,14 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
           )}
 
           {configTitle && pageTitle && !pageTitle.includes(configTitle) && (
-             <p className="text-sm text-muted-foreground dark:text-slate-400 mt-1">
-               Blueprint: <span className="font-medium text-foreground dark:text-slate-300">{configTitle}</span>
+             <p className="text-sm text-muted-foreground mt-1">
+               Blueprint: <span className="font-medium text-foreground">{configTitle}</span>
              </p>
           )}
 
           {tags && tags.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 mt-3">
-              <span className="text-xs font-semibold text-muted-foreground dark:text-slate-400">TAGS:</span>
+            <div className="flex flex-wrap items-center gap-2 mt-3 border-t border-border/60 mt-4 pt-4">
+              <span className="text-xs font-semibold text-muted-foreground">TAGS:</span>
               {tags.map(tag => (
                 <Link href={`/tags/${normalizeTag(tag)}`} key={tag}>
                   <Badge variant="secondary" className="hover:bg-primary/20 transition-colors">{prettifyTag(tag)}</Badge>
@@ -382,7 +382,7 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
           )}
 
           <div className="mt-4 pt-4 border-t border-border/60">
-            <h3 className="text-base font-semibold text-foreground dark:text-slate-200 mb-2 flex items-center">
+            <h3 className="text-base font-semibold text-foreground mb-2 flex items-center">
               <Sparkles className="w-4 h-4 mr-2 text-primary" />
               {isInSinglePromptView ? 'Results for this prompt' : 'Summary of results'}
             </h3>
@@ -403,7 +403,7 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
           <div
             className="w-full lg:flex-1 bg-muted/50 dark:bg-slate-900/40 pb-4 px-4 rounded-lg flex flex-col"
           >
-            <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground dark:text-slate-300">
+            <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground">
               {data.executiveSummary?.isStructured && data.executiveSummary?.structured ? (
                 <StructuredSummary insights={data.executiveSummary.structured} />
               ) : (
