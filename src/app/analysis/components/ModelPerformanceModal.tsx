@@ -13,6 +13,9 @@ import { MobileModelPerformanceAnalysis, PromptPerformance as MobilePromptPerfor
 import PromptContextDisplay from '@/app/analysis/components/PromptContextDisplay';
 import { ConversationMessage } from '@/types/shared';
 import { useAnalysis } from '../context/AnalysisContext';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
+import { getHybridScoreColorClass } from '../utils/colorUtils';
 
 const Quote = dynamic(() => import('lucide-react').then(mod => mod.Quote), { ssr: false });
 const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
@@ -33,6 +36,7 @@ const ModelPerformanceModal: React.FC = () => {
         data,
         modelPerformanceModal,
         closeModelPerformanceModal,
+        analysisStats,
     } = useAnalysis();
     
     const { isOpen, modelId } = modelPerformanceModal;
@@ -48,6 +52,35 @@ const ModelPerformanceModal: React.FC = () => {
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
+    const { modelVariants, initialVariantIndex } = useMemo(() => {
+        if (!isOpen || !modelId || !data) return { modelVariants: [], initialVariantIndex: 0 };
+
+        const clickedParsed = parseEffectiveModelId(modelId);
+        const variants = data.effectiveModels
+            .filter(m => {
+                const p = parseEffectiveModelId(m);
+                return p.baseId === clickedParsed.baseId && p.temperature === clickedParsed.temperature;
+            })
+            .sort((a, b) => {
+                const idxA = parseEffectiveModelId(a).systemPromptIndex ?? 0;
+                const idxB = parseEffectiveModelId(b).systemPromptIndex ?? 0;
+                return idxA - idxB;
+            });
+        
+        return {
+            modelVariants: variants.length > 1 ? variants : [],
+            initialVariantIndex: clickedParsed.systemPromptIndex ?? 0
+        };
+    }, [isOpen, modelId, data]);
+
+    const [selectedVariantIndex, setSelectedVariantIndex] = useState(initialVariantIndex);
+
+    useEffect(() => {
+        setSelectedVariantIndex(initialVariantIndex);
+    }, [initialVariantIndex]);
+
+    const currentVariantModelId = modelVariants.length > 0 ? modelVariants[selectedVariantIndex] : modelId;
+
     const allCoverageScores = data?.evaluationResults?.llmCoverageScores;
     const allFinalAssistantResponses = data?.allFinalAssistantResponses;
     const promptIds = data?.promptIds;
@@ -58,7 +91,7 @@ const ModelPerformanceModal: React.FC = () => {
         setExpandedLogs(prev => ({ ...prev, [index]: !prev[index] }));
     };
     
-    const modelDisplayName = modelId ? getModelDisplayLabel(modelId) : 'N/A';
+    const modelDisplayName = modelId ? getModelDisplayLabel(modelId, { hideSystemPrompt: true, hideTemperature: true }) : 'N/A';
 
     const promptPerformances = useMemo<PromptPerformance[]>(() => {
         if (!promptIds || !allCoverageScores || !allFinalAssistantResponses || !modelId) return [];
@@ -98,11 +131,21 @@ const ModelPerformanceModal: React.FC = () => {
         }
     }, [sortedPrompts, selectedPromptId]);
 
-    const selectedPromptPerformance = selectedPromptId ? promptPerformances.find(p => p.promptId === selectedPromptId) : null;
+    const currentVariantPerformance = useMemo(() => {
+        if (!selectedPromptId || !allCoverageScores || !allFinalAssistantResponses || !currentVariantModelId) return null;
+    
+        const coverageResult = allCoverageScores[selectedPromptId]?.[currentVariantModelId];
+        const response = allFinalAssistantResponses[selectedPromptId]?.[currentVariantModelId];
+        
+        if (!coverageResult || response === undefined) return { error: 'Data not found for this variant.' };
+        
+        return { coverageResult, response };
+    }, [selectedPromptId, allCoverageScores, allFinalAssistantResponses, currentVariantModelId]);
+
     const idealResponse = selectedPromptId && allFinalAssistantResponses ? allFinalAssistantResponses[selectedPromptId]?.[IDEAL_MODEL_ID] : null;
 
     const { effectiveSystemPrompt, conversationContext } = useMemo(() => {
-        if (!selectedPromptId || !config || !data?.promptContexts || !modelId) return { effectiveSystemPrompt: null, conversationContext: null };
+        if (!selectedPromptId || !config || !data?.promptContexts || !currentVariantModelId) return { effectiveSystemPrompt: null, conversationContext: null };
 
         const context = data.promptContexts[selectedPromptId];
         let conversationContextValue: string | ConversationMessage[] | null | undefined = context;
@@ -116,7 +159,7 @@ const ModelPerformanceModal: React.FC = () => {
             if (promptConfig?.system) {
                 effectiveSystemPromptValue = promptConfig.system;
             } else {
-                const parsed = parseEffectiveModelId(modelId);
+                const parsed = parseEffectiveModelId(currentVariantModelId);
                 if (config.systems && typeof parsed.systemPromptIndex === 'number' && config.systems[parsed.systemPromptIndex]) {
                     effectiveSystemPromptValue = config.systems[parsed.systemPromptIndex];
                 } else if (config.systems && typeof parsed.systemPromptIndex === 'number' && config.systems[parsed.systemPromptIndex] === null) {
@@ -125,7 +168,7 @@ const ModelPerformanceModal: React.FC = () => {
             }
         }
         return { effectiveSystemPrompt: effectiveSystemPromptValue, conversationContext: conversationContextValue };
-    }, [selectedPromptId, modelId, config, data?.promptContexts]);
+    }, [selectedPromptId, currentVariantModelId, config, data?.promptContexts]);
 
     const getScoreColor = (rank: 'excellent' | 'good' | 'poor' | 'error') => {
         switch (rank) {
@@ -181,8 +224,38 @@ const ModelPerformanceModal: React.FC = () => {
                     </div>
 
                     <div className="flex-1 flex flex-col min-h-0">
-                        {selectedPromptPerformance && config ? (
+                        {currentVariantPerformance && config ? (
                             <div className="flex-1 flex flex-col min-h-0 p-4 md:p-6 overflow-y-auto custom-scrollbar">
+                                {modelVariants.length > 0 && (
+                                    <div className="mb-4 pb-4 border-b">
+                                        <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">System Prompt Variant</h3>
+                                        <RadioGroup
+                                            value={selectedVariantIndex.toString()}
+                                            onValueChange={(value) => setSelectedVariantIndex(parseInt(value, 10))}
+                                            className="flex flex-wrap gap-4"
+                                        >
+                                            {modelVariants.map((variantId, index) => {
+                                                const parsedVariant = parseEffectiveModelId(variantId);
+                                                const score = analysisStats?.perSystemVariantHybridScores?.[parsedVariant.systemPromptIndex ?? 0];
+                                                return (
+                                                    <div key={variantId} className="flex items-center space-x-2">
+                                                        <RadioGroupItem value={index.toString()} id={`perf-variant-${index}`} />
+                                                        <Label htmlFor={`perf-variant-${index}`} className="text-sm cursor-pointer">
+                                                            <div className="flex items-center gap-2">
+                                                                <span>Variant {parsedVariant.systemPromptIndex ?? index}</span>
+                                                                {score !== null && score !== undefined && (
+                                                                    <span className={`px-1.5 py-0.5 rounded-sm text-xs font-semibold ${getHybridScoreColorClass(score)}`}>
+                                                                        {(score * 100).toFixed(0)}%
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </Label>
+                                                    </div>
+                                                );
+                                            })}
+                                        </RadioGroup>
+                                    </div>
+                                )}
                                 <div className="mb-4 pb-4 border-b">
                                     <div className="mb-4">
                                         <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">The Prompt</h3>
@@ -206,14 +279,14 @@ const ModelPerformanceModal: React.FC = () => {
                                         <PromptContextDisplay promptContext={conversationContext ?? undefined} />
                                     </div>
                                 </div>
-                                {selectedPromptPerformance.coverageResult && !('error' in selectedPromptPerformance.coverageResult) && selectedPromptPerformance.response ? (
-                                    <EvaluationView assessments={selectedPromptPerformance.coverageResult.pointAssessments || []} modelResponse={selectedPromptPerformance.response} idealResponse={idealResponse ?? undefined} expandedLogs={expandedLogs} toggleLogExpansion={toggleLogExpansion}/>
+                                {currentVariantPerformance.coverageResult && !('error' in currentVariantPerformance.coverageResult) && currentVariantPerformance.response ? (
+                                    <EvaluationView assessments={currentVariantPerformance.coverageResult.pointAssessments || []} modelResponse={currentVariantPerformance.response} idealResponse={idealResponse ?? undefined} expandedLogs={expandedLogs} toggleLogExpansion={toggleLogExpansion}/>
                                 ) : (
                                     <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-muted/50 rounded-lg">
                                         <AlertTriangle className="w-12 h-12 text-destructive/80 mb-4" />
                                         <h3 className="text-lg font-semibold text-foreground">Evaluation Not Available</h3>
                                         <p className="text-sm text-muted-foreground max-w-md">There was an error generating the evaluation for this prompt, or the model did not provide a response.</p>
-                                        {selectedPromptPerformance.coverageResult && 'error' in selectedPromptPerformance.coverageResult && (<pre className="mt-4 text-xs bg-destructive/10 text-destructive-foreground p-2 rounded-md whitespace-pre-wrap text-left w-full max-w-lg">{selectedPromptPerformance.coverageResult.error}</pre>)}
+                                        {currentVariantPerformance.coverageResult && 'error' in currentVariantPerformance.coverageResult && (<pre className="mt-4 text-xs bg-destructive/10 text-destructive-foreground p-2 rounded-md whitespace-pre-wrap text-left w-full max-w-lg">{currentVariantPerformance.coverageResult.error}</pre>)}
                                     </div>
                                 )}
                             </div>

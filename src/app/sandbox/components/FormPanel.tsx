@@ -64,8 +64,6 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
 
         if (hasGlobalAdvancedOptions || hasAlternativePaths || hasPromptLevelAdvancedFeatures) {
             setIsAdvancedMode(true);
-        } else {
-            setIsAdvancedMode(false);
         }
     }, [parsedBlueprint]);
 

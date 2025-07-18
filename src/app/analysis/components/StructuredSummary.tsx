@@ -8,6 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { StructuredInsights, ModelGrades } from '@/types/shared';
 import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import { GRADING_DIMENSIONS, getGradingDimension } from '@/lib/grading-criteria';
+import { addLinksToModelNames } from '@/app/utils/modelLinkification';
+import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
 import dynamic from 'next/dynamic';
 
 const ChevronRight = dynamic(() => import('lucide-react').then(mod => mod.ChevronRight), { ssr: false });
@@ -300,7 +302,22 @@ const ModelGradesDisplay: React.FC<{ grades: ModelGrades[] }> = ({ grades }) => 
 };
 
 export const StructuredSummary: React.FC<StructuredSummaryProps> = ({ insights }) => {
+  const { data, openModelPerformanceModal } = useAnalysis();
   const [openSections, setOpenSections] = useState<Set<string>>(new Set());
+
+  const handleContentClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'A') {
+      const anchor = target as HTMLAnchorElement;
+      const href = anchor.getAttribute('href');
+      if (href && href.startsWith('#model-perf:')) {
+        e.preventDefault();
+        const encodedModelId = href.substring('#model-perf:'.length);
+        const modelId = decodeURIComponent(encodedModelId);
+        openModelPerformanceModal(modelId);
+      }
+    }
+  };
 
   const sections: SummarySection[] = [
     {
@@ -373,42 +390,50 @@ export const StructuredSummary: React.FC<StructuredSummaryProps> = ({ insights }
   }
 
   return (
-    <div className="text-sm space-y-1">
-      {validSections.map((section) => (
-        <Collapsible 
-          key={section.id} 
-          open={openSections.has(section.id)} 
-          onOpenChange={() => toggleSection(section.id)}
-          className="border-t border-border/60 first:border-t-0"
-        >
-          <CollapsibleTrigger className="flex items-center w-full text-left py-3 group -mx-3 px-3 hover:bg-muted/50 rounded-md">
-            <ChevronRight className={`w-4 h-4 mr-2 flex-shrink-0 transform transition-transform text-muted-foreground group-hover:text-primary ${openSections.has(section.id) ? 'rotate-90' : ''}`} />
-            <div className={`mr-2 ${section.color}`}>
-              {section.icon}
-            </div>
-            <span className="flex-1 font-semibold group-hover:text-primary text-base">
-              {section.title}
-            </span>
-            <Badge variant="secondary" className="ml-2 text-xs">
-              {section.items.length}
-            </Badge>
-          </CollapsibleTrigger>
-          <CollapsibleContent className="pb-4 pt-1 pl-4">
-            <div className="space-y-3">
-              {section.items.map((item, index) => (
-                <div 
-                  key={index}
-                  className="text-muted-foreground bg-muted/20 dark:bg-slate-800/20 rounded-md p-3 border-l-2 border-border prose prose-sm dark:prose-invert max-w-none"
-                >
-                  <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
-                    {cleanOutModelProviders(item)}
-                  </ReactMarkdown>
-                </div>
-              ))}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      ))}
+    <div className="text-sm space-y-1" onClick={handleContentClick}>
+      {validSections.map((section) => {
+        const processedItems = section.items.map(item => {
+          const cleaned = cleanOutModelProviders(item);
+          if (!data) return cleaned;
+          return addLinksToModelNames(cleaned, data.effectiveModels, data.config);
+        });
+
+        return (
+          <Collapsible 
+            key={section.id} 
+            open={openSections.has(section.id)} 
+            onOpenChange={() => toggleSection(section.id)}
+            className="border-t border-border/60 first:border-t-0"
+          >
+            <CollapsibleTrigger className="flex items-center w-full text-left py-3 group -mx-3 px-3 hover:bg-muted/50 rounded-md">
+              <ChevronRight className={`w-4 h-4 mr-2 flex-shrink-0 transform transition-transform text-muted-foreground group-hover:text-primary ${openSections.has(section.id) ? 'rotate-90' : ''}`} />
+              <div className={`mr-2 ${section.color}`}>
+                {section.icon}
+              </div>
+              <span className="flex-1 font-semibold group-hover:text-primary text-base">
+                {section.title}
+              </span>
+              <Badge variant="secondary" className="ml-2 text-xs">
+                {section.items.length}
+              </Badge>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pb-4 pt-1 pl-4">
+              <div className="space-y-3">
+                {processedItems.map((item, index) => (
+                  <div 
+                    key={index}
+                    className="text-muted-foreground bg-muted/20 dark:bg-slate-800/20 rounded-md p-3 border-l-2 border-border prose prose-sm dark:prose-invert max-w-none"
+                  >
+                    <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
+                      {item}
+                    </ReactMarkdown>
+                  </div>
+                ))}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        );
+      })}
 
       {hasGrades && (
         <Collapsible 

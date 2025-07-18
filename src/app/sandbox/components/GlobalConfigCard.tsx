@@ -9,6 +9,22 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import dynamic from 'next/dynamic';
 import { produce } from 'immer';
 import React from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 // import { ModelSelector } from './ModelSelector'; // To be created
 
 const AlertTriangle = dynamic(() => import('lucide-react').then(mod => mod.AlertTriangle));
@@ -24,6 +40,7 @@ interface GlobalConfigCardProps {
 }
 
 export function GlobalConfigCard({ blueprint, onUpdate, isEditable, isAdvancedMode }: GlobalConfigCardProps) {
+  const [isConfirmingSwitch, setIsConfirmingSwitch] = React.useState(false);
 
   // Handle the case where 'system' is provided as an array (should be normalized to 'systems')
   React.useEffect(() => {
@@ -59,10 +76,9 @@ export function GlobalConfigCard({ blueprint, onUpdate, isEditable, isAdvancedMo
   const handleSingleSystemChange = (value: string) => {
     const nextBlueprint = produce(blueprint, draft => {
       draft.system = value || undefined;
-      // Clear systems array if we're using single system
-      if (value) {
-        draft.systems = undefined;
-      }
+      // Clear systems array if we're using single system.
+      // This should always happen when this function is called.
+      draft.systems = undefined;
     });
     onUpdate(nextBlueprint);
   };
@@ -95,8 +111,21 @@ export function GlobalConfigCard({ blueprint, onUpdate, isEditable, isAdvancedMo
   };
 
   const switchToSingleSystemPrompt = () => {
+    // A populated prompt is one that is not null and not just whitespace
+    const populatedPrompts = blueprint.systems?.filter(s => s && s.trim() !== '').length || 0;
+
+    if (populatedPrompts > 1) {
+      setIsConfirmingSwitch(true);
+    } else {
+      const firstSystem = blueprint.systems?.[0];
+      handleSingleSystemChange(firstSystem || '');
+    }
+  };
+
+  const confirmSwitchToSingle = () => {
     const firstSystem = blueprint.systems?.[0];
     handleSingleSystemChange(firstSystem || '');
+    setIsConfirmingSwitch(false);
   };
 
   const isUsingMultipleSystems = blueprint.systems && blueprint.systems.length > 0;
@@ -184,15 +213,28 @@ export function GlobalConfigCard({ blueprint, onUpdate, isEditable, isAdvancedMo
                                                 Variant {index + 1}
                                             </label>
                                             {isEditable && blueprint.systems && blueprint.systems.length > 1 && (
-                                                <Button
-                                                    type="button"
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => removeSystemPrompt(index)}
-                                                    className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                >
-                                                    <Trash2 className="h-3 w-3" />
-                                                </Button>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                        >
+                                                            <Trash2 className="h-3 w-3" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent>
+                                                        <DropdownMenuLabel>Are you sure?</DropdownMenuLabel>
+                                                        <DropdownMenuSeparator />
+                                                        <DropdownMenuItem
+                                                            onClick={() => removeSystemPrompt(index)}
+                                                            className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                                        >
+                                                            Delete Variant
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
                                             )}
                                         </div>
                                         <AutoExpandTextarea
@@ -258,6 +300,22 @@ export function GlobalConfigCard({ blueprint, onUpdate, isEditable, isAdvancedMo
                 </Alert>
             )}
         </div>
+        <Dialog open={isConfirmingSwitch} onOpenChange={setIsConfirmingSwitch}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Switch to a single system prompt?</DialogTitle>
+                    <DialogDescription>
+                        You have multiple populated system prompt variants. Switching to a single prompt will discard all but the first one. This action cannot be undone.
+                    </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                    <Button variant="ghost" onClick={() => setIsConfirmingSwitch(false)}>Cancel</Button>
+                    <Button variant="destructive" onClick={confirmSwitchToSingle}>
+                        Confirm and Discard
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     </Card>
   );
 } 
