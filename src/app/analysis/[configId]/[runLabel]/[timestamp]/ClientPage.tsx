@@ -12,7 +12,7 @@ import {
     IDEAL_MODEL_ID,
 } from '@/app/utils/calculationUtils';
 import DownloadResultsButton from '@/app/analysis/components/DownloadResultsButton';
-import ModelEvaluationDetailModal from '@/app/analysis/components/ModelEvaluationDetailModal';
+import SpecificEvaluationModal from '@/app/analysis/components/SpecificEvaluationModal';
 import DebugPanel from '@/app/analysis/components/DebugPanel';
 import CoverageHeatmapCanvas from '@/app/analysis/components/CoverageHeatmapCanvas';
 import { getBlueprintPathFromId } from '@/app/utils/blueprintIdUtils';
@@ -26,7 +26,7 @@ import AnalysisPageHeader from '@/app/analysis/components/AnalysisPageHeader';
 import { fromSafeTimestamp, formatTimestampForDisplay } from '@/lib/timestampUtils';
 import ModelPerformanceModal from '@/app/analysis/components/ModelPerformanceModal';
 import { PromptSelector } from '@/app/analysis/components/PromptSelector';
-import PromptDetailModal from '@/app/analysis/components/PromptDetailModal';
+import PromptPerformanceModal from '@/app/analysis/components/PromptPerformanceModal';
 
 const FlaskConical = dynamic(() => import('lucide-react').then(mod => mod.FlaskConical));
 const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.AlertCircle))
@@ -212,9 +212,9 @@ export const ClientPage: React.FC = () => {
             />
 
 
-            <ModelEvaluationDetailModal />
+            <SpecificEvaluationModal />
             <ModelPerformanceModal />
-            <PromptDetailModal />
+            <PromptPerformanceModal />
         </div>
     )
 } 

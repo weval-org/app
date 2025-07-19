@@ -13,7 +13,7 @@ const Quote = dynamic(() => import('lucide-react').then(mod => mod.Quote), { ssr
 const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
 const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
 
-const PromptDetailModal: React.FC = () => {
+const PromptPerformanceModal: React.FC = () => {
     const {
         data,
         promptDetailModal,
@@ -65,7 +65,7 @@ const PromptDetailModal: React.FC = () => {
             <DialogContent className="w-[95vw] max-w-[95vw] h-[95vh] flex flex-col p-0">
                 <DialogHeader className="p-4 md:p-6 border-b flex-shrink-0">
                     <DialogTitle className="text-xl font-semibold text-foreground">
-                        Prompt Details
+                        Prompt Performance Analysis
                     </DialogTitle>
                 </DialogHeader>
 
@@ -111,4 +111,4 @@ const PromptDetailModal: React.FC = () => {
     );
 };
 
-export default PromptDetailModal; 
+export default PromptPerformanceModal; 

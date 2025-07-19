@@ -288,26 +288,26 @@ export const EvaluationView: React.FC<{
         <>
             {categorized.criticalFailures.length > 0 && (
                 <div>
-                    <h4 className="font-bold text-base text-red-600 dark:text-red-500 flex items-center mb-2" title="A critical failure occurs when the model does something it was explicitly told not to do.">
+                    <h4 className="font-bold text-base text-red-600 dark:text-red-500 flex items-center mb-4" title="A critical failure occurs when the model does something it was explicitly told not to do.">
                         <ThumbsDown className="h-5 w-5 mr-2" /> Critical Failures ({categorized.criticalFailures.length})
                     </h4>
-                    <div className="space-y-3">{renderAssessmentList(categorized.criticalFailures)}</div>
+                    <div className="space-y-3 my-4">{renderAssessmentList(categorized.criticalFailures)}</div>
                 </div>
             )}
             {categorized.majorGaps.length > 0 && (
                  <div>
-                    <h4 className="font-bold text-base text-orange-600 dark:text-orange-500 flex items-center mb-2" title="A major gap occurs when the model fails to include a key positive requirement.">
+                    <h4 className="font-bold text-base text-orange-600 dark:text-orange-500 flex items-center mb-4" title="A major gap occurs when the model fails to include a key positive requirement.">
                         <AlertTriangle className="h-5 w-5 mr-2" /> Major Gaps ({categorized.majorGaps.length})
                     </h4>
-                    <div className="space-y-3">{renderAssessmentList(categorized.majorGaps)}</div>
+                    <div className="space-y-3 my-4">{renderAssessmentList(categorized.majorGaps)}</div>
                 </div>
             )}
             {categorized.passed.length > 0 && (
                 <div>
-                    <h4 className="font-bold text-base text-green-600 dark:text-green-500 flex items-center mb-2">
+                    <h4 className="font-bold text-base text-green-600 dark:text-green-500 flex items-center">
                         <CheckCircle className="h-5 w-5 mr-2" /> Passed Criteria ({categorized.passed.length})
                     </h4>
-                    <div className="space-y-3">{renderAssessmentList(categorized.passed)}</div>
+                    <div className="space-y-3 my-4">{renderAssessmentList(categorized.passed)}</div>
                 </div>
             )}
         </>
@@ -372,7 +372,7 @@ export const EvaluationView: React.FC<{
 
     // Desktop: Side-by-side layout with response and criteria
     return (
-        <div className="flex flex-1 flex-col gap-4 text-sm lg:flex-row lg:gap-x-4 min-h-0 px-4 md:px-6 py-4">
+        <div className="flex flex-1 flex-col gap-4 text-sm lg:flex-row lg:gap-x-4 min-h-0">
             {/* Left Panel: Model Response */}
             <div className="flex flex-1 flex-col rounded-lg border border-border/50 bg-muted/20 p-3 lg:w-2/5 min-h-0">
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 min-h-0 flex flex-col">
@@ -399,9 +399,6 @@ export const EvaluationView: React.FC<{
 
             {/* Right Panel: Criteria Evaluation */}
             <div className="flex flex-1 flex-col rounded-lg border border-border/50 bg-muted/20 p-3 lg:w-3/5 min-h-0">
-                <h3 className="flex-shrink-0 mb-1.5 border-b border-border/30 pb-1 font-semibold text-muted-foreground">
-                    Criteria Evaluation ({assessments.length})
-                </h3>
                 <div className="custom-scrollbar min-h-0 flex-grow space-y-3 overflow-y-auto pr-2 pt-2">
                     {(requiredPoints.criticalFailures.length > 0 || requiredPoints.majorGaps.length > 0 || requiredPoints.passed.length > 0) && (
                         <div className="mb-4">

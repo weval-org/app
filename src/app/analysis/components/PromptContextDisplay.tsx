@@ -40,7 +40,7 @@ const PromptContextDisplay: React.FC<PromptContextDisplayProps> = ({ promptConte
     }
     if (Array.isArray(promptContext) && promptContext.length > 0) {
       return (
-        <div className="space-y-4 mt-2 max-h-48 overflow-y-auto custom-scrollbar pr-2">
+        <div className="space-y-4 mt-2 overflow-y-auto custom-scrollbar pr-2">
           {promptContext.map((msg, index) => (
             <div key={index} className="flex items-start gap-3">
                 <div className={cn(

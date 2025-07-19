@@ -9,8 +9,8 @@ import { AggregateAnalysisView } from '@/app/analysis/components/AggregateAnalys
 import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
 import AnalysisPageHeader from '@/app/analysis/components/AnalysisPageHeader';
 import ModelPerformanceModal from '@/app/analysis/components/ModelPerformanceModal';
-import PromptDetailModal from '@/app/analysis/components/PromptDetailModal';
-import ModelEvaluationDetailModal from '@/app/analysis/components/ModelEvaluationDetailModal';
+import PromptPerformanceModal from '@/app/analysis/components/PromptPerformanceModal';
+import SpecificEvaluationModal from '@/app/analysis/components/SpecificEvaluationModal';
 import CoverageHeatmapCanvas from '@/app/analysis/components/CoverageHeatmapCanvas';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 
@@ -117,8 +117,8 @@ export const SandboxClientPage: React.FC = () => {
             </div>
 
             <ModelPerformanceModal />
-            <PromptDetailModal />
-            <ModelEvaluationDetailModal />
+            <PromptPerformanceModal />
+            <SpecificEvaluationModal />
         </div>
     );
 }; 

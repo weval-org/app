@@ -20,7 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { ComparisonDataV2 as ImportedComparisonDataV2, PointAssessment } from '@/app/utils/types';
 import { useAnalysis } from '../context/AnalysisContext';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
-import PromptDetailModal from '@/app/analysis/components/PromptDetailModal';
+import PromptPerformanceModal from '@/app/analysis/components/PromptPerformanceModal';
 
 const UsersIcon = dynamic(() => import("lucide-react").then((mod) => mod.Users), { ssr: false });
 const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.AlertCircle), { ssr: false });
@@ -82,7 +82,7 @@ const ModelHeaderCell: React.FC<ModelHeaderCellProps> = ({
         const fullDisplayLabel = getModelDisplayLabel(parsed);
 
         // Use simple horizontal headers for 3 or fewer models
-        if (totalModelCount <= 3) {
+        if (totalModelCount <= 5) {
             return (
                 <th
                     key={modelId}
@@ -1038,7 +1038,7 @@ const MacroCoverageTable: React.FC = () => {
                 </DialogContent>
             </Dialog>
 
-            <PromptDetailModal />
+            <PromptPerformanceModal />
         </div>
     );
 };

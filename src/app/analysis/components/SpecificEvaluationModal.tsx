@@ -2,17 +2,17 @@
 
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelIdUtils';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import PromptContextDisplay from './PromptContextDisplay';
 import { EvaluationView } from './SharedEvaluationComponents';
 import { getHybridScoreColorClass } from '@/app/analysis/utils/colorUtils';
 import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { CoverageResult } from '@/app/utils/types';
+import PromptInfo from './PromptInfo';
 
 const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
 const Quote = dynamic(() => import('lucide-react').then(mod => mod.Quote), { ssr: false });
@@ -25,7 +25,7 @@ interface ModelEvaluationVariant {
     systemPrompt: string | null;
 }
 
-const ModelEvaluationDetailModal: React.FC = () => {
+const SpecificEvaluationModal: React.FC = () => {
     const {
         data,
         modelEvaluationModal,
@@ -165,7 +165,6 @@ const ModelEvaluationDetailModal: React.FC = () => {
                 <DialogContent>
                     <DialogHeader><DialogTitle>Error</DialogTitle></DialogHeader>
                     <p>Could not find evaluation data for the selected variant.</p>
-                    <DialogFooter><Button onClick={closeModelEvaluationDetailModal} variant="outline">Close</Button></DialogFooter>
                 </DialogContent>
             </Dialog>
         );
@@ -176,7 +175,7 @@ const ModelEvaluationDetailModal: React.FC = () => {
         return (
             <Dialog open={isOpen} onOpenChange={closeModelEvaluationDetailModal}>
                 <DialogContent className="w-[100vw] h-[100vh] max-w-none p-0 m-0 rounded-none border-0 bg-background flex flex-col overflow-hidden">
-                    <DialogTitle className="sr-only">Model Evaluation Details - Mobile View</DialogTitle>
+                    <DialogTitle className="sr-only">Specific Evaluation Details - Mobile View</DialogTitle>
                     
                     <div className="h-full flex flex-col min-h-0">
                         <div className="flex items-center gap-3 p-4 border-b bg-card flex-shrink-0">
@@ -221,7 +220,15 @@ const ModelEvaluationDetailModal: React.FC = () => {
                             </div>
                         )}
 
-                        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4">
+                        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 space-y-4">
+                            <PromptInfo
+                                description={modalData.promptDescription}
+                                citation={modalData.promptCitation}
+                                promptContext={modalData.promptContext}
+                                systemPrompt={currentVariant.systemPrompt}
+                                variantIndex={selectedVariantIndex}
+                            />
+                            
                             <EvaluationView 
                                 assessments={currentVariant.assessments}
                                 modelResponse={currentVariant.modelResponse}
@@ -241,35 +248,16 @@ const ModelEvaluationDetailModal: React.FC = () => {
     return (
         <Dialog open={isOpen} onOpenChange={closeModelEvaluationDetailModal}>
             <DialogContent className="w-[95vw] max-w-[95vw] h-[95vh] flex flex-col p-0 overflow-hidden">
-                <DialogHeader className="p-4 md:p-6 pb-3 border-b border-border">
-                    <DialogTitle className="text-xl font-semibold text-foreground">
-                        Evaluation for: <span className="text-primary">{displayModelName}</span>
+                <DialogHeader className="p-4 md:p-6 pb-3 border-b border-border flex-shrink-0">
+                    <DialogTitle className="text-xl font-semibold text-foreground truncate pr-24">
+                        <code>{displayModelName}</code> on {modalData.promptDescription ? `"${modalData.promptDescription}"` : `Prompt ${promptId}`}
                     </DialogTitle>
-                    <div className="text-sm text-muted-foreground max-h-32 overflow-y-auto custom-scrollbar pr-2 space-y-2">
-                        {modalData.promptDescription && (
-                            <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground border-l-4 border-primary/20 pl-4 py-1 text-xs">
-                                <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{modalData.promptDescription}</ReactMarkdown>
-                            </div>
-                        )}
-                        
-                        {modalData.promptCitation && (
-                            <div className="flex items-start space-x-1.5 text-xs text-muted-foreground/90 italic border-l-2 border-border pl-3 py-2">
-                                <Quote className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                                <span>Source: {modalData.promptCitation}</span>
-                            </div>
-                        )}
-                        
-                        <div>
-                            <p className="font-semibold text-xs uppercase tracking-wider text-muted-foreground/80">Prompt:</p>
-                            <PromptContextDisplay promptContext={modalData.promptContext} />
-                        </div>
-                    </div>
                 </DialogHeader>
 
                 <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                     {/* System Prompt Variant Selection (Desktop) */}
                     {hasMultipleVariants && (
-                        <div className="px-4 md:px-6 py-4 border-b bg-muted/30">
+                        <div className="px-4 md:px-6 py-4 border-b bg-muted/30 flex-shrink-0">
                             <div className="space-y-3">
                                 <p className="text-sm font-semibold text-foreground">System Prompt Variant:</p>
                                 <RadioGroup
@@ -300,35 +288,30 @@ const ModelEvaluationDetailModal: React.FC = () => {
                         </div>
                     )}
                     
-                    <div className="px-4 md:px-6 pt-4 pb-2 space-y-3">
-                        {currentVariant.systemPrompt ? (
-                            <div className="p-2 rounded-md bg-sky-100/50 dark:bg-sky-900/30 text-xs text-sky-800 dark:text-sky-200 ring-1 ring-sky-200 dark:ring-sky-800">
-                                <p className="font-semibold text-sky-900 dark:text-sky-300">System Prompt (for Variant {selectedVariantIndex}):</p>
-                                <p className="whitespace-pre-wrap font-mono">{currentVariant.systemPrompt}</p>
-                            </div>
-                        ) : (
-                            <div className="p-2 rounded-md bg-slate-100/50 dark:bg-slate-900/30 text-xs text-slate-500 dark:text-slate-400 ring-1 ring-slate-200 dark:ring-slate-800">
-                                <p className="italic">[No System Prompt was used for this variant]</p>
-                            </div>
-                        )}
+                    <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+                        <div className="p-4 md:p-6 space-y-6">
+                            <PromptInfo
+                                description={modalData.promptDescription}
+                                citation={modalData.promptCitation}
+                                promptContext={modalData.promptContext}
+                                systemPrompt={currentVariant.systemPrompt}
+                                variantIndex={selectedVariantIndex}
+                            />
+                            
+                            <EvaluationView 
+                                assessments={currentVariant.assessments}
+                                modelResponse={currentVariant.modelResponse}
+                                idealResponse={modalData.idealResponse}
+                                expandedLogs={expandedLogs}
+                                toggleLogExpansion={toggleLogExpansion}
+                                isMobile={false}
+                            />
+                        </div>
                     </div>
-
-                    <EvaluationView 
-                        assessments={currentVariant.assessments}
-                        modelResponse={currentVariant.modelResponse}
-                        idealResponse={modalData.idealResponse}
-                        expandedLogs={expandedLogs}
-                        toggleLogExpansion={toggleLogExpansion}
-                        isMobile={false}
-                    />
                 </div>
-
-                <DialogFooter className="p-4 border-t border-border bg-muted/30 dark:bg-slate-900/50">
-                    <Button onClick={closeModelEvaluationDetailModal} variant="outline">Close</Button>
-                </DialogFooter>
             </DialogContent>
         </Dialog>
     );
 };
 
-export default ModelEvaluationDetailModal; 
+export default SpecificEvaluationModal; 
