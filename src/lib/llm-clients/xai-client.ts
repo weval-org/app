@@ -1,5 +1,4 @@
 import { LLMApiCallOptions, LLMApiCallResult, StreamChunk } from './types';
-import crypto from 'crypto';
 
 const XAI_API_BASE_URL = 'https://api.x.ai/v1';
 

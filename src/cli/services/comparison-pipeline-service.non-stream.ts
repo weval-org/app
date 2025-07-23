@@ -24,7 +24,10 @@ export async function generateAllResponses(
     const temperaturesToRun = (config.temperatures?.length) ? config.temperatures : [config.temperature];
     const systemPromptsToRun = (config.systems?.length) ? config.systems : [config.system];
 
-    const totalResponsesToGenerate = config.prompts.length * config.models.length * temperaturesToRun.length * systemPromptsToRun.length;
+    // Convert models to string IDs for processing
+    const modelIds = config.models.map(m => typeof m === 'string' ? m : m.id);
+
+    const totalResponsesToGenerate = config.prompts.length * modelIds.length * temperaturesToRun.length * systemPromptsToRun.length;
     logger.info(`[PipelineService] Preparing to generate ${totalResponsesToGenerate} responses across ${temperaturesToRun.length} temperature(s) and ${systemPromptsToRun.length} system prompt(s).`);
 
     config.prompts.forEach(promptConfig => {
@@ -41,7 +44,7 @@ export async function generateAllResponses(
         };
         allResponsesMap.set(promptConfig.id, currentPromptData);
 
-        config.models.forEach(modelString => {
+        modelIds.forEach(modelId => {
             temperaturesToRun.forEach(tempValue => {
                 systemPromptsToRun.forEach((systemPromptValue, sp_idx) => {
                     tasks.push(limit(async () => {
@@ -50,8 +53,8 @@ export async function generateAllResponses(
                             : (promptConfig.system !== undefined ? promptConfig.system : config.system);
 
                         const temperatureForThisCall = tempValue ?? promptConfig.temperature ?? config.temperature ?? DEFAULT_TEMPERATURE;
-    
-                        let finalEffectiveId = modelString;
+     
+                        let finalEffectiveId = modelId;
                         if (temperatureForThisCall !== undefined) {
                             finalEffectiveId = `${finalEffectiveId}[temp:${temperatureForThisCall.toFixed(1)}]`;
                         }
@@ -59,12 +62,15 @@ export async function generateAllResponses(
                             finalEffectiveId = `${finalEffectiveId}[sp_idx:${sp_idx}]`;
                         }
                         
-                        let finalAssistantResponseText = '';
-                        let fullConversationHistoryWithResponse: ConversationMessage[] = [];
-                        let hasError = false;
-                        let errorMessage: string | undefined;
+                        logger.info(`[PipelineService] Processing prompt '${promptConfig.id}' with model '${modelId}' (effective: '${finalEffectiveId}'), temperature: ${tempValue}, system prompt index: ${sp_idx}.`);
 
+                        // Rest of the processing logic uses modelId instead of modelString
                         const messagesForLlm: ConversationMessage[] = [...promptConfig.messages!];
+
+                        let finalAssistantResponseText = '';
+                        let errorMessage: string | undefined;
+                        let hasError = false;
+                        let fullConversationHistoryWithResponse: ConversationMessage[] = [];
 
                         if (systemPromptToUse && !messagesForLlm.find(m => m.role === 'system')) {
                             messagesForLlm.unshift({ role: 'system', content: systemPromptToUse });
@@ -72,7 +78,7 @@ export async function generateAllResponses(
 
                         try {
                             finalAssistantResponseText = await getModelResponse({
-                                modelId: modelString,
+                                modelId: modelId,
                                 messages: messagesForLlm,
                                 temperature: temperatureForThisCall,
                                 useCache: useCache

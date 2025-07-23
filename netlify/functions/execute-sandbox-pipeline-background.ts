@@ -12,6 +12,8 @@ import { generateExecutiveSummary } from '@/cli/services/executive-summary-servi
 import { ConversationMessage } from '@/types/shared';
 import { normalizeTag } from '@/app/utils/tagUtils';
 import { configure } from '@/cli/config';
+import { CustomModelDefinition } from '@/lib/llm-clients/types';
+import { registerCustomModels } from '@/lib/llm-clients/client-dispatcher';
 
 const s3Client = new S3Client({
   region: process.env.APP_S3_REGION!,
@@ -89,6 +91,14 @@ export const handler: BackgroundHandler = async (event) => {
     );
     const config = parseAndNormalizeBlueprint(blueprintContent, 'yaml');
 
+    // --- Custom Model Registration ---
+    const customModelDefs = config.models?.filter(m => typeof m === 'object') as CustomModelDefinition[] || [];
+    if (customModelDefs.length > 0) {
+        registerCustomModels(customModelDefs);
+        logger.info(`Registered ${customModelDefs.length} custom model definitions.`);
+    }
+    // --- End Custom Model Registration ---
+
     // --- Sanitize System Prompts (mirroring run-config logic) ---
     // If 'system' is an array, treat it as the 'systems' permutation array.
     if (Array.isArray(config.system)) {
@@ -100,16 +110,6 @@ export const handler: BackgroundHandler = async (event) => {
         }
         // Unset 'system' to avoid conflicts.
         config.system = undefined;
-    }
-    // In the sandbox, we don't permute over system prompts in the same way.
-    // We will just use the first valid one if multiple are provided.
-    // For now, if `systems` exists, let's just pick the first non-null one for simplicity.
-    if (Array.isArray(config.systems) && config.systems.length > 0) {
-        const firstValidSystem = config.systems.find(s => s !== null);
-        config.system = firstValidSystem; // This could be a string or undefined
-        logger.info(`Sandbox mode: Found 'systems' array. Using first valid entry as the main system prompt.`);
-        // Clear the systems array so it's not used for permutation by generateAllResponses
-        config.systems = undefined; 
     }
     // --- End Sanitize System Prompts ---
 

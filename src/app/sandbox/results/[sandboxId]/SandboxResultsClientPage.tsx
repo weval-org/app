@@ -97,7 +97,7 @@ export const SandboxClientPage: React.FC = () => {
                 <AlertDescription className="text-sm">
                     <p>This is a temporary result page for your test run. These results will be automatically deleted after one week.</p>
                     <Button asChild variant="link" className="p-0 h-auto mt-2 text-primary font-semibold text-sm">
-                        <Link href="/sandbox-refactor">
+                        <Link href="/sandbox">
                             <ArrowLeft className="w-4 h-4 mr-2" />
                             Return to Sandbox Studio
                         </Link>
@@ -109,7 +109,7 @@ export const SandboxClientPage: React.FC = () => {
 
             <div className="mt-12 text-center border-t border-border pt-8">
                 <Button asChild size="lg">
-                    <Link href="/sandbox-refactor">
+                    <Link href="/sandbox">
                         <ArrowLeft className="w-4 h-4 mr-2" />
                         Return to Sandbox Studio
                     </Link>

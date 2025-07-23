@@ -43,6 +43,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ConfirmRunModal } from './ConfirmRunModal';
 
 const Loader2 = dynamic(() => import('lucide-react').then(mod => mod.Loader2), { ssr: false });
 const Save = dynamic(() => import('lucide-react').then(mod => mod.Save), { ssr: false });
@@ -112,6 +113,8 @@ function SandboxClientPageInternal() {
     const [isRunsSidebarOpen, setIsRunsSidebarOpen] = useState(false);
     const [isRunModalOpen, setIsRunModalOpen] = useState(false);
     const [isRunConfigModalOpen, setIsRunConfigModalOpen] = useState(false);
+    const [isConfirmRunModalOpen, setIsConfirmRunModalOpen] = useState(false);
+    const [modelsToConfirm, setModelsToConfirm] = useState<string[]>([]);
     const [isAnonymousRunModalOpen, setIsAnonymousRunModalOpen] = useState(false);
     const [isAutoCreateModalOpen, setIsAutoCreateModalOpen] = useState(false);
     const [isModalSubmitting, setIsModalSubmitting] = useState(false);
@@ -131,6 +134,7 @@ function SandboxClientPageInternal() {
     const [isLoggingInWithGitHub, setIsLoggingInWithGitHub] = useState(false);
     const { toast } = useToast();
     const { isMobile, isLoaded } = useMobile();
+    const isDev = process.env.NODE_ENV === 'development';
 
     // Mobile navigation state
     const [mobileActiveTab, setMobileActiveTab] = useState<'files' | 'edit' | 'run'>('edit');
@@ -438,6 +442,15 @@ function SandboxClientPageInternal() {
     };
 
     const handleRunRequest = () => {
+        if (isDev && parsedBlueprint?.models && parsedBlueprint.models.length > 0) {
+            const modelIds = parsedBlueprint.models.map(m => (typeof m === 'string' ? m : m.id));
+            if (modelIds.length > 0) {
+                setModelsToConfirm(modelIds);
+                setIsConfirmRunModalOpen(true);
+                return;
+            }
+        }
+
         if (user?.isLoggedIn) {
             setIsRunConfigModalOpen(true);
         } else {
@@ -448,6 +461,11 @@ function SandboxClientPageInternal() {
     const handleRunConfirm = (selectedModels: string[]) => {
         runEvaluation(selectedModels);
     };
+
+    const handleDevRunConfirm = () => {
+        runEvaluation(modelsToConfirm);
+        setIsConfirmRunModalOpen(false);
+    }
 
     const handleAnonymousRunConfirm = () => {
         runEvaluation();
@@ -1066,6 +1084,13 @@ function SandboxClientPageInternal() {
                     {...inputModalConfig}
                 />
             )}
+            <ConfirmRunModal
+                isOpen={isConfirmRunModalOpen}
+                onClose={() => setIsConfirmRunModalOpen(false)}
+                onConfirm={handleDevRunConfirm}
+                models={modelsToConfirm}
+                isSubmitting={isRunning}
+            />
             <RunEvaluationModal
                 isOpen={isRunConfigModalOpen}
                 onClose={() => setIsRunConfigModalOpen(false)}

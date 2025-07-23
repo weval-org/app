@@ -29,7 +29,7 @@ export function parseEffectiveModelId(effectiveModelId: string): ParsedModelId {
   // Match and remove suffixes regardless of their order.
 
   // Temperature
-  const tempRegex = /\[temp:(\d+(?:\.\d+)?)\]/;
+  const tempRegex = /\[temp:(\d+\.?\d*)\]/;
   const tempMatch = remainingId.match(tempRegex);
   if (tempMatch) {
     temperature = parseFloat(tempMatch[1]);

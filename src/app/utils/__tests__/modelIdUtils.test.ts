@@ -1,6 +1,59 @@
 import { getModelDisplayLabel, parseEffectiveModelId, IDEAL_MODEL_ID_BASE } from '../modelIdUtils';
 
 describe('modelIdUtils', () => {
+  describe('parseEffectiveModelId', () => {
+    it('should parse a simple model ID', () => {
+      const modelId = 'openai:gpt-4';
+      const parsed = parseEffectiveModelId(modelId);
+      expect(parsed.baseId).toBe('openai:gpt-4');
+      expect(parsed.temperature).toBeUndefined();
+      expect(parsed.systemPromptIndex).toBeUndefined();
+      expect(parsed.fullId).toBe(modelId);
+    });
+
+    it('should parse temperature correctly', () => {
+      const modelId = 'openai:gpt-4[temp:0.7]';
+      const parsed = parseEffectiveModelId(modelId);
+      expect(parsed.baseId).toBe('openai:gpt-4');
+      expect(parsed.temperature).toBe(0.7);
+    });
+
+    it('should parse multi-digit float temperature correctly', () => {
+      const modelId = 'openai:gpt-4[temp:0.72]';
+      const parsed = parseEffectiveModelId(modelId);
+      expect(parsed.baseId).toBe('openai:gpt-4');
+      expect(parsed.temperature).toBe(0.72);
+    });
+
+    it('should parse integer temperature correctly', () => {
+      const modelId = 'openai:gpt-4[temp:0]';
+      const parsed = parseEffectiveModelId(modelId);
+      expect(parsed.baseId).toBe('openai:gpt-4');
+      expect(parsed.temperature).toBe(0);
+    });
+
+    it('should parse system prompt index correctly', () => {
+      const modelId = 'openai:gpt-4[sp_idx:2]';
+      const parsed = parseEffectiveModelId(modelId);
+      expect(parsed.baseId).toBe('openai:gpt-4');
+      expect(parsed.systemPromptIndex).toBe(2);
+    });
+
+    it('should parse all suffixes regardless of order', () => {
+      const modelId1 = 'anthropic:claude-3-opus[temp:0.99][sp_idx:1]';
+      const parsed1 = parseEffectiveModelId(modelId1);
+      expect(parsed1.baseId).toBe('anthropic:claude-3-opus');
+      expect(parsed1.temperature).toBe(0.99);
+      expect(parsed1.systemPromptIndex).toBe(1);
+
+      const modelId2 = 'anthropic:claude-3-opus[sp_idx:1][temp:0.99]';
+      const parsed2 = parseEffectiveModelId(modelId2);
+      expect(parsed2.baseId).toBe('anthropic:claude-3-opus');
+      expect(parsed2.temperature).toBe(0.99);
+      expect(parsed2.systemPromptIndex).toBe(1);
+    });
+  });
+
   describe('getModelDisplayLabel', () => {
     it('should return the baseId if no sysPrompt or temp', () => {
       const modelId = 'openrouter:test-model';

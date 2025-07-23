@@ -182,9 +182,6 @@ body {
   font-family: ui-sans-serif,system-ui,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji";
 }
 
-/* Removed .site-header and .content-wrapper as they are not currently used */
-/* and .site-header was using an undefined --header-bg variable. */
-
 @layer base {
   * {
     @apply border-border;

@@ -285,7 +285,7 @@ export const AggregateAnalysisView: React.FC = () => {
                                                     <div>
                                                         <label className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">Filter Temperatures</label>
                                                         <div className="flex flex-wrap gap-2 mt-2">
-                                                            {data.config.temperatures.map(temp => (
+                                                            {[...new Set(data.config.temperatures)].map(temp => (
                                                                 <Button
                                                                     key={temp}
                                                                     size="sm"
@@ -298,24 +298,24 @@ export const AggregateAnalysisView: React.FC = () => {
                                                                     }}
                                                                 >
                                                                     {(() => {
-                                                                        const score = (perTemperatureVariantHybridScores as Record<string, number | null>)[temp.toFixed(1)];
+                                                                        const score = (perTemperatureVariantHybridScores as Record<string, number | null>)[temp.toString()];
                                                                         if (score !== null && score !== undefined) {
                                                                             return (
                                                                                 <>
                                                                                     <span className={`px-1.5 py-0.5 rounded-sm text-xs font-semibold ${getHybridScoreColorClass(score)}`}>
                                                                                         {score.toFixed(2)}
                                                                                     </span>
-                                                                                    <span>{temp.toFixed(1)}</span>
+                                                                                    <span>{temp}</span>
                                                                                 </>
                                                                             );
                                                                         }
-                                                                        return temp.toFixed(1);
+                                                                        return temp;
                                                                     })()}
                                                                 </Button>
                                                             ))}
                                                         </div>
                                                     </div>
-                                                    {(selectedTemperatures.length > 0 && data.config?.temperatures && selectedTemperatures.length < data.config.temperatures.length) && (
+                                                    {(selectedTemperatures.length > 0 && data.config?.temperatures && selectedTemperatures.length < [...new Set(data.config.temperatures)].length) && (
                                                         <Button variant="link" size="sm" className="p-0 h-auto text-xs self-end" onClick={() => setSelectedTemperatures(data.config?.temperatures || [])}>
                                                             Reset
                                                         </Button>

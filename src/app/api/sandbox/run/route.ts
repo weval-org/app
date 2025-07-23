@@ -6,6 +6,8 @@ import * as yaml from 'js-yaml';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { ComparisonConfig } from '@/cli/types/cli_types';
 import { parseAndNormalizeBlueprint } from '@/lib/blueprint-parser';
+import { CustomModelDefinition } from '@/lib/llm-clients/types';
+import { registerCustomModels } from '@/lib/llm-clients/client-dispatcher';
 
 // Zod schema for the incoming request body
 const RunRequestSchema = z.object({
@@ -57,16 +59,27 @@ export async function POST(req: NextRequest) {
     }
     
     // 3. Configure run based on mode (Advanced vs. Quick)
+    
+    // --- Custom Model Registration ---
+    const customModelDefs = parsedConfig.models?.filter(m => typeof m === 'object') as CustomModelDefinition[] || [];
+    if (customModelDefs.length > 0) {
+        registerCustomModels(customModelDefs);
+        console.log(`[Sandbox API] Registered ${customModelDefs.length} custom model definitions.`);
+    }
+    // --- End Custom Model Registration ---
+    
     let finalModels: string[];
     let evaluationConfig: Record<string, any> = {};
+    const isDev = process.env.NODE_ENV === 'development';
 
     if (isAdvanced) {
       // For advanced (logged-in) users, use the models they selected in the modal.
       // Fallback to blueprint's models or default if none are provided.
+      const configModels = parsedConfig.models ? parsedConfig.models.map(m => typeof m === 'string' ? m : m.id) : [];
       finalModels = (selectedModels && selectedModels.length > 0)
         ? selectedModels
-        : (parsedConfig.models && parsedConfig.models.length > 0)
-            ? parsedConfig.models
+        : (configModels.length > 0)
+            ? configModels
             : DEFAULT_ADVANCED_MODELS;
 
       evaluationConfig = {
@@ -83,10 +96,36 @@ export async function POST(req: NextRequest) {
     }
     
     // 4. Construct the final ComparisonConfig
+    let finalConfigModels: (string | CustomModelDefinition)[];
+    
+    if (isDev && selectedModels && selectedModels.length > 0) {
+      // In development mode, preserve the full model definitions for custom models
+      const requestedModelIds = new Set(selectedModels);
+      const originalModels = Array.isArray(parsedConfig.models) ? parsedConfig.models : [];
+      
+      // Filter original models to only include those requested
+      const filteredModels = originalModels.filter(model => {
+        const modelId = typeof model === 'string' ? model : model.id;
+        return requestedModelIds.has(modelId);
+      });
+
+      // Add any simple string models from selectedModels that weren't in the original definitions
+      for (const modelId of selectedModels) {
+        if (!filteredModels.some(m => (typeof m === 'string' ? m : m.id) === modelId)) {
+          filteredModels.push(modelId);
+        }
+      }
+      
+      finalConfigModels = filteredModels;
+    } else {
+      // Production or fallback behavior - use finalModels as strings
+      finalConfigModels = finalModels;
+    }
+
     const finalConfig: ComparisonConfig = {
       ...parsedConfig,
       id: `sandbox-${runId}`,
-      models: finalModels,
+      models: finalConfigModels,
       tags: ['_sandbox_test'],
       evaluationConfig,
     };

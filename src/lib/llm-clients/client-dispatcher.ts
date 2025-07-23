@@ -5,7 +5,8 @@ import { MistralClient } from './mistral-client';
 import { TogetherClient } from './together-client';
 import { XaiClient } from './xai-client';
 import { OpenRouterModuleClient } from './openrouter-client';
-import { BaseLLMClient, LLMApiCallOptions, LLMStreamApiCallOptions, LLMApiCallResult, StreamChunk } from './types';
+import { GenericHttpClient } from './generic-client';
+import { LLMApiCallOptions, LLMApiCallResult, StreamChunk, CustomModelDefinition } from './types';
 
 // A mapping from provider prefix to the corresponding client *class*.
 const clientClassMap: Record<string, new (apiKey?: string) => any> = {
@@ -20,6 +21,21 @@ const clientClassMap: Record<string, new (apiKey?: string) => any> = {
 
 // A cache for instantiated clients, to avoid creating new ones for every call.
 const clientInstances: Partial<Record<string, any>> = {};
+
+/**
+ * Registers custom model configurations by creating and caching GenericHttpClient instances.
+ * This should be called once at the beginning of an evaluation run.
+ * @param customModels - An array of custom model definitions from the blueprint.
+ */
+export function registerCustomModels(customModels: CustomModelDefinition[]) {
+    console.log(`[ClientDispatcher] Registering ${customModels.length} custom models...`);
+    for (const modelDef of customModels) {
+        if (!clientInstances[modelDef.id]) {
+            console.log(`[ClientDispatcher] Instantiating and caching a generic client for custom model ID: ${modelDef.id}`);
+            clientInstances[modelDef.id] = new GenericHttpClient(modelDef);
+        }
+    }
+}
 
 /**
  * Parses the model ID to extract the provider and the actual model name.
@@ -44,9 +60,17 @@ function parseModelId(modelId: string): { provider: string; modelName: string } 
 function getClient(modelId: string): any {
     console.log(`[ClientDispatcher] Getting client for modelId: ${modelId}`);
     
+    // First, check if there is a cached instance for this exact modelId (for custom models).
+    if (clientInstances[modelId]) {
+        console.log(`[ClientDispatcher] Using cached custom client for model ID: ${modelId}`);
+        return clientInstances[modelId]!;
+    }
+
     const parsed = parseModelId(modelId);
     if (!parsed) {
-        const error = `Invalid modelId format: "${modelId}". Expected format: "<provider>:<model-name>"`;
+        // If parsing fails, it might be a custom model ID that wasn't registered.
+        // We throw an error here, but it's more specific now.
+        const error = `Invalid modelId format: "${modelId}". Expected "<provider>:<model-name>" for standard models, or a registered custom model ID.`;
         console.error(`[ClientDispatcher] ${error}`);
         throw new Error(error);
     }
@@ -54,7 +78,7 @@ function getClient(modelId: string): any {
     const { provider } = parsed;
     console.log(`[ClientDispatcher] Parsed provider: ${provider}, model: ${parsed.modelName}`);
 
-    // Check if we already have an instance for this provider
+    // Check if we already have an instance for this provider (for standard models)
     if (clientInstances[provider]) {
         console.log(`[ClientDispatcher] Using cached client for provider: ${provider}`);
         return clientInstances[provider]!;
@@ -62,7 +86,8 @@ function getClient(modelId: string): any {
     
     const ClientClass = clientClassMap[provider];
     if (!ClientClass) {
-        const error = `Unsupported LLM provider: "${provider}" from model ID "${modelId}". Supported providers are: ${Object.keys(clientClassMap).join(', ')}.`;
+        // This error is now more specific: it means the provider is not standard and no custom model was found.
+        const error = `Unsupported LLM provider: "${provider}" from model ID "${modelId}". No matching custom model registered. Supported standard providers are: ${Object.keys(clientClassMap).join(', ')}.`;
         console.error(`[ClientDispatcher] ${error}`);
         throw new Error(error);
     }

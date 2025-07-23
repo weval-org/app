@@ -1,14 +1,6 @@
 import { LLMApiCallOptions, LLMApiCallResult, StreamChunk } from './types';
-import crypto from 'crypto';
 
 const OPENAI_API_BASE_URL = 'https://api.openai.com/v1';
-
-const llmCache = new Map<string, LLMApiCallResult>();
-
-function getCacheKey(input: LLMApiCallOptions): string {
-    const hash = crypto.createHash('sha256').update(JSON.stringify(input)).digest('hex');
-    return `openai:${hash}`;
-}
 
 class OpenAIClient {
     private apiKey: string;

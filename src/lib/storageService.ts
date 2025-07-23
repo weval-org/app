@@ -104,9 +104,8 @@ function getSafeModelId(modelId: string): string {
 // Helper types for serialization
 type SerializableScoreMap = Record<string, { average: number | null; stddev: number | null }>;
 
-interface SerializableEnhancedRunInfo extends Omit<EnhancedRunInfo, 'perModelHybridScores' /* removed perModelSemanticSimilarityToIdealScores */ > {
+interface SerializableEnhancedRunInfo extends Omit<EnhancedRunInfo, 'perModelHybridScores'> {
   perModelHybridScores?: SerializableScoreMap;
-  // perModelSemanticSimilarityToIdealScores?: SerializableScoreMap;
 }
 
 interface SerializableEnhancedComparisonConfigInfo extends Omit<EnhancedComparisonConfigInfo, 'runs'> {

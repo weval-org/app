@@ -5,14 +5,23 @@ import { ConversationMessage } from '@/types/shared';
  * This is the primary interface used by the application to pass options down.
  */
 export interface LLMApiCallOptions {
-    modelId: string; // The full, prefixed model ID, e.g., "openai:gpt-4o-mini"
-    messages: ConversationMessage[];
+    modelId: string;
+    messages?: { role: string; content: string }[];
     systemPrompt?: string;
-    maxTokens?: number;
     temperature?: number;
-    jsonMode?: boolean;
-    stream?: boolean;
-    timeout?: number; // Timeout in milliseconds
+    maxTokens?: number;
+    timeout?: number;
+    // Extended parameters for advanced use cases
+    topP?: number;
+    topK?: number;
+    presencePenalty?: number;
+    frequencyPenalty?: number;
+    stop?: string | string[];
+    // Reasoning parameters
+    reasoningEffort?: 'low' | 'medium' | 'high';
+    thinkingBudget?: number;
+    // Generic parameter passthrough for custom providers
+    customParameters?: Record<string, any>;
 }
 
 /**
@@ -22,6 +31,33 @@ export interface LLMApiCallResult {
   responseText: string;
   error?: string; // Optional error message if the call failed
   // We can add more fields here if needed, like token counts, finish reasons etc.
+}
+
+export interface CustomModelDefinition {
+    id: string;
+    url: string;
+    modelName: string;
+    inherit: 'openai' | 'anthropic' | 'google' | 'mistral' | 'together' | 'xai' | 'openrouter';
+    format?: 'chat' | 'completions'; // Defaults to 'chat' for backward compatibility
+    promptFormat?: 'conversational' | 'raw'; // For completions format: 'conversational' adds "User: ... Assistant:", 'raw' uses just the prompt text
+    headers?: Record<string, string>;
+    // Advanced parameter overrides
+    parameterMapping?: {
+        // Map standard parameter names to provider-specific names
+        temperature?: string;
+        maxTokens?: string;
+        topP?: string;
+        topK?: string;
+        presencePenalty?: string;
+        frequencyPenalty?: string;
+        stop?: string;
+        // Reasoning-specific parameters
+        reasoningEffort?: string;
+        thinkingBudget?: string;
+        reasoningContent?: string;
+    };
+    // Parameter overrides: set values or use null to exclude entirely
+    parameters?: Record<string, any>;
 }
 
 /**
@@ -43,8 +79,9 @@ export interface LLMStreamApiCallOptions {
  * It can either be a piece of text or an error.
  */
 export type StreamChunk = 
-  | { type: 'content'; content: string }
-  | { type: 'error'; error: string };
+    | { type: 'content'; content: string }
+    | { type: 'reasoning'; content: string }
+    | { type: 'error'; error: string };
 
 /**
  * Defines the structure for a provider-specific API client.
@@ -60,7 +97,6 @@ export abstract class BaseLLMClient {
     
     /**
      * The core method for making an API call. Each client implements this.
-     * It now includes the timeout option.
      */
     abstract makeApiCall(options: LLMApiCallOptions): Promise<LLMApiCallResult>;
 

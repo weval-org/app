@@ -41,13 +41,15 @@ import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelId
 import { populatePairwiseQueue } from '../services/pairwise-task-queue-service';
 import { normalizeTag } from '@/app/utils/tagUtils';
 import { generateBlueprintIdFromPath } from '@/app/utils/blueprintIdUtils';
+import { CustomModelDefinition } from '@/lib/llm-clients/types';
+import { registerCustomModels } from '@/lib/llm-clients/client-dispatcher';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
-export async function resolveModelCollections(configModels: any[], collectionsRepoPath: string | undefined, logger: Logger): Promise<string[]> {
-    const resolvedModels: string[] = [];
+export async function resolveModelCollections(configModels: any[], collectionsRepoPath: string | undefined, logger: Logger): Promise<(string | CustomModelDefinition)[]> {
+    const resolvedModels: (string | CustomModelDefinition)[] = [];
     
-    const normalizedConfigModels: string[] = [];
+    const normalizedConfigModels: any[] = [];
     for (const modelEntry of configModels) {
         if (typeof modelEntry === 'string') {
             const correctedEntry = modelEntry.trim().replace(/\s*:\s*/, ':');
@@ -72,6 +74,9 @@ export async function resolveModelCollections(configModels: any[], collectionsRe
             } else {
                 logger.warn(`Invalid object entry in models array: Must have exactly one key (the provider). Found ${keys.length} keys. Skipping: ${JSON.stringify(modelEntry)}.`);
             }
+        } else if (typeof modelEntry === 'object' && modelEntry !== null && !Array.isArray(modelEntry) && modelEntry.id) {
+            // This is a custom model definition. Add it directly.
+            normalizedConfigModels.push(modelEntry);
         } else {
              logger.warn(`Invalid entry in models array found: ${JSON.stringify(modelEntry)}. It is not a string or a single key-value object. Skipping this entry.`);
         }
@@ -85,7 +90,8 @@ export async function resolveModelCollections(configModels: any[], collectionsRe
             if (isPlaceholder) {
                 logger.warn(`Model entry '${m}' looks like a collection placeholder, but it cannot be resolved without --collections-repo-path. It will be treated as a literal model ID.`);
             }
-            return typeof m === 'string';
+            // Pass through strings and custom model objects
+            return typeof m === 'string' || (typeof m === 'object' && m.id);
         });
     }
 
@@ -123,9 +129,22 @@ export async function resolveModelCollections(configModels: any[], collectionsRe
             }
         } else if (typeof modelEntry === 'string') {
             resolvedModels.push(modelEntry);
+        } else if (typeof modelEntry === 'object' && modelEntry !== null && modelEntry.id) {
+            // This is a custom model definition object, pass it through.
+            resolvedModels.push(modelEntry as CustomModelDefinition);
         }
     }
-    return [...new Set(resolvedModels)]; // Deduplicate
+    const finalModels: (string | CustomModelDefinition)[] = [];
+    const seen = new Set<string>();
+
+    for (const model of resolvedModels) {
+        const id = typeof model === 'string' ? model : model.id;
+        if (!seen.has(id)) {
+            seen.add(id);
+            finalModels.push(model);
+        }
+    }
+    return finalModels;
 }
 
 export function validateRoleAlternation(messages: { role: string }[], promptId: string): void {
@@ -297,16 +316,23 @@ async function loadAndValidateConfig(options: {
     } else if (isRemote) {
         logger.info(`Resolving collections from GitHub for remote blueprint.`);
         const githubToken = process.env.GITHUB_TOKEN;
-        const resolvedConfig = await resolveModelsInConfig(configJson, githubToken, logger as SimpleLogger);
-        configJson.models = resolvedConfig.models;
+        const stringModels = configJson.models.filter(m => typeof m === 'string') as string[];
+        const customModels = configJson.models.filter(m => typeof m === 'object') as CustomModelDefinition[];
+        // Temporarily create a config with only string models for the resolver
+        const tempConfigForResolution: ComparisonConfig = { ...configJson, models: stringModels };
+        const resolvedConfig = await resolveModelsInConfig(tempConfigForResolution, githubToken, logger as SimpleLogger);
+        // Re-combine the resolved string models with the custom models
+        configJson.models = [...resolvedConfig.models, ...customModels];
     } else {
-        // Local blueprint, no collections path specified. Let resolveModelCollections handle it (it will just process literals).
+        // Local blueprint, no collections path specified.
         configJson.models = await resolveModelCollections(configJson.models, undefined, logger);
     }
 
-    logger.info(`Final resolved models for blueprint ID '${configJson.id}': [${configJson.models.join(', ')}] (Count: ${configJson.models.length})`);
+    const finalModelIds = configJson.models.map(m => (typeof m === 'string' ? m : m.id));
+    logger.info(`Final resolved models for blueprint ID '${configJson.id}': [${finalModelIds.join(', ')}] (Count: ${finalModelIds.length})`);
     if (originalModelsCount > 0 && configJson.models.length === 0) {
-        logger.warn(`Blueprint from ${sourceName} resulted in an empty list of models after attempting to resolve collections. Original models: [${configJson.models.join(',')}]. Check blueprint and collection definitions.`);
+        const originalModelIds = configJson.models.map(m => (typeof m === 'string' ? m : m.id));
+        logger.warn(`Blueprint from ${sourceName} resulted in an empty list of models after attempting to resolve collections. Original models: [${originalModelIds.join(', ')}]. Check blueprint and collection definitions.`);
     }
 
     // Post-resolution validation (other fields)
@@ -479,6 +505,16 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions, commi
         
         await loggerInstance.info(`Executing blueprint ID: '${currentConfigId}', Title: '${currentTitle}'`);
 
+        // --- Custom Model Registration ---
+        const customModelDefs = config.models.filter(m => typeof m === 'object') as CustomModelDefinition[];
+        if (customModelDefs.length > 0) {
+            registerCustomModels(customModelDefs);
+            loggerInstance.info(`Registered ${customModelDefs.length} custom model definitions.`);
+        }
+        // The final list of models to run should be just their string IDs.
+        const modelIdsToRun = config.models.map(m => (typeof m === 'string' ? m : m.id));
+        // --- End Custom Model Registration ---
+
         // If a commitSha for the blueprint is known, log it.
         // It could come from a local git repo or from a remote fetch.
         if (commitSha) {
@@ -514,7 +550,7 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions, commi
         if (!finalRunLabel) {
             throw new Error('Run label is unexpectedly empty after processing.');
         }
-        if (config.models.length === 0) {
+        if (modelIdsToRun.length === 0) {
             loggerInstance.error('The final list of models to evaluate is empty. Halting execution.');
             throw new Error('No models to evaluate after resolving collections.');
         }
@@ -527,7 +563,7 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions, commi
         await loggerInstance.info(`Blueprint Title: ${currentTitle}`);
         await loggerInstance.info(`Run Label: ${finalRunLabel}`);
         await loggerInstance.info(`Evaluation Methods: ${chosenMethods.join(', ')}`);
-        await loggerInstance.info(`Models to run: [${config.models.join(', ')}] (Count: ${config.models.length})`);
+        await loggerInstance.info(`Models to run: [${modelIdsToRun.join(', ')}] (Count: ${modelIdsToRun.length})`);
         await loggerInstance.info('-----------------------------');
 
         const ora = (await import('ora')).default;
@@ -538,8 +574,11 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions, commi
         try {
             mainSpinner.text = `Executing comparison pipeline for blueprint ID: ${currentConfigId}, runLabel: ${finalRunLabel}. Caching: ${options.cache ?? false}`;
             
+            // Pass the string-only list of model IDs to the pipeline
+            const pipelineConfig = { ...config, models: modelIdsToRun };
+
             const pipelineResult = await executeComparisonPipeline(
-                config, 
+                pipelineConfig, 
                 finalRunLabel, 
                 chosenMethods, 
                 loggerInstance, 

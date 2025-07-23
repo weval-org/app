@@ -1,5 +1,4 @@
 import { LLMApiCallOptions, LLMApiCallResult, StreamChunk } from './types';
-import crypto from 'crypto';
 
 const ANTHROPIC_API_BASE_URL = 'https://api.anthropic.com/v1';
 const ANTHROPIC_API_VERSION = '2023-06-01';

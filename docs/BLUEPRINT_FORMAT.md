@@ -95,11 +95,191 @@ The following fields can be included in the header section (Structure 1) or the 
 | `title` | `string` | **(Optional)** A human-readable title for the blueprint, displayed in the UI. If omitted, it defaults to the `id`. Aliased as `configTitle`. |
 | `description` | `string` | **(Optional)** A longer description of the blueprint's purpose. Supports Markdown. |
 | `tags` | `string[]` | **(Optional)** An array of tags for categorizing and filtering blueprints on the homepage. |
-| `models` | `string[]` | **(Optional)** An array of model identifiers to run the evaluation against. Model identifiers must be a single string in the format `provider:model` with no spaces (e.g., `openai:gpt-4o-mini`). The system will attempt to gracefully correct common formatting errors, but adhering to the standard format is recommended. If omitted, defaults to `["CORE"]`. |
+| `models` | `string[] \| object[]` | **(Optional)** An array of model identifiers to run the evaluation against. Can include standard model strings in the format `provider:model` (e.g., `openai:gpt-4o-mini`) and/or custom model definition objects for arbitrary HTTP endpoints. If omitted, defaults to `["CORE"]`. See detailed model configuration below. |
 | `system` | `string` | **(Optional)** A global system prompt to be used for all prompts in the blueprint, unless overridden at the prompt level. Aliased as `systemPrompt`. |
 | `temperature` | `number` | **(Optional)** A single temperature setting to run for each model. This is overridden if the `temperatures` array is present. |
 | `temperatures`| `number[]` | **(Optional)** An array of temperature settings to run for each model. This will create separate evaluations for each temperature. **Note:** Using this feature will append a suffix like `[temp:0.5]` to the model ID in the final output file, creating a unique identifier for each run variant. |
 | `evaluationConfig` | `object` | **(Optional)** Advanced configuration for evaluation methods. For example, you can specify judge models for `llm-coverage`. |
+
+### Model Configuration
+
+The `models` field supports both standard model identifiers and custom model definitions for maximum flexibility.
+
+#### Standard Model Identifiers
+
+Standard model identifiers are strings in the format `provider:model` with no spaces:
+
+```yaml
+models:
+  - openai:gpt-4o-mini
+  - anthropic:claude-3-haiku-20240307
+  - google:gemini-1.5-flash-latest
+  - mistral:mistral-large-latest
+  - together:meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo
+  - xai:grok-beta
+  - openrouter:google/gemini-pro
+```
+
+The system will attempt to gracefully correct common formatting errors, but adhering to the standard format is recommended.
+
+#### Custom Model Definitions
+
+For local models, custom endpoints, or proxies, you can define arbitrary HTTP-compatible models using object syntax:
+
+```yaml
+models:
+  - openai:gpt-4o-mini  # Standard model
+  
+  # Local LLaMA model via Ollama with parameter control
+  - id: 'local:llama3-8b'
+    url: 'http://localhost:11434/v1/chat/completions'
+    modelName: 'llama3:instruct'
+    inherit: 'openai'
+    headers:
+      Authorization: 'Bearer whatever-i-want'
+    parameters:
+      max_tokens: 150      # Override system default
+      stream: null         # Remove stream parameter entirely
+      
+  # Local completions-format model
+  - id: 'local:llama-completions'
+    url: 'http://localhost:4891/v1/completions'
+    modelName: 'llama-3-8b-instruct'
+    inherit: 'openai'
+    format: 'completions'
+    parameters:
+      max_tokens: 100
+      stream: null
+      temperature: 0.7
+  
+  # Custom Anthropic-compatible proxy
+  - id: 'proxy:claude-sonnet'
+    url: 'https://my-proxy.com/v1/messages'
+    modelName: 'claude-3-sonnet-20240229'
+    inherit: 'anthropic'
+    headers:
+      X-API-Key: '${PROXY_API_KEY}'
+      X-Custom-Header: 'value'
+```
+
+##### Custom Model Object Fields
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | `string` | ✅ | Unique identifier for this custom model (e.g., `'local:llama3-8b'`) |
+| `url` | `string` | ✅ | Full HTTP endpoint URL for the model API |
+| `modelName` | `string` | ✅ | Model name to send in API requests |
+| `inherit` | `string` | ✅ | API format to inherit: `'openai'`, `'anthropic'`, `'google'`, `'mistral'`, `'together'`, `'xai'`, or `'openrouter'` |
+| `format` | `string` | ❌ | API endpoint format: `'chat'` (default) or `'completions'` |
+| `promptFormat` | `string` | ❌ | For completions format: `'conversational'` (adds "User: ... Assistant:") or `'raw'` (uses prompt text directly) |
+| `headers` | `object` | ❌ | Additional HTTP headers to include in requests |
+| `parameters` | `object` | ❌ | Parameter overrides. Set values or use `null` to exclude parameters entirely |
+| `parameterMapping` | `object` | ❌ | Map standard parameter names to provider-specific names |
+
+##### Inheritance Patterns
+
+The `inherit` field determines the request/response format:
+
+- **`'openai'`** - OpenAI ChatCompletions format (messages array, system prompt, temperature, etc.)
+- **`'anthropic'`** - Anthropic Messages format (separate system field, filtered messages)
+- **`'google'`** - Google Gemini format (contents array, generationConfig, systemInstruction)
+- **`'mistral'`** - Mistral format (similar to OpenAI)
+- **`'together'`**, **`'xai'`**, **`'openrouter'`** - OpenAI-compatible formats
+
+##### Parameter Control
+
+The `parameters` field provides fine-grained control over API request parameters. You can override system defaults, add custom parameters, or exclude parameters entirely.
+
+```yaml
+models:
+  # Clean parameter overrides (recommended approach)
+  - id: 'local:controlled-model'
+    url: 'http://localhost:8080/v1/chat/completions'
+    modelName: 'custom-model'
+    inherit: 'openai'
+    parameters:
+      max_tokens: 100         # Override system default (usually 1500)
+      temperature: 0.9        # Override system default
+      stream: null            # Remove stream parameter entirely
+      stop: ['END', 'STOP']   # Add custom stop sequences
+      custom_param: 'value'   # Add provider-specific parameter
+      
+  # Using null to exclude unwanted parameters
+  - id: 'local:minimal-model'
+    url: 'http://localhost:8080/v1/completions'
+    modelName: 'minimal-model'
+    inherit: 'openai'
+    format: 'completions'
+    parameters:
+      max_tokens: 50
+      stream: null            # Exclude stream
+      top_p: null            # Exclude top_p
+      frequency_penalty: null # Exclude frequency_penalty
+```
+
+**Parameter Behavior:**
+- **Set values**: Any non-null value overrides the system default
+- **`null` values**: Completely remove the parameter from the request
+- **Falsy values**: `0`, `false`, `""`, and `undefined` are preserved as valid parameter values
+- **Final precedence**: `parameters` field has the highest precedence and will override all system-generated values
+
+##### Parameter Mapping
+
+You can also remap standard parameter names to provider-specific names using `parameterMapping`:
+
+```yaml
+models:
+  - id: 'custom:mapped-params'
+    url: 'https://special-api.com/generate'
+    modelName: 'special-model'
+    inherit: 'openai'
+    parameterMapping:
+      temperature: 'heat'          # temperature → heat
+      maxTokens: 'token_limit'     # maxTokens → token_limit
+      topP: 'nucleus_sampling'     # topP → nucleus_sampling
+    parameters:
+      heat: 0.9                   # Uses mapped name
+      token_limit: 200            # Uses mapped name
+      custom_param: 'value'       # Direct parameter
+```
+
+##### Reasoning Model Support
+
+Custom models support advanced reasoning parameters:
+
+```yaml
+models:
+  # OpenAI-style reasoning model
+  - id: 'local:reasoning-model'
+    url: 'http://localhost:8080/v1/chat/completions'
+    modelName: 'o1-local'
+    inherit: 'openai'
+    # Will handle reasoningEffort parameter as 'reasoning_effort'
+    
+  # Anthropic-style thinking model
+  - id: 'custom:thinking-claude'
+    url: 'https://thinking-api.com/v1/messages'
+    modelName: 'thinking-claude-3'
+    inherit: 'anthropic'
+    # Will handle thinkingBudget parameter as 'thinking' object
+```
+
+##### Environment Variable Substitution
+
+You can use environment variables in headers and other string fields:
+
+```yaml
+models:
+  - id: 'private:enterprise-model'
+    url: 'https://enterprise-api.com/v1/chat'
+    modelName: 'enterprise-gpt'
+    inherit: 'openai'
+    headers:
+      Authorization: 'Bearer ${ENTERPRISE_API_KEY}'
+      X-Org-ID: '${ENTERPRISE_ORG_ID}'
+```
+
+**Note**: Environment variable substitution is not performed by the blueprint parser itself, but by the runtime environment where the evaluation is executed.
 
 ### Prompt Fields
 
@@ -314,4 +494,4 @@ The system remains backwardly compatible with the original JSON format.
 - **No Multi-Document**: There is no `---` separator. Prompts are nested within the `"prompts"` array.
 - **ID is Required**: In the legacy format, the top-level `id` and the `id` for each prompt are generally expected. The automatic prompt ID generation was added with the YAML format in mind.
 - **Top-Level ID is Ignored**: As with the modern YAML format, the top-level `id` field in a legacy JSON blueprint is also ignored. The blueprint's ID is always derived from its file path.
-- **Prompt ID**: The `id` for each individual prompt inside the `prompts` array is still respected and useful for tracking. 
+- **Prompt ID**: The `id` for each individual prompt inside the `prompts` array is still respected and useful for tracking.

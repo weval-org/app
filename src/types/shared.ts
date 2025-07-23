@@ -2,6 +2,8 @@
 // frontend (Next.js app) and the backend (CLI, evaluators, services).
 // By centralizing them here, we prevent type duplication and inconsistencies.
 
+import { CustomModelDefinition } from "../lib/llm-clients/types";
+
 export interface ConversationMessage {
     role: 'user' | 'assistant' | 'system' | 'function' | 'tool';
     content: string;
@@ -101,7 +103,7 @@ export interface WevalConfig {
     id?: string;
     title?: string;
     description?: string;
-    models: string[];
+    models: (string | CustomModelDefinition)[];
     system?: string | null;
     systemPrompt?: string | null;
     systems?: (string | null)[];

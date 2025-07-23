@@ -118,19 +118,20 @@ export const useAnalysisStats = (data: ComparisonDataV2 | null): AnalysisStats =
         
         const perTemperatureVariantHybridScores: Record<string, number | null> = {};
         if (config.temperatures && config.temperatures.length > 1 && evaluationResults?.perPromptSimilarities && llmCoverageScores && effectiveModels && promptIds) {
-            for (const temp of config.temperatures) {
+            const uniqueTemperatures = [...new Set(config.temperatures)];
+            for (const temp of uniqueTemperatures) {
                 const modelsForTemp = effectiveModels.filter(modelId => {
                     const { temperature } = parseEffectiveModelId(modelId);
-                    return temperature === temp;
+                    return temperature?.toString() === temp.toString();
                 });
 
                 if (modelsForTemp.length > 0) {
                     const hybridStatsForTemp = calculateAverageHybridScoreForRun(
                         evaluationResults.perPromptSimilarities, llmCoverageScores, modelsForTemp, promptIds, IDEAL_MODEL_ID
                     );
-                    perTemperatureVariantHybridScores[temp.toFixed(1)] = hybridStatsForTemp?.average ?? null;
+                    perTemperatureVariantHybridScores[temp.toString()] = hybridStatsForTemp?.average ?? null;
                 } else {
-                    perTemperatureVariantHybridScores[temp.toFixed(1)] = null;
+                    perTemperatureVariantHybridScores[temp.toString()] = null;
                 }
             }
         }

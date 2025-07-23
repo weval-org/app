@@ -41,6 +41,7 @@ interface GlobalConfigCardProps {
 
 export function GlobalConfigCard({ blueprint, onUpdate, isEditable, isAdvancedMode }: GlobalConfigCardProps) {
   const [isConfirmingSwitch, setIsConfirmingSwitch] = React.useState(false);
+  const isDev = process.env.NODE_ENV === 'development';
 
   // Handle the case where 'system' is provided as an array (should be normalized to 'systems')
   React.useEffect(() => {
@@ -290,7 +291,7 @@ export function GlobalConfigCard({ blueprint, onUpdate, isEditable, isAdvancedMo
                 />
             </div>
             */}
-            {blueprint.models && blueprint.models.length > 0 && (
+            {!isDev && blueprint.models && blueprint.models.length > 0 && (
                  <Alert variant="destructive">
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle>Models Will Be Ignored</AlertTitle>

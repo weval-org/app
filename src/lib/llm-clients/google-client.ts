@@ -54,8 +54,14 @@ class GoogleClient {
         const { messages, systemPrompt, temperature = 0.3, maxTokens = 1500, timeout = 120000 } = options;
         const fetch = (await import('node-fetch')).default;
 
+        // Convert messages to ConversationMessage type
+        const conversationMessages: ConversationMessage[] = messages?.map(m => ({
+            role: m.role as ConversationMessage['role'],
+            content: m.content
+        })) || [];
+
         const body = JSON.stringify({
-            contents: toGoogleMessages(messages || [], systemPrompt),
+            contents: toGoogleMessages(conversationMessages, systemPrompt),
             generationConfig: {
                 temperature,
                 maxOutputTokens: maxTokens,
@@ -99,8 +105,14 @@ class GoogleClient {
         const { messages, systemPrompt, temperature = 0.3, maxTokens = 2000, timeout = 120000 } = options;
         const fetch = (await import('node-fetch')).default;
 
+        // Convert messages to ConversationMessage type
+        const conversationMessages: ConversationMessage[] = messages?.map(m => ({
+            role: m.role as ConversationMessage['role'],
+            content: m.content
+        })) || [];
+
         const body = JSON.stringify({
-            contents: toGoogleMessages(messages || [], systemPrompt),
+            contents: toGoogleMessages(conversationMessages, systemPrompt),
             generationConfig: {
                 temperature,
                 maxOutputTokens: maxTokens,

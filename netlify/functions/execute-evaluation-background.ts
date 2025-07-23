@@ -17,6 +17,8 @@ import {
 } from '../../src/cli/utils/summaryCalculationUtils';
 import { populatePairwiseQueue } from "../../src/cli/services/pairwise-task-queue-service";
 import { normalizeTag } from "../../src/app/utils/tagUtils";
+import { CustomModelDefinition } from "../../src/lib/llm-clients/types";
+import { registerCustomModels } from "../../src/lib/llm-clients/client-dispatcher";
 
 // Helper to create a simple console-based logger with a prefix
 const createLogger = (context: HandlerContext) => {
@@ -77,8 +79,17 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
   logger.info(`Received request to execute evaluation for Blueprint ID: ${currentId}, Title: ${currentTitle}`);
 
   try {
+    // --- Custom Model Registration ---
+    const customModelDefs = config.models.filter(m => typeof m === 'object') as CustomModelDefinition[];
+    if (customModelDefs.length > 0) {
+        registerCustomModels(customModelDefs);
+        logger.info(`Registered ${customModelDefs.length} custom model definitions.`);
+    }
+    const modelIdsToRun = config.models.map(m => (typeof m === 'string' ? m : m.id));
+    // --- End Custom Model Registration ---
+
     // Generate runLabel from content hash
-    const contentHash = generateConfigContentHash(config);
+    const contentHash = generateConfigContentHash({ ...config, models: modelIdsToRun });
     const runLabel = contentHash; // For background functions, using hash directly is fine
     logger.info(`Generated runLabel (contentHash): ${runLabel} for Blueprint ID: ${currentId}`);
     if (commitSha) {
@@ -95,8 +106,9 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
     // Note: getConfig() might try to access process.env variables for its own setup.
     // Ensure these are available in the Netlify function environment if needed by getConfig().
     // We are passing our function-specific logger to the pipeline.
+    const pipelineConfig = { ...config, models: modelIdsToRun };
     const pipelineOutputKey = await executeComparisonPipeline(
-      config,
+      pipelineConfig,
       runLabel,
       evalMethods,
       logger, // Use the function-specific logger

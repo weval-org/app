@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useCallback } from 'react'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -33,8 +33,6 @@ const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.Alert
 const Loader2 = dynamic(() => import("lucide-react").then((mod) => mod.Loader2))
 const GitCommit = dynamic(() => import("lucide-react").then((mod) => mod.GitCommit))
 const AlertTriangle = dynamic(() => import("lucide-react").then((mod) => mod.AlertTriangle))
-const ArrowLeft = dynamic(() => import("lucide-react").then(mod => mod.ArrowLeft));
-const FileCode2 = dynamic(() => import("lucide-react").then((mod) => mod.FileCode2));
 const FileText = dynamic(() => import("lucide-react").then((mod) => mod.FileText));
 
 

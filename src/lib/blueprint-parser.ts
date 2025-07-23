@@ -145,6 +145,38 @@ function _normalizePointArray(pointsArray: any[], promptId: string | undefined):
     });
 }
 
+function _validateModelDefinition(model: any): void {
+    if (typeof model === 'string') {
+        return; // This is a standard string model ID, which is valid.
+    }
+
+    if (typeof model !== 'object' || model === null || Array.isArray(model)) {
+        throw new Error('Invalid model definition: must be a string or an object.');
+    }
+
+    if (!model.id || typeof model.id !== 'string') {
+        throw new Error(`Invalid custom model definition: 'id' is required and must be a string. Found: ${JSON.stringify(model)}`);
+    }
+    if (!model.url || typeof model.url !== 'string') {
+        throw new Error(`Invalid custom model definition for '${model.id}': 'url' is required and must be a string.`);
+    }
+    if (!model.modelName || typeof model.modelName !== 'string') {
+        throw new Error(`Invalid custom model definition for '${model.id}': 'modelName' is required and must be a string.`);
+    }
+    if (!model.inherit || typeof model.inherit !== 'string') {
+        throw new Error(`Invalid custom model definition for '${model.id}': 'inherit' is required and must be a string.`);
+    }
+    if (model.format && typeof model.format !== 'string') {
+        throw new Error(`Invalid custom model definition for '${model.id}': 'format', if provided, must be a string.`);
+    }
+    if (model.format && !['chat', 'completions'].includes(model.format)) {
+        throw new Error(`Invalid custom model definition for '${model.id}': 'format' must be either 'chat' or 'completions'. Found: '${model.format}'`);
+    }
+    if (model.headers && (typeof model.headers !== 'object' || Array.isArray(model.headers))) {
+        throw new Error(`Invalid custom model definition for '${model.id}': 'headers', if provided, must be an object.`);
+    }
+}
+
 /**
  * Parses the raw content of a blueprint file (either JSON or YAML) and normalizes it
  * into the strict internal ComparisonConfig format. This function handles various YAML
@@ -232,6 +264,14 @@ export function parseAndNormalizeBlueprint(content: string, fileType: 'json' | '
     delete (finalConfig as any).configId;
     delete (finalConfig as any).configTitle;
     delete (finalConfig as any).systemPrompt;
+
+    // Normalize models
+    if (finalConfig.models) {
+        if (!Array.isArray(finalConfig.models)) {
+            throw new Error('The \'models\' field must be an array of strings or custom model objects.');
+        }
+        finalConfig.models.forEach(_validateModelDefinition);
+    }
 
     // Normalize prompts
     finalConfig.prompts = (rawPrompts || []).map((p: any) => {
