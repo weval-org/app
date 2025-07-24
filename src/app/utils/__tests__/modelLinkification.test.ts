@@ -22,7 +22,10 @@ describe('addLinksToModelNames', () => {
         "openai/gpt-4o-mini",
         "openai/gpt-4o",
         "openai/gpt-4.1-nano",
-        "moonshotai/Kimi-K2-Instruct"
+        "moonshotai/Kimi-K2-Instruct",
+        // New models for advanced tests
+        "anthropic:claude-3-opus-20240229",
+        "openai/gpt-4o-mini[sp_idx:1]",
     ];
 
     const mockConfig: WevalConfig = {
@@ -30,6 +33,7 @@ describe('addLinksToModelNames', () => {
         title: 'Test Config',
         prompts: [],
         models: [],
+        systems: [null, "You are a helpful assistant."] // Make sp_idx:1 valid
     };
 
     test('should linkify complex, space-and-hyphen-separated model names', () => {
@@ -79,5 +83,69 @@ describe('addLinksToModelNames', () => {
         const result = addLinksToModelNames(text, mockModels, mockConfig);
         expect(result).toContain('[gpt-4.1](#model-perf:openai/gpt-4.1)');
         expect(result).toContain('[gpt-4.1-mini](#model-perf:openai/gpt-4.1-mini)');
+    });
+
+    test('should linkify a full model ID inside backticks', () => {
+        const text = "The model `openai/gpt-4o` is a good choice.";
+        const result = addLinksToModelNames(text, mockModels, mockConfig);
+        expect(result).toBe("The model [openai/gpt-4o](#model-perf:openai/gpt-4o) is a good choice.");
+    });
+
+    test('should linkify a partial model name inside backticks', () => {
+        const text = "The model `gpt-4o` is a good choice.";
+        const result = addLinksToModelNames(text, mockModels, mockConfig);
+        expect(result).toBe("The model [gpt-4o](#model-perf:openai/gpt-4o) is a good choice.");
+    });
+
+    test('should linkify model names both inside and outside backticks', () => {
+        const text = "Use `gpt-4o` but also consider gpt-4.1.";
+        const result = addLinksToModelNames(text, mockModels, mockConfig);
+        expect(result).toContain('[gpt-4o](#model-perf:openai/gpt-4o)');
+        expect(result).toContain('[gpt-4.1](#model-perf:openai/gpt-4.1)');
+    });
+
+    describe('with advanced model ID formats', () => {
+        test('should linkify a full model ID with a colon', () => {
+            const text = "A good model is `anthropic:claude-3-opus-20240229`.";
+            const result = addLinksToModelNames(text, mockModels, mockConfig);
+            expect(result).toBe("A good model is [anthropic:claude-3-opus-20240229](#model-perf:anthropic:claude-3-opus-20240229).");
+        });
+
+        test('should linkify a model path when a provider is present', () => {
+            const text = "The model `openai/gpt-4o` is a good choice.";
+            const result = addLinksToModelNames(text, mockModels, mockConfig);
+            expect(result).toBe("The model [openai/gpt-4o](#model-perf:openai/gpt-4o) is a good choice.");
+        });
+
+        test('should linkify a pure model name from a colon-separated ID', () => {
+            const text = "I prefer claude-3-opus-20240229.";
+            const result = addLinksToModelNames(text, mockModels, mockConfig);
+            expect(result).toBe("I prefer [claude-3-opus-20240229](#model-perf:anthropic:claude-3-opus-20240229).");
+        });
+
+        test('should linkify a human-friendly variation of a pure name', () => {
+            const text = "What about Claude 3 Opus 20240229?";
+            const result = addLinksToModelNames(text, mockModels, mockConfig);
+            expect(result).toBe("What about [Claude 3 Opus 20240229](#model-perf:anthropic:claude-3-opus-20240229)?");
+        });
+
+        test('should link the formatted display name of a variant', () => {
+            const text = "Check the performance of `gpt-4o-mini (sys:1)`.";
+            const result = addLinksToModelNames(text, mockModels, mockConfig);
+            expect(result).toBe("Check the performance of [gpt-4o-mini (sys:1)](#model-perf:openai/gpt-4o-mini).");
+        });
+
+        test('should still link a base model name when variants exist', () => {
+            const text = "In general, `gpt-4o-mini` was solid.";
+            const result = addLinksToModelNames(text, mockModels, mockConfig);
+            expect(result).toBe("In general, [gpt-4o-mini](#model-perf:openai/gpt-4o-mini) was solid.");
+        });
+
+        test('should not greedily match parts of a longer name', () => {
+            const text = "The model gpt-4o-mini is different from gpt-4o.";
+            const result = addLinksToModelNames(text, mockModels, mockConfig);
+            expect(result).toContain('[gpt-4o-mini](#model-perf:openai/gpt-4o-mini)');
+            expect(result).toContain('[gpt-4o](#model-perf:openai/gpt-4o)');
+        });
     });
 }); 

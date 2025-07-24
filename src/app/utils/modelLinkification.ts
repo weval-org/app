@@ -17,7 +17,6 @@ export function addLinksToModelNames(
   if (!text || !effectiveModels || effectiveModels.length === 0) {
     return text;
   }
-  console.log('[modelLinkification] Running addLinksToModelNames...');
 
   const nameToIdMap = new Map<string, string>();
   const allDisplayNames: string[] = [];
@@ -26,9 +25,8 @@ export function addLinksToModelNames(
   const baseToCanonicalMap = new Map<string, string>();
   for (const canonicalId of canonicalModelIds) {
     const parsedId = parseEffectiveModelId(canonicalId);
-    const baseLabel = getModelDisplayLabel(parsedId, { hideProvider: true, hideSystemPrompt: true, hideTemperature: true });
-    if (!baseToCanonicalMap.has(baseLabel)) {
-      baseToCanonicalMap.set(baseLabel, canonicalId);
+    if (!baseToCanonicalMap.has(parsedId.baseId)) {
+      baseToCanonicalMap.set(parsedId.baseId, canonicalId);
     }
   }
 
@@ -36,27 +34,44 @@ export function addLinksToModelNames(
     if (modelId.includes('ideal')) continue;
     
     const parsedId = parseEffectiveModelId(modelId);
+    const canonicalId = baseToCanonicalMap.get(parsedId.baseId) || modelId;
+
+    const namesToGenerate = new Set<string>();
+
+    // 1. Add all exact, known-good identifiers
+    namesToGenerate.add(modelId); // Full ID, e.g., "openai/gpt-4o-mini[sp_idx:1]"
+    namesToGenerate.add(parsedId.baseId); // Base ID, e.g., "openai/gpt-4o-mini"
+
+    // Add all possible display labels
+    const displayLabels = [
+        getModelDisplayLabel(parsedId),
+        getModelDisplayLabel(parsedId, { hideProvider: true }),
+        getModelDisplayLabel(parsedId, { hideModelMaker: true }),
+        getModelDisplayLabel(parsedId, { hideProvider: true, hideModelMaker: true }),
+    ];
+    displayLabels.forEach(label => namesToGenerate.add(label));
+
+    // 2. Isolate the "pure" model name for generating fuzzy variations,
+    //    and add the model path as a searchable term.
+    let modelPath = parsedId.baseId;
+    let pureModelName = parsedId.baseId;
     
-    const baseLabel = getModelDisplayLabel(parsedId, { 
-        hideProvider: true, 
-        hideSystemPrompt: true, 
-        hideTemperature: true 
-    });
-
-    const canonicalIdForBase = baseToCanonicalMap.get(baseLabel) || modelId;
-    const namesForThisModel = new Set<string>();
-
-    namesForThisModel.add(baseLabel);
-
-    const slashIndex = baseLabel.indexOf('/');
-    if (slashIndex !== -1) {
-        namesForThisModel.add(baseLabel.substring(slashIndex + 1));
+    const colonIndex = pureModelName.indexOf(':');
+    if (colonIndex > -1) {
+        modelPath = pureModelName.substring(colonIndex + 1);
+        namesToGenerate.add(modelPath); // Add "openai/gpt-4o-mini"
+        pureModelName = modelPath;
     }
     
-    const textNames = [...namesForThisModel];
-    for(const name of textNames) {
-        // Break down the name into parts (e.g., "gemini-2.5-pro" -> ["gemini", "2.5", "pro"])
-        const parts = name.split(/[- ]/);
+    const slashIndex = pureModelName.indexOf('/');
+    if (slashIndex > -1) {
+        pureModelName = pureModelName.substring(slashIndex + 1);
+    }
+    
+    // 3. Generate fuzzy variations ONLY from the pure name.
+    if (pureModelName && !pureModelName.includes(':') && !pureModelName.includes('/')) {
+        namesToGenerate.add(pureModelName);
+        const parts = pureModelName.split(/[- ]/);
         if (parts.length > 1) {
             // Generate all combinations of joining parts with spaces or hyphens
             for (let i = 0; i < (1 << (parts.length - 1)); i++) {
@@ -65,29 +80,22 @@ export function addLinksToModelNames(
                     combination += (i & (1 << j)) ? ' ' : '-';
                     combination += parts[j + 1];
                 }
-                namesForThisModel.add(combination);
-                namesForThisModel.add(combination.charAt(0).toUpperCase() + combination.slice(1));
-                namesForThisModel.add(combination.split(/[- ]/).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' '));
-                namesForThisModel.add(combination.split(/[- ]/).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('-'));
+                namesToGenerate.add(combination);
+                namesToGenerate.add(combination.charAt(0).toUpperCase() + combination.slice(1));
+                namesToGenerate.add(combination.split(/[- ]/).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' '));
+                namesToGenerate.add(combination.split(/[- ]/).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('-'));
             }
         }
-        namesForThisModel.add(
-            name.charAt(0).toUpperCase() + name.slice(1)
+        namesToGenerate.add(
+            pureModelName.charAt(0).toUpperCase() + pureModelName.slice(1)
         );
     }
     
-    for (const name of namesForThisModel) {
+    // 4. Add all generated names to the main map.
+    for (const name of namesToGenerate) {
         if (name && !nameToIdMap.has(name)) {
-            nameToIdMap.set(name, canonicalIdForBase);
+            nameToIdMap.set(name, canonicalId);
             allDisplayNames.push(name);
-        }
-    }
-    
-    const fullLabelWithSuffix = getModelDisplayLabel(parsedId, { hideProvider: true });
-    if (fullLabelWithSuffix !== baseLabel) {
-        if (fullLabelWithSuffix && !nameToIdMap.has(fullLabelWithSuffix)) {
-            nameToIdMap.set(fullLabelWithSuffix, modelId);
-            allDisplayNames.push(fullLabelWithSuffix);
         }
     }
   }
@@ -99,30 +107,46 @@ export function addLinksToModelNames(
     return text;
   }
 
-  console.log(`[modelLinkification] Found ${uniqueNames.length} unique model display names to search for.`);
-
   const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const modelPattern = uniqueNames.map(escapeRegex).join('|');
   
   const regex = new RegExp(
-    `(?<!\\[|#model-perf:|\\w)(${modelPattern})(?!\\w|-)`, 'gi'
+    "(`([^`]+?)`)|" + // Match and capture inline code blocks and their content
+    `(?<!\\[|#model-perf:|\\w)(${modelPattern})(?!\\w|-)`, // Match model names
+    'gi'
   );
 
   let matchCount = 0;
-  const linkedText = text.replace(regex, (match) => {
-    const matchedKey = uniqueNames.find(name => name.toLowerCase() === match.toLowerCase());
-    const modelId = matchedKey ? nameToIdMap.get(matchedKey) : null;
-    
-    if (modelId) {
-      matchCount++;
-      return `[${match}](#model-perf:${modelId})`;
+  const linkedText = text.replace(regex, (fullMatch, codeBlock, codeContent, modelMatch) => {
+    // If a code block was matched (group 1 & 2)
+    if (codeBlock) {
+      // Check if the content of the code block is a known model name/ID
+      const matchedKey = uniqueNames.find(name => name.toLowerCase() === codeContent.toLowerCase());
+      const modelId = matchedKey ? nameToIdMap.get(matchedKey) : null;
+      
+      if (modelId) {
+        matchCount++;
+        // If it is, create a link from the content, discarding the backticks.
+        return `[${codeContent}](#model-perf:${modelId})`;
+      }
+      // If not, return the code block unmodified
+      return codeBlock;
     }
-    return match;
-  });
 
-  if (matchCount > 0) {
-    console.log(`[modelLinkification] Replaced ${matchCount} model name occurrences in the text.`);
-  }
+    // If a standalone model name was matched (group 3)
+    if (modelMatch) {
+      const matchedKey = uniqueNames.find(name => name.toLowerCase() === modelMatch.toLowerCase());
+      const modelId = matchedKey ? nameToIdMap.get(matchedKey) : null;
+      
+      if (modelId) {
+        matchCount++;
+        return `[${modelMatch}](#model-perf:${modelId})`;
+      }
+    }
+    
+    // Fallback for safety
+    return fullMatch;
+  });
 
   return linkedText;
 } 

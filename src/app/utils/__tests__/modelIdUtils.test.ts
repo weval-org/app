@@ -153,5 +153,17 @@ describe('modelIdUtils', () => {
       const modelId = 'google/gemini-pro';
       expect(getModelDisplayLabel(modelId, { hideModelMaker: true })).toBe('gemini-pro');
     });
+
+    it('should handle colon-separated model IDs correctly', () => {
+      const modelId = 'anthropic:claude-3-opus';
+      const parsed = parseEffectiveModelId(modelId);
+      expect(parsed.baseId).toBe('anthropic:claude-3-opus');
+      expect(getModelDisplayLabel(parsed, { hideProvider: true })).toBe('claude-3-opus');
+    });
+
+    it('should handle hideModelMaker correctly with a colon-separated model ID', () => {
+      const modelId = 'openrouter:google/gemini-pro';
+      expect(getModelDisplayLabel(modelId, { hideModelMaker: true })).toBe('openrouter:gemini-pro');
+    });
   });
 }); 

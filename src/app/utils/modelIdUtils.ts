@@ -75,32 +75,34 @@ export function getModelDisplayLabel(
     
     let baseId = parsed.baseId;
     let provider = '';
-    const colonIndex = baseId.indexOf(':');
+    let modelPath = baseId;
 
+    const colonIndex = baseId.indexOf(':');
     if (colonIndex !== -1) {
         provider = baseId.substring(0, colonIndex);
-        baseId = baseId.substring(colonIndex + 1);
+        modelPath = baseId.substring(colonIndex + 1);
     }
 
+    let finalModelName = modelPath;
     if (options?.hideModelMaker) {
-        const slashIndex = baseId.indexOf('/');
+        const slashIndex = modelPath.indexOf('/');
         if (slashIndex !== -1) {
-            baseId = baseId.substring(slashIndex + 1);
+            finalModelName = modelPath.substring(slashIndex + 1);
         }
     }
     
     // Prettify the model name if requested
     if (options?.prettifyModelName) {
-        baseId = baseId
+        finalModelName = finalModelName
             .split('-')
             .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
             .join(' ')
             .replace('Gpt', 'GPT');
     }
     
-    let baseDisplayName = baseId;
+    let baseDisplayName = finalModelName;
     if (!options?.hideProvider && provider) {
-        baseDisplayName = `${provider}:${baseId}`;
+        baseDisplayName = `${provider}:${finalModelName}`;
     }
 
     let label = baseDisplayName;
