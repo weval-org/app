@@ -10,6 +10,17 @@ import { PotentialDriftInfo } from '@/app/components/ModelDriftIndicator';
 export type { AllCoverageScores } from '@/app/analysis/components/CoverageHeatmapCanvas'; 
 import { AllCoverageScores } from '@/app/analysis/components/CoverageHeatmapCanvas';
 
+export interface ModelScores {
+  average: number | null;
+  stddev: number | null;
+}
+
+export interface PerModelScoreStats {
+  hybrid: ModelScores;
+  similarity: ModelScores;
+  coverage: ModelScores;
+}
+
 export interface EnhancedRunInfo {
   runLabel: string; 
   timestamp: string; 
@@ -19,7 +30,7 @@ export interface EnhancedRunInfo {
   numModels?: number;
   totalModelsAttempted?: number;
   hybridScoreStats?: { average: number | null; stddev: number | null };
-  perModelHybridScores?: Map<string, { average: number | null; stddev: number | null }>;
+  perModelScores?: Map<string, PerModelScoreStats>;
   tags?: string[];
   allCoverageScores?: AllCoverageScores | null;
   models?: string[];

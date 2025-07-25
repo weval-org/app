@@ -43,9 +43,13 @@ const mockConfigData1 = {
     timestamp: '2024-01-01T10-00-00-000Z',
     effectiveModels: ['test-provider:test-model-a'],
     evaluationResults: {
-        perModelHybridScores: {
-            'test-provider:test-model-a': { average: 0.9, stddev: 0 }
-        }
+        perModelScores: new Map([
+            ['test-provider:test-model-a', { 
+                hybrid: { average: 0.9, stddev: 0 },
+                similarity: { average: 0.9, stddev: 0 },
+                coverage: { average: 0.9, stddev: 0 },
+            }]
+        ])
     }
 };
 

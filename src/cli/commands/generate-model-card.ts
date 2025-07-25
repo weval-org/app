@@ -114,29 +114,25 @@ async function actionGenerateModelCard(modelIdPattern: string, options: {}) {
                 });
             }
 
-            if (runInfo.perModelHybridScores) {
+            if (runInfo.perModelScores) {
                 let totalScore = 0;
                 let count = 0;
-                const scoresMap =
-                    runInfo.perModelHybridScores instanceof Map
-                        ? runInfo.perModelHybridScores
+                const scoresMap = 
+                    runInfo.perModelScores instanceof Map
+                        ? runInfo.perModelScores
                         : new Map(
                               Object.entries(
-                                  runInfo.perModelHybridScores as Record<
+                                  runInfo.perModelScores as Record<
                                       string,
-                                      { average: number | null; stddev: number | null }
-                                  >,
-                              ),
+                                      any
+                                  >
+                              )
                           );
 
                 matchingEffectiveIds.forEach((id) => {
                     const scoreData = scoresMap.get(id);
-                    if (
-                        scoreData &&
-                        scoreData.average !== undefined &&
-                        scoreData.average !== null
-                    ) {
-                        totalScore += scoreData.average;
+                    if (scoreData && scoreData.hybrid?.average !== undefined && scoreData.hybrid?.average !== null) {
+                        totalScore += scoreData.hybrid.average;
                         count++;
                     }
                 });

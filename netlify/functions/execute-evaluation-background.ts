@@ -151,7 +151,7 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
             );
 
             // 2. Recalculate headlineStats and driftDetectionResult using the newly updated configs array
-            const newHeadlineStats = calculateHeadlineStats(updatedConfigsArray);
+            const newHeadlineStats = calculateHeadlineStats(updatedConfigsArray, new Map());
             const newDriftDetectionResult = calculatePotentialModelDrift(updatedConfigsArray);
 
             // 3. Construct the complete new HomepageSummaryFileContent object

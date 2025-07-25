@@ -54,16 +54,17 @@ export function processBlueprintSummaries(configs: EnhancedComparisonConfigInfo[
             const allModelScoresAcrossRuns = new Map<string, { scoreSum: number; count: number }>();
 
             config.runs.forEach(run => {
-                if (run.perModelHybridScores) {
-                    const scoresMap = run.perModelHybridScores instanceof Map
-                        ? run.perModelHybridScores
-                        : new Map(Object.entries(run.perModelHybridScores || {}) as [string, { average: number | null; stddev: number | null }][]);
+                if (run.perModelScores) {
+                    const scoresMap = run.perModelScores instanceof Map
+                        ? run.perModelScores
+                        : new Map(Object.entries(run.perModelScores || {}) as [string, any][]);
 
-                    scoresMap.forEach((scoreData, modelId) => {
-                        if (modelId !== IDEAL_MODEL_ID && scoreData.average !== null && scoreData.average !== undefined) {
+                    scoresMap.forEach((scoreData: any, modelId: string) => {
+                        const hybridScore = scoreData.hybrid?.average || scoreData.average; // Support both new and old formats
+                        if (modelId !== IDEAL_MODEL_ID && hybridScore !== null && hybridScore !== undefined) {
                             const current = allModelScoresAcrossRuns.get(modelId) || { scoreSum: 0, count: 0 };
-                            current.scoreSum += scoreData.average;
-                            current.count += 1;
+                            current.scoreSum += hybridScore;
+                            current.count++;
                             allModelScoresAcrossRuns.set(modelId, current);
                         }
                     });

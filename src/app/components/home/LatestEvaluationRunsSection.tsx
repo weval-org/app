@@ -79,19 +79,21 @@ const LatestEvaluationRunsSection = ({ latestRuns }: { latestRuns: DisplayableRu
                 const runLabelUrl = `/analysis/${run.configId}/${encodeURIComponent(run.runLabel)}`;
                 
                 let topModelDisplay: React.ReactNode = <span className={`font-normal ${getHybridScoreColor(null)}`}>N/A</span>;
-                if (run.perModelHybridScores) {
-                  let bestScore = -Infinity;
-                  let bestModelId: string | null = null;
-                  const scoresMap = run.perModelHybridScores instanceof Map
-                    ? run.perModelHybridScores
-                    : new Map(Object.entries(run.perModelHybridScores || {}) as [string, { average: number | null; stddev: number | null }][]);
+                if (run.perModelScores) {
+                    let bestScore = -Infinity;
+                    let bestModelId: string | null = null;
+                    
+                    const scoresMap = run.perModelScores instanceof Map
+                        ? run.perModelScores
+                        : new Map(Object.entries(run.perModelScores || {}) as [string, any][]);
 
-                  scoresMap.forEach((scoreData, modelId) => {
-                    if (modelId !== IDEAL_MODEL_ID && scoreData.average !== null && scoreData.average !== undefined && scoreData.average > bestScore) {
-                      bestScore = scoreData.average;
-                      bestModelId = modelId;
-                    }
-                  });
+                    scoresMap.forEach((scoreData: any, modelId: string) => {
+                        const hybridScore = scoreData.hybrid?.average || scoreData.average; // Support both new and old formats
+                        if (modelId !== IDEAL_MODEL_ID && hybridScore !== null && hybridScore !== undefined && hybridScore > bestScore) {
+                            bestScore = hybridScore;
+                            bestModelId = modelId;
+                        }
+                    });
 
                   if (bestModelId) {
                     topModelDisplay = (

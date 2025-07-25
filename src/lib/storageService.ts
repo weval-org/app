@@ -1,29 +1,35 @@
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
-import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command, DeleteObjectsCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
-import { RESULTS_DIR, MULTI_DIR } from '@/cli/constants'; // Assuming these are still relevant for local path structure
+import {
+  S3Client,
+  ListObjectsV2Command,
+  GetObjectCommand,
+  PutObjectCommand,
+  DeleteObjectsCommand,
+  DeleteObjectCommand,
+} from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
 import {
-  EnhancedComparisonConfigInfo,
-  EnhancedRunInfo
-} from '@/app/utils/homepageDataUtils';
-import { ComparisonDataV2 as FetchedComparisonData } from '@/app/utils/types';
-import {
-  calculateAverageHybridScoreForRun,
-  calculatePerModelHybridScoresForRun,
   calculateStandardDeviation,
-  IDEAL_MODEL_ID
 } from '@/app/utils/calculationUtils';
+import {
+  EnhancedComparisonConfigInfo,
+  EnhancedRunInfo,
+} from '@/app/utils/homepageDataUtils';
 import { AggregateStatsData } from '@/app/components/AggregateStatsDisplay';
 import { PotentialDriftInfo } from '@/app/components/ModelDriftIndicator';
+import { ComparisonDataV2 as FetchedComparisonData } from '@/app/utils/types';
 import {
-  calculateHeadlineStats,
-  calculatePotentialModelDrift,
+    calculateHeadlineStats,
+    calculatePotentialModelDrift,
+    calculatePerModelScoreStatsForRun,
+    calculateAverageHybridScoreForRun
 } from '@/cli/utils/summaryCalculationUtils';
 import { fromSafeTimestamp } from '@/lib/timestampUtils';
 import { ModelSummary } from '@/types/shared';
-import { SearchDoc, SearchableBlueprintSummary } from '@/cli/types/cli_types';
+import { SearchableBlueprintSummary } from '@/cli/types/cli_types';
+import { RESULTS_DIR, MULTI_DIR } from '@/cli/constants';
 
 const storageProvider = process.env.STORAGE_PROVIDER || (process.env.NODE_ENV === 'development' ? 'local' : 's3');
 
@@ -104,7 +110,8 @@ function getSafeModelId(modelId: string): string {
 // Helper types for serialization
 type SerializableScoreMap = Record<string, { average: number | null; stddev: number | null }>;
 
-interface SerializableEnhancedRunInfo extends Omit<EnhancedRunInfo, 'perModelHybridScores'> {
+interface SerializableEnhancedRunInfo extends Omit<EnhancedRunInfo, 'perModelScores' | 'perModelHybridScores'> {
+  perModelScores?: Record<string, any>;
   perModelHybridScores?: SerializableScoreMap;
 }
 
@@ -117,7 +124,8 @@ interface SerializableHomepageSummaryFileContent extends Omit<HomepageSummaryFil
 }
 
 // --- New Serializable Types for Latest Runs Summary ---
-interface SerializableLatestRunSummaryItem extends Omit<LatestRunSummaryItem, 'perModelHybridScores'> {
+interface SerializableLatestRunSummaryItem extends Omit<LatestRunSummaryItem, 'perModelScores' | 'perModelHybridScores'> {
+    perModelScores?: Record<string, any>;
     perModelHybridScores?: SerializableScoreMap;
 }
 interface SerializableLatestRunsSummaryFileContent extends Omit<LatestRunsSummaryFileContent, 'runs'> {
@@ -176,6 +184,9 @@ export async function getHomepageSummary(): Promise<HomepageSummaryFileContent |
       ...config,
       runs: config.runs.map(run => ({
         ...run,
+        perModelScores: run.perModelScores
+          ? new Map(Object.entries(run.perModelScores))
+          : undefined,
         perModelHybridScores: run.perModelHybridScores 
           ? new Map(Object.entries(run.perModelHybridScores)) 
           : new Map()
@@ -196,20 +207,27 @@ export async function saveHomepageSummary(summaryData: HomepageSummaryFileConten
   const fileName = 'homepage_summary.json';
 
   // Prepare data for serialization: convert Maps to objects
-  const serializableConfigs: SerializableEnhancedComparisonConfigInfo[] = summaryData.configs.map((config: EnhancedComparisonConfigInfo) => ({
+  // Map objects don't serialize nicely, so we convert them to plain objects
+  const serializableConfigs = summaryData.configs.map(config => ({
     ...config,
-    runs: config.runs.map((run: EnhancedRunInfo) => {
-      const { perModelHybridScores, ...restOfRun } = run; // Destructure to separate map
-      const serializableRun: SerializableEnhancedRunInfo = { ...restOfRun }; // Spread rest
-
-      if (perModelHybridScores instanceof Map) {
-        serializableRun.perModelHybridScores = Object.fromEntries(perModelHybridScores);
-      } else if (perModelHybridScores) { 
-        serializableRun.perModelHybridScores = perModelHybridScores as SerializableScoreMap;
-      } else {
-        serializableRun.perModelHybridScores = {}; 
+    runs: config.runs.map(run => {
+      const serializableRun: SerializableEnhancedRunInfo = { ...run };
+      
+      // Handle the new perModelScores (Map -> object)
+      if (run.perModelScores) {
+        serializableRun.perModelScores = Object.fromEntries(run.perModelScores);
+        // For backward compatibility, also create the old hybrid score field from the new data
+        serializableRun.perModelHybridScores = Object.fromEntries(
+          Array.from(run.perModelScores.entries()).map(([modelId, scores]) => [
+            modelId,
+            scores.hybrid
+          ])
+        );
+      } else if ((run as any).perModelHybridScores instanceof Map) {
+        // If we only have the old format, just serialize that.
+        serializableRun.perModelHybridScores = Object.fromEntries((run as any).perModelHybridScores);
       }
-
+      
       return serializableRun;
     }),
   }));
@@ -304,6 +322,9 @@ export async function getConfigSummary(configId: string): Promise<EnhancedCompar
       ...parsedContent,
       runs: parsedContent.runs.map(run => ({
         ...run,
+        perModelScores: run.perModelScores
+            ? new Map(Object.entries(run.perModelScores))
+            : undefined,
         perModelHybridScores: run.perModelHybridScores 
           ? new Map(Object.entries(run.perModelHybridScores)) 
           : new Map()
@@ -327,15 +348,19 @@ export async function saveConfigSummary(configId: string, summaryData: EnhancedC
 
   // Prepare data for serialization: convert Maps to objects
   const serializableRuns: SerializableEnhancedRunInfo[] = summaryData.runs.map((run: EnhancedRunInfo) => {
-    const { perModelHybridScores, ...restOfRun } = run;
+    const { perModelScores, ...restOfRun } = run;
     const serializableRun: SerializableEnhancedRunInfo = { ...restOfRun };
 
-    if (perModelHybridScores instanceof Map) {
-      serializableRun.perModelHybridScores = Object.fromEntries(perModelHybridScores);
-    } else if (perModelHybridScores) { 
-      serializableRun.perModelHybridScores = perModelHybridScores as SerializableScoreMap;
-    } else {
-      serializableRun.perModelHybridScores = {}; 
+    if (perModelScores instanceof Map) {
+      serializableRun.perModelScores = Object.fromEntries(perModelScores);
+      serializableRun.perModelHybridScores = Object.fromEntries(
+        Array.from(perModelScores.entries()).map(([modelId, scores]) => [
+          modelId, 
+          scores.hybrid
+        ])
+      );
+    } else if ((run as any).perModelHybridScores instanceof Map) {
+      serializableRun.perModelHybridScores = Object.fromEntries((run as any).perModelHybridScores);
     }
 
     return serializableRun;
@@ -608,133 +633,85 @@ export function updateSummaryDataWithNewRun(
   newResultData: FetchedComparisonData, // The full data object from the completed run
   runFileName: string // The actual filename of the run, e.g. myrun_hash_timestamp_comparison.json
 ): EnhancedComparisonConfigInfo[] {
-  let updatedSummary = summary ? [...summary] : []; // Operate on a copy
+  
+  const currentSummary = summary ? summary.map(item => ({ ...item, runs: [...item.runs] })) : [];
 
-  const configIdFromNewResult = newResultData.configId;
-  const runLabelFromNewResult = newResultData.runLabel; // This is the base runLabel
-  const timestampFromNewResult = newResultData.timestamp;
+  const configId = newResultData.configId;
+  const configTitle = newResultData.configTitle || newResultData.config.title || configId;
+  const runLabel = newResultData.runLabel;
+  const timestamp = newResultData.timestamp;
 
-  let configIndex = updatedSummary.findIndex(c => c.configId === configIdFromNewResult);
-
-  const newRunHybridStats = calculateAverageHybridScoreForRun(
-    newResultData.evaluationResults?.perPromptSimilarities,
-    newResultData.evaluationResults?.llmCoverageScores,
-    newResultData.effectiveModels,
-    newResultData.promptIds,
-    IDEAL_MODEL_ID
+  let configSummary = currentSummary.find(
+    (c) => (c.id || c.configId) === configId
   );
-
-  const perModelScoresForNewRun = calculatePerModelHybridScoresForRun(
-    newResultData.evaluationResults?.perPromptSimilarities,
-    newResultData.evaluationResults?.llmCoverageScores,
-    newResultData.effectiveModels,
-    newResultData.promptIds,
-    IDEAL_MODEL_ID
-  );
-
-  // Create a "lite" version of coverage scores for the summary to avoid bloat.
-  // This version includes average scores per prompt/model but excludes detailed pointAssessments.
-  const fullCoverageScores = newResultData.evaluationResults?.llmCoverageScores;
-  let liteCoverageScores: typeof fullCoverageScores | null = null;
-
-  if (fullCoverageScores) {
-    liteCoverageScores = {};
-    for (const promptId in fullCoverageScores) {
-      if (Object.prototype.hasOwnProperty.call(fullCoverageScores, promptId)) {
-        liteCoverageScores[promptId] = {};
-        const models = fullCoverageScores[promptId];
-        for (const modelId in models) {
-          if (Object.prototype.hasOwnProperty.call(models, modelId)) {
-            const result = models[modelId];
-            if (result && !('error' in result)) {
-              // Strip out the heavy pointAssessments array for the summary
-              liteCoverageScores[promptId][modelId] = {
-                keyPointsCount: result.keyPointsCount,
-                avgCoverageExtent: result.avgCoverageExtent,
-              };
-            } else if (result) {
-              liteCoverageScores[promptId][modelId] = result; // Keep error objects as is
-            }
-          }
-        }
-      }
-    }
+  if (!configSummary) {
+    configSummary = {
+      configId: configId,
+      configTitle: configTitle,
+      id: configId,
+      title: configTitle,
+      description: newResultData.config?.description || '',
+      runs: [],
+      latestRunTimestamp: timestamp,
+      tags: newResultData.config.tags || [],
+    };
+    currentSummary.push(configSummary);
+  } else {
+    // Update metadata that might change between runs
+    configSummary.configTitle = configTitle;
+    configSummary.title = configTitle;
+    configSummary.description = newResultData.config?.description || configSummary.description;
+    configSummary.tags = newResultData.config.tags || configSummary.tags;
   }
+  
+  const perModelScores = calculatePerModelScoreStatsForRun(newResultData);
+  const hybridScoreStats = calculateAverageHybridScoreForRun(newResultData);
 
-  // --- Create the new EnhancedRunInfo object for this run ---
   const newRunInfo: EnhancedRunInfo = {
-    runLabel: newResultData.runLabel,
-    timestamp: newResultData.timestamp,
+    runLabel: runLabel,
+    timestamp: timestamp,
     fileName: runFileName,
-    temperature: newResultData.config.temperature,
-    numModels: newResultData.effectiveModels.length,
-    totalModelsAttempted: newResultData.config.models.length,
+    temperature: newResultData.config.temperature || 0,
     numPrompts: newResultData.promptIds.length,
-    hybridScoreStats: newRunHybridStats,
-    perModelHybridScores: perModelScoresForNewRun,
-    // Pass through the "lite" coverage and model data for the heatmap
-    allCoverageScores: liteCoverageScores,
+    numModels: newResultData.effectiveModels.filter(m => m !== 'ideal').length,
+    totalModelsAttempted: newResultData.config.models.length,
+    hybridScoreStats: hybridScoreStats,
+    perModelScores: perModelScores,
+    tags: newResultData.config.tags,
     models: newResultData.effectiveModels,
     promptIds: newResultData.promptIds,
   };
 
-  if (configIndex === -1) { // Config not found, add new entry
-    const newConfigEntry: EnhancedComparisonConfigInfo = {
-      configId: configIdFromNewResult,
-      configTitle: newResultData.configTitle,
-      id: newResultData.config?.id || newResultData.configId,
-      title: newResultData.config?.title || newResultData.configTitle,
-      description: newResultData.config?.description || newResultData.description,
-      runs: [newRunInfo],
-      latestRunTimestamp: timestampFromNewResult,
-      tags: newResultData.config?.tags || undefined,
-      overallAverageHybridScore: newRunHybridStats.average,
-      hybridScoreStdDev: (newRunHybridStats.average !== null && newRunHybridStats.stddev === null) ? 0 : newRunHybridStats.stddev,
-    };
-    updatedSummary.push(newConfigEntry);
-  } else { // Existing config, update it
-    const existingConfig = { ...updatedSummary[configIndex] }; // Shallow copy
-    existingConfig.runs = [...existingConfig.runs]; // Shallow copy runs array
-
-    // For now, using runLabel and timestamp combination for uniqueness within a config's runs.
-    const runExistsIndex = existingConfig.runs.findIndex(r => r.runLabel === newRunInfo.runLabel && r.timestamp === newRunInfo.timestamp);
-    if (runExistsIndex !== -1) {
-      existingConfig.runs.splice(runExistsIndex, 1);
-    }
-    
-    existingConfig.runs.unshift(newRunInfo); // Add new run to the beginning
-    // Ensure runs are sorted by timestamp, newest first.
-    existingConfig.runs.sort((a, b) => new Date(fromSafeTimestamp(b.timestamp)).getTime() - new Date(fromSafeTimestamp(a.timestamp)).getTime());
-
-    // Update config metadata from the latest run's config object if available and this run is the latest
-    if (new Date(fromSafeTimestamp(timestampFromNewResult)).getTime() >= new Date(fromSafeTimestamp(existingConfig.latestRunTimestamp)).getTime()) {
-      existingConfig.latestRunTimestamp = timestampFromNewResult;
-      existingConfig.id = newResultData.config?.id || existingConfig.id || newResultData.configId; // Prefer id from config object
-      existingConfig.title = newResultData.config?.title || existingConfig.title || newResultData.configTitle; // Prefer title from config object
-      existingConfig.configTitle = newResultData.configTitle; // Ensure configTitle is directly from newResultData
-      existingConfig.description = newResultData.config?.description || newResultData.description || existingConfig.description;
-      existingConfig.tags = newResultData.config?.tags || existingConfig.tags;
-    }
-    
-    // Recalculate overallAverageHybridScore and hybridScoreStdDev for this config
-    const validHybridScores = existingConfig.runs
-      .map(run => run.hybridScoreStats?.average)
-      .filter(score => score !== null && score !== undefined && !isNaN(score)) as number[];
-    
-    if (validHybridScores.length > 0) {
-      existingConfig.overallAverageHybridScore = 
-        validHybridScores.reduce((sum, score) => sum + score, 0) / validHybridScores.length;
-      existingConfig.hybridScoreStdDev = calculateStandardDeviation(validHybridScores);
-    } else {
-      existingConfig.overallAverageHybridScore = null;
-      existingConfig.hybridScoreStdDev = null;
-    }
-    updatedSummary[configIndex] = existingConfig;
+  const runExists = configSummary.runs.some(
+    (run) => run.runLabel === newRunInfo.runLabel && run.timestamp === newRunInfo.timestamp
+  );
+  if (!runExists) {
+    configSummary.runs.push(newRunInfo);
+    configSummary.runs.sort(
+      (a, b) =>
+        new Date(fromSafeTimestamp(b.timestamp)).getTime() -
+        new Date(fromSafeTimestamp(a.timestamp)).getTime()
+    );
   }
 
-  // Sort all configs by their latest run's timestamp (most recent first)
-  updatedSummary.sort((a, b) => new Date(fromSafeTimestamp(b.latestRunTimestamp)).getTime() - new Date(fromSafeTimestamp(a.latestRunTimestamp)).getTime());
-  return updatedSummary;
+  // Update latestRunTimestamp
+  configSummary.latestRunTimestamp = configSummary.runs[0].timestamp;
+
+  // Recalculate overall stats for this config
+  const allHybridScoresForConfig = configSummary.runs
+    .map(run => run.hybridScoreStats?.average)
+    .filter(score => score !== null && score !== undefined) as number[];
+  
+  if (allHybridScoresForConfig.length > 0) {
+    const totalScore = allHybridScoresForConfig.reduce((sum, score) => sum + score, 0);
+    configSummary.overallAverageHybridScore = totalScore / allHybridScoresForConfig.length;
+    configSummary.hybridScoreStdDev = calculateStandardDeviation(allHybridScoresForConfig);
+  } else {
+    configSummary.overallAverageHybridScore = null;
+    configSummary.hybridScoreStdDev = null;
+  }
+
+  return currentSummary;
 }
 
 /**
@@ -893,14 +870,14 @@ export async function removeConfigFromHomepageSummary(configIdToRemove: string):
 
     // Step 2: Recalculate headline stats and drift from the updated array
     console.log(`[StorageService] Recalculating headline stats and drift detection after removal...`);
-    const updatedHeadlineStats = calculateHeadlineStats(updatedConfigsArray);
-    const updatedDriftDetection = calculatePotentialModelDrift(updatedConfigsArray);
+    const updatedHeadlineStats = calculateHeadlineStats(updatedConfigsArray, new Map());
+    const updatedDriftDetectionResult = calculatePotentialModelDrift(updatedConfigsArray);
 
     // Step 3: Construct the full, updated summary object to save
     const updatedSummaryToSave: HomepageSummaryFileContent = {
       configs: updatedConfigsArray,
       headlineStats: updatedHeadlineStats,
-      driftDetectionResult: updatedDriftDetection,
+      driftDetectionResult: updatedDriftDetectionResult,
       lastUpdated: new Date().toISOString(),
     };
 
@@ -989,6 +966,9 @@ export async function getLatestRunsSummary(): Promise<LatestRunsSummaryFileConte
     const parsedContent: SerializableLatestRunsSummaryFileContent = JSON.parse(fileContent);
     const runsWithMaps: LatestRunSummaryItem[] = parsedContent.runs.map(run => ({
       ...run,
+      perModelScores: run.perModelScores
+        ? new Map(Object.entries(run.perModelScores))
+        : undefined,
       perModelHybridScores: run.perModelHybridScores
         ? new Map(Object.entries(run.perModelHybridScores))
         : new Map(),
@@ -1002,16 +982,21 @@ export async function getLatestRunsSummary(): Promise<LatestRunsSummaryFileConte
 
 export async function saveLatestRunsSummary(summaryData: LatestRunsSummaryFileContent): Promise<void> {
     const serializableRuns: SerializableLatestRunSummaryItem[] = summaryData.runs.map(run => {
-        const { perModelHybridScores, ...restOfRun } = run;
+        const { perModelScores, ...restOfRun } = run;
         const serializableRun: SerializableLatestRunSummaryItem = { ...restOfRun };
 
-        if (perModelHybridScores instanceof Map) {
-            serializableRun.perModelHybridScores = Object.fromEntries(perModelHybridScores);
-        } else if (perModelHybridScores) {
-            serializableRun.perModelHybridScores = perModelHybridScores as SerializableScoreMap;
-        } else {
-            serializableRun.perModelHybridScores = {};
+        if (perModelScores instanceof Map) {
+            serializableRun.perModelScores = Object.fromEntries(perModelScores);
+            serializableRun.perModelHybridScores = Object.fromEntries(
+                Array.from(perModelScores.entries()).map(([modelId, scores]) => [
+                    modelId,
+                    scores.hybrid,
+                ])
+            );
+        } else if ((run as any).perModelHybridScores instanceof Map) {
+            serializableRun.perModelHybridScores = Object.fromEntries((run as any).perModelHybridScores);
         }
+
         return serializableRun;
     });
 

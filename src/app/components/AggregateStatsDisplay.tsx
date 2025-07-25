@@ -2,20 +2,16 @@
 
 import dynamic from 'next/dynamic';
 import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { APP_REPO_URL } from '@/lib/configConstants';
+import { Slider } from '@/components/ui/slider';
+import { Label } from '@/components/ui/label';
 
 const BarChartHorizontalBig = dynamic(() => import('lucide-react').then(mod => mod.BarChartHorizontalBig));
-
-const TrendingUp = dynamic(() => import('lucide-react').then(mod => mod.TrendingUp));
-const TrendingDown = dynamic(() => import('lucide-react').then(mod => mod.TrendingDown));
-const CheckCircle2 = dynamic(() => import('lucide-react').then(mod => mod.CheckCircle2));
-const AlertCircle = dynamic(() => import('lucide-react').then(mod => mod.AlertCircle));
 const Award = dynamic(() => import('lucide-react').then(mod => mod.Award));
 const InfoIcon = dynamic(() => import('lucide-react').then(mod => mod.Info));
-const Zap = dynamic(() => import('lucide-react').then(mod => mod.Zap));
 const FlaskConical = dynamic(() => import('lucide-react').then(mod => mod.FlaskConical));
 
 export interface HeadlineStatInfo {
@@ -29,8 +25,17 @@ export interface HeadlineStatInfo {
 
 export interface TopModelStatInfo {
   modelId: string;
-  overallAverageScore: number;
+  overallAverageHybridScore: number;
+  overallAverageSimilarityScore?: number;
+  overallAverageCoverageScore?: number;
   runsParticipatedIn: number;
+}
+
+export interface DimensionChampionInfo {
+  dimension: string;
+  modelId: string;
+  averageScore: number;
+  runsCount: number;
 }
 
 export interface AggregateStatsData {
@@ -38,6 +43,7 @@ export interface AggregateStatsData {
   worstPerformingConfig: HeadlineStatInfo | null;
   leastConsistentConfig: HeadlineStatInfo | null;
   rankedOverallModels: TopModelStatInfo[] | null;
+  dimensionChampions?: DimensionChampionInfo[] | null;
 }
 
 type StatStatusType = 'best' | 'worst' | 'mostConsistent' | 'mostDifferentiating' | 'neutral' | 'error';
@@ -133,12 +139,14 @@ const OverallModelLeaderboard: React.FC<{
   initialCount?: number;
   incrementCount?: number;
   seeMoreMinRemaining?: number;
+  coverageWeight: number;
 }> = ({ 
   models,
   title,
   initialCount = 5,
   incrementCount = 10,
-  seeMoreMinRemaining = 5
+  seeMoreMinRemaining = 5,
+  coverageWeight,
 }) => {
 
   const shouldShowAllInitially = useMemo(() => {
@@ -149,6 +157,21 @@ const OverallModelLeaderboard: React.FC<{
   const [visibleCount, setVisibleCount] = useState(() => 
     shouldShowAllInitially && models ? models.length : initialCount
   );
+
+  const processedModels = useMemo(() => {
+    if (!models) return [];
+    
+    return models.map(model => {
+      // If the new scores aren't available, fall back to the pre-calculated hybrid score.
+      if (model.overallAverageCoverageScore === undefined || model.overallAverageSimilarityScore === undefined) {
+        return { ...model, displayScore: model.overallAverageHybridScore };
+      }
+      const similarityWeight = 1 - coverageWeight;
+      const hybridScore = (model.overallAverageCoverageScore * coverageWeight) + (model.overallAverageSimilarityScore * similarityWeight);
+      return { ...model, displayScore: hybridScore };
+    }).sort((a, b) => b.displayScore - a.displayScore);
+
+  }, [models, coverageWeight]);
 
   if (!models || models.length === 0) {
     return (
@@ -162,7 +185,7 @@ const OverallModelLeaderboard: React.FC<{
     );
   }
 
-  const visibleModels = models.slice(0, visibleCount);
+  const visibleModels = processedModels.slice(0, visibleCount);
   const showSeeMoreButton = !shouldShowAllInitially && models.length > visibleCount;
 
   return (
@@ -188,7 +211,7 @@ const OverallModelLeaderboard: React.FC<{
               }</span>
             </div>
             <div className="text-right">
-              <span className="font-semibold text-primary">{(model.overallAverageScore * 100).toFixed(1)}%</span>
+              <span className="font-semibold text-primary">{(model.displayScore * 100).toFixed(1)}%</span>
               <span className="ml-1.5 text-muted-foreground/80 text-[11px]">(in {model.runsParticipatedIn} runs)</span>
             </div>
           </li>
@@ -212,6 +235,15 @@ const OverallModelLeaderboard: React.FC<{
 
 const AggregateStatsDisplay: React.FC<AggregateStatsDisplayProps> = ({ stats }) => {
   const [showDetails, setShowDetails] = useState(false);
+  const [coverageWeight, setCoverageWeight] = useState(0.65);
+
+  const supportsDynamicWeighting = useMemo(() => {
+    if (!stats?.rankedOverallModels) return false;
+    // Check if at least one model has the new detailed scores
+    return stats.rankedOverallModels.some(
+      model => model.overallAverageCoverageScore !== undefined && model.overallAverageSimilarityScore !== undefined
+    );
+  }, [stats?.rankedOverallModels]);
 
   if (!stats) {
     return (
@@ -262,9 +294,34 @@ const AggregateStatsDisplay: React.FC<AggregateStatsDisplayProps> = ({ stats }) 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <OverallModelLeaderboard
           models={filteredRankedModels || null}
-          title="Overall Model Leaderboard (Avg. Hybrid Score)"
+          title="Overall Model Leaderboard"
+          coverageWeight={coverageWeight}
         />
       </div>
+      {supportsDynamicWeighting && (
+        <div className="mt-6 p-4 bg-card border border-border/70 dark:border-slate-700/50 rounded-lg">
+            <div className="flex justify-between items-center mb-2">
+              <Label htmlFor="coverage-weight-slider" className="font-semibold text-sm">
+                Adjust Score Weights
+              </Label>
+              <div className="text-sm font-mono bg-muted/80 dark:bg-slate-700/50 px-2 py-1 rounded-md">
+                  <span className="font-bold text-emerald-500">Coverage: {(coverageWeight * 100).toFixed(0)}%</span> / <span className="font-bold text-sky-500">Similarity: {((1 - coverageWeight) * 100).toFixed(0)}%</span>
+              </div>
+            </div>
+            <Slider
+              id="coverage-weight-slider"
+              min={0}
+              max={1}
+              step={0.05}
+              value={[coverageWeight]}
+              onValueChange={(value) => setCoverageWeight(value[0])}
+              className="w-full"
+            />
+            <p className="text-xs text-muted-foreground mt-2">
+              Adjust the slider to change the weighting between Key Point Coverage (rubric adherence) and Semantic Similarity (holistic quality).
+            </p>
+          </div>
+      )}
       <div className="mt-2">
         <Button
           variant="ghost"
@@ -286,7 +343,7 @@ const AggregateStatsDisplay: React.FC<AggregateStatsDisplayProps> = ({ stats }) 
             <p className="flex items-start">
               {FlaskConical && <FlaskConical className="w-4 h-4 mr-2 text-primary flex-shrink-0" />}
               <span>
-                The Hybrid Score is a weighted average combining semantic similarity (35% weight) and key point coverage (65% weight). This emphasizes rubric adherence while still valuing overall response quality. Read more about our methodology <a href={`${APP_REPO_URL}/blob/main/docs/METHODOLOGY.md`} target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">here</a>.
+                The Hybrid Score is a weighted average combining semantic similarity (weight: {((1-coverageWeight)*100).toFixed(0)}%) and key point coverage (weight: {(coverageWeight*100).toFixed(0)}%). This emphasizes rubric adherence while still valuing overall response quality. Read more about our methodology <a href={`${APP_REPO_URL}/blob/main/docs/METHODOLOGY.md`} target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">here</a>.
               </span>
             </p>
           </div>

@@ -642,12 +642,12 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions, commi
                 const newRunConfig = updatedConfigsArrayForHomepage.find(c => c.configId === newResultData.configId);
                 if (newRunConfig) {
                     const newRun = newRunConfig.runs.find(r => r.runLabel === newResultData.runLabel && r.timestamp === newResultData.timestamp);
-                    if (newRun && newRun.perModelHybridScores) {
+                    if (newRun && newRun.perModelScores) {
                         loggerInstance.info(`Overall Run Hybrid Score Average: ${newRun.hybridScoreStats?.average?.toFixed(4)}`);
                         loggerInstance.info('Per-Model Hybrid Score Averages:');
                         const scoresToLog: Record<string, string> = {};
-                        newRun.perModelHybridScores.forEach((stats, modelId) => {
-                           scoresToLog[modelId] = stats.average !== null && stats.average !== undefined ? stats.average.toFixed(4) : 'N/A';
+                        newRun.perModelScores.forEach((stats, modelId) => {
+                           scoresToLog[modelId] = stats.hybrid.average !== null && stats.hybrid.average !== undefined ? stats.hybrid.average.toFixed(4) : 'N/A';
                         });
                         if (typeof console.table === 'function') {
                             console.table(scoresToLog);
@@ -670,7 +670,7 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions, commi
                 
                 // The headline stats should be calculated on all configs, not just featured ones.
                 // The calculation functions will internally filter out any configs with the 'test' tag.
-                const newHeadlineStats = calculateHeadlineStats(updatedConfigsArrayForHomepage);
+                const newHeadlineStats = calculateHeadlineStats(updatedConfigsArrayForHomepage, new Map());
                 const newDriftDetectionResult = calculatePotentialModelDrift(updatedConfigsArrayForHomepage);
 
                 const newHomepageSummaryContent: HomepageSummaryFileContent = {
@@ -725,16 +725,24 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions, commi
                 try {
                     if (!justAddedRunInfo) {
                         loggerInstance.warn('Could not find the new run in the summary data, cannot update model summaries. Skipping update.');
-                    } else if (!justAddedRunInfo.perModelHybridScores) {
+                    } else if (!justAddedRunInfo.perModelScores) {
                         loggerInstance.error('Could not find newly calculated hybrid scores on the run data. Aborting model summary update.');
                     } else {
                         loggerInstance.info('Attempting to incrementally update model summaries...');
                         
                         let scoresMap: Map<string, { average: number | null; stddev: number | null }>;
-                        if (justAddedRunInfo.perModelHybridScores instanceof Map) {
-                            scoresMap = justAddedRunInfo.perModelHybridScores;
+                        if (justAddedRunInfo.perModelScores instanceof Map) {
+                            // Extract hybrid scores from the new structure
+                            scoresMap = new Map();
+                            justAddedRunInfo.perModelScores.forEach((stats, modelId) => {
+                                scoresMap.set(modelId, stats.hybrid);
+                            });
                         } else {
-                            scoresMap = new Map(Object.entries(justAddedRunInfo.perModelHybridScores));
+                            // Handle serialized format
+                            scoresMap = new Map();
+                            Object.entries(justAddedRunInfo.perModelScores || {}).forEach(([modelId, stats]) => {
+                                scoresMap.set(modelId, (stats as any).hybrid);
+                            });
                         }
 
                         const modelsInRun = new Set(newResultData.effectiveModels.map(m => parseEffectiveModelId(m).baseId));

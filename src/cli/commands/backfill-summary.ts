@@ -16,25 +16,32 @@ import { EnhancedComparisonConfigInfo, EnhancedRunInfo } from '../../app/utils/h
 import { ComparisonDataV2 as FetchedComparisonData } from '../../app/utils/types';
 import {
     calculateHeadlineStats,
-    calculatePotentialModelDrift
+    calculatePotentialModelDrift,
+    calculatePerModelScoreStatsForRun,
+    calculateAverageHybridScoreForRun,
 } from '../utils/summaryCalculationUtils';
+import { calculateStandardDeviation } from '../../app/utils/calculationUtils';
 import { fromSafeTimestamp } from '../../lib/timestampUtils';
 import { ModelRunPerformance, ModelSummary } from '@/types/shared';
 import { parseEffectiveModelId, getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import { populatePairwiseQueue } from '../services/pairwise-task-queue-service';
 import { normalizeTag } from '@/app/utils/tagUtils';
 
-async function actionBackfillSummary(options: { verbose?: boolean }) {
+async function actionBackfillSummary(options: { verbose?: boolean; configId?: string; dryRun?: boolean }) {
     const { logger } = getConfig();
     logger.info('Starting homepage summary backfill process (v3 hybrid summary)...');
+    if (options.dryRun) {
+        logger.warn('--- DRY RUN MODE --- No files will be written.');
+    }
 
     let allConfigsForHomepage: EnhancedComparisonConfigInfo[] = [];
     let totalConfigsProcessed = 0;
     let totalRunsProcessed = 0;
     let totalRunsFailed = 0;
+    const modelDimensionGrades = new Map<string, Map<string, { totalScore: number; count: number }>>();
 
     try {
-        const configIds = await listConfigIds();
+        const configIds = options.configId ? [options.configId] : await listConfigIds();
         if (!configIds || configIds.length === 0) {
             logger.warn('No configuration IDs found. Nothing to backfill.');
             return;
@@ -56,62 +63,159 @@ async function actionBackfillSummary(options: { verbose?: boolean }) {
             totalConfigsProcessed++;
             logger.info(`Processing ${runs.length} runs for config: ${configId}...`);
             
-            let runsForThisConfig: EnhancedComparisonConfigInfo[] = [];
+            // --- Step 1: Fetch all run data in parallel ---
+            const pLimit = (await import('p-limit')).default;
+            const limit = pLimit(10); // Limit concurrency to 10 parallel downloads
 
-            for (const runInfo of runs) {
-                const runFileName = runInfo.fileName;
-                if (options.verbose) {
-                    logger.info(`  Processing run file: ${runFileName}`);
-                }
-                try {
-                    const resultData = await getResultByFileName(configId, runFileName) as FetchedComparisonData;
-                    if (resultData) {
-                        if (runInfo.timestamp) {
+            const fetchPromises = runs.map(runInfo => 
+                limit(async () => {
+                    try {
+                        const resultData = await getResultByFileName(configId, runInfo.fileName) as FetchedComparisonData;
+                        if (resultData && runInfo.timestamp) {
                             resultData.timestamp = runInfo.timestamp;
                         }
+                        return { resultData, runInfo };
+                    } catch (error: any) {
+                        logger.error(`  Error processing run file ${runInfo.fileName}: ${error.message}`);
+                        totalRunsFailed++;
+                        return { resultData: null, runInfo };
+                    }
+                })
+            );
+            
+            const allRunResults = await Promise.all(fetchPromises);
 
-                        // --- NORMALIZE TAGS ---
-                        if (resultData.config?.tags) {
-                            const originalTags = [...resultData.config.tags];
-                            const normalizedTags = [...new Set(originalTags.map(tag => normalizeTag(tag)).filter(tag => tag))];
-                            resultData.config.tags = normalizedTags;
-                        }
-                        // --- END NORMALIZE TAGS ---
+            // --- Step 2: Process the fetched data into EnhancedRunInfo objects ---
+            const processedRuns: EnhancedRunInfo[] = [];
+            let latestResultDataForConfig: FetchedComparisonData | null = null;
+            
+            for (const { resultData, runInfo } of allRunResults) {
+                if (resultData) {
+                     // --- NORMALIZE TAGS ---
+                    if (resultData.config?.tags) {
+                        const originalTags = [...resultData.config.tags];
+                        const normalizedTags = [...new Set(originalTags.map(tag => normalizeTag(tag)).filter(tag => tag))];
+                        resultData.config.tags = normalizedTags;
+                    }
+                    // --- END NORMALIZE TAGS ---
 
-                        if (!resultData.configId || !resultData.runLabel || !resultData.timestamp) {
-                            logger.warn(`  Skipping run file ${runFileName} due to missing essential fields (configId, runLabel, or timestamp).`);
-                            totalRunsFailed++;
-                            continue;
-                        }
-                        // Iteratively build up the summary object for this specific config
-                        runsForThisConfig = updateSummaryDataWithNewRun(runsForThisConfig, resultData, runFileName);
-                        totalRunsProcessed++;
+                    // --- Process Executive Summary Grades ---
+                    if (resultData.executiveSummary?.structured?.grades) {
+                        for (const gradeInfo of resultData.executiveSummary.structured.grades) {
+                            const { baseId: modelId } = parseEffectiveModelId(gradeInfo.modelId);
+                            if (!modelDimensionGrades.has(modelId)) {
+                                modelDimensionGrades.set(modelId, new Map());
+                            }
+                            const modelGrades = modelDimensionGrades.get(modelId)!;
 
-                        // Populate the pairwise queue with tasks from this run, ONLY if it's the latest one and has the tag.
-                        if (runInfo.fileName === latestRunInfo.fileName && resultData.config?.tags?.includes('_get_human_prefs')) {
-                            try {
-                                if (options.verbose) logger.info(`  Found _get_human_prefs tag. Populating pairwise queue for LATEST run: ${runFileName}`);
-                                await populatePairwiseQueue(resultData, { logger });
-                            } catch (pairwiseError: any) {
-                                logger.error(`  Error populating pairwise queue for run ${runFileName}: ${pairwiseError.message}`);
-                                // Do not fail the whole backfill for this one error
+                            for (const [dimension, score] of Object.entries(gradeInfo.grades)) {
+                                if (score > 0) { // Only count valid, non-zero grades
+                                    const current = modelGrades.get(dimension) || { totalScore: 0, count: 0 };
+                                    current.totalScore += score;
+                                    current.count++;
+                                    modelGrades.set(dimension, current);
+                                }
                             }
                         }
-                    } else {
-                        logger.warn(`  Could not fetch or parse result data for run file: ${runFileName}`);
-                        totalRunsFailed++;
                     }
-                } catch (error: any) {
-                    logger.error(`  Error processing run file ${runFileName}: ${error.message}`);
+
+                    if (!resultData.configId || !resultData.runLabel || !resultData.timestamp) {
+                        logger.warn(`  Skipping run file ${runInfo.fileName} due to missing essential fields (configId, runLabel, or timestamp).`);
+                        totalRunsFailed++;
+                        continue;
+                    }
+                    totalRunsProcessed++;
+
+                    // --- Calculate stats for this run ---
+                    const perModelScores = calculatePerModelScoreStatsForRun(resultData);
+                    const hybridScoreStats = calculateAverageHybridScoreForRun(resultData);
+
+                    processedRuns.push({
+                        runLabel: resultData.runLabel,
+                        timestamp: resultData.timestamp,
+                        fileName: runInfo.fileName,
+                        temperature: resultData.config.temperature || 0,
+                        numPrompts: resultData.promptIds.length,
+                        numModels: resultData.effectiveModels.filter(m => m !== 'ideal').length,
+                        totalModelsAttempted: resultData.config.models.length,
+                        hybridScoreStats: hybridScoreStats,
+                        perModelScores: perModelScores,
+                        tags: resultData.config.tags,
+                        models: resultData.effectiveModels,
+                        promptIds: resultData.promptIds,
+                    });
+
+                    // Track the latest result data to use for top-level config metadata
+                    if (!latestResultDataForConfig || fromSafeTimestamp(resultData.timestamp) > fromSafeTimestamp(latestResultDataForConfig.timestamp)) {
+                        latestResultDataForConfig = resultData;
+                    }
+                    
+                    // Populate the pairwise queue with tasks from this run, ONLY if it's the latest one and has the tag.
+                    if (runInfo.fileName === latestRunInfo.fileName && resultData.config?.tags?.includes('_get_human_prefs')) {
+                        try {
+                            if (options.verbose) logger.info(`  Found _get_human_prefs tag. Populating pairwise queue for LATEST run: ${runInfo.fileName}`);
+                            await populatePairwiseQueue(resultData, { logger });
+                        } catch (pairwiseError: any) {
+                            logger.error(`  Error populating pairwise queue for run ${runInfo.fileName}: ${pairwiseError.message}`);
+                        }
+                    }
+                } else {
+                    logger.warn(`  Could not fetch or parse result data for run file: ${runInfo.fileName}`);
                     totalRunsFailed++;
                 }
             }
 
-            // After processing all runs for a config, save its specific summary
-            if (runsForThisConfig.length > 0) {
-                const finalConfigSummary = runsForThisConfig[0];
-                logger.info(`Saving per-config summary for ${configId}...`);
-                await saveConfigSummary(configId, finalConfigSummary);
+            // --- Step 3: Assemble the final summary for this config ---
+            if (processedRuns.length > 0 && latestResultDataForConfig) {
+                 // Sort runs from newest to oldest
+                processedRuns.sort((a, b) => new Date(fromSafeTimestamp(b.timestamp)).getTime() - new Date(fromSafeTimestamp(a.timestamp)).getTime());
+                
+                // Calculate overall stats for the config from all its processed runs
+                const allHybridScoresForConfig = processedRuns
+                    .map(run => run.hybridScoreStats?.average)
+                    .filter(score => score !== null && score !== undefined) as number[];
+
+                let overallAverageHybridScore: number | null = null;
+                let hybridScoreStdDev: number | null = null;
+                if (allHybridScoresForConfig.length > 0) {
+                    const totalScore = allHybridScoresForConfig.reduce((sum, score) => sum + score, 0);
+                    overallAverageHybridScore = totalScore / allHybridScoresForConfig.length;
+                    hybridScoreStdDev = calculateStandardDeviation(allHybridScoresForConfig);
+                }
+
+                const finalConfigSummary: EnhancedComparisonConfigInfo = {
+                    configId: configId,
+                    configTitle: latestResultDataForConfig.configTitle || latestResultDataForConfig.config.title || configId,
+                    id: configId,
+                    title: latestResultDataForConfig.configTitle || latestResultDataForConfig.config.title || configId,
+                    description: latestResultDataForConfig.config?.description || '',
+                    runs: processedRuns,
+                    latestRunTimestamp: processedRuns[0].timestamp,
+                    tags: latestResultDataForConfig.config.tags || [],
+                    overallAverageHybridScore,
+                    hybridScoreStdDev,
+                };
+                
+                if (options.dryRun) {
+                    logger.info(`[DRY RUN] Would save per-config summary for ${configId}.`);
+                    const latestRun = finalConfigSummary.runs[0];
+                    const summaryToLog = {
+                        ...finalConfigSummary,
+                        runs: `(${finalConfigSummary.runs.length} runs processed, showing latest run details below)`,
+                        latestRun: latestRun ? {
+                            runLabel: latestRun.runLabel,
+                            timestamp: latestRun.timestamp,
+                            hasPerModelScores: !!latestRun.perModelScores,
+                            perModelScoresCount: latestRun.perModelScores?.size || 0,
+                            serializationNote: (!!latestRun.perModelScores) ? "Legacy 'perModelHybridScores' field will be generated from this for backward compatibility during save." : "No new scores to generate."
+                        } : 'N/A'
+                    };
+                    // Using console.log for direct, unformatted output of the object
+                    console.log(JSON.stringify(summaryToLog, null, 2));
+                } else {
+                    logger.info(`Saving per-config summary for ${configId}...`);
+                    await saveConfigSummary(configId, finalConfigSummary);
+                }
 
                 // Add the completed summary to our list for the homepage summary generation
                 allConfigsForHomepage.push(finalConfigSummary);
@@ -137,7 +241,7 @@ async function actionBackfillSummary(options: { verbose?: boolean }) {
             // The calculation functions will internally filter out any configs with the 'test' tag.
             logger.info(`Headline stats will be calculated based on all ${allConfigsForHomepage.length} configs (excluding 'test' tag).`);
 
-            const headlineStats = calculateHeadlineStats(allConfigsForHomepage);
+            const headlineStats = calculateHeadlineStats(allConfigsForHomepage, modelDimensionGrades);
             const driftDetectionResult = calculatePotentialModelDrift(allConfigsForHomepage);
 
             const finalHomepageSummaryObject: HomepageSummaryFileContent = {
@@ -147,12 +251,7 @@ async function actionBackfillSummary(options: { verbose?: boolean }) {
                 lastUpdated: new Date().toISOString(),
             };
 
-            logger.info('Saving comprehensive homepage summary...');
-            await saveHomepageSummary(finalHomepageSummaryObject);
-            logger.info('Comprehensive homepage summary saved successfully.');
-
             // --- BEGIN: Backfill Latest Runs Summary ---
-            logger.info('Creating latest runs summary from backfilled data...');
             const allRunsFlat: LatestRunSummaryItem[] = allConfigsForHomepage.flatMap(config =>
                 config.runs.map(run => ({
                     ...run,
@@ -160,29 +259,26 @@ async function actionBackfillSummary(options: { verbose?: boolean }) {
                     configTitle: config.title || config.configTitle,
                 }))
             );
-
             const sortedRuns = allRunsFlat.sort((a, b) => 
                 new Date(fromSafeTimestamp(b.timestamp)).getTime() - new Date(fromSafeTimestamp(a.timestamp)).getTime()
             );
-
             const latest50Runs = sortedRuns.slice(0, 50);
-
-            await saveLatestRunsSummary({
-                runs: latest50Runs,
-                lastUpdated: new Date().toISOString(),
-            });
-            logger.info(`Latest runs summary saved successfully with ${latest50Runs.length} runs.`);
             // --- END: Backfill Latest Runs Summary ---
 
             // --- BEGIN: Backfill Model Summaries ---
-            logger.info('Creating per-model summaries from backfilled data...');
             const modelRunData = new Map<string, ModelRunPerformance[]>();
+            const modelSummariesToSave: { baseModelId: string, modelSummary: ModelSummary }[] = [];
 
             allConfigsForHomepage.forEach(config => {
                 config.runs.forEach(run => {
-                    if (run.perModelHybridScores) {
-                        run.perModelHybridScores.forEach((scoreData, effectiveModelId) => {
-                            if (scoreData.average !== null && scoreData.average !== undefined) {
+                    // Defensive coding: Ensure perModelScores is a Map, as JSON operations can convert it to an object.
+                    if (run.perModelScores && !(run.perModelScores instanceof Map)) {
+                        run.perModelScores = new Map(Object.entries(run.perModelScores));
+                    }
+                    
+                    if (run.perModelScores) {
+                        run.perModelScores.forEach((scoreData, effectiveModelId) => {
+                            if (scoreData.hybrid.average !== null && scoreData.hybrid.average !== undefined) {
                                 const { baseId } = parseEffectiveModelId(effectiveModelId);
                                 const currentRuns = modelRunData.get(baseId) || [];
                                 currentRuns.push({
@@ -190,7 +286,7 @@ async function actionBackfillSummary(options: { verbose?: boolean }) {
                                     configTitle: config.title || config.configTitle,
                                     runLabel: run.runLabel,
                                     timestamp: run.timestamp,
-                                    hybridScore: scoreData.average,
+                                    hybridScore: scoreData.hybrid.average,
                                 });
                                 modelRunData.set(baseId, currentRuns);
                             }
@@ -198,8 +294,6 @@ async function actionBackfillSummary(options: { verbose?: boolean }) {
                     }
                 });
             });
-
-            logger.info(`Found data for ${modelRunData.size} unique base models. Generating and saving summaries...`);
 
             for (const [baseModelId, runs] of modelRunData.entries()) {
                 const totalRuns = runs.length;
@@ -242,10 +336,36 @@ async function actionBackfillSummary(options: { verbose?: boolean }) {
                     lastUpdated: new Date().toISOString(),
                 };
                 
-                await saveModelSummary(baseModelId, modelSummary);
+                modelSummariesToSave.push({ baseModelId, modelSummary });
             }
-            logger.info(`Finished generating and saving ${modelRunData.size} model summaries.`);
             // --- END: Backfill Model Summaries ---
+
+            if (options.dryRun) {
+                logger.info(`[DRY RUN] Would save comprehensive homepage summary. Stats calculated:`);
+                console.log(JSON.stringify(finalHomepageSummaryObject.headlineStats, null, 2));
+
+                logger.info(`[DRY RUN] Would save latest runs summary (${latest50Runs.length} runs).`);
+
+                const modelNames = modelSummariesToSave.map(m => m.baseModelId);
+                logger.info(`[DRY RUN] Would save ${modelSummariesToSave.length} model summaries for models: ${modelNames.join(', ')}`);
+
+            } else {
+                logger.info('Saving comprehensive homepage summary...');
+                await saveHomepageSummary(finalHomepageSummaryObject);
+                logger.info('Comprehensive homepage summary saved successfully.');
+
+                await saveLatestRunsSummary({
+                    runs: latest50Runs,
+                    lastUpdated: new Date().toISOString(),
+                });
+                logger.info(`Latest runs summary saved successfully with ${latest50Runs.length} runs.`);
+
+                logger.info(`Generating and saving ${modelSummariesToSave.length} model summaries...`);
+                for (const { baseModelId, modelSummary } of modelSummariesToSave) {
+                    await saveModelSummary(baseModelId, modelSummary);
+                }
+                logger.info(`Finished generating and saving model summaries.`);
+            }
 
         } else {
             logger.warn('No data was compiled for the summary. Summary file not saved.');
@@ -269,6 +389,8 @@ async function actionBackfillSummary(options: { verbose?: boolean }) {
 export const backfillSummaryCommand = new Command('backfill-summary')
     .description('Rebuilds all summary files. Creates a summary.json for each config and a hybrid homepage_summary.json (metadata for all, runs for featured).')
     .option('-v, --verbose', 'Enable verbose logging for detailed processing steps.')
+    .option('--config-id <id>', 'Only backfill for a specific configuration ID.')
+    .option('--dry-run', 'Log what would be saved without writing any files.')
     .action(actionBackfillSummary);
 
 export { actionBackfillSummary }; 

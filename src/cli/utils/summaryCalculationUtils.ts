@@ -6,18 +6,22 @@ import {
   AggregateStatsData,
   HeadlineStatInfo,
   TopModelStatInfo,
+  DimensionChampionInfo,
 } from '@/app/components/AggregateStatsDisplay';
 import { PotentialDriftInfo } from '@/app/components/ModelDriftIndicator';
 import { parseEffectiveModelId, getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import { calculateStandardDeviation, IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { fromSafeTimestamp } from '../../lib/timestampUtils';
+import { PerModelScoreStats } from '@/app/utils/homepageDataUtils';
+import { WevalResult } from '@/types/shared';
 
 const SIGNIFICANT_SCORE_CHANGE_THRESHOLD = 0.1; // 10% change
 const MIN_ABSOLUTE_SCORE_DIFFERENCE = 0.05; // 5 percentage points
 const MIN_TIME_DIFFERENCE_FOR_DRIFT_MS = 23 * 60 * 60 * 1000; // 23 hours
 
 export function calculateHeadlineStats(
-  configs: EnhancedComparisonConfigInfo[] | null
+  configs: EnhancedComparisonConfigInfo[] | null,
+  modelDimensionGrades: Map<string, Map<string, { totalScore: number; count: number }>>
 ): AggregateStatsData | null {
   if (!configs || configs.length === 0) {
     return null;
@@ -76,25 +80,25 @@ export function calculateHeadlineStats(
     const modelScoresForConfig = new Map<string, { totalScore: number; count: number }>();
 
     config.runs.forEach(run => {
-      if (run.perModelHybridScores) {
+      if (run.perModelScores) {
         const scoresMap =
-          run.perModelHybridScores instanceof Map
-            ? run.perModelHybridScores
+          run.perModelScores instanceof Map
+            ? run.perModelScores
             : new Map(
-                Object.entries(run.perModelHybridScores) as [
+                Object.entries(run.perModelScores || {}) as [
                   string,
-                  { average: number | null; stddev: number | null },
+                  PerModelScoreStats,
                 ][],
               );
 
-        scoresMap.forEach((scoreData, modelId) => {
+        scoresMap.forEach((scoreStats, modelId) => {
           if (modelId === IDEAL_MODEL_ID) return;
-          if (scoreData && scoreData.average !== null && scoreData.average !== undefined) {
+          if (scoreStats && scoreStats.hybrid.average !== null && scoreStats.hybrid.average !== undefined) {
             const parsed = parseEffectiveModelId(modelId);
             const baseModelId = parsed.baseId; // Group by base model ID
 
             const current = modelScoresForConfig.get(baseModelId) || { totalScore: 0, count: 0 };
-            current.totalScore += scoreData.average;
+            current.totalScore += scoreStats.hybrid.average;
             current.count++;
             modelScoresForConfig.set(baseModelId, current);
           }
@@ -131,8 +135,49 @@ export function calculateHeadlineStats(
     }
   });
 
-  const allModelScores = new Map<string, { totalScore: number; count: number }>();
+  const allModelScores = new Map<string, { totalHybridScore: number; totalSimilarityScore: number; totalCoverageScore: number; count: number }>();
+  
+  // --- For Executive Summary Grade Aggregation ---
+  const MIN_GRADES_FOR_CHAMPION = 3;
+  const dimensionChampions: DimensionChampionInfo[] = [];
+  const dimensions = new Set<string>();
 
+  // First, find all unique dimensions that have been graded
+  modelDimensionGrades.forEach(modelGrades => {
+    modelGrades.forEach((_, dimension) => {
+      dimensions.add(dimension);
+    });
+  });
+
+  // Now, for each dimension, find the model with the highest average score
+  dimensions.forEach(dimension => {
+    let championModel: { modelId: string; avgScore: number; count: number } | null = null;
+
+    modelDimensionGrades.forEach((modelGrades, modelId) => {
+      if (modelGrades.has(dimension)) {
+        const gradeData = modelGrades.get(dimension)!;
+        if (gradeData.count >= MIN_GRADES_FOR_CHAMPION) {
+          const avgScore = gradeData.totalScore / gradeData.count;
+
+          if (!championModel || avgScore > championModel.avgScore) {
+            championModel = { modelId, avgScore, count: gradeData.count };
+          }
+        }
+      }
+    });
+
+    if (championModel) {
+      dimensionChampions.push({
+        dimension: dimension,
+        modelId: (championModel as any).modelId,
+        averageScore: (championModel as any).avgScore,
+        runsCount: (championModel as any).count,
+      });
+    }
+  });
+
+  dimensionChampions.sort((a, b) => a.dimension.localeCompare(b.dimension));
+  
   filteredConfigs.forEach(config => {
     if (!config.runs || config.runs.length === 0) {
       return;
@@ -146,25 +191,50 @@ export function calculateHeadlineStats(
     });
 
     // Now, only use the scores from this latestRun
-    if (latestRun.perModelHybridScores) {
-      const scoresMap =
-        latestRun.perModelHybridScores instanceof Map
-          ? latestRun.perModelHybridScores
-          : new Map(
-              Object.entries(latestRun.perModelHybridScores) as [
-                string,
-                { average: number | null; stddev: number | null },
-              ][],
-            );
+    if (latestRun.perModelScores || (latestRun as any).perModelHybridScores) {
+      const isNewFormat = !!latestRun.perModelScores;
+      
+      const scoresMap = isNewFormat
+        ? (latestRun.perModelScores instanceof Map
+            ? latestRun.perModelScores
+            : new Map(Object.entries(latestRun.perModelScores || {}) as [string, PerModelScoreStats][]))
+        : (latestRun as any).perModelHybridScores instanceof Map
+            ? (latestRun as any).perModelHybridScores
+            : new Map(Object.entries((latestRun as any).perModelHybridScores || {}) as [string, { average: number | null; stddev: number | null }][]);
 
-      scoresMap.forEach((scoreData, modelId) => {
+      scoresMap.forEach((scoreStats: PerModelScoreStats | { average: number | null }, modelId: string) => {
         if (modelId === IDEAL_MODEL_ID) return;
-        if (scoreData && scoreData.average !== null && scoreData.average !== undefined) {
+        
+        let hybridScore: number | null | undefined;
+        let similarityScore: number | null | undefined;
+        let coverageScore: number | null | undefined;
+
+        if (isNewFormat) {
+          const newStats = scoreStats as PerModelScoreStats;
+          hybridScore = newStats.hybrid?.average;
+          similarityScore = newStats.similarity?.average;
+          coverageScore = newStats.coverage?.average;
+        } else {
+          const oldStats = scoreStats as { average: number | null };
+          hybridScore = oldStats.average;
+          // Legacy format doesn't have these, so they remain undefined
+          similarityScore = undefined;
+          coverageScore = undefined;
+        }
+        
+        if (hybridScore !== null && hybridScore !== undefined) {
           const parsed = parseEffectiveModelId(modelId);
           const baseModelId = parsed.baseId;
 
-          const current = allModelScores.get(baseModelId) || { totalScore: 0, count: 0 };
-          current.totalScore += scoreData.average;
+          const current = allModelScores.get(baseModelId) || { totalHybridScore: 0, totalSimilarityScore: 0, totalCoverageScore: 0, count: 0 };
+          
+          current.totalHybridScore += hybridScore;
+          
+          if (similarityScore !== null && similarityScore !== undefined && coverageScore !== null && coverageScore !== undefined) {
+            current.totalSimilarityScore += similarityScore;
+            current.totalCoverageScore += coverageScore;
+          }
+          
           current.count++;
           allModelScores.set(baseModelId, current);
         }
@@ -173,19 +243,97 @@ export function calculateHeadlineStats(
   });
 
   const rankedOverallModels: TopModelStatInfo[] = Array.from(allModelScores.entries())
-    .map(([modelId, data]) => ({
-      modelId: modelId,
-      overallAverageScore: data.totalScore / data.count,
-      runsParticipatedIn: data.count,
-    }))
-    .sort((a, b) => b.overallAverageScore - a.overallAverageScore);
+    .map(([modelId, data]) => {
+      const avgHybrid = data.totalHybridScore / data.count;
+      const avgSimilarity = data.totalSimilarityScore > 0 ? data.totalSimilarityScore / data.count : undefined;
+      const avgCoverage = data.totalCoverageScore > 0 ? data.totalCoverageScore / data.count : undefined;
+
+      return {
+        modelId: modelId,
+        overallAverageHybridScore: avgHybrid,
+        overallAverageSimilarityScore: avgSimilarity,
+        overallAverageCoverageScore: avgCoverage,
+        runsParticipatedIn: data.count,
+      };
+    })
+    .sort((a, b) => b.overallAverageHybridScore - a.overallAverageHybridScore);
 
   return {
     bestPerformingConfig,
     worstPerformingConfig,
     leastConsistentConfig,
     rankedOverallModels: rankedOverallModels.length > 0 ? rankedOverallModels : null,
+    dimensionChampions: dimensionChampions.length > 0 ? dimensionChampions : null,
   };
+}
+
+export function calculatePerModelScoreStatsForRun(resultData: WevalResult): Map<string, PerModelScoreStats> {
+  const perModelStats = new Map<string, PerModelScoreStats>();
+  const models = resultData.effectiveModels.filter(m => m !== IDEAL_MODEL_ID);
+
+  models.forEach(modelId => {
+    const similarityScores: number[] = [];
+    const coverageScores: number[] = [];
+    const hybridScores: number[] = [];
+
+    resultData.promptIds.forEach(promptId => {
+      const sim = resultData.evaluationResults.perPromptSimilarities?.[promptId]?.[modelId]?.[IDEAL_MODEL_ID];
+      const covResult = resultData.evaluationResults.llmCoverageScores?.[promptId]?.[modelId];
+
+      if (sim !== undefined && sim !== null) {
+        similarityScores.push(sim);
+      }
+      if (covResult && !('error' in covResult) && covResult.avgCoverageExtent !== undefined && covResult.avgCoverageExtent !== null) {
+        coverageScores.push(covResult.avgCoverageExtent);
+      }
+      if (sim !== undefined && sim !== null && covResult && !('error' in covResult) && covResult.avgCoverageExtent !== undefined && covResult.avgCoverageExtent !== null) {
+        hybridScores.push((0.35 * sim) + (0.65 * covResult.avgCoverageExtent));
+      }
+    });
+
+    const avgSimilarity = similarityScores.length > 0 ? similarityScores.reduce((a, b) => a + b, 0) / similarityScores.length : null;
+    const stdDevSimilarity = calculateStandardDeviation(similarityScores);
+
+    const avgCoverage = coverageScores.length > 0 ? coverageScores.reduce((a, b) => a + b, 0) / coverageScores.length : null;
+    const stdDevCoverage = calculateStandardDeviation(coverageScores);
+
+    const avgHybridScore = hybridScores.length > 0 ? hybridScores.reduce((a, b) => a + b, 0) / hybridScores.length : null;
+    const stdDevHybridScore = calculateStandardDeviation(hybridScores);
+
+    perModelStats.set(modelId, {
+      hybrid: { average: avgHybridScore, stddev: stdDevHybridScore },
+      similarity: { average: avgSimilarity, stddev: stdDevSimilarity },
+      coverage: { average: avgCoverage, stddev: stdDevCoverage },
+    });
+  });
+
+  return perModelStats;
+}
+
+export function calculateAverageHybridScoreForRun(resultData: WevalResult): { average: number | null; stddev: number | null } {
+    const scores: number[] = [];
+    resultData.promptIds.forEach(promptId => {
+        resultData.effectiveModels.forEach(modelId => {
+            if (modelId === IDEAL_MODEL_ID) return;
+
+            const sim = resultData.evaluationResults.perPromptSimilarities?.[promptId]?.[modelId]?.[IDEAL_MODEL_ID];
+            const covResult = resultData.evaluationResults.llmCoverageScores?.[promptId]?.[modelId];
+
+            if (sim !== undefined && sim !== null && covResult && !('error' in covResult) && covResult.avgCoverageExtent !== undefined && covResult.avgCoverageExtent !== null) {
+                const hybridScore = (0.35 * sim) + (0.65 * covResult.avgCoverageExtent);
+                scores.push(hybridScore);
+            }
+        });
+    });
+
+    if (scores.length === 0) {
+        return { average: null, stddev: null };
+    }
+
+    const average = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+    const stddev = calculateStandardDeviation(scores);
+
+    return { average, stddev };
 }
 
 export function calculatePotentialModelDrift(
@@ -217,7 +365,7 @@ export function calculatePotentialModelDrift(
         return;
       }
       
-      if (run.runLabel && run.timestamp && run.perModelHybridScores) { // Check for perModelHybridScores
+      if (run.runLabel && run.timestamp && run.perModelScores) { // Check for perModelScores
         const existing = runsByLabel.get(run.runLabel) || [];
         existing.push(run);
         runsByLabel.set(run.runLabel, existing);
@@ -248,12 +396,12 @@ export function calculatePotentialModelDrift(
       let commonModels: Set<string> | null = null;
       for (const run of sortedRuns) {
         const modelsInRun = new Set<string>();
-        const scoresMap = run.perModelHybridScores instanceof Map
-            ? run.perModelHybridScores
-            : new Map(Object.entries(run.perModelHybridScores || {}) as [string, { average: number | null; stddev: number | null }][]);
+        const scoresMap = run.perModelScores instanceof Map
+            ? run.perModelScores
+            : new Map(Object.entries(run.perModelScores || {}) as [string, PerModelScoreStats][]);
 
         scoresMap.forEach((scoreData, modelId) => {
-          if (modelId !== IDEAL_MODEL_ID && scoreData.average !== null && scoreData.average !== undefined) {
+          if (modelId !== IDEAL_MODEL_ID && scoreData.hybrid.average !== null && scoreData.hybrid.average !== undefined) {
             modelsInRun.add(parseEffectiveModelId(modelId).baseId);
           }
         });
@@ -278,14 +426,14 @@ export function calculatePotentialModelDrift(
         const modelScoresOverTime: Array<{ timestamp: string; score: number }> = [];
         
         sortedRuns.forEach(run => {
-          const scoresMap = run.perModelHybridScores instanceof Map
-            ? run.perModelHybridScores
-            : new Map(Object.entries(run.perModelHybridScores || {}) as [string, { average: number | null; stddev: number | null }][]);
+          const scoresMap = run.perModelScores instanceof Map
+            ? run.perModelScores
+            : new Map(Object.entries(run.perModelScores || {}) as [string, PerModelScoreStats][]);
           
           const scoresForThisRun: number[] = [];
           scoresMap.forEach((scoreData, fullModelId) => {
-            if (parseEffectiveModelId(fullModelId).baseId === baseModelId && scoreData.average !== null && scoreData.average !== undefined) {
-              scoresForThisRun.push(scoreData.average);
+            if (parseEffectiveModelId(fullModelId).baseId === baseModelId && scoreData.hybrid.average !== null && scoreData.hybrid.average !== undefined) {
+              scoresForThisRun.push(scoreData.hybrid.average);
             }
           });
 
@@ -352,15 +500,15 @@ export function calculatePotentialModelDrift(
 }
 
 export function calculateComparativeStats(
-  perModelHybridScores: Map<string, { average: number | null; stddev: number | null }>,
+  perModelScores: Map<string, PerModelScoreStats>,
   targetModelEffectiveId: string,
 ): { peerAverageScore: number | null; rank: number | null } {
   
   const allScores: { modelId: string; score: number }[] = [];
-  perModelHybridScores.forEach((stats, modelId) => {
+  perModelScores.forEach((stats, modelId) => {
     // Exclude the ideal model from peer calculations
-    if (modelId !== IDEAL_MODEL_ID && stats.average !== null && stats.average !== undefined) {
-      allScores.push({ modelId: modelId, score: stats.average });
+    if (modelId !== IDEAL_MODEL_ID && stats.hybrid.average !== null && stats.hybrid.average !== undefined) {
+      allScores.push({ modelId: modelId, score: stats.hybrid.average });
     }
   });
 

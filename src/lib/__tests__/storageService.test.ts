@@ -77,8 +77,13 @@ const mockHomepageSummary: HomepageSummaryFileContent = {
                     runLabel: 'run-1',
                     timestamp: '2024-03-15T10-00-00-000Z',
                     fileName: 'run-1_2024-03-15T10-00-00-000Z_comparison.json',
+                    perModelScores: new Map([['model-a', { 
+                        hybrid: { average: 0.9, stddev: 0.1 },
+                        similarity: { average: 0.85, stddev: 0.05 },
+                        coverage: { average: 0.92, stddev: 0.08 }
+                    }]]),
                     perModelHybridScores: new Map([['model-a', { average: 0.9, stddev: 0.1 }]])
-                }
+                } as any
             ],
             latestRunTimestamp: '2024-03-15T10-00-00-000Z',
             tags: ['test'],
@@ -98,7 +103,10 @@ const serializableMockHomepageSummary = {
         ...c,
         runs: c.runs.map(r => ({
             ...r,
-            perModelHybridScores: Object.fromEntries(r.perModelHybridScores!)
+            perModelScores: Object.fromEntries(r.perModelScores!),
+            perModelHybridScores: {
+                'model-a': { average: 0.9, stddev: 0.1 }
+            }
         }))
     }))
 };
@@ -354,8 +362,8 @@ describe('storageService', () => {
             title: 'Test Config',
             description: '',
             runs: [
-              { runLabel: 'run1', timestamp: safeTimestamp1, fileName: `run1_${safeTimestamp1}_comparison.json`, perModelHybridScores: new Map() },
-              { runLabel: 'run3', timestamp: safeTimestamp3, fileName: `run3_${safeTimestamp3}_comparison.json`, perModelHybridScores: new Map() },
+              { runLabel: 'run1', timestamp: safeTimestamp1, fileName: `run1_${safeTimestamp1}_comparison.json`, perModelScores: new Map() },
+              { runLabel: 'run3', timestamp: safeTimestamp3, fileName: `run3_${safeTimestamp3}_comparison.json`, perModelScores: new Map() },
             ],
             latestRunTimestamp: safeTimestamp3,
             tags: [],
@@ -390,7 +398,7 @@ describe('storageService', () => {
             id: 'test-config',
             title: 'Test Config',
             description: '',
-            runs: [{ runLabel: 'run-safe', timestamp: safeTimestamp, fileName: `run-safe_${safeTimestamp}_comparison.json`, perModelHybridScores: new Map() }],
+            runs: [{ runLabel: 'run-safe', timestamp: safeTimestamp, fileName: `run-safe_${safeTimestamp}_comparison.json`, perModelScores: new Map() }],
             latestRunTimestamp: safeTimestamp,
             tags: [],
             overallAverageHybridScore: 0.8,
@@ -427,7 +435,7 @@ describe('storageService', () => {
 
                 expect(mockedFs.readFile).toHaveBeenCalledWith(path.join(RESULTS_DIR, MULTI_DIR, homepageSummaryFileName), 'utf-8');
                 expect(summary).toEqual(mockHomepageSummary);
-                expect(summary?.configs[0].runs[0].perModelHybridScores).toBeInstanceOf(Map);
+                expect(summary?.configs[0].runs[0].perModelScores).toBeInstanceOf(Map);
             });
 
             it('should read from S3 and rehydrate maps', async () => {
@@ -447,7 +455,7 @@ describe('storageService', () => {
                 const sentCommand = mockSend.mock.calls[0][0] as GetObjectCommand;
                 expect(sentCommand.input.Key).toBe(homepageSummaryFileName);
                 expect(summary).toEqual(mockHomepageSummary);
-                expect(summary?.configs[0].runs[0].perModelHybridScores).toBeInstanceOf(Map);
+                expect(summary?.configs[0].runs[0].perModelScores).toBeInstanceOf(Map);
             });
 
             it('should return null if the S3 object does not exist', async () => {
