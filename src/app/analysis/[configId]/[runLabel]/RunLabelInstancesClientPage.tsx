@@ -89,85 +89,81 @@ export default function RunLabelInstancesClientPage({ configId, runLabel, data }
       pageTitle={pageTitle}
       breadcrumbItems={breadcrumbItems}
     >
-      <div className="min-h-screen p-4 md:p-8">
-        <div className="mx-auto">
-          <AnalysisPageHeader
-            actions={headerActions}
-            isSticky={false}
-          />
+      <div className="mx-auto p-4 md:p-6 lg:p-8 space-y-8">
+        <AnalysisPageHeader
+          actions={headerActions}
+          isSticky={false}
+        />
 
-          <main className="mt-6 md:mt-8">
-                <>
-                  {runInstances.length === 0 && (
-                      <div className="text-center py-12">
-                          <HistoryIcon className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                          <p className="text-lg text-muted-foreground">
-                              No specific instances found for Run Label: <strong className="text-foreground">{runLabel}</strong>
-                          </p>
-                      </div>
-                  )}
+        <>
+          {runInstances.length === 0 && (
+              <div className="text-center py-12">
+                  <HistoryIcon className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-lg text-muted-foreground">
+                      No specific instances found for Run Label: <strong className="text-foreground">{runLabel}</strong>
+                  </p>
+              </div>
+          )}
 
-                  {runInstances.length > 0 && (
-                      <div className="space-y-4">
-                          <p className="text-sm text-muted-foreground">
-                              Showing all recorded executions for Run Label <strong className="text-foreground">{runLabel}</strong>.
-                          </p>
-                          {runInstances.map((instance) => (
-                              <Card key={instance.safeTimestamp} className="transition-shadow duration-200 overflow-hidden">
-                                  <Link href={`/analysis/${instance.configId}/${instance.runLabel}/${instance.safeTimestamp}`} className="block hover:bg-muted/30 transition-colors p-4">
-                                      <div className="flex justify-between items-start">
-                                          <div>
-                                              <p className="text-base font-medium text-primary">
-                                                  Executed: <ClientDateTime timestamp={instance.timestamp} />
-                                              </p>
-                                              <p className="text-xs text-muted-foreground mt-1">
-                                                Filename: {instance.fileName}
-                                              </p>
+          {runInstances.length > 0 && (
+              <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                      Showing all recorded executions for Run Label <strong className="text-foreground">{runLabel}</strong>.
+                  </p>
+                  {runInstances.map((instance) => (
+                      <Card key={instance.safeTimestamp} className="transition-shadow duration-200 overflow-hidden">
+                          <Link href={`/analysis/${instance.configId}/${instance.runLabel}/${instance.safeTimestamp}`} className="block hover:bg-muted/30 transition-colors p-4">
+                              <div className="flex justify-between items-start">
+                                  <div>
+                                      <p className="text-base font-medium text-primary">
+                                          Executed: <ClientDateTime timestamp={instance.timestamp} />
+                                      </p>
+                                      <p className="text-xs text-muted-foreground mt-1">
+                                        Filename: {instance.fileName}
+                                      </p>
+                                  </div>
+                                   <div className="flex items-center space-x-6 text-right">
+                                       {instance.allCoverageScores && instance.models && instance.promptIds && instance.models.length > 0 && instance.promptIds.length > 0 && (
+                                          <div className="flex-shrink-0 w-24 h-16 mr-4">
+                                              <CoverageHeatmapCanvas 
+                                                  allCoverageScores={instance.allCoverageScores}
+                                                  models={instance.models}
+                                                  promptIds={instance.promptIds}
+                                                  width={96}
+                                                  height={64}
+                                                  className="rounded-sm border border-border/50"
+                                              />
                                           </div>
-                                           <div className="flex items-center space-x-6 text-right">
-                                               {instance.allCoverageScores && instance.models && instance.promptIds && instance.models.length > 0 && instance.promptIds.length > 0 && (
-                                                  <div className="flex-shrink-0 w-24 h-16 mr-4">
-                                                      <CoverageHeatmapCanvas 
-                                                          allCoverageScores={instance.allCoverageScores}
-                                                          models={instance.models}
-                                                          promptIds={instance.promptIds}
-                                                          width={96}
-                                                          height={64}
-                                                          className="rounded-sm border border-border/50"
-                                                      />
-                                                  </div>
-                                                )}
-                                              {instance.hybridScoreStats?.average !== undefined && instance.hybridScoreStats?.average !== null && (
-                                                <div className="flex flex-col items-end w-28">
-                                                  <p className="text-xs text-muted-foreground">Avg. Hybrid Score</p>
-                                                  <p className={`text-xl font-semibold ${getHybridScoreColor(instance.hybridScoreStats.average)}`}>
-                                                    {(instance.hybridScoreStats.average * 100).toFixed(1)}%
-                                                  </p>
-                                                </div>
-                                              )}
-                                               {instance.numModels !== undefined && (
-                                                <div className="flex flex-col items-end">
-                                                  <p className="text-xs text-muted-foreground">Model Variants</p>
-                                                  <p className="text-xl font-semibold text-foreground">{instance.numModels}</p>
-                                                </div>
-                                              )}
-                                              {instance.numPrompts !== undefined && (
-                                                <div className="flex flex-col items-end">
-                                                  <p className="text-xs text-muted-foreground">Test Cases</p>
-                                                  <p className="text-xl font-semibold text-foreground">{instance.numPrompts}</p>
-                                                </div>
-                                              )}
-                                              <ChevronRightIcon className="w-5 h-5 text-muted-foreground self-center ml-2" />
-                                          </div>
-                                      </div>
-                                  </Link>
-                              </Card>
-                          ))}
-                      </div>
-                  )}
-                </>
-          </main>
-        </div>
+                                        )}
+                                      {instance.hybridScoreStats?.average !== undefined && instance.hybridScoreStats?.average !== null && (
+                                        <div className="flex flex-col items-end w-28">
+                                          <p className="text-xs text-muted-foreground">Avg. Hybrid Score</p>
+                                          <p className={`text-xl font-semibold ${getHybridScoreColor(instance.hybridScoreStats.average)}`}>
+                                            {(instance.hybridScoreStats.average * 100).toFixed(1)}%
+                                          </p>
+                                        </div>
+                                      )}
+                                       {instance.numModels !== undefined && (
+                                        <div className="flex flex-col items-end">
+                                          <p className="text-xs text-muted-foreground">Model Variants</p>
+                                          <p className="text-xl font-semibold text-foreground">{instance.numModels}</p>
+                                        </div>
+                                      )}
+                                      {instance.numPrompts !== undefined && (
+                                        <div className="flex flex-col items-end">
+                                          <p className="text-xs text-muted-foreground">Test Cases</p>
+                                          <p className="text-xl font-semibold text-foreground">{instance.numPrompts}</p>
+                                        </div>
+                                      )}
+                                      <ChevronRightIcon className="w-5 h-5 text-muted-foreground self-center ml-2" />
+                                  </div>
+                              </div>
+                          </Link>
+                      </Card>
+                  ))}
+              </div>
+          )}
+        </>
       </div>
     </AnalysisProvider>
   );

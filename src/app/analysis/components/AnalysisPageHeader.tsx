@@ -278,6 +278,7 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
     isSandbox,
     normalizedExecutiveSummary,
     currentPromptId,
+    summaryStats,
   } = useUnifiedAnalysis();
 
   if (!data) return null;
@@ -381,17 +382,19 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
             </div>
           )}
 
-          <div className="mt-4 pt-4 border-t border-border/60">
-            <h3 className="text-base font-semibold text-foreground mb-2 flex items-center">
-              <Sparkles className="w-4 h-4 mr-2 text-primary" />
-              {isInSinglePromptView ? 'Results for this prompt' : 'Summary of results'}
-            </h3>
-            {isInSinglePromptView ? (
-              <PromptSpecificStatsTable />
-            ) : (
-              <SummaryStatsTable />
-            )}
-          </div>
+          {(isInSinglePromptView || summaryStats) && (
+            <div className="mt-4 pt-4 border-t border-border/60">
+              <h3 className="text-base font-semibold text-foreground mb-2 flex items-center">
+                <Sparkles className="w-4 h-4 mr-2 text-primary" />
+                {isInSinglePromptView ? 'Results for this prompt' : 'Summary of results'}
+              </h3>
+              {isInSinglePromptView ? (
+                <PromptSpecificStatsTable />
+              ) : (
+                <SummaryStatsTable />
+              )}
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center justify-between gap-4 mt-4">
             {actions && <div className="mt-4 flex flex-col sm:flex-row gap-2 sm:justify-end">{actions}</div>}

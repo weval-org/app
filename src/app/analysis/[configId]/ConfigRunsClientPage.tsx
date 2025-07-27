@@ -83,10 +83,9 @@ const ConfigRunsClientPage: React.FC<ConfigRunsClientPageProps> = ({
             pageTitle={pageTitle}
             breadcrumbItems={breadcrumbItems}
         >
-            <AnalysisPageHeader />
-            
-            <div className="space-y-6 my-8">
-
+            <div className="mx-auto p-4 md:p-6 lg:p-8 space-y-8">
+                <AnalysisPageHeader />
+                
                 {/* Runs List */}
                 <Card>
                     <CardHeader>
