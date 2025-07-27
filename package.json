@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "NODE_OPTIONS=--max-old-space-size=4096 next build --experimental-debug-memory-usage",
+    "build": "NODE_OPTIONS=--max-old-space-size=4096 next build",
+    "build:debug": "NODE_OPTIONS=--max-old-space-size=4096 next build --profile --experimental-debug-memory-usage",
     "start": "next start -p 3172",
     "lint": "next lint",
     "lint:fix": "next lint --fix",

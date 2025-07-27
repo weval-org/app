@@ -7,6 +7,7 @@ const withBundleAnalyzer = require('@next/bundle-analyzer')({
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   staticPageGenerationTimeout: 600,
+  productionBrowserSourceMaps: false,
   webpack(config) {
     config.module.rules.push({
       test: /\.(ico|png|svg)$/,
