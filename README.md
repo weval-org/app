@@ -160,6 +160,46 @@ pnpm cli generate-search-index
 -   `--verbose`: Enable verbose logging for detailed processing steps.
 -   `--dry-run`: Log what would be generated without saving the index file.
 
+### `backup-data`
+
+Creates a complete, timestamped, or named backup of all live evaluation data. This is the recommended first step before performing any potentially destructive operations like a data backfill or migration.
+
+```bash
+# Create a backup with an auto-generated timestamped name
+pnpm cli backup-data
+
+# Create a backup with a specific name
+pnpm cli backup-data --name "pre-refactor-snapshot"
+```
+-   `--name <name>`: An optional name for the backup. If omitted, a name will be generated based on the current timestamp (e.g., `backup-2024-07-26T10-30-00Z`).
+-   `--dry-run`: Simulate the backup, listing the number of files that would be copied without performing the operation.
+
+### `restore-data`
+
+Restores the application's data to a previous state from a specified backup.
+
+**⚠️ Warning:** This is a destructive operation. It will delete all current live data before restoring the backup.
+
+To prevent accidental data loss, this command has two main safety features:
+1.  **Confirmation Prompt**: It will ask for explicit confirmation before proceeding unless the `--yes` flag is used.
+2.  **Automatic Pre-Restore Backup**: Before deleting any live data, it automatically creates a temporary backup of the current state (named `autobackup-before-restore-...`). If the restore fails or you made a mistake, you can use this automatic backup to revert to the state you were in right before the restore command was run.
+
+```bash
+pnpm cli restore-data --name "pre-refactor-snapshot"
+```
+
+-   `--name <name>`: **(Required)** The name of the backup to restore from.
+-   `--yes`: Skips the interactive confirmation prompt. Use with caution.
+-   `--dry-run`: Simulates the restore, showing which files would be deleted and restored without making any changes.
+
+### `list-backups`
+
+Lists all available backups that can be used for a restore operation.
+
+```bash
+pnpm cli list-backups
+```
+
 ### `backfill-prompt-contexts`
 
 A utility to update older result files to the current multi-turn conversation format.

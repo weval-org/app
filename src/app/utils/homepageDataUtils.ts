@@ -1,7 +1,10 @@
 import { cache } from 'react';
 import {
   getHomepageSummary,
-  HomepageSummaryFileContent // Import the type from storageService
+  HomepageSummaryFileContent, // Import the type from storageService
+  getAllBlueprintsSummary as storageGetAllBlueprintsSummary,
+  listConfigIds,
+  getConfigSummary,
 } from '@/lib/storageService'; 
 import { AggregateStatsData } from '@/app/components/AggregateStatsDisplay';
 import { PotentialDriftInfo } from '@/app/components/ModelDriftIndicator';
@@ -76,3 +79,17 @@ export async function getCachedHomepageDriftDetectionResult(): Promise<Potential
   const fullData = await getFullHomepageData();
   return fullData?.driftDetectionResult || null;
 } 
+
+export const getAllBlueprintSummaries = cache(async (): Promise<EnhancedComparisonConfigInfo[]> => {
+    const summaryData = await storageGetAllBlueprintsSummary();
+    if (!summaryData) {
+        // If the dedicated summary doesn't exist, fall back to the old method
+        // to maintain functionality during transitions.
+        console.warn("[homepageDataUtils] all_blueprints_summary.json not found. Falling back to fetching all configs individually. Performance will be degraded.");
+        const allConfigIds = await listConfigIds();
+        const blueprintPromises = allConfigIds.map(id => getConfigSummary(id));
+        const results = await Promise.all(blueprintPromises);
+        return results.filter((summary): summary is EnhancedComparisonConfigInfo => summary !== null);
+    }
+    return summaryData.configs || [];
+}); 

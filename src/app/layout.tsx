@@ -1,4 +1,3 @@
-import { Geist } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { Toaster } from '@/components/ui/toaster';
@@ -6,11 +5,6 @@ import TopProgressBar from './components/TopProgressBar';
 import { Suspense } from 'react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { NavigationEvents } from '@/app/components/NavigationEvents';
-
-const geist = Geist({
-  subsets: [],
-  variable: '--font-geist-sans',
-});
 
 export const metadata = {
   title: 'Weval',
@@ -24,7 +18,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={geist.variable}>
+      <body>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

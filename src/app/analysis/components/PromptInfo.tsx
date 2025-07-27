@@ -69,9 +69,11 @@ const PromptInfo: React.FC<PromptInfoProps> = ({
               <div className="space-y-2">
                 <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Description</h4>
                 <div className="prose prose-sm dark:prose-invert max-w-none p-3 rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/30">
-                  <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]} className="text-xs text-amber-900 dark:text-amber-100">
-                    {description}
-                  </ReactMarkdown>
+                  <div className="text-xs text-amber-900 dark:text-amber-100">
+                    <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
+                      {description}
+                    </ReactMarkdown>
+                  </div>
                 </div>
               </div>
             )}

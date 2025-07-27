@@ -2,6 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: 'Geist';
+  src:
+    url('/fonts/Geist-Regular.woff2') format('woff2'),
+    url('/fonts/Geist-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src:
+    url('/fonts/Geist-Bold.woff2') format('woff2'),
+    url('/fonts/eist-Bold.ttf') format('truetype');
+  font-weight: bold;
+  font-style: normal;
+}
+
 @layer base {
   :root {
     --background: 42 63% 94%;
@@ -177,17 +195,13 @@
   }
 }
 
-body {
-  /* font-family: var(--font-geist-sans), system-ui, sans-serif; */
-  font-family: ui-sans-serif,system-ui,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol","Noto Color Emoji";
-}
-
 @layer base {
   * {
     @apply border-border;
   }
   body {
     @apply bg-background text-foreground;
+    font-family: 'Geist', sans-serif;
   }
 }
 

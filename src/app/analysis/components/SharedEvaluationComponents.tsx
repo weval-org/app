@@ -326,14 +326,18 @@ export const EvaluationView: React.FC<{
                         </TabsList>
                         <TabsContent value="model-response" className="pt-3">
                             {modelResponse ? (
-                                <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]} className="prose prose-sm dark:prose-invert max-w-none">{modelResponse}</ReactMarkdown>
+                                <div className="prose prose-sm dark:prose-invert max-w-none">
+                                    <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{modelResponse}</ReactMarkdown>
+                                </div>
                             ) : (
                                 <p className="italic text-muted-foreground">No response text available.</p>
                             )}
                         </TabsContent>
                         <TabsContent value="ideal-response" className="pt-3">
                             {idealResponse ? (
-                                <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]} className="prose prose-sm dark:prose-invert max-w-none">{idealResponse}</ReactMarkdown>
+                                <div className="prose prose-sm dark:prose-invert max-w-none">
+                                    <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{idealResponse}</ReactMarkdown>
+                                </div>
                             ) : (
                                 <p className="italic text-muted-foreground">No ideal response available.</p>
                             )}
@@ -382,14 +386,18 @@ export const EvaluationView: React.FC<{
                     </TabsList>
                     <TabsContent value="model-response" className="flex-grow overflow-y-auto custom-scrollbar pr-2">
                         {modelResponse ? (
-                            <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]} className="prose prose-sm dark:prose-invert max-w-none">{modelResponse}</ReactMarkdown>
+                            <div className="prose prose-sm dark:prose-invert max-w-none">
+                                <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{modelResponse}</ReactMarkdown>
+                            </div>
                         ) : (
                             <p className="italic text-muted-foreground">No response text available.</p>
                         )}
                     </TabsContent>
                     <TabsContent value="ideal-response" className="flex-grow overflow-y-auto custom-scrollbar pr-2">
                         {idealResponse ? (
-                            <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]} className="prose prose-sm dark:prose-invert max-w-none">{idealResponse}</ReactMarkdown>
+                            <div className="prose prose-sm dark:prose-invert max-w-none">
+                                <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{idealResponse}</ReactMarkdown>
+                            </div>
                         ) : (
                             <p className="italic text-muted-foreground">No ideal response available.</p>
                         )}

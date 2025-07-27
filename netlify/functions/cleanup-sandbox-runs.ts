@@ -1,7 +1,7 @@
 import { Handler, schedule } from '@netlify/functions';
 import { S3Client, ListObjectsV2Command, DeleteObjectsCommand, ObjectIdentifier, ListObjectsV2CommandOutput } from '@aws-sdk/client-s3';
 
-const PLAYGROUND_TEMP_DIR = 'sandbox';
+const PLAYGROUND_TEMP_DIR = 'live/sandbox';
 const RUNS_PREFIX = `${PLAYGROUND_TEMP_DIR}/runs/`;
 const CLEANUP_AGE_DAYS = 7; // Delete runs older than 7 days
 

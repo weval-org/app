@@ -11,6 +11,7 @@ import {
     saveLatestRunsSummary,
     LatestRunSummaryItem,
     saveModelSummary,
+    saveAllBlueprintsSummary,
 } from '../../lib/storageService';
 import { EnhancedComparisonConfigInfo, EnhancedRunInfo } from '../../app/utils/homepageDataUtils';
 import { ComparisonDataV2 as FetchedComparisonData } from '../../app/utils/types';
@@ -130,6 +131,34 @@ async function actionBackfillSummary(options: { verbose?: boolean; configId?: st
                     const perModelScores = calculatePerModelScoreStatsForRun(resultData);
                     const hybridScoreStats = calculateAverageHybridScoreForRun(resultData);
 
+                    // --- Create a "lite" version of coverage scores for the summary to avoid bloat ---
+                    const fullCoverageScores = resultData.evaluationResults?.llmCoverageScores;
+                    let liteCoverageScores: typeof fullCoverageScores | null = null;
+                    if (fullCoverageScores) {
+                        liteCoverageScores = {};
+                        for (const promptId in fullCoverageScores) {
+                            if (Object.prototype.hasOwnProperty.call(fullCoverageScores, promptId)) {
+                                liteCoverageScores[promptId] = {};
+                                const models = fullCoverageScores[promptId];
+                                for (const modelId in models) {
+                                    if (Object.prototype.hasOwnProperty.call(models, modelId)) {
+                                        const result = models[modelId];
+                                        if (result && !('error' in result)) {
+                                            // Strip out the heavy pointAssessments array
+                                            liteCoverageScores[promptId][modelId] = {
+                                                keyPointsCount: result.keyPointsCount,
+                                                avgCoverageExtent: result.avgCoverageExtent,
+                                            };
+                                        } else if (result) {
+                                            liteCoverageScores[promptId][modelId] = result; // Keep error objects
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // --- End "lite" coverage scores ---
+
                     processedRuns.push({
                         runLabel: resultData.runLabel,
                         timestamp: resultData.timestamp,
@@ -140,6 +169,7 @@ async function actionBackfillSummary(options: { verbose?: boolean; configId?: st
                         totalModelsAttempted: resultData.config.models.length,
                         hybridScoreStats: hybridScoreStats,
                         perModelScores: perModelScores,
+                        allCoverageScores: liteCoverageScores,
                         tags: resultData.config.tags,
                         models: resultData.effectiveModels,
                         promptIds: resultData.promptIds,
@@ -228,13 +258,30 @@ async function actionBackfillSummary(options: { verbose?: boolean; configId?: st
             
             // 1. Create the hybrid array for the homepage summary file itself.
             const homepageConfigs = allConfigsForHomepage.map(config => {
+                // For featured, include the latest run which contains the 'lite' heatmap data
                 if (config.tags?.includes('_featured')) {
-                    // For featured configs, keep the metadata but only include the LATEST run.
-                    // The runs array is already sorted newest first.
-                    const latestRun = config.runs[0];
-                    return { ...config, runs: latestRun ? [latestRun] : [] };
+                    // Ensure we only pass the latest run
+                    const latestRun = config.runs.length > 0 ? [config.runs[0]] : [];
+                    return { ...config, runs: latestRun };
                 }
-                return { ...config, runs: [] }; // For non-featured, strip all run data.
+                // For non-featured, strip all run data.
+                return { ...config, runs: [] }; 
+            });
+
+            // 1b. Create the lean array for the all_blueprints_summary.json file
+            const allBlueprintsSummaryConfigs = allConfigsForHomepage.map(config => {
+                // For this summary, we only need the single latest run for its metadata (e.g. top model)
+                // but we don't need its bulky heatmap data.
+                const latestRun = config.runs.length > 0 ? { ...config.runs[0] } : null;
+                let leanLatestRun = null;
+                if (latestRun) {
+                    const { allCoverageScores, ...restOfRun } = latestRun;
+                    leanLatestRun = restOfRun;
+                }
+                return { 
+                    ...config, 
+                    runs: leanLatestRun ? [leanLatestRun] : [],
+                };
             });
 
             // 2. Calculate stats based on ALL configs.
@@ -253,11 +300,15 @@ async function actionBackfillSummary(options: { verbose?: boolean; configId?: st
 
             // --- BEGIN: Backfill Latest Runs Summary ---
             const allRunsFlat: LatestRunSummaryItem[] = allConfigsForHomepage.flatMap(config =>
-                config.runs.map(run => ({
-                    ...run,
-                    configId: config.configId,
-                    configTitle: config.title || config.configTitle,
-                }))
+                config.runs.map(run => {
+                    // Create a lean run object, explicitly excluding the bulky allCoverageScores field.
+                    const { allCoverageScores, ...leanRun } = run;
+                    return {
+                        ...leanRun,
+                        configId: config.configId,
+                        configTitle: config.title || config.configTitle,
+                    };
+                })
             );
             const sortedRuns = allRunsFlat.sort((a, b) => 
                 new Date(fromSafeTimestamp(b.timestamp)).getTime() - new Date(fromSafeTimestamp(a.timestamp)).getTime()
@@ -340,11 +391,18 @@ async function actionBackfillSummary(options: { verbose?: boolean; configId?: st
             }
             // --- END: Backfill Model Summaries ---
 
+            const finalAllBlueprintsSummaryObject = {
+                configs: allBlueprintsSummaryConfigs,
+                lastUpdated: new Date().toISOString(),
+            };
+
             if (options.dryRun) {
                 logger.info(`[DRY RUN] Would save comprehensive homepage summary. Stats calculated:`);
                 console.log(JSON.stringify(finalHomepageSummaryObject.headlineStats, null, 2));
 
                 logger.info(`[DRY RUN] Would save latest runs summary (${latest50Runs.length} runs).`);
+                
+                logger.info(`[DRY RUN] Would save all blueprints summary (${finalAllBlueprintsSummaryObject.configs.length} blueprints).`);
 
                 const modelNames = modelSummariesToSave.map(m => m.baseModelId);
                 logger.info(`[DRY RUN] Would save ${modelSummariesToSave.length} model summaries for models: ${modelNames.join(', ')}`);
@@ -353,6 +411,9 @@ async function actionBackfillSummary(options: { verbose?: boolean; configId?: st
                 logger.info('Saving comprehensive homepage summary...');
                 await saveHomepageSummary(finalHomepageSummaryObject);
                 logger.info('Comprehensive homepage summary saved successfully.');
+
+                await saveAllBlueprintsSummary(finalAllBlueprintsSummaryObject);
+                logger.info('All blueprints summary saved successfully.');
 
                 await saveLatestRunsSummary({
                     runs: latest50Runs,

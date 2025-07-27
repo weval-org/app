@@ -40,7 +40,7 @@ const logger = {
 type SandboxLogger = typeof logger;
 
 const getStatusUpdater = (runId: string, sandboxVersion: 'v1' | 'v2' = 'v1') => {
-  const directory = sandboxVersion === 'v2' ? 'sandbox' : 'sandbox';
+  const directory = sandboxVersion === 'v2' ? 'live/sandbox' : 'live/sandbox';
   return async (status: string, message: string, extraData: object = {}) => {
     logger.info(`Updating status for ${runId} (v: ${sandboxVersion}): ${status} - ${message}`);
     const statusKey = `${directory}/runs/${runId}/status.json`;
@@ -73,7 +73,7 @@ export const handler: BackgroundHandler = async (event) => {
   logger.info(`[Sandbox Pipeline] CLI configured for runId: ${runId}`);
   
   const updateStatus = getStatusUpdater(runId, sandboxVersion);
-  const directory = sandboxVersion === 'v2' ? 'sandbox' : 'sandbox';
+  const directory = sandboxVersion === 'v2' ? 'live/sandbox' : 'live/sandbox';
 
   if (!runId || !blueprintKey) {
     logger.error('Missing runId or blueprintKey in invocation.');

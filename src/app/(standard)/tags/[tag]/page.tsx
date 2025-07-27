@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { getComparisonRunInfo, EnhancedComparisonConfigInfo } from '@/app/utils/homepageDataUtils';
+import { getAllBlueprintSummaries, EnhancedComparisonConfigInfo } from '@/app/utils/homepageDataUtils';
 import { Button } from '@/components/ui/button';
 import dynamic from 'next/dynamic';
 import AnalysisPageHeader from '@/app/analysis/components/AnalysisPageHeader';
@@ -25,7 +25,7 @@ export async function generateMetadata({ params }: { params: Promise<{ tag: stri
 export default async function TaggedBlueprintsPage({ params }: { params: Promise<{ tag: string }> }) {
   const { tag } = await params;
   const tagName = decodeURIComponent(tag);
-  const allConfigs = await getComparisonRunInfo(); // This gets from homepage_summary.json
+  const allConfigs = await getAllBlueprintSummaries(); // This now gets all configs efficiently
 
   let filteredConfigs: EnhancedComparisonConfigInfo[] = [];
   let blueprintSummaries: BlueprintSummaryInfo[] = [];

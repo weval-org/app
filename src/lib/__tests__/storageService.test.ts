@@ -21,7 +21,7 @@ import { Readable } from 'stream';
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
-import { RESULTS_DIR, MULTI_DIR } from '@/cli/constants';
+import { RESULTS_DIR, MULTI_DIR, LIVE_DIR } from '@/cli/constants';
 import { ModelSummary } from '@/types/shared';
 
 // Mock calculation utilities as their specific output isn't being tested here.
@@ -186,7 +186,7 @@ describe('storageService', () => {
             
             const summary = await getConfigSummary('test-config');
             
-            expect(mockedFs.readFile).toHaveBeenCalledWith(path.join(RESULTS_DIR, MULTI_DIR, 'test-config', 'summary.json'), 'utf-8');
+            expect(mockedFs.readFile).toHaveBeenCalledWith(path.join(RESULTS_DIR, LIVE_DIR, 'blueprints', 'test-config', 'summary.json'), 'utf-8');
             expect(summary).toEqual(expect.objectContaining({ configId: 'test-config' }));
         });
 
@@ -215,7 +215,7 @@ describe('storageService', () => {
             expect(mockSend).toHaveBeenCalled();
             const sentCommand = mockSend.mock.calls[0][0] as GetObjectCommand;
             expect(sentCommand.input.Bucket).toBe('test-bucket');
-            expect(sentCommand.input.Key).toBe('multi/test-config/summary.json');
+            expect(sentCommand.input.Key).toBe('live/blueprints/test-config/summary.json');
             expect(summary).toEqual(expect.objectContaining({ configId: 'test-config' }));
         });
 
@@ -242,7 +242,7 @@ describe('storageService', () => {
             await saveConfigSummary('test-config', mockSummary);
             
             expect(mockedFs.writeFile).toHaveBeenCalledWith(
-                path.join(RESULTS_DIR, MULTI_DIR, 'test-config', 'summary.json'),
+                path.join(RESULTS_DIR, LIVE_DIR, 'blueprints', 'test-config', 'summary.json'),
                 JSON.stringify(serializableMockSummary, null, 2),
                 'utf-8'
             );
@@ -259,7 +259,7 @@ describe('storageService', () => {
             expect(mockSend).toHaveBeenCalled();
             const sentCommand = mockSend.mock.calls[0][0] as PutObjectCommand;
             expect(sentCommand.input.Bucket).toBe('test-bucket');
-            expect(sentCommand.input.Key).toBe('multi/test-config/summary.json');
+            expect(sentCommand.input.Key).toBe('live/blueprints/test-config/summary.json');
             expect(sentCommand.input.Body).toBe(JSON.stringify(serializableMockSummary, null, 2));
         });
     });
@@ -273,7 +273,7 @@ describe('storageService', () => {
                 const { saveModelSummary } = require('../storageService');
                 await saveModelSummary(mockModelSummary.modelId, mockModelSummary);
                 expect(mockedFs.writeFile).toHaveBeenCalledWith(
-                    path.join(RESULTS_DIR, MULTI_DIR, 'models', `${safeModelId}.json`),
+                    path.join(RESULTS_DIR, LIVE_DIR, 'models', 'summaries', `${safeModelId}.json`),
                     JSON.stringify(mockModelSummary, null, 2),
                     'utf-8'
                 );
@@ -288,7 +288,7 @@ describe('storageService', () => {
                 expect(mockSend).toHaveBeenCalled();
                 const sentCommand = mockSend.mock.calls[0][0] as PutObjectCommand;
                 expect(sentCommand.input.Bucket).toBe('test-bucket');
-                expect(sentCommand.input.Key).toBe(`multi/models/${safeModelId}.json`);
+                expect(sentCommand.input.Key).toBe(`live/models/summaries/${safeModelId}.json`);
                 expect(sentCommand.input.Body).toBe(JSON.stringify(mockModelSummary, null, 2));
             });
         });
@@ -300,7 +300,7 @@ describe('storageService', () => {
                 mockedFsSync.existsSync.mockReturnValue(true);
                 mockedFs.readFile.mockResolvedValue(JSON.stringify(mockModelSummary));
                 const summary = await getModelSummary(mockModelSummary.modelId);
-                expect(mockedFs.readFile).toHaveBeenCalledWith(path.join(RESULTS_DIR, MULTI_DIR, 'models', `${safeModelId}.json`),'utf-8');
+                expect(mockedFs.readFile).toHaveBeenCalledWith(path.join(RESULTS_DIR, LIVE_DIR, 'models', 'summaries', `${safeModelId}.json`),'utf-8');
                 expect(summary).toEqual(mockModelSummary);
             });
 
@@ -316,7 +316,7 @@ describe('storageService', () => {
                 const summary = await getModelSummary(mockModelSummary.modelId);
                 expect(mockSend).toHaveBeenCalled();
                 const sentCommand = mockSend.mock.calls[0][0] as GetObjectCommand;
-                expect(sentCommand.input.Key).toBe(`multi/models/${safeModelId}.json`);
+                expect(sentCommand.input.Key).toBe(`live/models/summaries/${safeModelId}.json`);
                 expect(summary).toEqual(mockModelSummary);
             });
         });
@@ -328,7 +328,7 @@ describe('storageService', () => {
                 const mockDirent = [{ name: `${safeModelId}.json`, isFile: () => true }];
                 mockedFs.readdir.mockResolvedValue(mockDirent as any);
                 const summaries = await listModelSummaries();
-                expect(mockedFs.readdir).toHaveBeenCalledWith(path.join(process.cwd(), RESULTS_DIR, MULTI_DIR, 'models'), { withFileTypes: true });
+                expect(mockedFs.readdir).toHaveBeenCalledWith(path.join(RESULTS_DIR, LIVE_DIR, 'models', 'summaries'), { withFileTypes: true });
                 expect(summaries).toEqual([safeModelId]);
             });
 
@@ -337,11 +337,11 @@ describe('storageService', () => {
                 process.env.APP_S3_BUCKET_NAME = 'test-bucket';
                 process.env.APP_S3_REGION = 'us-east-1';
                 const { listModelSummaries } = require('../storageService');
-                mockSend.mockResolvedValue({ Contents: [{ Key: `multi/models/${safeModelId}.json` }] });
+                mockSend.mockResolvedValue({ Contents: [{ Key: `live/models/summaries/${safeModelId}.json` }] });
                 const summaries = await listModelSummaries();
                 expect(mockSend).toHaveBeenCalled();
                 const sentCommand = mockSend.mock.calls[0][0];
-                expect(sentCommand.input.Prefix).toBe('multi/models/');
+                expect(sentCommand.input.Prefix).toBe('live/models/summaries/');
                 expect(summaries).toEqual([safeModelId]);
             });
         });
@@ -433,7 +433,7 @@ describe('storageService', () => {
 
                 const summary = await getHomepageSummary();
 
-                expect(mockedFs.readFile).toHaveBeenCalledWith(path.join(RESULTS_DIR, MULTI_DIR, homepageSummaryFileName), 'utf-8');
+                expect(mockedFs.readFile).toHaveBeenCalledWith(path.join(RESULTS_DIR, LIVE_DIR, 'aggregates', homepageSummaryFileName), 'utf-8');
                 expect(summary).toEqual(mockHomepageSummary);
                 expect(summary?.configs[0].runs[0].perModelScores).toBeInstanceOf(Map);
             });
@@ -453,7 +453,7 @@ describe('storageService', () => {
 
                 expect(mockSend).toHaveBeenCalled();
                 const sentCommand = mockSend.mock.calls[0][0] as GetObjectCommand;
-                expect(sentCommand.input.Key).toBe(homepageSummaryFileName);
+                expect(sentCommand.input.Key).toBe(`live/aggregates/${homepageSummaryFileName}`);
                 expect(summary).toEqual(mockHomepageSummary);
                 expect(summary?.configs[0].runs[0].perModelScores).toBeInstanceOf(Map);
             });
@@ -481,7 +481,7 @@ describe('storageService', () => {
                 await saveHomepageSummary(mockHomepageSummary);
 
                 expect(mockedFs.writeFile).toHaveBeenCalledWith(
-                    path.join(RESULTS_DIR, MULTI_DIR, homepageSummaryFileName),
+                    path.join(RESULTS_DIR, LIVE_DIR, 'aggregates', homepageSummaryFileName),
                     JSON.stringify(serializableMockHomepageSummary, null, 2),
                     'utf-8'
                 );
@@ -498,7 +498,7 @@ describe('storageService', () => {
                 expect(mockSend).toHaveBeenCalled();
                 const sentCommand = mockSend.mock.calls[0][0] as PutObjectCommand;
                 expect(sentCommand.input.Bucket).toBe('test-bucket');
-                expect(sentCommand.input.Key).toBe(homepageSummaryFileName);
+                expect(sentCommand.input.Key).toBe(`live/aggregates/${homepageSummaryFileName}`);
                 expect(sentCommand.input.Body).toBe(JSON.stringify(serializableMockHomepageSummary, null, 2));
             });
         });
@@ -520,7 +520,7 @@ describe('storageService', () => {
                 const ids = await listConfigIds();
                 expect(ids).toEqual(['config-one', 'config-two']);
                 expect(mockedFs.readdir).toHaveBeenCalledWith(
-                    path.join(process.cwd(), RESULTS_DIR, MULTI_DIR),
+                    path.join(RESULTS_DIR, LIVE_DIR, 'blueprints'),
                     { withFileTypes: true }
                 );
             });
@@ -545,8 +545,8 @@ describe('storageService', () => {
                 
                 mockSend.mockResolvedValue({
                     CommonPrefixes: [
-                        { Prefix: 'multi/config-alpha/' },
-                        { Prefix: 'multi/config-beta/' },
+                        { Prefix: 'live/blueprints/config-alpha/' },
+                        { Prefix: 'live/blueprints/config-beta/' },
                     ],
                 });
 
@@ -554,7 +554,7 @@ describe('storageService', () => {
                 expect(ids).toEqual(['config-alpha', 'config-beta']);
                 
                 const sentCommand = mockSend.mock.calls[0][0] as ListObjectsV2Command;
-                expect(sentCommand.input.Prefix).toBe('multi/');
+                expect(sentCommand.input.Prefix).toBe('live/blueprints/');
                 expect(sentCommand.input.Delimiter).toBe('/');
             });
         });
@@ -588,9 +588,9 @@ describe('storageService', () => {
                 
                 mockSend.mockResolvedValue({
                     Contents: [
-                        { Key: 'multi/test-config/run-new_2024-02-01T10-00-00-000Z_comparison.json' },
-                        { Key: 'multi/test-config/run-old_2024-01-15T10-00-00-000Z_comparison.json' },
-                        { Key: 'multi/test-config/summary.json' }, // should be ignored
+                        { Key: 'live/blueprints/test-config/run-new_2024-02-01T10-00-00-000Z_comparison.json' },
+                        { Key: 'live/blueprints/test-config/run-old_2024-01-15T10-00-00-000Z_comparison.json' },
+                        { Key: 'live/blueprints/test-config/summary.json' }, // should be ignored
                     ]
                 });
 
@@ -600,7 +600,7 @@ describe('storageService', () => {
                 expect(runs[0].timestamp).toBe('2024-02-01T10-00-00-000Z');
                 
                 const sentCommand = mockSend.mock.calls[0][0] as ListObjectsV2Command;
-                expect(sentCommand.input.Prefix).toBe('multi/test-config');
+                expect(sentCommand.input.Prefix).toBe('live/blueprints/test-config/');
             });
         });
     });

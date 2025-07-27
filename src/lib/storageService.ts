@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
+import os from 'os';
 import {
   S3Client,
   ListObjectsV2Command,
@@ -8,6 +9,9 @@ import {
   PutObjectCommand,
   DeleteObjectsCommand,
   DeleteObjectCommand,
+  CopyObjectCommand,
+  ListObjectsV2CommandOutput,
+  HeadObjectCommand
 } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
 import {
@@ -26,10 +30,19 @@ import {
     calculatePerModelScoreStatsForRun,
     calculateAverageHybridScoreForRun
 } from '@/cli/utils/summaryCalculationUtils';
-import { fromSafeTimestamp } from '@/lib/timestampUtils';
+import { fromSafeTimestamp, toSafeTimestamp } from '@/lib/timestampUtils';
 import { ModelSummary } from '@/types/shared';
 import { SearchableBlueprintSummary } from '@/cli/types/cli_types';
-import { RESULTS_DIR, MULTI_DIR } from '@/cli/constants';
+import {
+    RESULTS_DIR,
+    MULTI_DIR,
+    BACKUPS_DIR,
+    SANDBOX_DIR,
+    LIVE_DIR,
+    MODEL_DIR,
+    MODEL_CARDS_DIR
+} from '@/cli/constants';
+import { getConfig } from '@/cli/config';
 
 const storageProvider = process.env.STORAGE_PROVIDER || (process.env.NODE_ENV === 'development' ? 'local' : 's3');
 
@@ -97,10 +110,15 @@ const streamToString = (stream: Readable): Promise<string> =>
     stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
   });
 
-const HOMEPAGE_SUMMARY_KEY = 'multi/homepage_summary.json';
 const LATEST_RUNS_SUMMARY_KEY = 'multi/latest_runs_summary.json';
 const MODELS_DIR = 'models';
-const MODEL_CARDS_DIR = 'model-cards';
+
+const HOMEPAGE_SUMMARY_FILENAME = 'homepage_summary.json';
+const SEARCH_INDEX_FILENAME = 'search-index.json';
+const MANIFEST_FILENAME = 'manifest.json';
+const AUTOBACKUP_PREFIX = 'autobackup-before-restore-';
+
+const CACHE_DIR = path.join(os.tmpdir(), 'weval_run_cache');
 
 // Helper to create a safe filename from a model ID
 function getSafeModelId(modelId: string): string {
@@ -136,31 +154,32 @@ interface SerializableLatestRunsSummaryFileContent extends Omit<LatestRunsSummar
 export async function getHomepageSummary(): Promise<HomepageSummaryFileContent | null> {
   const fileName = 'homepage_summary.json';
   let fileContent: string | null = null;
+  const s3Key = path.join(LIVE_DIR, 'aggregates', fileName);
+  const localPath = path.join(RESULTS_DIR, s3Key);
 
   if (storageProvider === 's3' && s3Client && s3BucketName) {
     try {
       // Note: The key for the homepage summary is at the root of the bucket for legacy reasons.
-      const command = new GetObjectCommand({ Bucket: s3BucketName, Key: fileName });
+      const command = new GetObjectCommand({ Bucket: s3BucketName, Key: s3Key });
       const { Body } = await s3Client.send(command);
       if (Body) {
         fileContent = await streamToString(Body as Readable);
       }
     } catch (error: any) {
       if (error.name === 'NoSuchKey') {
-        console.log(`[StorageService] Homepage summary file not found in S3: ${fileName}`);
+        console.log(`[StorageService] Homepage summary file not found in S3: ${s3Key}`);
         return null;
       }
-      console.error(`[StorageService] Error fetching homepage summary from S3: ${fileName}`, error);
+      console.error(`[StorageService] Error fetching homepage summary from S3: ${s3Key}`, error);
       return null;
     }
   } else if (storageProvider === 'local') {
     try {
       // The homepage summary is stored in the root of the multi directory
-      const filePath = path.join(RESULTS_DIR, MULTI_DIR, fileName);
-      if (fsSync.existsSync(filePath)) {
-        fileContent = await fs.readFile(filePath, 'utf-8');
+      if (fsSync.existsSync(localPath)) {
+        fileContent = await fs.readFile(localPath, 'utf-8');
       } else {
-        console.log(`[StorageService] Homepage summary file not found locally: ${filePath}`);
+        console.log(`[StorageService] Homepage summary file not found locally: ${localPath}`);
         return null;
       }
     } catch (error) {
@@ -205,6 +224,8 @@ export async function getHomepageSummary(): Promise<HomepageSummaryFileContent |
 
 export async function saveHomepageSummary(summaryData: HomepageSummaryFileContent): Promise<void> {
   const fileName = 'homepage_summary.json';
+  const s3Key = path.join(LIVE_DIR, 'aggregates', fileName);
+  const localPath = path.join(RESULTS_DIR, s3Key);
 
   // Prepare data for serialization: convert Maps to objects
   // Map objects don't serialize nicely, so we convert them to plain objects
@@ -238,30 +259,30 @@ export async function saveHomepageSummary(summaryData: HomepageSummaryFileConten
   };
 
   const fileContent = JSON.stringify(serializableSummary, null, 2);
+  const fileSizeInKB = (Buffer.byteLength(fileContent, 'utf8') / 1024).toFixed(2);
 
   if (storageProvider === 's3' && s3Client && s3BucketName) {
     try {
       const command = new PutObjectCommand({
         Bucket: s3BucketName,
         // Note: The key for the homepage summary is at the root of the bucket for legacy reasons.
-        Key: fileName,
+        Key: s3Key,
         Body: fileContent,
         ContentType: 'application/json',
       });
       await s3Client.send(command);
-      console.log(`[StorageService] Homepage summary saved to S3: ${fileName}`);
+      console.log(`[StorageService] Homepage summary saved to S3: ${s3Key} (${fileSizeInKB} KB)`);
     } catch (error) {
-      console.error(`[StorageService] Error saving homepage summary to S3: ${fileName}`, error);
+      console.error(`[StorageService] Error saving homepage summary to S3: ${s3Key}`, error);
       throw error; // Re-throw to indicate failure
     }
   } else if (storageProvider === 'local') {
-    const filePath = path.join(RESULTS_DIR, MULTI_DIR, fileName);
     try {
-      await fs.mkdir(path.dirname(filePath), { recursive: true });
-      await fs.writeFile(filePath, fileContent, 'utf-8');
-      console.log(`[StorageService] Homepage summary saved to local disk: ${filePath}`);
+      await fs.mkdir(path.dirname(localPath), { recursive: true });
+      await fs.writeFile(localPath, fileContent, 'utf-8');
+      console.log(`[StorageService] Homepage summary saved to local disk: ${localPath} (${fileSizeInKB} KB)`);
     } catch (error) {
-      console.error(`[StorageService] Error saving homepage summary to local disk: ${filePath}`, error);
+      console.error(`[StorageService] Error saving homepage summary to local disk: ${localPath}`, error);
       throw error; // Re-throw to indicate failure
     }
   } else {
@@ -278,9 +299,10 @@ export async function saveHomepageSummary(summaryData: HomepageSummaryFileConten
 export async function getConfigSummary(configId: string): Promise<EnhancedComparisonConfigInfo | null> {
   const fileName = 'summary.json';
   let fileContent: string | null = null;
+  const s3Key = path.join(LIVE_DIR, 'blueprints', configId, fileName);
+  const localPath = path.join(RESULTS_DIR, s3Key);
 
   if (storageProvider === 's3' && s3Client && s3BucketName) {
-    const s3Key = path.join(MULTI_DIR, configId, fileName);
     try {
       const command = new GetObjectCommand({ Bucket: s3BucketName, Key: s3Key });
       const { Body } = await s3Client.send(command);
@@ -297,11 +319,10 @@ export async function getConfigSummary(configId: string): Promise<EnhancedCompar
     }
   } else if (storageProvider === 'local') {
     try {
-      const filePath = path.join(RESULTS_DIR, MULTI_DIR, configId, fileName);
-      if (fsSync.existsSync(filePath)) {
-        fileContent = await fs.readFile(filePath, 'utf-8');
+      if (fsSync.existsSync(localPath)) {
+        fileContent = await fs.readFile(localPath, 'utf-8');
       } else {
-        console.log(`[StorageService] Per-config summary not found locally: ${filePath}`);
+        console.log(`[StorageService] Per-config summary not found locally: ${localPath}`);
         return null;
       }
     } catch (error) {
@@ -345,10 +366,13 @@ export async function getConfigSummary(configId: string): Promise<EnhancedCompar
  */
 export async function saveConfigSummary(configId: string, summaryData: EnhancedComparisonConfigInfo): Promise<void> {
   const fileName = 'summary.json';
+  const s3Key = path.join(LIVE_DIR, 'blueprints', configId, fileName);
+  const localPath = path.join(RESULTS_DIR, s3Key);
 
   // Prepare data for serialization: convert Maps to objects
   const serializableRuns: SerializableEnhancedRunInfo[] = summaryData.runs.map((run: EnhancedRunInfo) => {
-    const { perModelScores, ...restOfRun } = run;
+    // Exclude the bulky heatmap data from the summary file
+    const { perModelScores, allCoverageScores, ...restOfRun } = run;
     const serializableRun: SerializableEnhancedRunInfo = { ...restOfRun };
 
     if (perModelScores instanceof Map) {
@@ -372,9 +396,9 @@ export async function saveConfigSummary(configId: string, summaryData: EnhancedC
   };
 
   const fileContent = JSON.stringify(serializableSummary, null, 2);
+  const fileSizeInKB = (Buffer.byteLength(fileContent, 'utf8') / 1024).toFixed(2);
 
   if (storageProvider === 's3' && s3Client && s3BucketName) {
-    const s3Key = path.join(MULTI_DIR, configId, fileName);
     try {
       const command = new PutObjectCommand({
         Bucket: s3BucketName,
@@ -383,19 +407,18 @@ export async function saveConfigSummary(configId: string, summaryData: EnhancedC
         ContentType: 'application/json',
       });
       await s3Client.send(command);
-      console.log(`[StorageService] Per-config summary saved to S3: ${s3Key}`);
+      console.log(`[StorageService] Per-config summary saved to S3: ${s3Key} (${fileSizeInKB} KB)`);
     } catch (error) {
       console.error(`[StorageService] Error saving per-config summary to S3: ${s3Key}`, error);
       throw error;
     }
   } else if (storageProvider === 'local') {
-    const filePath = path.join(RESULTS_DIR, MULTI_DIR, configId, fileName);
     try {
-      await fs.mkdir(path.dirname(filePath), { recursive: true });
-      await fs.writeFile(filePath, fileContent, 'utf-8');
-      console.log(`[StorageService] Per-config summary saved to local disk: ${filePath}`);
+      await fs.mkdir(path.dirname(localPath), { recursive: true });
+      await fs.writeFile(localPath, fileContent, 'utf-8');
+      console.log(`[StorageService] Per-config summary saved to local disk: ${localPath} (${fileSizeInKB} KB)`);
     } catch (error) {
-      console.error(`[StorageService] Error saving per-config summary to local disk: ${filePath}`, error);
+      console.error(`[StorageService] Error saving per-config summary to local disk: ${localPath}`, error);
       throw error;
     }
   } else {
@@ -415,9 +438,10 @@ export async function saveConfigSummary(configId: string, summaryData: EnhancedC
  */
 export async function saveResult(configId: string, fileNameWithTimestamp: string, data: any): Promise<string | null> {
   const jsonData = JSON.stringify(data, null, 2);
+  const s3Key = path.join(LIVE_DIR, 'blueprints', configId, fileNameWithTimestamp);
+  const localPath = path.join(RESULTS_DIR, s3Key);
 
   if (storageProvider === 's3' && s3Client && s3BucketName) {
-    const s3Key = path.join(MULTI_DIR, configId, fileNameWithTimestamp);
     try {
       await s3Client.send(new PutObjectCommand({
         Bucket: s3BucketName,
@@ -432,10 +456,8 @@ export async function saveResult(configId: string, fileNameWithTimestamp: string
       return null;
     }
   } else if (storageProvider === 'local') {
-    const localDir = path.join(process.cwd(), RESULTS_DIR, MULTI_DIR, configId);
-    const localPath = path.join(localDir, fileNameWithTimestamp);
     try {
-      await fs.mkdir(localDir, { recursive: true });
+      await fs.mkdir(path.dirname(localPath), { recursive: true });
       await fs.writeFile(localPath, jsonData, 'utf-8');
       console.log(`[StorageService] Result saved locally: ${localPath}`);
       return localPath;
@@ -455,15 +477,21 @@ export async function saveResult(configId: string, fileNameWithTimestamp: string
  * For local, this lists directories under RESULTS_DIR/MULTI_DIR.
  */
 export async function listConfigIds(): Promise<string[]> {
+  const s3Prefix = `${LIVE_DIR}/blueprints/`;
+  const localPath = path.join(RESULTS_DIR, LIVE_DIR, 'blueprints');
+
   if (storageProvider === 's3' && s3Client && s3BucketName) {
     try {
       const command = new ListObjectsV2Command({
         Bucket: s3BucketName,
-        Prefix: `${MULTI_DIR}/`, // e.g., '.results/multi/'
+        Prefix: s3Prefix,
         Delimiter: '/',
       });
       const response = await s3Client.send(command);
-      const configIds = response.CommonPrefixes?.map(p => p.Prefix?.replace(MULTI_DIR + '/', '').replace('/', '')).filter(Boolean) as string[] || [];
+      const configIds = response.CommonPrefixes?.map(p => {
+        const prefix = p.Prefix || '';
+        return prefix.replace(s3Prefix, '').replace(/\/$/, '');
+      }).filter(Boolean) as string[] || [];
       console.log(`[StorageService] Listed config IDs from S3: ${configIds.join(', ')}`);
       return configIds;
     } catch (error) {
@@ -471,15 +499,14 @@ export async function listConfigIds(): Promise<string[]> {
       return [];
     }
   } else if (storageProvider === 'local') {
-    const localBaseDir = path.join(process.cwd(), RESULTS_DIR, MULTI_DIR);
     try {
-      const entries = await fs.readdir(localBaseDir, { withFileTypes: true });
+      const entries = await fs.readdir(localPath, { withFileTypes: true });
       const configIds = entries.filter(entry => entry.isDirectory()).map(entry => entry.name);
       console.log(`[StorageService] Listed config IDs locally: ${configIds.join(', ')}`);
       return configIds;
     } catch (error: any) {
       if (error.code === 'ENOENT') {
-        console.log(`[StorageService] Local results directory not found: ${localBaseDir}`);
+        console.log(`[StorageService] Local results directory not found: ${localPath}`);
         return [];
       }
       console.error('[StorageService] Error listing config IDs locally:', error);
@@ -511,12 +538,14 @@ export async function listRunsForConfig(configId: string): Promise<Array<{ runLa
     }
   };
 
+  const s3Prefix = `${LIVE_DIR}/blueprints/${configId}/`;
+  const localPath = path.join(RESULTS_DIR, LIVE_DIR, 'blueprints', configId);
+
   if (storageProvider === 's3' && s3Client && s3BucketName) {
-    const prefix = path.join(MULTI_DIR, configId, ''); // Ensure trailing slash for prefix
     try {
       const command = new ListObjectsV2Command({
         Bucket: s3BucketName,
-        Prefix: prefix,
+        Prefix: s3Prefix,
       });
       const response = await s3Client.send(command);
       response.Contents?.forEach(item => {
@@ -535,9 +564,8 @@ export async function listRunsForConfig(configId: string): Promise<Array<{ runLa
       console.error(`[StorageService] Error listing runs for config '${configId}' from S3:`, error);
     }
   } else if (storageProvider === 'local') {
-    const localDir = path.join(process.cwd(), RESULTS_DIR, MULTI_DIR, configId);
     try {
-      const files = await fs.readdir(localDir);
+      const files = await fs.readdir(localPath);
       files.forEach(fileName => {
         if (fileName.endsWith('_comparison.json')) {
            const parsed = parseFileName(fileName);
@@ -577,8 +605,23 @@ export async function listRunsForConfig(configId: string): Promise<Array<{ runLa
  * @returns The parsed JSON data or null if not found or on error.
  */
 export async function getResultByFileName(configId: string, fileName: string): Promise<any | null> {
+  const s3Key = path.join(LIVE_DIR, 'blueprints', configId, fileName);
+  const localPath = path.join(RESULTS_DIR, s3Key);
+  const cachePath = path.join(CACHE_DIR, configId, fileName);
+
+  // --- Check Local Cache First ---
+  try {
+    if (fsSync.existsSync(cachePath)) {
+        console.log(`[StorageService] Cache HIT for ${fileName}. Reading from ${cachePath}`);
+        const cachedContent = await fs.readFile(cachePath, 'utf-8');
+        return JSON.parse(cachedContent);
+    }
+  } catch (err) {
+      console.warn(`[StorageService] Error reading from cache file ${cachePath}. Will fetch from source.`, err);
+  }
+  // --- End Cache Check ---
+
   if (storageProvider === 's3' && s3Client && s3BucketName) {
-    const s3Key = path.join(MULTI_DIR, configId, fileName);
     console.log(`[StorageService] Attempting to load result by fileName from S3: s3://${s3BucketName}/${s3Key}`);
     try {
       const { Body } = await s3Client.send(new GetObjectCommand({
@@ -588,6 +631,17 @@ export async function getResultByFileName(configId: string, fileName: string): P
       if (Body) {
         const content = await streamToString(Body as Readable);
         console.log(`[StorageService] Result retrieved from S3 by fileName: s3://${s3BucketName}/${s3Key}`);
+        
+        // --- Populate Cache ---
+        try {
+            await fs.mkdir(path.dirname(cachePath), { recursive: true });
+            await fs.writeFile(cachePath, content, 'utf-8');
+            console.log(`[StorageService] Cached ${fileName} to ${cachePath}`);
+        } catch (err) {
+            console.warn(`[StorageService] Failed to write to cache file ${cachePath}.`, err);
+        }
+        // --- End Cache Population ---
+
         const parsedData = JSON.parse(content);
         console.log(`[StorageService getResultByFileName DEBUG] Parsed data keys: ${Object.keys(parsedData).join(', ')}`);
         return parsedData;
@@ -602,7 +656,6 @@ export async function getResultByFileName(configId: string, fileName: string): P
       return null;
     }
   } else if (storageProvider === 'local') {
-    const localPath = path.join(process.cwd(), RESULTS_DIR, MULTI_DIR, configId, fileName);
     console.log(`[StorageService] Attempting to load result by fileName from local disk: ${localPath}`);
     try {
       const fileContents = await fs.readFile(localPath, 'utf-8');
@@ -927,10 +980,12 @@ export async function deleteResultByFileName(configId: string, fileName: string)
 
 export async function getLatestRunsSummary(): Promise<LatestRunsSummaryFileContent> {
   let fileContent: string | null = null;
+  const s3Key = path.join(LIVE_DIR, 'aggregates', 'latest_runs_summary.json');
+  const localPath = path.join(RESULTS_DIR, s3Key);
 
   if (storageProvider === 's3' && s3Client && s3BucketName) {
     try {
-      const command = new GetObjectCommand({ Bucket: s3BucketName, Key: LATEST_RUNS_SUMMARY_KEY });
+      const command = new GetObjectCommand({ Bucket: s3BucketName, Key: s3Key });
       const { Body } = await s3Client.send(command);
       if (Body) {
         fileContent = await streamToString(Body as Readable);
@@ -940,14 +995,13 @@ export async function getLatestRunsSummary(): Promise<LatestRunsSummaryFileConte
         // File doesn't exist, return default empty state
         return { runs: [], lastUpdated: '' };
       }
-      console.error(`[StorageService] Error fetching latest runs summary from S3: ${LATEST_RUNS_SUMMARY_KEY}`, error);
+      console.error(`[StorageService] Error fetching latest runs summary from S3: ${s3Key}`, error);
       return { runs: [], lastUpdated: '' };
     }
   } else if (storageProvider === 'local') {
     try {
-      const filePath = path.join(RESULTS_DIR, MULTI_DIR, 'latest_runs_summary.json');
-      if (fsSync.existsSync(filePath)) {
-        fileContent = await fs.readFile(filePath, 'utf-8');
+      if (fsSync.existsSync(localPath)) {
+        fileContent = await fs.readFile(localPath, 'utf-8');
       } else {
         // File doesn't exist, return default empty state
         return { runs: [], lastUpdated: '' };
@@ -981,6 +1035,8 @@ export async function getLatestRunsSummary(): Promise<LatestRunsSummaryFileConte
 }
 
 export async function saveLatestRunsSummary(summaryData: LatestRunsSummaryFileContent): Promise<void> {
+    const s3Key = path.join(LIVE_DIR, 'aggregates', 'latest_runs_summary.json');
+    const localPath = path.join(RESULTS_DIR, s3Key);
     const serializableRuns: SerializableLatestRunSummaryItem[] = summaryData.runs.map(run => {
         const { perModelScores, ...restOfRun } = run;
         const serializableRun: SerializableLatestRunSummaryItem = { ...restOfRun };
@@ -1006,29 +1062,29 @@ export async function saveLatestRunsSummary(summaryData: LatestRunsSummaryFileCo
     };
     
     const fileContent = JSON.stringify(serializableSummary, null, 2);
+    const fileSizeInKB = (Buffer.byteLength(fileContent, 'utf8') / 1024).toFixed(2);
 
     if (storageProvider === 's3' && s3Client && s3BucketName) {
         try {
             const command = new PutObjectCommand({
                 Bucket: s3BucketName,
-                Key: LATEST_RUNS_SUMMARY_KEY,
+                Key: s3Key,
                 Body: fileContent,
                 ContentType: 'application/json',
             });
             await s3Client.send(command);
-            console.log(`[StorageService] Latest runs summary saved to S3: ${LATEST_RUNS_SUMMARY_KEY}`);
+            console.log(`[StorageService] Latest runs summary saved to S3: ${s3Key} (${fileSizeInKB} KB)`);
         } catch (error) {
-            console.error(`[StorageService] Error saving latest runs summary to S3: ${LATEST_RUNS_SUMMARY_KEY}`, error);
+            console.error(`[StorageService] Error saving latest runs summary to S3: ${s3Key}`, error);
             throw error;
         }
     } else if (storageProvider === 'local') {
-        const filePath = path.join(RESULTS_DIR, MULTI_DIR, 'latest_runs_summary.json');
         try {
-            await fs.mkdir(path.dirname(filePath), { recursive: true });
-            await fs.writeFile(filePath, fileContent, 'utf-8');
-            console.log(`[StorageService] Latest runs summary saved to local disk: ${filePath}`);
+            await fs.mkdir(path.dirname(localPath), { recursive: true });
+            await fs.writeFile(localPath, fileContent, 'utf-8');
+            console.log(`[StorageService] Latest runs summary saved to local disk: ${localPath} (${fileSizeInKB} KB)`);
         } catch (error) {
-            console.error(`[StorageService] Error saving latest runs summary to local disk: ${filePath}`, error);
+            console.error(`[StorageService] Error saving latest runs summary to local disk: ${localPath}`, error);
             throw error;
         }
     } else {
@@ -1039,10 +1095,12 @@ export async function saveLatestRunsSummary(summaryData: LatestRunsSummaryFileCo
 export async function saveModelSummary(modelId: string, summaryData: ModelSummary): Promise<void> {
   const safeModelId = getSafeModelId(modelId);
   const fileName = `${safeModelId}.json`;
+  const s3Key = path.join(LIVE_DIR, 'models', 'summaries', fileName);
+  const localPath = path.join(RESULTS_DIR, s3Key);
   const fileContent = JSON.stringify(summaryData, null, 2);
+  const fileSizeInKB = (Buffer.byteLength(fileContent, 'utf8') / 1024).toFixed(2);
 
   if (storageProvider === 's3' && s3Client && s3BucketName) {
-    const s3Key = path.join(MULTI_DIR, MODELS_DIR, fileName);
     try {
       const command = new PutObjectCommand({
         Bucket: s3BucketName,
@@ -1051,19 +1109,18 @@ export async function saveModelSummary(modelId: string, summaryData: ModelSummar
         ContentType: 'application/json',
       });
       await s3Client.send(command);
-      console.log(`[StorageService] Model summary saved to S3: ${s3Key}`);
+      console.log(`[StorageService] Model summary saved to S3: ${s3Key} (${fileSizeInKB} KB)`);
     } catch (error) {
       console.error(`[StorageService] Error saving model summary to S3: ${s3Key}`, error);
       throw error;
     }
   } else if (storageProvider === 'local') {
-    const filePath = path.join(RESULTS_DIR, MULTI_DIR, MODELS_DIR, fileName);
     try {
-      await fs.mkdir(path.dirname(filePath), { recursive: true });
-      await fs.writeFile(filePath, fileContent, 'utf-8');
-      console.log(`[StorageService] Model summary saved to local disk: ${filePath}`);
+      await fs.mkdir(path.dirname(localPath), { recursive: true });
+      await fs.writeFile(localPath, fileContent, 'utf-8');
+      console.log(`[StorageService] Model summary saved to local disk: ${localPath} (${fileSizeInKB} KB)`);
     } catch (error) {
-      console.error(`[StorageService] Error saving model summary to local disk: ${filePath}`, error);
+      console.error(`[StorageService] Error saving model summary to local disk: ${localPath}`, error);
       throw error;
     }
   } else {
@@ -1074,10 +1131,11 @@ export async function saveModelSummary(modelId: string, summaryData: ModelSummar
 export async function getModelSummary(modelId: string): Promise<ModelSummary | null> {
   const safeModelId = getSafeModelId(modelId);
   const fileName = `${safeModelId}.json`;
+  const s3Key = path.join(LIVE_DIR, 'models', 'summaries', fileName);
+  const localPath = path.join(RESULTS_DIR, s3Key);
   let fileContent: string | null = null;
 
   if (storageProvider === 's3' && s3Client && s3BucketName) {
-    const s3Key = path.join(MULTI_DIR, MODELS_DIR, fileName);
     try {
       const command = new GetObjectCommand({ Bucket: s3BucketName, Key: s3Key });
       const { Body } = await s3Client.send(command);
@@ -1093,16 +1151,15 @@ export async function getModelSummary(modelId: string): Promise<ModelSummary | n
       return null;
     }
   } else if (storageProvider === 'local') {
-    const filePath = path.join(RESULTS_DIR, MULTI_DIR, MODELS_DIR, fileName);
     try {
-      if (fsSync.existsSync(filePath)) {
-        fileContent = await fs.readFile(filePath, 'utf-8');
+      if (fsSync.existsSync(localPath)) {
+        fileContent = await fs.readFile(localPath, 'utf-8');
       } else {
-        console.log(`[StorageService] Model summary not found locally: ${filePath}`);
+        console.log(`[StorageService] Model summary not found locally: ${localPath}`);
         return null;
       }
     } catch (error) {
-      console.error(`[StorageService] Error fetching model summary from local disk: ${filePath}`, error);
+      console.error(`[StorageService] Error fetching model summary from local disk: ${localPath}`, error);
       return null;
     }
   }
@@ -1120,13 +1177,14 @@ export async function getModelSummary(modelId: string): Promise<ModelSummary | n
 }
 
 export async function listModelSummaries(): Promise<string[]> {
-  const modelsDirPrefix = `${MULTI_DIR}/${MODELS_DIR}/`;
+  const s3Prefix = `${LIVE_DIR}/models/summaries/`;
+  const localPath = path.join(RESULTS_DIR, LIVE_DIR, 'models', 'summaries');
 
   if (storageProvider === 's3' && s3Client && s3BucketName) {
     try {
       const command = new ListObjectsV2Command({
         Bucket: s3BucketName,
-        Prefix: modelsDirPrefix,
+        Prefix: s3Prefix,
       });
       const response = await s3Client.send(command);
       const modelFiles = response.Contents?.map(obj => path.basename(obj.Key || ''))
@@ -1139,9 +1197,8 @@ export async function listModelSummaries(): Promise<string[]> {
       return [];
     }
   } else if (storageProvider === 'local') {
-    const localModelsDir = path.join(process.cwd(), RESULTS_DIR, MULTI_DIR, MODELS_DIR);
     try {
-      const entries = await fs.readdir(localModelsDir, { withFileTypes: true });
+      const entries = await fs.readdir(localPath, { withFileTypes: true });
       const modelFiles = entries
         .filter(entry => entry.isFile() && entry.name.endsWith('.json'))
         .map(entry => entry.name.replace(/\.json$/, ''));
@@ -1165,10 +1222,11 @@ export async function listModelSummaries(): Promise<string[]> {
 export async function saveModelCard(modelId: string, cardData: any): Promise<void> {
   const safeModelId = getSafeModelId(modelId);
   const fileName = `${safeModelId}.json`;
+  const s3Key = path.join(LIVE_DIR, 'models', 'cards', fileName);
+  const localPath = path.join(RESULTS_DIR, s3Key);
   const fileContent = JSON.stringify(cardData, null, 2);
 
   if (storageProvider === 's3' && s3Client && s3BucketName) {
-    const s3Key = path.join(MULTI_DIR, MODEL_CARDS_DIR, fileName);
     try {
       const command = new PutObjectCommand({
         Bucket: s3BucketName,
@@ -1183,13 +1241,12 @@ export async function saveModelCard(modelId: string, cardData: any): Promise<voi
       throw error;
     }
   } else if (storageProvider === 'local') {
-    const filePath = path.join(RESULTS_DIR, MULTI_DIR, MODEL_CARDS_DIR, fileName);
     try {
-      await fs.mkdir(path.dirname(filePath), { recursive: true });
-      await fs.writeFile(filePath, fileContent, 'utf-8');
-      console.log(`[StorageService] Model card saved to local disk: ${filePath}`);
+      await fs.mkdir(path.dirname(localPath), { recursive: true });
+      await fs.writeFile(localPath, fileContent, 'utf-8');
+      console.log(`[StorageService] Model card saved to local disk: ${localPath}`);
     } catch (error) {
-      console.error(`[StorageService] Error saving model card to local disk: ${filePath}`, error);
+      console.error(`[StorageService] Error saving model card to local disk: ${localPath}`, error);
       throw error;
     }
   } else {
@@ -1200,10 +1257,11 @@ export async function saveModelCard(modelId: string, cardData: any): Promise<voi
 export async function getModelCard(modelId: string): Promise<any | null> {
   const safeModelId = getSafeModelId(modelId);
   const fileName = `${safeModelId}.json`;
+  const s3Key = path.join(LIVE_DIR, 'models', 'cards', fileName);
+  const localPath = path.join(RESULTS_DIR, s3Key);
   let fileContent: string | null = null;
 
   if (storageProvider === 's3' && s3Client && s3BucketName) {
-    const s3Key = path.join(MULTI_DIR, MODEL_CARDS_DIR, fileName);
     try {
       const command = new GetObjectCommand({ Bucket: s3BucketName, Key: s3Key });
       const { Body } = await s3Client.send(command);
@@ -1219,16 +1277,15 @@ export async function getModelCard(modelId: string): Promise<any | null> {
       return null;
     }
   } else if (storageProvider === 'local') {
-    const filePath = path.join(RESULTS_DIR, MULTI_DIR, MODEL_CARDS_DIR, fileName);
     try {
-      if (fsSync.existsSync(filePath)) {
-        fileContent = await fs.readFile(filePath, 'utf-8');
+      if (fsSync.existsSync(localPath)) {
+        fileContent = await fs.readFile(localPath, 'utf-8');
       } else {
-        console.log(`[StorageService] Model card not found locally: ${filePath}`);
+        console.log(`[StorageService] Model card not found locally: ${localPath}`);
         return null;
       }
     } catch (error) {
-      console.error(`[StorageService] Error fetching model card from local disk: ${filePath}`, error);
+      console.error(`[StorageService] Error fetching model card from local disk: ${localPath}`, error);
       return null;
     }
   }
@@ -1246,13 +1303,14 @@ export async function getModelCard(modelId: string): Promise<any | null> {
 }
 
 export async function listModelCards(): Promise<string[]> {
-  const modelCardsDirPrefix = `${MULTI_DIR}/${MODEL_CARDS_DIR}/`;
+  const s3Prefix = path.join(LIVE_DIR, 'models', 'cards', '');
+  const localPath = path.join(RESULTS_DIR, s3Prefix);
 
   if (storageProvider === 's3' && s3Client && s3BucketName) {
     try {
       const command = new ListObjectsV2Command({
         Bucket: s3BucketName,
-        Prefix: modelCardsDirPrefix,
+        Prefix: s3Prefix,
       });
       const response = await s3Client.send(command);
       const modelFiles = response.Contents?.map(obj => path.basename(obj.Key || ''))
@@ -1265,9 +1323,8 @@ export async function listModelCards(): Promise<string[]> {
       return [];
     }
   } else if (storageProvider === 'local') {
-    const localModelCardsDir = path.join(process.cwd(), RESULTS_DIR, MULTI_DIR, MODEL_CARDS_DIR);
     try {
-      const entries = await fs.readdir(localModelCardsDir, { withFileTypes: true });
+      const entries = await fs.readdir(localPath, { withFileTypes: true });
       const modelFiles = entries
         .filter(entry => entry.isFile() && entry.name.endsWith('.json'))
         .map(entry => entry.name.replace(/\.json$/, ''));
@@ -1288,6 +1345,8 @@ export async function listModelCards(): Promise<string[]> {
 
 export async function saveSearchIndex(index: SearchableBlueprintSummary[]): Promise<number> {
     const filePath = 'search-index.json';
+    const s3Key = path.join(LIVE_DIR, 'aggregates', filePath);
+    const localFilePath = path.join(RESULTS_DIR, s3Key);
     const fileContent = JSON.stringify(index, null, 2);
     const fileSizeInBytes = Buffer.byteLength(fileContent, 'utf8');
 
@@ -1297,14 +1356,13 @@ export async function saveSearchIndex(index: SearchableBlueprintSummary[]): Prom
         }
         await s3Client.send(new PutObjectCommand({
             Bucket: s3BucketName,
-            Key: filePath,
+            Key: s3Key,
             Body: fileContent,
             ContentType: 'application/json',
         }));
-        console.log(`[StorageService] Search index saved to S3: ${filePath}`);
+        console.log(`[StorageService] Search index saved to S3: ${s3Key}`);
     } else {
         // For local, save it to the root of the .results directory
-        const localFilePath = path.join(RESULTS_DIR, filePath);
         await fs.mkdir(path.dirname(localFilePath), { recursive: true });
         await fs.writeFile(localFilePath, fileContent);
         console.log(`[StorageService] Search index saved locally: ${localFilePath}`);
@@ -1314,16 +1372,17 @@ export async function saveSearchIndex(index: SearchableBlueprintSummary[]): Prom
 
 export async function getSearchIndex(): Promise<SearchableBlueprintSummary[] | null> {
     const filePath = 'search-index.json';
+    const s3Key = path.join(LIVE_DIR, 'aggregates', filePath);
+    const localFilePath = path.join(RESULTS_DIR, s3Key);
     try {
         if (storageProvider === 's3') {
             if (!s3Client || !s3BucketName) throw new Error('S3 client or bucket name not configured.');
-            const command = new GetObjectCommand({ Bucket: s3BucketName, Key: filePath });
+            const command = new GetObjectCommand({ Bucket: s3BucketName, Key: s3Key });
             const { Body } = await s3Client.send(command);
             if (!Body) return null;
             const bodyString = await streamToString(Body as Readable);
             return JSON.parse(bodyString);
         } else {
-            const localFilePath = path.join(RESULTS_DIR, filePath);
             try {
                 await fs.access(localFilePath);
             } catch {
@@ -1340,3 +1399,540 @@ export async function getSearchIndex(): Promise<SearchableBlueprintSummary[] | n
         throw error;
     }
 } 
+
+export async function listBackups(): Promise<string[]> {
+  if (storageProvider === 's3' && s3Client && s3BucketName) {
+    try {
+      const command = new ListObjectsV2Command({
+        Bucket: s3BucketName,
+        Prefix: `${BACKUPS_DIR}/`,
+        Delimiter: '/',
+      });
+      const response = await s3Client.send(command);
+      const backupNames = response.CommonPrefixes?.map(p => p.Prefix?.replace(`${BACKUPS_DIR}/`, '').replace('/', '')).filter(Boolean) as string[] || [];
+      console.log(`[StorageService] Listed backups from S3: ${backupNames.join(', ')}`);
+      return backupNames;
+    } catch (error) {
+      console.error('[StorageService] Error listing backups from S3:', error);
+      return [];
+    }
+  } else if (storageProvider === 'local') {
+    const localBackupsDir = path.join(process.cwd(), RESULTS_DIR, BACKUPS_DIR);
+    try {
+      const entries = await fs.readdir(localBackupsDir, { withFileTypes: true });
+      const backupNames = entries.filter(entry => entry.isDirectory()).map(entry => entry.name);
+      console.log(`[StorageService] Listed backups locally: ${backupNames.join(', ')}`);
+      return backupNames;
+    } catch (error: any) {
+      if (error.code === 'ENOENT') {
+        console.log(`[StorageService] Local backups directory not found: ${localBackupsDir}`);
+        return [];
+      }
+      console.error('[StorageService] Error listing backups locally:', error);
+      return [];
+    }
+  }
+  console.warn('[StorageService] No valid storage provider configured. Cannot list backups.');
+  return [];
+} 
+
+interface BackupResult {
+    backupName: string;
+    fileCount: number;
+    totalSize: number;
+}
+
+// Private helper to list all live objects/files across different locations
+async function _listAllLiveObjectKeys(logger: ReturnType<typeof getConfig>['logger']): Promise<string[]> {
+    const allKeys: string[] = [];
+    const baseDir = storageProvider === 'local' ? path.join(process.cwd(), RESULTS_DIR) : '';
+
+    if (storageProvider === 's3' && s3Client && s3BucketName) {
+        const prefixesToScan = [`${MULTI_DIR}/`, `${SANDBOX_DIR}/`];
+        
+        logger.info(`[Migration Debug] Scanning S3 bucket '${s3BucketName}' for live objects...`);
+
+        for (const prefix of prefixesToScan) {
+            let continuationToken: string | undefined = undefined;
+            let foundCount = 0;
+            do {
+                const listCommand = new ListObjectsV2Command({
+                    Bucket: s3BucketName,
+                    Prefix: prefix,
+                    ContinuationToken: continuationToken,
+                });
+                const response: ListObjectsV2CommandOutput = await s3Client.send(listCommand);
+                if (response.Contents) {
+                    const keys = response.Contents.map(obj => obj.Key).filter(Boolean) as string[];
+                    allKeys.push(...keys);
+                    foundCount += keys.length;
+                }
+                continuationToken = response.NextContinuationToken;
+            } while (continuationToken);
+            logger.info(`[Migration Debug] ...found ${foundCount} objects with prefix '${prefix}'.`);
+        }
+         // Add root files that exist
+        for (const rootFile of [HOMEPAGE_SUMMARY_FILENAME, SEARCH_INDEX_FILENAME]) {
+            try {
+                if (!s3Client) throw new Error("S3 client not initialized");
+                await s3Client.send(new HeadObjectCommand({ Bucket: s3BucketName, Key: rootFile }));
+                allKeys.push(rootFile);
+                logger.info(`[Migration Debug] ...found root object '${rootFile}'.`);
+            } catch (err: any) {
+                if (err.name === 'NotFound') {
+                    logger.warn(`[Migration Debug] Root object '${rootFile}' not found, skipping.`);
+                } else {
+                    throw err;
+                }
+            }
+        }
+    } else if (storageProvider === 'local') {
+        const dirsToScan = [MULTI_DIR, SANDBOX_DIR];
+
+        for (const dir of dirsToScan) {
+            const fullPath = path.join(baseDir, dir);
+            try {
+                const entries = await fs.readdir(fullPath, { recursive: true, withFileTypes: true });
+                for (const entry of entries) {
+                    const relativePath = path.relative(baseDir, path.join(fullPath, entry.name));
+                    if (entry.isFile()) {
+                        allKeys.push(relativePath.replace(/\\/g, '/')); // Use forward slashes
+                    }
+                }
+            } catch (err: any) {
+                if (err.code !== 'ENOENT') throw err;
+            }
+        }
+         // Add root files that exist
+        for (const rootFile of [HOMEPAGE_SUMMARY_FILENAME, SEARCH_INDEX_FILENAME]) {
+            try {
+                await fs.access(path.join(baseDir, rootFile));
+                allKeys.push(rootFile);
+            } catch (err) {
+                // File doesn't exist, which is fine.
+            }
+        }
+    }
+    return allKeys;
+}
+
+export async function backupData(backupName: string, dryRun: boolean, logger: ReturnType<typeof getConfig>['logger']): Promise<BackupResult> {
+    logger.info(`Listing all live files for backup...`);
+
+    const liveKeys = await _listAllLiveObjectKeys(logger);
+    let totalSize = 0; // Will be calculated for local, TBD for S3
+
+    if (dryRun) {
+        logger.info(`[DRY RUN] Would back up ${liveKeys.length} files to backup location '${backupName}'.`);
+        liveKeys.slice(0, 10).forEach(key => logger.info(`  - (sample) ${key}`));
+        if (liveKeys.length > 10) logger.info(`  ...and ${liveKeys.length - 10} more.`);
+        return { backupName, fileCount: liveKeys.length, totalSize: 0 };
+    }
+    
+    // Create manifest content
+    const manifest = {
+        backupName: backupName,
+        createdAt: new Date().toISOString(),
+        fileCount: liveKeys.length,
+        files: liveKeys,
+    };
+    const manifestContent = JSON.stringify(manifest, null, 2);
+
+    if (storageProvider === 's3' && s3Client && s3BucketName) {
+        const s3BackupPrefix = `${BACKUPS_DIR}/${backupName}/`;
+        
+        logger.info(`Copying ${liveKeys.length} objects to S3 prefix: ${s3BackupPrefix}`);
+        const pLimit = (await import('p-limit')).default;
+        const limit = pLimit(20); // Limit concurrency
+        const copyPromises = liveKeys.map(key => limit(async () => {
+            try {
+                const copySource = `${s3BucketName}/${LIVE_DIR}/${key}`;
+                const destKey = `${s3BackupPrefix}${key}`;
+                const command = new CopyObjectCommand({
+                    Bucket: s3BucketName,
+                    CopySource: copySource,
+                    Key: destKey,
+                });
+                await s3Client.send(command);
+                return key; // Return the key on success
+            } catch (error: any) {
+                 logger.error(`Failed to copy S3 object ${key}: ${error.message}`);
+                 return null; // Return null on failure
+            }
+        }));
+        
+        const results = await Promise.all(copyPromises);
+        const copiedKeys = results.filter(Boolean) as string[];
+
+        // Create manifest content from successfully copied keys
+        const manifest = {
+            backupName: backupName,
+            createdAt: new Date().toISOString(),
+            fileCount: copiedKeys.length,
+            files: copiedKeys,
+        };
+        const manifestContent = JSON.stringify(manifest, null, 2);
+
+        // Save manifest
+        const manifestKey = `${s3BackupPrefix}${MANIFEST_FILENAME}`;
+        await s3Client.send(new PutObjectCommand({
+            Bucket: s3BucketName,
+            Key: manifestKey,
+            Body: manifestContent,
+            ContentType: 'application/json',
+        }));
+
+        logger.info(`Successfully copied ${copiedKeys.length} files to S3.`);
+    } else if (storageProvider === 'local') {
+        const sourceBaseDir = path.join(process.cwd(), RESULTS_DIR, LIVE_DIR);
+        const backupBaseDir = path.join(process.cwd(), RESULTS_DIR, BACKUPS_DIR, backupName);
+        await fs.mkdir(backupBaseDir, { recursive: true });
+
+        const copiedFiles: string[] = [];
+        for (const relativeKey of liveKeys) {
+            const sourcePath = path.join(sourceBaseDir, relativeKey);
+            const destPath = path.join(backupBaseDir, relativeKey);
+            try {
+                await fs.mkdir(path.dirname(destPath), { recursive: true });
+                await fs.copyFile(sourcePath, destPath);
+                const stats = await fs.stat(sourcePath);
+                totalSize += stats.size;
+                copiedFiles.push(relativeKey); // Add to list only on success
+            } catch (err: any) {
+                if (err.code !== 'ENOENT') {
+                     logger.error(`Could not copy ${sourcePath}: ${err.message}`);
+                }
+            }
+        }
+        
+        // Create manifest from successfully copied files
+        const manifest = {
+            backupName: backupName,
+            createdAt: new Date().toISOString(),
+            fileCount: copiedFiles.length,
+            files: copiedFiles,
+        };
+        const manifestContent = JSON.stringify(manifest, null, 2);
+
+        // Save manifest
+        await fs.writeFile(path.join(backupBaseDir, MANIFEST_FILENAME), manifestContent, 'utf-8');
+    }
+    
+    return { backupName, fileCount: manifest.fileCount, totalSize };
+} 
+
+async function _deleteAllLiveObjectKeys(liveKeys: string[], logger: ReturnType<typeof getConfig>['logger']): Promise<void> {
+    if (storageProvider === 's3' && s3Client && s3BucketName) {
+        if (liveKeys.length === 0) return;
+        // Map relative keys to full paths inside live/
+        const fullKeys = liveKeys.map(key => `${LIVE_DIR}/${key}`);
+        logger.info(`Deleting ${liveKeys.length} live objects from S3...`);
+        const success = await deleteS3Objects(fullKeys);
+        if (!success) {
+            throw new Error('Failed to delete one or more live objects from S3. Aborting restore.');
+        }
+    } else if (storageProvider === 'local') {
+        logger.info(`Deleting ${liveKeys.length} live files from local filesystem...`);
+        const baseDir = path.join(process.cwd(), RESULTS_DIR, LIVE_DIR);
+        for (const key of liveKeys) {
+            try {
+                await fs.unlink(path.join(baseDir, key));
+            } catch (err: any) {
+                if (err.code !== 'ENOENT') { // It's okay if it's already gone
+                    throw new Error(`Failed to delete local file ${key}: ${err.message}`);
+                }
+            }
+        }
+        // TODO: Clean up empty directories? For now, this is safer.
+    }
+}
+
+interface BackupManifest {
+    backupName: string;
+    createdAt: string;
+    fileCount: number;
+    files: string[];
+}
+
+async function getBackupManifest(backupName: string): Promise<BackupManifest> {
+    const manifestKey = `${BACKUPS_DIR}/${backupName}/${MANIFEST_FILENAME}`;
+    let manifestContent: string | null = null;
+
+    if (storageProvider === 's3' && s3Client && s3BucketName) {
+        try {
+            const command = new GetObjectCommand({ Bucket: s3BucketName, Key: manifestKey });
+            const { Body } = await s3Client.send(command);
+            if (Body) {
+                manifestContent = await streamToString(Body as Readable);
+            } else {
+                throw new Error('Manifest file is empty.');
+            }
+        } catch (error: any) {
+            if (error.name === 'NoSuchKey') {
+                throw new Error(`Backup manifest not found for '${backupName}' at S3 key: ${manifestKey}`);
+            }
+            throw error;
+        }
+    } else if (storageProvider === 'local') {
+        const localPath = path.join(process.cwd(), RESULTS_DIR, manifestKey);
+        try {
+            manifestContent = await fs.readFile(localPath, 'utf-8');
+        } catch (err: any) {
+            if (err.code === 'ENOENT') {
+                throw new Error(`Backup manifest not found for '${backupName}' at local path: ${localPath}`);
+            }
+            throw err;
+        }
+    }
+
+    if (!manifestContent) {
+        throw new Error(`Could not read manifest for backup '${backupName}'.`);
+    }
+
+    return JSON.parse(manifestContent) as BackupManifest;
+}
+
+export async function restoreData(backupName: string, dryRun: boolean, logger: ReturnType<typeof getConfig>['logger']): Promise<void> {
+    
+    // 1. Get the manifest for the backup we are restoring FROM
+    logger.info(`Fetching manifest for backup '${backupName}'...`);
+    const manifest = await getBackupManifest(backupName);
+    logger.info(`Manifest loaded. Backup was created on ${manifest.createdAt} and contains ${manifest.fileCount} files.`);
+    
+    // 2. List current live files
+    const liveKeys = await _listAllLiveObjectKeys(logger);
+
+    if (dryRun) {
+        logger.info(`[DRY RUN] Would delete ${liveKeys.length} current live files.`);
+        logger.info(`[DRY RUN] Would restore ${manifest.fileCount} files from backup '${backupName}'.`);
+        manifest.files.slice(0, 10).forEach(key => logger.info(`  - (sample) ${key}`));
+        if (manifest.files.length > 10) logger.info(`  ...and ${manifest.files.length - 10} more.`);
+        return;
+    }
+
+    // 3. Perform pre-restore backup as a safety net
+    const autoBackupName = `${AUTOBACKUP_PREFIX}${toSafeTimestamp(new Date().toISOString())}`;
+    logger.info(`Creating pre-restore backup of current state named '${autoBackupName}'...`);
+    try {
+        await backupData(autoBackupName, false, logger);
+        logger.success(`Successfully created pre-restore backup.`);
+    } catch(err: any) {
+        logger.error(`Failed to create pre-restore backup. Aborting restore. Your data has not been touched. Error: ${err.message}`);
+        return;
+    }
+
+    // 4. Delete all current live objects
+    await _deleteAllLiveObjectKeys(liveKeys, logger);
+
+    // 5. Restore from backup
+    logger.info(`Restoring ${manifest.fileCount} files from backup '${backupName}'...`);
+    if (storageProvider === 's3' && s3Client && s3BucketName) {
+        const s3BackupPrefix = `${BACKUPS_DIR}/${backupName}/`;
+        const pLimit = (await import('p-limit')).default;
+        const limit = pLimit(20);
+        const copyPromises = manifest.files.map(key => limit(async () => {
+            const copySource = `${s3BucketName}/${s3BackupPrefix}${key}`;
+            const destKey = `${LIVE_DIR}/${key}`; // Copy to the live location
+            const command = new CopyObjectCommand({
+                Bucket: s3BucketName,
+                CopySource: copySource,
+                Key: destKey,
+            });
+            await s3Client.send(command);
+        }));
+        await Promise.all(copyPromises);
+    } else if (storageProvider === 'local') {
+        const sourceBaseDir = path.join(process.cwd(), RESULTS_DIR, BACKUPS_DIR, backupName);
+        const destBaseDir = path.join(process.cwd(), RESULTS_DIR, LIVE_DIR);
+        for (const relativeKey of manifest.files) {
+            const sourcePath = path.join(sourceBaseDir, relativeKey);
+            const destPath = path.join(destBaseDir, relativeKey);
+            await fs.mkdir(path.dirname(destPath), { recursive: true });
+            await fs.copyFile(sourcePath, destPath);
+        }
+    }
+} 
+
+function getNewKeyFromOldKey(oldKey: string): string {
+    const basename = path.basename(oldKey);
+
+    // This function now returns paths relative to the new `live/` directory.
+    // The `live/` prefix itself is added by the calling function.
+
+    // 1. Handle root-level aggregate files
+    if (oldKey === HOMEPAGE_SUMMARY_FILENAME || oldKey === SEARCH_INDEX_FILENAME) {
+        return path.join('aggregates', basename);
+    }
+    
+    // 2. Handle aggregate files that were inside `multi/`
+    if (oldKey === LATEST_RUNS_SUMMARY_KEY) {
+        return path.join('aggregates', path.basename(LATEST_RUNS_SUMMARY_KEY));
+    }
+
+    // 3. Handle model summaries and cards
+    if (oldKey.startsWith(`${MULTI_DIR}/${MODEL_DIR}/`)) {
+        const modelId = oldKey.substring(`${MULTI_DIR}/${MODEL_DIR}/`.length);
+        return path.join('models', 'summaries', modelId);
+    }
+    if (oldKey.startsWith(`${MULTI_DIR}/${MODEL_CARDS_DIR}/`)) {
+        const cardId = oldKey.substring(`${MULTI_DIR}/${MODEL_CARDS_DIR}/`.length);
+        return path.join('models', 'cards', cardId);
+    }
+    
+    // 4. Handle blueprints (the remainder of the `multi/` directory)
+    if (oldKey.startsWith(`${MULTI_DIR}/`)) {
+        const blueprintPath = oldKey.substring(`${MULTI_DIR}/`.length);
+        return path.join('blueprints', blueprintPath);
+    }
+
+    // 5. Handle the sandbox directory
+    if (oldKey.startsWith(`${SANDBOX_DIR}/`)) {
+        // The structure inside live/sandbox is the same as the old sandbox/
+        return oldKey;
+    }
+
+    // This should not be reached with the current file structure.
+    return oldKey; 
+}
+
+export async function migrateDataToNewLayout(dryRun: boolean, logger: ReturnType<typeof getConfig>['logger']): Promise<{ fileCount: number }> {
+    logger.info('Starting data migration to new layout...');
+    
+    const oldKeys = await _listAllLiveObjectKeys(logger);
+    
+    if (dryRun) {
+        logger.info(`[DRY RUN] Found ${oldKeys.length} files to migrate to the new 'live/' directory structure.`);
+        const samples = oldKeys.slice(0, 10);
+        for (const oldKey of samples) {
+            const newRelativeKey = getNewKeyFromOldKey(oldKey);
+            const newKey = path.join(LIVE_DIR, newRelativeKey).replace(/\\/g, '/');
+            logger.info(`  - (sample) ${oldKey} -> ${newKey}`);
+        }
+        if (oldKeys.length > 10) logger.info(`  ...and ${oldKeys.length - 10} more.`);
+        return { fileCount: oldKeys.length };
+    }
+
+    if (storageProvider === 's3' && s3Client && s3BucketName) {
+        logger.info(`Copying ${oldKeys.length} S3 objects to new 'live/' structure...`);
+        const pLimit = (await import('p-limit')).default;
+        const limit = pLimit(20);
+        const copyPromises = oldKeys.map(oldKey => limit(async () => {
+            try {
+                const newRelativeKey = getNewKeyFromOldKey(oldKey);
+                const newKey = path.join(LIVE_DIR, newRelativeKey).replace(/\\/g, '/');
+                const copySource = `${s3BucketName}/${oldKey}`;
+                const command = new CopyObjectCommand({
+                    Bucket: s3BucketName,
+                    CopySource: copySource,
+                    Key: newKey,
+                });
+                await s3Client.send(command);
+            } catch (error: any) {
+                logger.error(`Failed to copy S3 object ${oldKey}: ${error.message}`);
+            }
+        }));
+        await Promise.all(copyPromises);
+    } else if (storageProvider === 'local') {
+        logger.info(`Copying ${oldKeys.length} local files to new 'live/' structure...`);
+        const sourceBaseDir = path.join(process.cwd(), RESULTS_DIR);
+        const destBaseDir = path.join(process.cwd(), RESULTS_DIR, LIVE_DIR);
+
+        for (const oldKey of oldKeys) {
+            try {
+                const newRelativeKey = getNewKeyFromOldKey(oldKey);
+                const sourcePath = path.join(sourceBaseDir, oldKey);
+                const destPath = path.join(destBaseDir, newRelativeKey);
+                await fs.mkdir(path.dirname(destPath), { recursive: true });
+                await fs.copyFile(sourcePath, destPath);
+            } catch (err: any) {
+                 logger.error(`Could not copy ${oldKey}: ${err.message}`);
+            }
+        }
+    }
+    
+    logger.success('Data migration copy process complete.');
+    return { fileCount: oldKeys.length };
+}
+
+export async function saveAllBlueprintsSummary(summaryData: Omit<HomepageSummaryFileContent, 'headlineStats' | 'driftDetectionResult'>): Promise<void> {
+  const fileName = 'all_blueprints_summary.json';
+  const s3Key = path.join(LIVE_DIR, 'aggregates', fileName);
+  const localPath = path.join(RESULTS_DIR, s3Key);
+
+  const fileContent = JSON.stringify(summaryData, null, 2);
+  const fileSizeInKB = (Buffer.byteLength(fileContent, 'utf8') / 1024).toFixed(2);
+
+  if (storageProvider === 's3' && s3Client && s3BucketName) {
+    try {
+      const command = new PutObjectCommand({
+        Bucket: s3BucketName,
+        Key: s3Key,
+        Body: fileContent,
+        ContentType: 'application/json',
+      });
+      await s3Client.send(command);
+      console.log(`[StorageService] All blueprints summary saved to S3: ${s3Key} (${fileSizeInKB} KB)`);
+    } catch (error) {
+      console.error(`[StorageService] Error saving all blueprints summary to S3: ${s3Key}`, error);
+      throw error;
+    }
+  } else if (storageProvider === 'local') {
+    try {
+      await fs.mkdir(path.dirname(localPath), { recursive: true });
+      await fs.writeFile(localPath, fileContent, 'utf-8');
+      console.log(`[StorageService] All blueprints summary saved to local disk: ${localPath} (${fileSizeInKB} KB)`);
+    } catch (error) {
+      console.error(`[StorageService] Error saving all blueprints summary to local disk: ${localPath}`, error);
+      throw error;
+    }
+  } else {
+    console.warn(`[StorageService] No valid storage provider configured for saveAllBlueprintsSummary. Data not saved.`);
+  }
+}
+
+export async function getAllBlueprintsSummary(): Promise<Omit<HomepageSummaryFileContent, 'headlineStats' | 'driftDetectionResult'> | null> {
+    const fileName = 'all_blueprints_summary.json';
+    const s3Key = path.join(LIVE_DIR, 'aggregates', fileName);
+    const localPath = path.join(RESULTS_DIR, s3Key);
+    let fileContent: string | null = null;
+  
+    if (storageProvider === 's3' && s3Client && s3BucketName) {
+      try {
+        const command = new GetObjectCommand({ Bucket: s3BucketName, Key: s3Key });
+        const { Body } = await s3Client.send(command);
+        if (Body) {
+          fileContent = await streamToString(Body as Readable);
+        }
+      } catch (error: any) {
+        if (error.name === 'NoSuchKey') {
+          return null; // File not found is a valid state
+        }
+        console.error(`[StorageService] Error fetching all blueprints summary from S3: ${s3Key}`, error);
+        return null;
+      }
+    } else if (storageProvider === 'local') {
+      try {
+        if (fsSync.existsSync(localPath)) {
+          fileContent = await fs.readFile(localPath, 'utf-8');
+        } else {
+          return null;
+        }
+      } catch (error) {
+        console.error(`[StorageService] Error fetching all blueprints summary from local disk: ${fileName}`, error);
+        return null;
+      }
+    }
+  
+    if (!fileContent) {
+      return null;
+    }
+  
+    try {
+      // The structure is the same as HomepageSummary but without stats, so we can parse it directly.
+      // The runs array will be empty in all configs, so no Map rehydration is needed.
+      return JSON.parse(fileContent);
+    } catch (error) {
+      console.error(`[StorageService] Error parsing all blueprints summary content for ${fileName}:`, error);
+      return null;
+    }
+}
