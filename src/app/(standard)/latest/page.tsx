@@ -1,20 +1,39 @@
-import React from 'react';
-import { getLatestRunsSummary } from '@/lib/storageService';
+'use client';
+
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import CIPLogo from '@/components/icons/CIPLogo';
 import { Button } from '@/components/ui/button';
 import LatestEvaluationRunsSection, { DisplayableRunInstanceInfo } from '@/app/components/home/LatestEvaluationRunsSection';
 import dynamic from 'next/dynamic';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const ArrowLeft = dynamic(() => import('lucide-react').then((mod) => mod.ArrowLeft));
 
-export const revalidate = 60; // Revalidate every 60 seconds
+export default function LatestPage() {
+    const [latestRuns, setLatestRuns] = useState<DisplayableRunInstanceInfo[] | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-export default async function LatestPage() {
-    const latestRunsSummary = await getLatestRunsSummary();
-
-    // The data from getLatestRunsSummary is already in the correct format.
-    const latestRuns: DisplayableRunInstanceInfo[] = latestRunsSummary.runs;
+    useEffect(() => {
+        const fetchLatestRuns = async () => {
+            setIsLoading(true);
+            setError(null);
+            try {
+                const response = await fetch('/api/runs/latest');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch latest runs.');
+                }
+                const data = await response.json();
+                setLatestRuns(data.runs);
+            } catch (e: any) {
+                setError(e.message);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchLatestRuns();
+    }, []);
     
     return (
         <div className="min-h-screen bg-background text-foreground">
@@ -29,7 +48,17 @@ export default async function LatestPage() {
                         </Link>
                     </Button>
                 </div>
-                <LatestEvaluationRunsSection latestRuns={latestRuns} />
+                {isLoading ? (
+                    <div className="space-y-4">
+                        <Skeleton className="h-24 w-full" />
+                        <Skeleton className="h-24 w-full" />
+                        <Skeleton className="h-24 w-full" />
+                    </div>
+                ) : error ? (
+                    <div className="text-red-500 text-center">{error}</div>
+                ) : latestRuns ? (
+                    <LatestEvaluationRunsSection latestRuns={latestRuns} />
+                ) : null}
             </main>
         </div>
     );

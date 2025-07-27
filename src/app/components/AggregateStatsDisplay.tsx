@@ -13,6 +13,7 @@ const BarChartHorizontalBig = dynamic(() => import('lucide-react').then(mod => m
 const Award = dynamic(() => import('lucide-react').then(mod => mod.Award));
 const InfoIcon = dynamic(() => import('lucide-react').then(mod => mod.Info));
 const FlaskConical = dynamic(() => import('lucide-react').then(mod => mod.FlaskConical));
+const BrainCircuit = dynamic(() => import('lucide-react').then(mod => mod.BrainCircuit));
 
 export interface HeadlineStatInfo {
   configId: string;
@@ -233,6 +234,37 @@ const OverallModelLeaderboard: React.FC<{
   );
 };
 
+const DimensionChampionsDisplay: React.FC<{ champions: DimensionChampionInfo[] | null }> = ({ champions }) => {
+  if (!champions || champions.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="mt-8">
+      <h3 className="text-xl font-semibold tracking-tight text-center mb-6 flex items-center justify-center">
+        <BrainCircuit className="w-6 h-6 mr-3 text-primary" />
+        Dimension Champions
+      </h3>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+        {champions.map((champion) => (
+          <div key={champion.dimension} className="bg-card p-3 rounded-lg border border-border/70 dark:border-slate-700/50 text-center hover:shadow-md transition-shadow">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{champion.dimension}</p>
+            <p className="text-sm font-bold text-card-foreground truncate mt-1" title={champion.modelId}>
+              {getModelDisplayLabel(champion.modelId, { hideProvider: true, hideModelMaker: true, hideSystemPrompt: true, hideTemperature: true, prettifyModelName: true })}
+            </p>
+            <p className="text-xs text-primary font-mono bg-muted/50 dark:bg-slate-700/30 rounded px-1.5 py-0.5 mt-1.5 inline-block">
+              {(champion.averageScore).toFixed(1)}/10
+            </p>
+          </div>
+        ))}
+      </div>
+       <p className="text-xs text-muted-foreground mt-4 text-center">
+        Highest average score for each dimension, based on Executive Summary grades from models with at least 3 graded runs.
+      </p>
+    </div>
+  );
+};
+
 const AggregateStatsDisplay: React.FC<AggregateStatsDisplayProps> = ({ stats }) => {
   const [showDetails, setShowDetails] = useState(false);
   const [coverageWeight, setCoverageWeight] = useState(0.65);
@@ -322,6 +354,7 @@ const AggregateStatsDisplay: React.FC<AggregateStatsDisplayProps> = ({ stats }) 
             </p>
           </div>
       )}
+      <DimensionChampionsDisplay champions={stats.dimensionChampions || null} />
       <div className="mt-2">
         <Button
           variant="ghost"
