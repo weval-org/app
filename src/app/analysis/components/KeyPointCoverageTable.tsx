@@ -1,41 +1,19 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import dynamic from 'next/dynamic';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelIdUtils';
 import {
     ComparisonDataV2 as ImportedComparisonDataV2,
-    IndividualJudgement,
-    PointAssessment,
     CoverageResult,
 } from '@/app/utils/types';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { cn } from '@/lib/utils';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-import { getGradedCoverageColor } from '../utils/colorUtils';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { EvaluationView } from './SharedEvaluationComponents';
 import { SharedModelCard, ModelSummary } from './SharedModelCard';
 import { MobileKeyPointAnalysis } from './MobileKeyPointAnalysis';
-
-// Dynamic imports for icons and markdown
-const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
-const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
-const AlertTriangle = dynamic(() => import('lucide-react').then(mod => mod.AlertTriangle), { ssr: false });
-const MessageSquare = dynamic(() => import('lucide-react').then(mod => mod.MessageSquare), { ssr: false });
-const ChevronDown = dynamic(() => import('lucide-react').then(mod => mod.ChevronDown), { ssr: false });
-const ChevronUp = dynamic(() => import('lucide-react').then(mod => mod.ChevronUp), { ssr: false });
-const ChevronsUpDown = dynamic(() => import('lucide-react').then(mod => mod.ChevronsUpDown), { ssr: false });
-const Quote = dynamic(() => import('lucide-react').then(mod => mod.Quote), { ssr: false });
-const Server = dynamic(() => import('lucide-react').then(mod => mod.Server), { ssr: false });
-const CheckCircle = dynamic(() => import('lucide-react').then(mod => mod.CheckCircle), { ssr: false });
-const ThumbsDown = dynamic(() => import('lucide-react').then(mod => mod.ThumbsDown), { ssr: false });
-const XCircle = dynamic(() => import("lucide-react").then((mod) => mod.XCircle), { ssr: false });
-const GitCompareArrows = dynamic(() => import("lucide-react").then((mod) => mod.GitCompareArrows), { ssr: false });
+import Icon from '@/components/ui/icon';
 
 // --- Components adapted from SharedEvaluationComponents ---
 
@@ -209,7 +187,7 @@ const ModelView: React.FC<{
                                     <CollapsibleTrigger className='w-full'>
                                         <div className="flex items-center justify-between w-full p-2 rounded-lg hover:bg-muted font-semibold text-primary text-base">
                                             <span title={displayStrategy.getTooltipName(baseId)}>{displayStrategy.getDisplayName(baseId)}</span>
-                                            <ChevronsUpDown className="h-4 w-4 text-muted-foreground" />
+                                            <Icon name="chevrons-up-down" className="h-4 w-4 text-muted-foreground" />
                                         </div>
                                     </CollapsibleTrigger>
                                     <CollapsibleContent className="space-y-1 pt-1">

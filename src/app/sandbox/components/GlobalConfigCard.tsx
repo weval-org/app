@@ -25,12 +25,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-// import { ModelSelector } from './ModelSelector'; // To be created
-
-const AlertTriangle = dynamic(() => import('lucide-react').then(mod => mod.AlertTriangle));
-const Plus = dynamic(() => import('lucide-react').then(mod => mod.Plus));
-const Trash2 = dynamic(() => import('lucide-react').then(mod => mod.Trash2));
-const Info = dynamic(() => import('lucide-react').then(mod => mod.Info));
+import Icon from '@/components/ui/icon';
 
 interface GlobalConfigCardProps {
   blueprint: ComparisonConfig;
@@ -179,7 +174,7 @@ export function GlobalConfigCard({ blueprint, onUpdate, isEditable, isAdvancedMo
                                             onClick={switchToMultipleSystemPrompts}
                                             className="text-xs"
                                         >
-                                            <Plus className="h-3 w-3 mr-1" />
+                                            <Icon name="plus" className="h-3 w-3 mr-1" />
                                             Add Variants
                                         </Button>
                                     ) : (
@@ -200,7 +195,7 @@ export function GlobalConfigCard({ blueprint, onUpdate, isEditable, isAdvancedMo
                         {isUsingMultipleSystems ? (
                             <div className="space-y-3">
                                 <div className="flex items-start space-x-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                                    <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                                    <Icon name="info" className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
                                     <div className="text-xs text-blue-800 dark:text-blue-200">
                                         <p className="font-medium mb-1">Multiple System Prompt Variants</p>
                                         <p>Each system prompt variant will be tested separately, allowing you to compare how different system prompts affect model performance. Leave a field empty to test with no system prompt for that variant.</p>
@@ -222,7 +217,7 @@ export function GlobalConfigCard({ blueprint, onUpdate, isEditable, isAdvancedMo
                                                             size="sm"
                                                             className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
                                                         >
-                                                            <Trash2 className="h-3 w-3" />
+                                                            <Icon name="trash" className="h-3 w-3" />
                                                         </Button>
                                                     </DropdownMenuTrigger>
                                                     <DropdownMenuContent>
@@ -258,7 +253,7 @@ export function GlobalConfigCard({ blueprint, onUpdate, isEditable, isAdvancedMo
                                         onClick={addSystemPrompt}
                                         className="w-full"
                                     >
-                                        <Plus className="h-3 w-3 mr-1" />
+                                        <Icon name="plus" className="h-3 w-3 mr-1" />
                                         Add System Prompt Variant
                                     </Button>
                                 )}
@@ -293,7 +288,7 @@ export function GlobalConfigCard({ blueprint, onUpdate, isEditable, isAdvancedMo
             */}
             {!isDev && blueprint.models && blueprint.models.length > 0 && (
                  <Alert variant="destructive">
-                    <AlertTriangle className="h-4 w-4" />
+                    <Icon name="alert-triangle" className="h-4 w-4" />
                     <AlertTitle>Models Will Be Ignored</AlertTitle>
                     <AlertDescription>
                         Defining models in the blueprint is not supported within the sandbox. Models for evaluation are selected when you click &quot;Run Evaluation.&quot; If you want to submit this as a proposal, please remove the <code>models</code> field.

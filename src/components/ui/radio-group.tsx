@@ -3,16 +3,10 @@ const { lazy, Suspense } = React; // Destructure lazy and Suspense
 import * as RadioGroupPrimitive from "@radix-ui/react-radio-group"
 
 import { cn } from "@/lib/utils"
+import Icon from "./icon"
 
 // Define a type for the icon component props
 interface IconProps extends React.SVGProps<SVGSVGElement> { }
-
-// Lazy load the Circle icon with explicit typing
-const Circle = lazy(() => 
-  import('lucide-react').then(module => 
-    ({ default: module.Circle as React.ComponentType<IconProps> })
-  )
-);
 
 const RadioGroup = React.forwardRef<
   React.ElementRef<typeof RadioGroupPrimitive.Root>,
@@ -42,9 +36,7 @@ const RadioGroupItem = React.forwardRef<
       {...props}
     >
       <RadioGroupPrimitive.Indicator className="flex items-center justify-center">
-        <Suspense fallback={null}>
-          <Circle className="h-2.5 w-2.5 fill-current text-current" />
-        </Suspense>
+        <Icon name="circle" className="h-2.5 w-2.5 fill-current text-current" />
       </RadioGroupPrimitive.Indicator>
     </RadioGroupPrimitive.Item>
   )

@@ -7,8 +7,7 @@ import { Button } from '@/components/ui/button';
 import LatestEvaluationRunsSection, { DisplayableRunInstanceInfo } from '@/app/components/home/LatestEvaluationRunsSection';
 import dynamic from 'next/dynamic';
 import { Skeleton } from '@/components/ui/skeleton';
-
-const ArrowLeft = dynamic(() => import('lucide-react').then((mod) => mod.ArrowLeft));
+import Icon from '@/components/ui/icon';
 
 export default function LatestPage() {
     const [latestRuns, setLatestRuns] = useState<DisplayableRunInstanceInfo[] | null>(null);
@@ -43,7 +42,7 @@ export default function LatestPage() {
                 <div className="flex justify-end mb-8">
                     <Button asChild variant="ghost">
                         <Link href="/">
-                            <ArrowLeft className="w-4 h-4 mr-2" />
+                            <Icon name="arrow-left" className="w-4 h-4 mr-2" />
                             Back to Home
                         </Link>
                     </Button>

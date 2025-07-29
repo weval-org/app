@@ -28,7 +28,8 @@ import {
     calculateHeadlineStats,
     calculatePotentialModelDrift,
     calculatePerModelScoreStatsForRun,
-    calculateAverageHybridScoreForRun
+    calculateAverageHybridScoreForRun,
+    TopicChampion
 } from '@/cli/utils/summaryCalculationUtils';
 import { fromSafeTimestamp, toSafeTimestamp } from '@/lib/timestampUtils';
 import { ModelSummary } from '@/types/shared';
@@ -43,6 +44,7 @@ import {
     MODEL_CARDS_DIR
 } from '@/cli/constants';
 import { getConfig } from '@/cli/config';
+import { WevalResult } from '../types/shared';
 
 const storageProvider = process.env.STORAGE_PROVIDER || (process.env.NODE_ENV === 'development' ? 'local' : 's3');
 
@@ -51,6 +53,7 @@ export interface HomepageSummaryFileContent {
   configs: EnhancedComparisonConfigInfo[];
   headlineStats: AggregateStatsData | null;
   driftDetectionResult: PotentialDriftInfo | null;
+  topicChampions?: Record<string, TopicChampion[]>;
   lastUpdated: string;
 }
 
@@ -441,6 +444,8 @@ export async function saveResult(configId: string, fileNameWithTimestamp: string
   const s3Key = path.join(LIVE_DIR, 'blueprints', configId, fileNameWithTimestamp);
   const localPath = path.join(RESULTS_DIR, s3Key);
 
+  let savedPath: string | null = null;
+
   if (storageProvider === 's3' && s3Client && s3BucketName) {
     try {
       await s3Client.send(new PutObjectCommand({
@@ -450,7 +455,7 @@ export async function saveResult(configId: string, fileNameWithTimestamp: string
         ContentType: 'application/json',
       }));
       console.log(`[StorageService] Result saved to S3: s3://${s3BucketName}/${s3Key}`);
-      return s3Key;
+      savedPath = s3Key;
     } catch (error) {
       console.error('[StorageService] Error saving result to S3:', error);
       return null;
@@ -460,7 +465,7 @@ export async function saveResult(configId: string, fileNameWithTimestamp: string
       await fs.mkdir(path.dirname(localPath), { recursive: true });
       await fs.writeFile(localPath, jsonData, 'utf-8');
       console.log(`[StorageService] Result saved locally: ${localPath}`);
-      return localPath;
+      savedPath = localPath;
     } catch (error) {
       console.error('[StorageService] Error saving result locally:', error);
       return null;
@@ -469,6 +474,13 @@ export async function saveResult(configId: string, fileNameWithTimestamp: string
     console.warn('[StorageService] No valid storage provider configured. Cannot save result.');
     return null;
   }
+
+  // Clear cache after successful save to ensure fresh reads
+  if (savedPath) {
+    await clearResultCache(configId, fileNameWithTimestamp);
+  }
+
+  return savedPath;
 }
 
 /**
@@ -678,6 +690,21 @@ export async function getResultByFileName(configId: string, fileName: string): P
 }
 
 /**
+ * Combines manual tags from config and auto tags from executive summary.
+ * Deduplicates tags case-insensitively while preserving original casing.
+ * @param configTags Manual tags from the blueprint config
+ * @param autoTags Auto tags from the executive summary
+ * @returns Combined and deduplicated array of tags
+ */
+function combineConfigAndAutoTags(configTags: string[] = [], autoTags: string[] = []): string[] {
+  const allTags = [...configTags, ...autoTags];
+  const uniqueTags = allTags.filter((tag, index, arr) => 
+    arr.findIndex(t => t.toLowerCase() === tag.toLowerCase()) === index
+  );
+  return uniqueTags;
+}
+
+/**
  * Updates the homepage summary with information from a newly completed run.
  * This function encapsulates the logic for adding/updating a run within the summary.
  */
@@ -693,6 +720,11 @@ export function updateSummaryDataWithNewRun(
   const configTitle = newResultData.configTitle || newResultData.config.title || configId;
   const runLabel = newResultData.runLabel;
   const timestamp = newResultData.timestamp;
+  
+  // Combine manual config tags with auto tags from executive summary
+  const configTags = newResultData.config.tags || [];
+  const autoTags = newResultData.executiveSummary?.structured?.autoTags || [];
+  const unifiedTags = combineConfigAndAutoTags(configTags, autoTags);
 
   let configSummary = currentSummary.find(
     (c) => (c.id || c.configId) === configId
@@ -706,7 +738,7 @@ export function updateSummaryDataWithNewRun(
       description: newResultData.config?.description || '',
       runs: [],
       latestRunTimestamp: timestamp,
-      tags: newResultData.config.tags || [],
+      tags: unifiedTags,
     };
     currentSummary.push(configSummary);
   } else {
@@ -714,7 +746,7 @@ export function updateSummaryDataWithNewRun(
     configSummary.configTitle = configTitle;
     configSummary.title = configTitle;
     configSummary.description = newResultData.config?.description || configSummary.description;
-    configSummary.tags = newResultData.config.tags || configSummary.tags;
+    configSummary.tags = unifiedTags;
   }
   
   const perModelScores = calculatePerModelScoreStatsForRun(newResultData);
@@ -730,7 +762,7 @@ export function updateSummaryDataWithNewRun(
     totalModelsAttempted: newResultData.config.models.length,
     hybridScoreStats: hybridScoreStats,
     perModelScores: perModelScores,
-    tags: newResultData.config.tags,
+    tags: unifiedTags,
     models: newResultData.effectiveModels,
     promptIds: newResultData.promptIds,
   };
@@ -931,6 +963,7 @@ export async function removeConfigFromHomepageSummary(configIdToRemove: string):
       configs: updatedConfigsArray,
       headlineStats: updatedHeadlineStats,
       driftDetectionResult: updatedDriftDetectionResult,
+      topicChampions: currentSummaryObject.topicChampions,
       lastUpdated: new Date().toISOString(),
     };
 
@@ -1935,4 +1968,22 @@ export async function getAllBlueprintsSummary(): Promise<Omit<HomepageSummaryFil
       console.error(`[StorageService] Error parsing all blueprints summary content for ${fileName}:`, error);
       return null;
     }
+}
+
+/**
+ * Clears the local cache for a specific result file.
+ * Should be called after updating a file to ensure subsequent reads get fresh data.
+ * @param configId The configuration ID.
+ * @param fileName The filename to clear from cache.
+ */
+export async function clearResultCache(configId: string, fileName: string): Promise<void> {
+  const cachePath = path.join(CACHE_DIR, configId, fileName);
+  try {
+    if (fsSync.existsSync(cachePath)) {
+      await fs.unlink(cachePath);
+      console.log(`[StorageService] Cleared cache for ${fileName}`);
+    }
+  } catch (err) {
+    console.warn(`[StorageService] Failed to clear cache for ${fileName}:`, err);
+  }
 }

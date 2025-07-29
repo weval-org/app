@@ -5,9 +5,7 @@ import dynamic from 'next/dynamic';
 import { Badge } from '@/components/ui/badge';
 import { EvaluationView } from './SharedEvaluationComponents';
 import { CoverageResult } from '@/app/utils/types';
-
-const ArrowLeft = dynamic(() => import("lucide-react").then(mod => mod.ArrowLeft), { ssr: false });
-const AlertTriangle = dynamic(() => import("lucide-react").then(mod => mod.AlertTriangle), { ssr: false });
+import Icon from '@/components/ui/icon';
 
 interface MobilePromptDetailProps {
     promptId: string;
@@ -67,7 +65,7 @@ export const MobilePromptDetail: React.FC<MobilePromptDetailProps> = ({
                         className="flex items-center gap-2 px-3 py-2 hover:bg-muted rounded-lg transition-colors min-h-[44px]"
                         title="Back to prompt list"
                     >
-                        <ArrowLeft className="h-5 w-5" />
+                        <Icon name="arrow-left" className="h-5 w-5" />
                         <span className="font-medium">Back to Prompts</span>
                     </button>
                     <div className="flex-1 min-w-0">
@@ -77,7 +75,7 @@ export const MobilePromptDetail: React.FC<MobilePromptDetailProps> = ({
                 </div>
                 <div className="flex-1 flex items-center justify-center p-4">
                     <div className="text-center">
-                        <AlertTriangle className="w-12 h-12 text-orange-500 mx-auto mb-4" />
+                        <Icon name="alert-triangle" className="w-12 h-12 text-orange-500 mx-auto mb-4" />
                         <p className="text-lg font-medium">Error Loading Data</p>
                         <p className="text-muted-foreground mt-2">
                             {coverageResult?.error || 'Unknown error occurred'}
@@ -99,7 +97,7 @@ export const MobilePromptDetail: React.FC<MobilePromptDetailProps> = ({
                     className="flex items-center gap-2 px-3 py-2 hover:bg-muted rounded-lg transition-colors min-h-[44px]"
                     title="Back to prompt list"
                 >
-                    <ArrowLeft className="h-5 w-5" />
+                    <Icon name="arrow-left" className="h-5 w-5" />
                     <span className="font-medium">Back to Prompts</span>
                 </button>
                 <div className="flex-1 min-w-0">

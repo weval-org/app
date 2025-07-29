@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTheme } from 'next-themes';
 import { AnalysisContext, AnalysisContextType } from './AnalysisContext';
-import { useComparisonData } from '@/app/analysis/hooks/useComparisonData';
+import { useComparisonData, useComparisonDataV2 } from '@/app/analysis/hooks/useComparisonData';
 import { useAnalysisStats } from '@/app/analysis/hooks/useAnalysisStats';
 import { useModelFiltering } from '@/app/analysis/hooks/useModelFiltering';
 
@@ -39,6 +39,10 @@ interface AnalysisProviderProps {
     children: React.ReactNode;
 }
 
+const EMPTY_BREADCRUMBS: BreadcrumbItem[] = [];
+const EMPTY_SENSITIVITY_MAP = new Map<string, 'temp' | 'sys' | 'both'>();
+const EMPTY_PROMPT_TEXTS = {};
+
 export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({ 
     initialData, 
     pageTitle: propPageTitle,
@@ -53,27 +57,38 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
     sandboxId: sandboxIdFromProps,
     children 
 }) => {
+    const [latchedInitialData] = useState(initialData);
     const router = useRouter();
     const searchParams = useSearchParams();
     const currentPromptId = searchParams.get('prompt');
 
     // Determine mode based on whether we have initial data
-    const isFullMode = !!initialData;
+    const isFullMode = !!latchedInitialData;
     
-    const configId = configIdFromProps || initialData?.configId || '';
-    const runLabel = runLabelFromProps || initialData?.runLabel || '';
-    const timestamp = timestampFromProps || initialData?.timestamp || '';
+    const configId = configIdFromProps || latchedInitialData?.configId || '';
+    const runLabel = runLabelFromProps || latchedInitialData?.runLabel || '';
+    const timestamp = timestampFromProps || latchedInitialData?.timestamp || '';
     const isSandbox = isSandboxFromProps || false;
 
     // Only load data if we have initial data
-    const { data, loading, error, promptNotFound, excludedModelsList } = useComparisonData({
-        initialData: initialData || null,
+    // const { data, loading, error, promptNotFound, excludedModelsList } = useComparisonData({
+    //     initialData: initialData || null,
+    //     currentPromptId: isFullMode ? currentPromptId : null,
+    //     disabled: !isFullMode,
+    // });
+    const { data, loading, error, promptNotFound, excludedModelsList } = useComparisonDataV2({
+        initialData: latchedInitialData || null,
         currentPromptId: isFullMode ? currentPromptId : null,
         disabled: !isFullMode,
     });
 
     const [forceIncludeExcludedModels, setForceIncludeExcludedModels] = useState<boolean>(false);
-    const [selectedTemperatures, setSelectedTemperatures] = useState<number[]>([]);
+    const [selectedTemperatures, setSelectedTemperatures] = useState<number[]>(() => {
+        if (isFullMode && latchedInitialData?.config?.temperatures) {
+            return latchedInitialData.config.temperatures;
+        }
+        return [];
+    });
     const [activeSysPromptIndex, setActiveSysPromptIndex] = useState(0);
     const [activeHighlights, setActiveHighlights] = useState<Set<ActiveHighlight>>(new Set());
     const { resolvedTheme } = useTheme();
@@ -97,14 +112,6 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
         setPromptDetailModal({ isOpen: true, promptId });
     }, [isFullMode]);
     const closePromptDetailModal = useCallback(() => setPromptDetailModal({ isOpen: false, promptId: null }), []);
-
-    useEffect(() => {
-        if (isFullMode && data?.config?.temperatures) {
-            setSelectedTemperatures(data.config.temperatures);
-        } else {
-            setSelectedTemperatures([]);
-        }
-    }, [data, isFullMode]);
 
     const handleActiveHighlightsChange = useCallback((newHighlights: Set<ActiveHighlight>) => {
         setActiveHighlights(prevHighlights => {
@@ -133,9 +140,9 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
     }, [data, displayedModels]);
 
     const permutationSensitivityMap = useMemo(() => {
-        const sensitivityMap = new Map<string, 'temp' | 'sys' | 'both'>();
-        if (!isFullMode || !data || !data.effectiveModels || !data.evaluationResults?.llmCoverageScores) return sensitivityMap;
+        if (!isFullMode || !data || !data.effectiveModels || !data.evaluationResults?.llmCoverageScores) return EMPTY_SENSITIVITY_MAP;
 
+        const sensitivityMap = new Map<string, 'temp' | 'sys' | 'both'>();
         const { effectiveModels, promptIds, evaluationResults, config } = data;
         const llmCoverageScores = evaluationResults.llmCoverageScores as Record<string, Record<string, CoverageResult>>;
 
@@ -227,24 +234,27 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
         return sensitivityMap;
     }, [data, isFullMode]);
 
-    const getPromptContextDisplayString = useMemo(() => (promptId: string): string => {
-        if (!isFullMode || !data || !data.promptContexts) return promptId;
-        const context = data.promptContexts[promptId];
-        if (typeof context === 'string') {
-          return context;
+    const getPromptContextDisplayString = useMemo(() => {
+        if (!isFullMode || !data) return (promptId: string) => promptId;
+        
+        return (promptId: string): string => {
+            const context = data.promptContexts?.[promptId];
+            if (typeof context === 'string') {
+              return context;
+            }
+            if (Array.isArray(context) && context.length > 0) {
+              const lastUserMessage = [...context].reverse().find(msg => msg.role === 'user');
+              if (lastUserMessage) {
+                return `User: ${lastUserMessage.content.substring(0, 300)}${lastUserMessage.content.length > 300 ? '...' : ''}`;
+              }
+              return `Multi-turn context (${context.length} messages)`;
+            }
+            return promptId;
         }
-        if (Array.isArray(context) && context.length > 0) {
-          const lastUserMessage = [...context].reverse().find(msg => msg.role === 'user');
-          if (lastUserMessage) {
-            return `User: ${lastUserMessage.content.substring(0, 300)}${lastUserMessage.content.length > 300 ? '...' : ''}`;
-          }
-          return `Multi-turn context (${context.length} messages)`;
-        }
-        return promptId;
     }, [data, isFullMode]);
 
     const promptTextsForMacroTable = useMemo(() => {
-        if (!isFullMode || !data?.promptContexts) return {};
+        if (!isFullMode || !data?.promptContexts) return EMPTY_PROMPT_TEXTS;
         return Object.fromEntries(
           Object.entries(data.promptContexts).map(([promptId, context]) => [
             promptId,
@@ -281,11 +291,12 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
         if (!isFullMode && propBreadcrumbItems) {
             return propBreadcrumbItems;
         }
+        if (!data) return EMPTY_BREADCRUMBS;
         
         const items = [
             { label: 'Home', href: '/' },
             {
-                label: data?.configTitle || configId,
+                label: data.configTitle || configId,
                 href: `/analysis/${configId}`,
             },
             {
@@ -359,11 +370,24 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
 
         const overallPairExtremes = findSimilarityExtremes(data.evaluationResults?.similarityMatrix);
 
+        // Get model leaderboard (top 5) - always based on coverage scores
+        let modelLeaderboard = null;
+        if (analysisStats.allModelCoverageRankings?.rankedModels) {
+            modelLeaderboard = analysisStats.allModelCoverageRankings.rankedModels
+                .slice(0, 5)
+                .map(model => ({
+                    id: model.modelId,
+                    score: model.avgScore,
+                    count: model.count
+                }));
+        }
+
         return {
             bestPerformingModel: bestPerformer,
             worstPerformingModel: worstPerformer,
             mostDifferentiatingPrompt,
             mostSimilarPair: overallPairExtremes.mostSimilar,
+            modelLeaderboard,
         };
     }, [isSandbox, data, analysisStats, getPromptContextDisplayString, isFullMode]);
 
@@ -421,7 +445,7 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
         setModelEvaluationModal({ isOpen: false, promptId: null, modelId: null });
     }, []);
 
-    const contextValue: AnalysisContextType = {
+    const contextValue: AnalysisContextType = useMemo(() => ({
         configId,
         runLabel,
         timestamp,
@@ -462,7 +486,20 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
         promptDetailModal,
         openPromptDetailModal,
         closePromptDetailModal
-    };
+    }), [
+        configId, runLabel, timestamp, contextData, isFullMode, loading, error, promptNotFound, excludedModelsList,
+        forceIncludeExcludedModels, setForceIncludeExcludedModels, 
+        selectedTemperatures, setSelectedTemperatures, 
+        activeSysPromptIndex, setActiveSysPromptIndex, 
+        activeHighlights, handleActiveHighlightsChange, 
+        displayedModels, modelsForMacroTable, modelsForAggregateView,
+        canonicalModels, analysisStats, modelEvaluationModal, openModelEvaluationDetailModal,
+        closeModelEvaluationDetailModal, resolvedTheme, permutationSensitivityMap,
+        promptTextsForMacroTable, currentPromptId, pageTitle, breadcrumbItems, summaryStats,
+        isSandbox, sandboxIdFromProps, normalizedExecutiveSummary, modelPerformanceModal,
+        openModelPerformanceModal, closeModelPerformanceModal, promptDetailModal,
+        openPromptDetailModal, closePromptDetailModal
+    ]);
 
     return (
         <AnalysisContext.Provider value={contextValue}>

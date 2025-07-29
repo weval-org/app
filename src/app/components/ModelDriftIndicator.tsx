@@ -1,8 +1,6 @@
-import dynamic from 'next/dynamic';
+import React from 'react';
 import Link from 'next/link';
-
-const AlertTriangle = dynamic(() => import('lucide-react').then(mod => mod.AlertTriangle));
-const Info = dynamic(() => import('lucide-react').then(mod => mod.Info));
+import Icon from '@/components/ui/icon';
 
 export interface PotentialDriftInfo {
   configId: string;
@@ -27,7 +25,7 @@ const ModelDriftIndicator: React.FC<ModelDriftIndicatorProps> = ({ driftInfo }) 
   if (!driftInfo || driftInfo.scoreRange === 0) {
     return (
       <div className="my-6 p-4 bg-card/70 dark:bg-slate-800/50 backdrop-blur-sm rounded-lg border border-border/60 dark:border-slate-700/40 flex items-start text-sm text-muted-foreground">
-        {Info && <Info className="w-5 h-5 mr-3 text-sky-500 flex-shrink-0 mt-0.5" />}
+        <Icon name="info" className="w-5 h-5 mr-3 text-sky-500 flex-shrink-0 mt-0.5" />
         <div>
           <span>No significant performance variance detected for any model across identical test runs (same parameters, &gt;= 1 day apart). I.e. no model regressions detected.</span>
           <p className="text-xs text-muted-foreground/80 mt-1">This suggests model behavior, as measured by Hybrid Score, has remained consistent for repeated evaluations in your dataset. Note: it can be normal for model aliases to not point to the same underlying model, but it is fair to expect that the type of fundamental knowledge that Weval tests for should be consistent.</p>
@@ -47,7 +45,7 @@ const ModelDriftIndicator: React.FC<ModelDriftIndicatorProps> = ({ driftInfo }) 
   return (
     <div className="my-6 p-4 bg-amber-50/80 dark:bg-amber-900/30 backdrop-blur-sm rounded-lg border border-amber-400/70 dark:border-amber-600/50">
       <div className="flex items-start">
-        {AlertTriangle && <AlertTriangle className="w-6 h-6 mr-3 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />}
+        <Icon name="alert-triangle" className="w-6 h-6 mr-3 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
         <div>
           <h3 className="text-md font-semibold text-amber-800 dark:text-amber-200 mb-1">Potential Model Performance Shift Detected</h3>
           <p className="text-sm text-amber-700 dark:text-amber-300 mb-2">

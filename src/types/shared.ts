@@ -112,6 +112,7 @@ export interface WevalConfig {
     temperatures?: number[];
     prompts: WevalPromptConfig[];
     tags?: string[];
+    embeddingModel?: string; // Add it here
     evaluationConfig?: {
         'llm-coverage'?: {
             judgeModels?: string[];
@@ -150,6 +151,7 @@ export interface StructuredInsights {
     weaknesses: string[];
     patterns: string[];
     grades?: ModelGrades[];
+    autoTags?: string[];
 }
 
 export interface ModelGrades {

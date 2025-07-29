@@ -8,20 +8,8 @@ import { BlueprintFile } from '../hooks/useWorkspace';
 import { User } from '../hooks/useAuth';
 import { MobileActionSheet } from './MobileBottomSheet';
 import { useState } from 'react';
-import dynamic from 'next/dynamic';
+import Icon from '@/components/ui/icon';
 
-const Plus = dynamic(() => import('lucide-react').then(mod => mod.Plus));
-const Sparkles = dynamic(() => import('lucide-react').then(mod => mod.Sparkles));
-const Github = dynamic(() => import('lucide-react').then(mod => mod.Github));
-const LogIn = dynamic(() => import('lucide-react').then(mod => mod.LogIn));
-const LogOut = dynamic(() => import('lucide-react').then(mod => mod.LogOut));
-const RefreshCw = dynamic(() => import('lucide-react').then(mod => mod.RefreshCw));
-const FileText = dynamic(() => import('lucide-react').then(mod => mod.FileText));
-const Loader2 = dynamic(() => import('lucide-react').then(mod => mod.Loader2));
-const MoreHorizontal = dynamic(() => import('lucide-react').then(mod => mod.MoreHorizontal));
-const Pencil = dynamic(() => import('lucide-react').then(mod => mod.Pencil));
-const Copy = dynamic(() => import('lucide-react').then(mod => mod.Copy));
-const Trash = dynamic(() => import('lucide-react').then(mod => mod.Trash));
 
 interface MobileFileNavigatorProps {
   files: BlueprintFile[];
@@ -86,7 +74,7 @@ export function MobileFileNavigator({
         {isLoggedIn ? (
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <Github className="w-5 h-5 text-muted-foreground" />
+              <Icon name="github" className="w-5 h-5 text-muted-foreground" />
               <div className="flex-1 min-w-0">
                 <p className="font-medium truncate">{user?.username}</p>
                 {forkName && (
@@ -94,13 +82,13 @@ export function MobileFileNavigator({
                 )}
               </div>
               <Button variant="outline" size="sm" onClick={onLogout}>
-                <LogOut className="w-4 h-4 mr-2" />
+                <Icon name="log-out" className="w-4 h-4 mr-2" />
                 Logout
               </Button>
             </div>
             {isSyncingWithGitHub && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Icon name="loader-2" className="w-4 h-4 animate-spin" />
                 Syncing with GitHub...
               </div>
             )}
@@ -119,9 +107,9 @@ export function MobileFileNavigator({
               className="w-full"
             >
               {isLoggingInWithGitHub ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Connecting...</>
+                <><Icon name="loader-2" className="w-4 h-4 mr-2 animate-spin" /> Connecting...</>
               ) : (
-                <><LogIn className="w-4 h-4 mr-2" /> Connect GitHub</>
+                <><Icon name="log-in" className="w-4 h-4 mr-2" /> Connect GitHub</>
               )}
             </Button>
           </div>
@@ -136,7 +124,7 @@ export function MobileFileNavigator({
           size="lg"
           className="h-14 text-left justify-start"
         >
-          <Plus className="w-5 h-5 mr-3 flex-shrink-0" />
+          <Icon name="plus" className="w-5 h-5 mr-3 flex-shrink-0" />
           <div>
             <div className="font-medium">Create New Blueprint</div>
             <div className="text-xs opacity-80">Start from scratch</div>
@@ -149,7 +137,7 @@ export function MobileFileNavigator({
           size="lg"
           className="h-14 text-left justify-start bg-exciting/5 border-exciting/20 hover:bg-exciting/10"
         >
-          <Sparkles className="w-5 h-5 mr-3 flex-shrink-0 text-exciting" />
+          <Icon name="sparkles" className="w-5 h-5 mr-3 flex-shrink-0 text-exciting" />
           <div>
             <div className="font-medium">AI Generate Blueprint</div>
             <div className="text-xs opacity-80">Describe what you want to test</div>
@@ -162,7 +150,7 @@ export function MobileFileNavigator({
           size="sm"
           className="self-start"
         >
-          <RefreshCw className="w-4 h-4 mr-2" />
+          <Icon name="refresh-cw" className="w-4 h-4 mr-2" />
           Refresh
         </Button>
       </div>
@@ -176,7 +164,7 @@ export function MobileFileNavigator({
         
         {files.length === 0 ? (
           <Card className="p-8 text-center">
-            <FileText className="w-8 h-8 mx-auto mb-3 text-muted-foreground" />
+            <Icon name="file-text" className="w-8 h-8 mx-auto mb-3 text-muted-foreground" />
             <p className="text-muted-foreground mb-2">No blueprints yet</p>
             <p className="text-sm text-muted-foreground">Create your first blueprint to get started</p>
           </Card>
@@ -193,7 +181,7 @@ export function MobileFileNavigator({
                 onClick={() => onSelectFile(file)}
               >
                 <div className="flex items-center gap-3">
-                  <FileText className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                  <Icon name="file-text" className="w-5 h-5 text-muted-foreground flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate">{file.name}</p>
                     <div className="flex items-center gap-2 mt-1">
@@ -218,7 +206,7 @@ export function MobileFileNavigator({
                       setIsActionSheetOpen(true);
                     }}
                   >
-                    <MoreHorizontal className="w-5 h-5" />
+                    <Icon name="more-horizontal" className="w-5 h-5" />
                   </Button>
                 </div>
               </Card>
@@ -235,18 +223,18 @@ export function MobileFileNavigator({
         actions={[
           ...(onRenameFile && selectedFile ? [{
             label: "Rename",
-            icon: <Pencil className="w-5 h-5" />,
+            icon: <Icon name="pencil" className="w-5 h-5" />,
             onClick: () => onRenameFile(selectedFile),
             disabled: selectedFile.prStatus?.state === 'open'
           }] : []),
           ...(onDuplicateFile && selectedFile ? [{
             label: "Duplicate",
-            icon: <Copy className="w-5 h-5" />,
+            icon: <Icon name="copy" className="w-5 h-5" />,
             onClick: () => onDuplicateFile(selectedFile)
           }] : []),
           ...(onDeleteFile && selectedFile ? [{
             label: "Delete",
-            icon: <Trash className="w-5 h-5" />,
+            icon: <Icon name="trash" className="w-5 h-5" />,
             onClick: () => onDeleteFile(selectedFile),
             variant: 'destructive' as const,
             disabled: selectedFile.prStatus?.state === 'open'

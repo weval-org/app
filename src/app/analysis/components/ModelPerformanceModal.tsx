@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
@@ -16,11 +16,11 @@ import { useAnalysis } from '../context/AnalysisContext';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { getHybridScoreColorClass } from '../utils/colorUtils';
+import Icon from '@/components/ui/icon';
+// import { usePreloadIcons } from '@/components/ui/use-preload-icons';
 
-const Quote = dynamic(() => import('lucide-react').then(mod => mod.Quote), { ssr: false });
-const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
-const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
-const AlertTriangle = dynamic(() => import("lucide-react").then((mod) => mod.AlertTriangle), { ssr: false });
+import ReactMarkdown from 'react-markdown';
+import RemarkGfmPlugin from 'remark-gfm';
 
 interface PromptPerformance {
     promptId: string;
@@ -36,14 +36,22 @@ const ModelPerformanceModal: React.FC = () => {
         data,
         modelPerformanceModal,
         closeModelPerformanceModal,
+        displayedModels,
+        openModelEvaluationDetailModal,
+        promptTextsForMacroTable,
         analysisStats,
     } = useAnalysis();
-    
+
+    const [expandedResponse, setExpandedResponse] = useState<Record<string, boolean>>({});
+    const [isMobileView, setIsMobileView] = useState(false);
+
+    // Preload icons used in this modal
+    // usePreloadIcons(['quote', 'alert-triangle']);
+
     const { isOpen, modelId } = modelPerformanceModal;
 
     const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
     const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
-    const [isMobileView, setIsMobileView] = useState(false);
 
     useEffect(() => {
         const checkMobile = () => setIsMobileView(window.innerWidth < 768);
@@ -266,7 +274,7 @@ const ModelPerformanceModal: React.FC = () => {
                                         )}
                                         {config.prompts.find(p => p.id === selectedPromptId)?.citation && (
                                             <div className="flex items-start space-x-1.5 text-xs text-muted-foreground/90 italic border-l-2 border-border pl-3 py-2 mb-4">
-                                                <Quote className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                                                <Icon name="quote" className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
                                                 <span>Source: {config.prompts.find(p => p.id === selectedPromptId)?.citation}</span>
                                             </div>
                                         )}
@@ -283,7 +291,7 @@ const ModelPerformanceModal: React.FC = () => {
                                     <EvaluationView assessments={currentVariantPerformance.coverageResult.pointAssessments || []} modelResponse={currentVariantPerformance.response} idealResponse={idealResponse ?? undefined} expandedLogs={expandedLogs} toggleLogExpansion={toggleLogExpansion}/>
                                 ) : (
                                     <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-muted/50 rounded-lg">
-                                        <AlertTriangle className="w-12 h-12 text-destructive/80 mb-4" />
+                                        <Icon name="alert-triangle" className="w-12 h-12 text-destructive/80 mb-4" />
                                         <h3 className="text-lg font-semibold text-foreground">Evaluation Not Available</h3>
                                         <p className="text-sm text-muted-foreground max-w-md">There was an error generating the evaluation for this prompt, or the model did not provide a response.</p>
                                         {currentVariantPerformance.coverageResult && 'error' in currentVariantPerformance.coverageResult && (<pre className="mt-4 text-xs bg-destructive/10 text-destructive-foreground p-2 rounded-md whitespace-pre-wrap text-left w-full max-w-lg">{currentVariantPerformance.coverageResult.error}</pre>)}

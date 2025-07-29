@@ -13,10 +13,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import ClientDateTime from '@/app/components/ClientDateTime';
 import Link from 'next/link';
-import type { LucideProps } from 'lucide-react' with { 'resolution-mode': 'import' };
-import dynamic from 'next/dynamic';
-
-const Terminal = dynamic<LucideProps>(() => import('lucide-react').then(mod => mod.Terminal));
+import Icon from '@/components/ui/icon';
 
 interface PreferenceRecord {
   taskId: string;
@@ -66,7 +63,7 @@ function LogPage() {
 
       {error && (
         <Alert variant="destructive">
-          <Terminal className="h-4 w-4" />
+          <Icon name="terminal" className="h-4 w-4" />
           <AlertTitle>Error Fetching Data</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>

@@ -1,11 +1,11 @@
 'use client';
 
-import nextDynamic from 'next/dynamic';
 import Link from 'next/link';
 import { EnhancedRunInfo } from '@/app/utils/homepageDataUtils';
 import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import ClientDateTime from '../ClientDateTime';
+import Icon from '@/components/ui/icon';
 
 export interface DisplayableRunInstanceInfo extends EnhancedRunInfo {
   configId: string;
@@ -20,11 +20,6 @@ const getHybridScoreColor = (score: number | null | undefined): string => {
   return 'text-red-600 dark:text-red-400';
 };
 
-const History = nextDynamic(() => import('lucide-react').then(mod => mod.History));
-const Layers = nextDynamic(() => import('lucide-react').then(mod => mod.Layers));
-const Hash = nextDynamic(() => import('lucide-react').then(mod => mod.Hash));
-const Trophy = nextDynamic(() => import('lucide-react').then(mod => mod.Trophy));
-
 const LatestEvaluationRunsSection = ({ latestRuns }: { latestRuns: DisplayableRunInstanceInfo[] }) => {
   return (
     <section id="latest-runs" className="mb-12 md:mb-16">
@@ -33,7 +28,7 @@ const LatestEvaluationRunsSection = ({ latestRuns }: { latestRuns: DisplayableRu
       </h2>
       {latestRuns.length === 0 ? (
         <div className="text-center py-10 bg-card/50 dark:bg-card/40 rounded-lg shadow-md">
-          {History && <History className="w-12 h-12 mx-auto mb-4 text-muted-foreground dark:text-muted-foreground" />}
+          <Icon name="history" className="w-12 h-12 mx-auto mb-4 text-muted-foreground dark:text-muted-foreground" />
           <p className="text-lg text-muted-foreground dark:text-muted-foreground">No recent evaluation runs found.</p>
           <p className="text-sm text-muted-foreground dark:text-muted-foreground mt-1">Run evaluations using the CLI, and they will appear here.</p>
         </div>
@@ -44,13 +39,13 @@ const LatestEvaluationRunsSection = ({ latestRuns }: { latestRuns: DisplayableRu
               <tr>
                 <th scope="col" className="px-4 py-3.5 text-left text-sm font-semibold text-foreground dark:text-foreground">
                   <div className="flex items-center">
-                    {Layers && <Layers className="w-4 h-4 mr-1.5 opacity-80" />}
+                    <Icon name="layers" className="w-4 h-4 mr-1.5 opacity-80" />
                     Blueprint
                   </div>
                 </th>
                 <th scope="col" className="px-4 py-3.5 text-left text-sm font-semibold text-foreground dark:text-foreground">
                   <div className="flex items-center">
-                    {Hash && <Hash className="w-4 h-4 mr-1.5 opacity-80" />}
+                    <Icon name="hash" className="w-4 h-4 mr-1.5 opacity-80" />
                     Version
                   </div>
                 </th>
@@ -62,7 +57,7 @@ const LatestEvaluationRunsSection = ({ latestRuns }: { latestRuns: DisplayableRu
                 </th>
                 <th scope="col" className="px-4 py-3.5 text-left text-sm font-semibold text-foreground dark:text-foreground">
                   <div className="flex items-center">
-                    {Trophy && <Trophy className="w-4 h-4 mr-1.5 opacity-80" />}
+                    <Icon name="trophy" className="w-4 h-4 mr-1.5 opacity-80" />
                     Top Model
                   </div>
                 </th>

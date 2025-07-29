@@ -1,4 +1,5 @@
 import { ComparisonDataV2 as FetchedComparisonData, EvaluationResults } from '@/app/utils/types';
+import { parseEffectiveModelId } from '@/app/utils/modelIdUtils';
 
 export const IDEAL_MODEL_ID = 'IDEAL_BENCHMARK';
 
@@ -15,6 +16,16 @@ export interface HybridScoreExtremes {
 export interface IdealScoreExtremes {
     mostSimilar: { modelId: string; value: number } | null;
     leastSimilar: { modelId: string; value: number } | null;
+}
+
+export interface ModelScoreRanking {
+    modelId: string;
+    avgScore: number;
+    count: number;
+}
+
+export interface AllModelScoreRankings {
+    rankedModels: ModelScoreRanking[];
 }
 
 /**
@@ -44,8 +55,8 @@ export function calculateStandardDeviation(numbers: number[]): number | null {
 export function calculateHybridScore(simScore: number | null | undefined, covScore: number | null | undefined): number | null {
     const isValidSim = typeof simScore === 'number' && !isNaN(simScore);
     const isValidCov = typeof covScore === 'number' && !isNaN(covScore);
-    const SIMILARITY_WEIGHT = 0.35;
-    const COVERAGE_WEIGHT = 0.65;
+    const SIMILARITY_WEIGHT = 0;
+    const COVERAGE_WEIGHT = 1.0;
 
     if (isValidSim && isValidCov) {
         // Both scores are available, use weighted arithmetic mean
@@ -370,6 +381,138 @@ export const calculateHybridScoreExtremes = (
   }
 
   return { bestHybrid, worstHybrid };
+};
+
+/**
+ * Calculates average coverage scores for all models and returns them ranked from best to worst.
+ * Groups by canonical model name and averages across variants (system prompt/temperature permutations).
+ * Excludes the IDEAL_MODEL_ID.
+ */
+export const calculateAllModelCoverageRankings = (
+  coverageScores: EvaluationResults['llmCoverageScores'],
+  models: string[]
+): AllModelScoreRankings => {
+  if (!coverageScores || models.length === 0) {
+    return { rankedModels: [] };
+  }
+
+  // Group models by canonical base ID to handle variants
+  const canonicalModelScores = new Map<string, { totalScore: number; count: number; variants: Set<string> }>();
+  const nonIdealModels = models.filter(m => m !== IDEAL_MODEL_ID);
+
+  // Accumulate scores across prompts, grouping by canonical model
+  Object.keys(coverageScores).forEach(promptId => {
+    const promptData = coverageScores[promptId];
+    if (!promptData) return;
+
+    nonIdealModels.forEach(modelId => {
+      const scoreData = promptData[modelId];
+      if (scoreData && !('error' in scoreData) && typeof scoreData.avgCoverageExtent === 'number' && !isNaN(scoreData.avgCoverageExtent)) {
+        // Parse to get canonical model name
+        const { baseId } = parseEffectiveModelId(modelId);
+        
+        if (!canonicalModelScores.has(baseId)) {
+          canonicalModelScores.set(baseId, { totalScore: 0, count: 0, variants: new Set() });
+        }
+        
+        const current = canonicalModelScores.get(baseId)!;
+        current.totalScore += scoreData.avgCoverageExtent;
+        current.count++;
+        current.variants.add(modelId);
+        canonicalModelScores.set(baseId, current);
+      }
+    });
+  });
+
+  // Calculate averages and sort by score (descending)
+  const rankedModels: ModelScoreRanking[] = [];
+  canonicalModelScores.forEach((data, baseId) => {
+    if (data.count > 0) {
+      const avgScore = data.totalScore / data.count;
+      // Use the baseId as the modelId for display purposes
+      rankedModels.push({ modelId: baseId, avgScore, count: data.count });
+    }
+  });
+
+  // Sort by average score (highest first)
+  rankedModels.sort((a, b) => b.avgScore - a.avgScore);
+
+  return { rankedModels };
+};
+
+/**
+ * Calculates average hybrid scores for all models and returns them ranked from best to worst.
+ * Groups by canonical model name and averages across variants (system prompt/temperature permutations).
+ * Excludes the IDEAL_MODEL_ID.
+ */
+export const calculateAllModelHybridRankings = (
+  similarityMatrix: EvaluationResults['perPromptSimilarities'],
+  coverageScores: EvaluationResults['llmCoverageScores'],
+  models: string[],
+  idealModelId: string = IDEAL_MODEL_ID
+): AllModelScoreRankings => {
+  if (!similarityMatrix || !coverageScores || models.length === 0 || !models.includes(idealModelId)) {
+    return { rankedModels: [] };
+  }
+
+  // Group models by canonical base ID to handle variants
+  const canonicalModelScores = new Map<string, { totalScore: number; count: number; variants: Set<string> }>();
+  const nonIdealModels = models.filter(m => m !== idealModelId);
+  const promptIdsWithCoverage = Object.keys(coverageScores);
+
+  // Accumulate scores across prompts, grouping by canonical model
+  promptIdsWithCoverage.forEach(promptId => {
+    const promptCovData = coverageScores[promptId];
+    const promptSimData = similarityMatrix[promptId];
+
+    if (!promptCovData || !promptSimData) {
+      return;
+    }
+
+    nonIdealModels.forEach(modelId => {
+      const covData = promptCovData[modelId];
+      const simData = promptSimData?.[modelId]?.[idealModelId] ?? promptSimData?.[idealModelId]?.[modelId];
+
+      const covScore = (covData && !('error' in covData) && typeof covData.avgCoverageExtent === 'number' && !isNaN(covData.avgCoverageExtent)) ? covData.avgCoverageExtent : null;
+
+      const isValidCov = covScore !== null && covScore >= 0;
+      const isValidSim = typeof simData === 'number' && !isNaN(simData);
+
+      if (isValidCov && isValidSim) {
+        const hybridScore = calculateHybridScore(simData, covScore);
+        
+        if (hybridScore !== null) {
+          // Parse to get canonical model name
+          const { baseId } = parseEffectiveModelId(modelId);
+          
+          if (!canonicalModelScores.has(baseId)) {
+            canonicalModelScores.set(baseId, { totalScore: 0, count: 0, variants: new Set() });
+          }
+          
+          const current = canonicalModelScores.get(baseId)!;
+          current.totalScore += hybridScore;
+          current.count++;
+          current.variants.add(modelId);
+          canonicalModelScores.set(baseId, current);
+        }
+      }
+    });
+  });
+
+  // Calculate averages and sort by score (descending)
+  const rankedModels: ModelScoreRanking[] = [];
+  canonicalModelScores.forEach((data, baseId) => {
+    if (data.count > 0) {
+      const avgScore = data.totalScore / data.count;
+      // Use the baseId as the modelId for display purposes
+      rankedModels.push({ modelId: baseId, avgScore, count: data.count });
+    }
+  });
+
+  // Sort by average score (highest first)
+  rankedModels.sort((a, b) => b.avgScore - a.avgScore);
+
+  return { rankedModels };
 };
 
 /**

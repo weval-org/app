@@ -11,7 +11,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { GlobalConfigCard } from './GlobalConfigCard';
 import { PromptCard } from './PromptCard';
 import { Button } from '@/components/ui/button';
-import dynamic from 'next/dynamic';
 import { produce } from 'immer';
 import {
     Dialog,
@@ -25,13 +24,7 @@ import { AutoExtendModal } from './AutoExtendModal';
 import { useToast } from '@/components/ui/use-toast';
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-
-const Plus = dynamic(() => import('lucide-react').then(mod => mod.Plus));
-const Sparkles = dynamic(() => import('lucide-react').then(mod => mod.Sparkles));
-const Loader2 = dynamic(() => import('lucide-react').then(mod => mod.Loader2));
-const HelpCircle = dynamic(() => import('lucide-react').then(mod => mod.HelpCircle));
-const PlayCircle = dynamic(() => import('lucide-react').then(mod => mod.PlayCircle));
-const X = dynamic(() => import('lucide-react').then(mod => mod.X));
+import Icon from '@/components/ui/icon';
 
 interface FormPanelProps {
     parsedBlueprint: ComparisonConfig | null;
@@ -228,7 +221,7 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
                     <CardHeader className="pb-3">
                         <CardTitle className="text-lg flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                                <PlayCircle className="w-5 h-5 text-primary" />
+                                <Icon name="play-circle" className="w-5 h-5 text-primary" />
                                 Welcome to Sandbox Studio
                             </div>
                             <Button
@@ -238,7 +231,7 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
                                 className="h-6 w-6 rounded-full hover:bg-primary/10"
                                 title="Dismiss guide"
                             >
-                                <X className="w-4 h-4" />
+                                <Icon name="x" className="w-4 h-4" />
                             </Button>
                         </CardTitle>
                         <CardDescription>
@@ -281,7 +274,7 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
                     size={parsedBlueprint.prompts && parsedBlueprint.prompts.length > 0 ? "sm" : "lg"}
                     onClick={handleAddPrompt}
                 >
-                    <Plus className="h-4 w-4 mr-2" />
+                    <Icon name="plus" className="h-4 w-4 mr-2" />
                     {parsedBlueprint.prompts && parsedBlueprint.prompts.length > 0 ? "Add Prompt" : "Add your first prompt"}
                 </Button>
                 {parsedBlueprint.prompts && parsedBlueprint.prompts.length > 0 && (
@@ -292,7 +285,7 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
                         disabled={isExtending}
                         className="bg-exciting text-exciting-foreground border-exciting hover:bg-exciting/90 hover:text-exciting-foreground"
                     >
-                        <Sparkles className="h-4 w-4 mr-2" />
+                        <Icon name="sparkles" className="h-4 w-4 mr-2" />
                             {isExtending ? 'Extending...' : 'Auto-extend'}
                     </Button>
                 )}

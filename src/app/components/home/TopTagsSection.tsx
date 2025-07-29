@@ -1,15 +1,9 @@
 'use client';
 
-import nextDynamic from 'next/dynamic';
 import Link from 'next/link';
 import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { normalizeTag, prettifyTag } from '@/app/utils/tagUtils';
-
-
-const Tag = nextDynamic(() => import('lucide-react').then(mod => mod.Tag));
-const ArrowRight = nextDynamic(() => import('lucide-react').then(mod => mod.ArrowRight));
+import { normalizeTag, prettifyTag } from '@/app/utils/tagUtils'; 
+import Icon from '@/components/ui/icon';
 
 interface TagInfo {
   name: string;
@@ -39,7 +33,7 @@ export default function TopTagsSection({ tags, maxTags = 10 }: TopTagsSectionPro
           className="inline-flex items-center text-sm font-medium text-primary hover:text-primary/90 transition-colors"
         >
           View All Tags
-          <ArrowRight className="ml-1.5 h-4 w-4" />
+          <Icon name="arrow-right" className="ml-1.5 h-4 w-4" />
         </Link>
       </div>
       
@@ -48,7 +42,7 @@ export default function TopTagsSection({ tags, maxTags = 10 }: TopTagsSectionPro
           <Link href={`/tags/${normalizeTag(tag.name)}`} key={tag.name} className="block">
             <Card className="p-4 h-full flex flex-col justify-between hover:bg-muted/50 dark:hover:bg-slate-800/60 transition-colors duration-200 ring-1 ring-border/60 hover:ring-primary/40 dark:ring-slate-700/80 group">
               <div className="flex items-center mb-2">
-                <Tag className="w-4 h-4 mr-2 text-primary group-hover:text-primary/80" />
+                <Icon name="tag" className="w-4 h-4 mr-2 text-primary group-hover:text-primary/80" />
                 <h3 className="font-medium text-primary group-hover:text-primary/90 truncate">
                   {prettifyTag(tag.name)}
                 </h3>

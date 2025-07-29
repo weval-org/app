@@ -2,15 +2,10 @@ import React from 'react';
 import { getAllBlueprintSummaries } from '@/app/utils/homepageDataUtils';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import nextDynamic from 'next/dynamic';
 import { fromSafeTimestamp } from '@/lib/timestampUtils';
-import { normalizeTag } from '@/app/utils/tagUtils';
 import { processBlueprintSummaries, BlueprintSummaryInfo } from '@/app/utils/blueprintSummaryUtils';
-import DetailedBlueprintCard from '@/app/components/home/DetailedBlueprintCard';
 import { SearchEvaluations } from './SearchEvaluations';
-
-const ArrowLeft = nextDynamic(() => import('lucide-react').then(mod => mod.ArrowLeft));
-const TagIcon = nextDynamic(() => import('lucide-react').then(mod => mod.Tag));
+import Icon from '@/components/ui/icon';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -66,7 +61,7 @@ export default async function AllBlueprintsPage(props: {
                     <h2 className="text-3xl font-bold tracking-tight">All Evaluations ({allConfigs.length})</h2>
                     <Button asChild variant="ghost">
                         <Link href="/">
-                            {ArrowLeft && <ArrowLeft className="w-4 h-4 mr-2" />}
+                            <Icon name="arrow-left" className="w-4 h-4 mr-2" />
                             Back to Home
                         </Link>
                     </Button>

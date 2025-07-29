@@ -1,6 +1,5 @@
 import {
   getModelSummary,
-  listModelSummaries,
 } from '@/lib/storageService';
 import { notFound } from 'next/navigation';
 import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelIdUtils';
@@ -10,14 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import type { Metadata } from 'next';
-import dynamic from 'next/dynamic';
-
-const ArrowDownRight = dynamic(() => import('lucide-react').then(mod => mod.ArrowDownRight));
-const ArrowUpRight = dynamic(() => import('lucide-react').then(mod => mod.ArrowUpRight));
-const BarChart = dynamic(() => import('lucide-react').then(mod => mod.BarChart));
-const FileText = dynamic(() => import('lucide-react').then(mod => mod.FileText));
-const Bot = dynamic(() => import('lucide-react').then(mod => mod.Bot));
-const Layers = dynamic(() => import('lucide-react').then(mod => mod.Layers));
+import Icon from '@/components/ui/icon';
 
 // This is the modelId from the URL, which is the "safe" version.
 // We need to decode it if necessary, although our current safe ID is reversible.
@@ -91,7 +83,7 @@ export default async function ModelSummaryPage({ params }: Props) {
         <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">Avg. Hybrid Score</CardTitle>
-                <BarChart className="w-4 h-4 text-muted-foreground" />
+                <Icon name="bar-chart-3" className="w-4 h-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
                 <div className="text-2xl font-bold">
@@ -105,7 +97,7 @@ export default async function ModelSummaryPage({ params }: Props) {
         <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">Total Evaluations</CardTitle>
-                <FileText className="w-4 h-4 text-muted-foreground" />
+                <Icon name="file-text" className="w-4 h-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
                 <div className="text-2xl font-bold">{summary.overallStats.totalRuns}</div>
@@ -115,7 +107,7 @@ export default async function ModelSummaryPage({ params }: Props) {
         <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">Unique Blueprints</CardTitle>
-                <Layers className="w-4 h-4 text-muted-foreground" />
+                <Icon name="layers" className="w-4 h-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
                 <div className="text-2xl font-bold">{summary.overallStats.totalBlueprints}</div>
@@ -128,7 +120,7 @@ export default async function ModelSummaryPage({ params }: Props) {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <ArrowUpRight className="w-5 h-5 text-green-500" />
+              <Icon name="arrow-up-right" className="w-5 h-5 text-green-500" />
               Top Performing Blueprints (Strengths)
             </CardTitle>
             <CardDescription>Where this model scored highest on average.</CardDescription>
@@ -149,7 +141,7 @@ export default async function ModelSummaryPage({ params }: Props) {
          <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <ArrowDownRight className="w-5 h-5 text-red-500" />
+              <Icon name="arrow-down-right" className="w-5 h-5 text-red-500" />
               Weakest Performing Blueprints
             </CardTitle>
              <CardDescription>Where this model scored lowest on average.</CardDescription>

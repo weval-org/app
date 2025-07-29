@@ -60,7 +60,7 @@ async function actionBackfillExecutiveSummary(
 
         logger.info(`Found ${configIds.length} configuration ID(s) to process.`);
         const pLimit = (await import('p-limit')).default;
-        const limit = pLimit(5); // Limit concurrency to avoid overwhelming services
+        const limit = pLimit(10); // Limit concurrency to avoid overwhelming services
         const tasks: Promise<void>[] = [];
 
         for (const configId of configIds) {

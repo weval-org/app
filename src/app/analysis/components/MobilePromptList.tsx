@@ -5,8 +5,7 @@ import dynamic from 'next/dynamic';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PromptPerformance } from './MobileModelPerformanceAnalysis';
-
-const ArrowLeft = dynamic(() => import("lucide-react").then(mod => mod.ArrowLeft), { ssr: false });
+import Icon from '@/components/ui/icon';
 
 interface MobilePromptListProps {
     modelDisplayName: string;
@@ -77,7 +76,7 @@ export const MobilePromptList: React.FC<MobilePromptListProps> = ({
                     className="flex items-center gap-2 px-3 py-2 hover:bg-muted rounded-lg transition-colors min-h-[44px]"
                     title="Back to macro table"
                 >
-                    <ArrowLeft className="h-5 w-5" />
+                    <Icon name="arrow-left" className="h-5 w-5" />
                     <span className="font-medium">Back to Analysis</span>
                 </button>
                 <div className="flex-1 min-w-0">

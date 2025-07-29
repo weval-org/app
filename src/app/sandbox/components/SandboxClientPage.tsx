@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import dynamic from 'next/dynamic';
 import * as yaml from 'js-yaml';
 import { useAuth } from '../hooks/useAuth';
 import { useWorkspace, ActiveBlueprint, BlueprintFile } from '../hooks/useWorkspace';
@@ -44,25 +43,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ConfirmRunModal } from './ConfirmRunModal';
-
-const Loader2 = dynamic(() => import('lucide-react').then(mod => mod.Loader2), { ssr: false });
-const Save = dynamic(() => import('lucide-react').then(mod => mod.Save), { ssr: false });
-const GitPullRequest = dynamic(() => import('lucide-react').then(mod => mod.GitPullRequest), { ssr: false });
-const Github = dynamic(() => import('lucide-react').then(mod => mod.Github), { ssr: false });
-const FlaskConical = dynamic(() => import('lucide-react').then(mod => mod.FlaskConical), { ssr: false });
-const MoreVertical = dynamic(() => import('lucide-react').then(mod => mod.MoreVertical), { ssr: false });
-const History = dynamic(() => import('lucide-react').then(mod => mod.History), { ssr: false });
-const ExternalLink = dynamic(() => import('lucide-react').then(mod => mod.ExternalLink), { ssr: false });
-const HelpCircle = dynamic(() => import('lucide-react').then(mod => mod.HelpCircle), { ssr: false });
-const ChevronLeft = dynamic(() => import('lucide-react').then(mod => mod.ChevronLeft), { ssr: false });
-const ChevronRight = dynamic(() => import('lucide-react').then(mod => mod.ChevronRight), { ssr: false });
-const Pencil = dynamic(() => import('lucide-react').then(mod => mod.Pencil), { ssr: false });
-const Copy = dynamic(() => import('lucide-react').then(mod => mod.Copy), { ssr: false });
-const Trash = dynamic(() => import('lucide-react').then(mod => mod.Trash), { ssr: false });
-const FileCode2 = dynamic(() => import('lucide-react').then(mod => mod.FileCode2), { ssr: false });
-const FolderOpen = dynamic(() => import('lucide-react').then(mod => mod.FolderOpen), { ssr: false });
-const Edit3 = dynamic(() => import('lucide-react').then(mod => mod.Edit3), { ssr: false });
-const BarChart3 = dynamic(() => import('lucide-react').then(mod => mod.BarChart3), { ssr: false });
+import Icon from '@/components/ui/icon';
 
 function SandboxClientPageInternal() {
     const { user, isLoading: isAuthLoading, clearAuth } = useAuth();
@@ -495,7 +476,7 @@ function SandboxClientPageInternal() {
                     }`}
                     onClick={() => setMobileActiveTab('files')}
                 >
-                    <FolderOpen className="w-5 h-5 mb-1" />
+                    <Icon name="folder-open" className="w-5 h-5 mb-1" />
                     <span className="text-xs">Files</span>
                 </button>
                 <button
@@ -506,7 +487,7 @@ function SandboxClientPageInternal() {
                     }`}
                     onClick={() => setMobileActiveTab('edit')}
                 >
-                    <Edit3 className="w-5 h-5 mb-1" />
+                    <Icon name="edit-3" className="w-5 h-5 mb-1" />
                     <span className="text-xs">Edit</span>
                 </button>
                 <button
@@ -517,7 +498,7 @@ function SandboxClientPageInternal() {
                     }`}
                     onClick={() => setMobileActiveTab('run')}
                 >
-                    <BarChart3 className="w-5 h-5 mb-1" />
+                    <Icon name="bar-chart-3" className="w-5 h-5 mb-1" />
                     <span className="text-xs">Run</span>
                 </button>
             </div>
@@ -553,21 +534,21 @@ function SandboxClientPageInternal() {
                                 className="h-8 w-8 flex-shrink-0 text-muted-foreground hover:text-foreground hover:bg-slate-200 data-[state=open]:bg-slate-200 dark:hover:bg-slate-700 dark:data-[state=open]:bg-slate-700"
                                 disabled={!canTakeAction}
                             >
-                                <MoreVertical className="h-4 w-4" />
+                                <Icon name="more-vertical" className="h-4 w-4" />
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                             <DropdownMenuItem onSelect={() => setTimeout(() => handleHeaderAction(handleRename), 0)}>
-                                <Pencil className="w-4 h-4 mr-2" />
+                                <Icon name="pencil" className="w-4 h-4 mr-2" />
                                 Rename
                             </DropdownMenuItem>
                              <DropdownMenuItem onSelect={() => setTimeout(() => handleHeaderAction(duplicateBlueprint), 0)}>
-                                <Copy className="w-4 h-4 mr-2" />
+                                <Icon name="copy" className="w-4 h-4 mr-2" />
                                 Duplicate
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                              <DropdownMenuItem onSelect={() => setTimeout(() => handleHeaderAction(setFileToDelete), 0)} className="text-destructive focus:text-destructive focus:bg-destructive/10">
-                                <Trash className="w-4 h-4 mr-2" />
+                                <Icon name="trash" className="w-4 h-4 mr-2" />
                                 Delete
                             </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -581,7 +562,7 @@ function SandboxClientPageInternal() {
                             className="text-muted-foreground hover:text-foreground transition-colors"
                             title="View on GitHub"
                         >
-                            <ExternalLink className="w-4 h-4" />
+                            <Icon name="external-link" className="w-4 h-4" />
                         </a>
                     )}
                 </div>
@@ -591,7 +572,7 @@ function SandboxClientPageInternal() {
                         disabled={isSaveDisabled}
                         size="sm"
                     >
-                        {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                        {isSaving ? <Icon name="loader-2" className="w-4 h-4 mr-2 animate-spin" /> : <Icon name="save" className="w-4 h-4 mr-2" />}
                         Save Changes
                     </Button>
 
@@ -602,7 +583,7 @@ function SandboxClientPageInternal() {
                             size="sm"
                             variant="outline"
                         >
-                            <Github className="w-4 h-4 mr-2" />
+                            <Icon name="github" className="w-4 h-4 mr-2" />
                             Save to GitHub...
                         </Button>
                     )}
@@ -614,9 +595,9 @@ function SandboxClientPageInternal() {
                         className="bg-exciting text-exciting-foreground border-exciting hover:bg-exciting/90 hover:text-exciting-foreground"
                     >
                          {isRunning ? (
-                            <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Running...</>
+                            <><Icon name="loader-2" className="w-4 h-4 mr-2 animate-spin" /> Running...</>
                         ) : (
-                            <><FlaskConical className="w-4 h-4 mr-2" />Run Evaluation</>
+                            <><Icon name="flask-conical" className="w-4 h-4 mr-2" />Run Evaluation</>
                         )}
                     </Button>
                     
@@ -631,7 +612,7 @@ function SandboxClientPageInternal() {
 
                     {!isLocal && !activeBlueprint?.prStatus && (
                         <Button onClick={() => setIsProposalWizardOpen(true)} disabled={isCreatingPr || !activeBlueprint || isLoading || isDirty} size="sm" variant="outline">
-                            <GitPullRequest className="w-4 h-4 mr-2" />
+                            <Icon name="git-pull-request" className="w-4 h-4 mr-2" />
                             {isCreatingPr ? 'Proposing...' : 'Propose'}
                         </Button>
                     )}
@@ -641,10 +622,10 @@ function SandboxClientPageInternal() {
                             <DropdownMenuTrigger asChild>
                                 <Button variant="outline" size="sm" disabled={isClosingPr || isLoading}>
                                     {isClosingPr 
-                                        ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Closing...</>
-                                        : <><GitPullRequest className="w-4 h-4 mr-2" /> PR #{activeBlueprint.prStatus.number}: {activeBlueprint.prStatus.state}</>
+                                        ? <><Icon name="loader-2" className="w-4 h-4 mr-2 animate-spin" /> Closing...</>
+                                        : <><Icon name="git-pull-request" className="w-4 h-4 mr-2" /> PR #{activeBlueprint.prStatus.number}: {activeBlueprint.prStatus.state}</>
                                     }
-                                    <MoreVertical className="w-4 h-4 ml-2" />
+                                    <Icon name="more-vertical" className="w-4 h-4 ml-2" />
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
@@ -681,20 +662,20 @@ function SandboxClientPageInternal() {
                         disabled={isLoading}
                         title={showYamlEditor ? "Hide YAML Editor" : "Show YAML Editor"}
                     >
-                        <FileCode2 className="w-4 h-4 mr-2" />
+                        <Icon name="file-code-2" className="w-4 h-4 mr-2" />
                         {showYamlEditor ? 'Hide YAML' : 'Edit YAML'}
                     </Button>
 
                     <Separator orientation="vertical" className="h-6" />
 
                     <Button onClick={() => setIsRunsSidebarOpen(true)} size="icon" variant="ghost" className="relative" disabled={isLoading} data-tour="runs-history-button">
-                        <History className="w-5 h-5" />
+                        <Icon name="history" className="w-5 h-5" />
                         {isRunning && (
                              <span className="absolute top-0 right-0 block h-2 w-2 rounded-full bg-sky-500 ring-2 ring-background" />
                         )}
                     </Button>
                     <Button onClick={() => setIsTourModalOpen(true)} size="icon" variant="ghost" className="relative" title="Show Tour">
-                        <HelpCircle className="w-5 h-5" />
+                        <Icon name="help-circle" className="w-5 h-5" />
                     </Button>
                 </div>
             </header>
@@ -734,7 +715,7 @@ function SandboxClientPageInternal() {
         <div className="h-full overflow-y-auto pb-16 bg-background">
             {isFetchingFileContent && (
                 <div className="absolute inset-0 bg-background flex flex-col items-center justify-center z-10">
-                    <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                    <Icon name="loader-2" className="w-8 h-8 animate-spin text-muted-foreground" />
                 </div>
             )}
             
@@ -755,7 +736,7 @@ function SandboxClientPageInternal() {
                             disabled={isSaving || isLoading || !activeBlueprint || !isDirty}
                             size="sm"
                         >
-                            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                            {isSaving ? <Icon name="loader-2" className="w-4 h-4 animate-spin" /> : <Icon name="save" className="w-4 h-4" />}
                         </Button>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -765,21 +746,21 @@ function SandboxClientPageInternal() {
                                     className="text-muted-foreground"
                                     disabled={!activeBlueprint || hasOpenPr}
                                 >
-                                    <MoreVertical className="h-4 w-4" />
+                                    <Icon name="more-vertical" className="h-4 w-4" />
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                                 <DropdownMenuItem onSelect={() => setTimeout(() => handleHeaderAction(handleRename), 0)}>
-                                    <Pencil className="w-4 h-4 mr-2" />
+                                    <Icon name="pencil" className="w-4 h-4 mr-2" />
                                     Rename
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onSelect={() => setTimeout(() => handleHeaderAction(duplicateBlueprint), 0)}>
-                                    <Copy className="w-4 h-4 mr-2" />
+                                    <Icon name="copy" className="w-4 h-4 mr-2" />
                                     Duplicate
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem onSelect={() => setTimeout(() => handleHeaderAction(setFileToDelete), 0)} className="text-destructive">
-                                    <Trash className="w-4 h-4 mr-2" />
+                                    <Icon name="trash" className="w-4 h-4 mr-2" />
                                     Delete
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
@@ -791,7 +772,7 @@ function SandboxClientPageInternal() {
             {hasOpenPr && (
                 <div className="bg-primary/10 p-4 border-b">
                     <div className="flex items-center gap-3">
-                        <GitPullRequest className="h-5 w-5 text-primary flex-shrink-0" />
+                        <Icon name="git-pull-request" className="h-5 w-5 text-primary flex-shrink-0" />
                         <div className="flex-1 min-w-0">
                             <h3 className="font-semibold text-sm">Under Review</h3>
                             <p className="text-sm text-muted-foreground">Editing locked while PR is open</p>
@@ -834,9 +815,9 @@ function SandboxClientPageInternal() {
                         className="w-full bg-exciting text-exciting-foreground border-exciting hover:bg-exciting/90"
                     >
                         {isRunning ? (
-                            <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Running...</>
+                            <><Icon name="loader-2" className="w-5 h-5 mr-2 animate-spin" /> Running...</>
                         ) : (
-                            <><FlaskConical className="w-5 h-5 mr-2" />Run Evaluation</>
+                            <><Icon name="flask-conical" className="w-5 h-5 mr-2" />Run Evaluation</>
                         )}
                     </Button>
                     
@@ -927,7 +908,7 @@ function SandboxClientPageInternal() {
                         <div className="flex-shrink-0 border-b bg-primary/10 p-3 text-sm">
                             <div className="flex items-center justify-between gap-4">
                                 <div className="flex items-center gap-3">
-                                    <GitPullRequest className="h-5 w-5 text-primary flex-shrink-0" />
+                                    <Icon name="git-pull-request" className="h-5 w-5 text-primary flex-shrink-0" />
                                     <div>
                                         <h3 className="font-semibold">This blueprint is under review.</h3>
                                         <p className="text-muted-foreground">Editing is locked while a pull request is open.</p>
@@ -955,7 +936,7 @@ function SandboxClientPageInternal() {
                     <div className="flex-grow flex flex-row gap-px bg-border relative min-h-0" data-tour="editor-panels">
                         {isFetchingFileContent && (
                             <div className="absolute inset-0 bg-background flex flex-col items-center justify-center z-10">
-                                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                                <Icon name="loader-2" className="w-8 h-8 animate-spin text-muted-foreground" />
                             </div>
                         )}
                         <div
@@ -1018,7 +999,7 @@ function SandboxClientPageInternal() {
          return (
             <div className="h-screen w-full flex flex-col items-center justify-center gap-4">
                 <h1 className="text-2xl font-bold">Initializing Sandbox Studio</h1>
-                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                <Icon name="loader-2" className="w-8 h-8 animate-spin text-muted-foreground" />
                 <p className="text-muted-foreground">{loadingMessage}</p>
             </div>
         );
@@ -1040,7 +1021,7 @@ function SandboxClientPageInternal() {
             {isLoggingInWithGitHub && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
                     <div className="bg-exciting text-exciting-foreground px-8 py-6 rounded-lg shadow-2xl flex items-center gap-4 max-w-md mx-4">
-                        <Loader2 className="w-8 h-8 animate-spin" />
+                        <Icon name="loader-2" className="w-8 h-8 animate-spin" />
                         <div>
                             <h3 className="font-bold text-lg">Connecting to GitHub</h3>
                             <p className="text-sm opacity-90">Redirecting to GitHub authentication...</p>
@@ -1052,8 +1033,8 @@ function SandboxClientPageInternal() {
                 isOpen={isTourModalOpen}
                 onClose={() => setIsTourModalOpen(false)}
                 isLoggedIn={isLoggedIn}
-                ChevronLeftIcon={ChevronLeft}
-                ChevronRightIcon={ChevronRight}
+                ChevronLeftIcon={() => <Icon name="chevron-left" />}
+                ChevronRightIcon={() => <Icon name="chevron-right" />}
             />
             <RunsSidebar
                 isOpen={isRunsSidebarOpen}
@@ -1139,7 +1120,7 @@ function SandboxClientPageInternal() {
                     <DialogFooter>
                         <Button variant="ghost" onClick={() => setFileToDelete(null)}>Cancel</Button>
                         <Button variant="destructive" onClick={confirmDeletion}>
-                            {isDeleting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                            {isDeleting ? <Icon name="loader-2" className="w-4 h-4 mr-2 animate-spin" /> : null}
                             Delete
                         </Button>
                     </DialogFooter>

@@ -9,10 +9,7 @@ import dynamic from 'next/dynamic';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-
-const Loader2 = dynamic(() => import('lucide-react').then(mod => mod.Loader2));
-const Wand = dynamic(() => import('lucide-react').then(mod => mod.Wand2));
-const BookOpenCheck = dynamic(() => import('lucide-react').then(mod => mod.BookOpenCheck));
+import Icon from '@/components/ui/icon';
 
 interface AutoCreateModalProps {
   onGenerated: (yaml: string) => void;
@@ -168,10 +165,10 @@ export function AutoCreateModal({ onGenerated, isOpen, onOpenChange }: AutoCreat
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                     <TabsList className="grid w-full grid-cols-2">
                         <TabsTrigger value="freeform" className="flex items-center gap-2">
-                            <Wand className="w-4 h-4" /> Freeform
+                            <Icon name="wand" className="w-4 h-4" /> Freeform
                         </TabsTrigger>
                         <TabsTrigger value="wiki" className="flex items-center gap-2">
-                            <BookOpenCheck className="w-4 h-4" /> From Wikipedia
+                            <Icon name="book-open-check" className="w-4 h-4" /> From Wikipedia
                         </TabsTrigger>
                     </TabsList>
                     <TabsContent value="freeform">
@@ -215,7 +212,7 @@ export function AutoCreateModal({ onGenerated, isOpen, onOpenChange }: AutoCreat
                         Cancel
                     </Button>
                     <Button type="button" onClick={handleGenerate} disabled={isLoading} className="w-32">
-                        {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Generate'}
+                        {isLoading ? <Icon name="loader-2" className="w-4 h-4 animate-spin" /> : 'Generate'}
                     </Button>
                 </DialogFooter>
             </DialogContent>

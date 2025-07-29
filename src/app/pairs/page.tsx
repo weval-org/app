@@ -1,18 +1,12 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import dynamic from 'next/dynamic';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
 import { ConversationMessage } from '@/types/shared';
-
-const Loader2 = dynamic(() => import('lucide-react').then(mod => mod.Loader2));
-const RefreshCw = dynamic(() => import('lucide-react').then(mod => mod.RefreshCw));
-const User = dynamic(() => import('lucide-react').then(mod => mod.User));
-const Bot = dynamic(() => import('lucide-react').then(mod => mod.Bot));
-const BrainCircuit = dynamic(() => import('lucide-react').then(mod => mod.BrainCircuit));
+import Icon from '@/components/ui/icon';
 
 interface Prompt {
   system?: string | null;
@@ -36,7 +30,7 @@ const PromptDisplay = ({ prompt }: { prompt: ComparisonTask['prompt'] }) => {
       {prompt.system && (
         <div className="p-3 bg-blue-900/10 dark:bg-blue-500/10 border border-blue-500/20 rounded-lg">
           <div className="flex items-center gap-2 mb-2">
-            <BrainCircuit className="w-5 h-5 text-blue-500" />
+            <Icon name="brain-circuit" className="w-5 h-5 text-blue-500" />
             <h4 className="font-semibold text-blue-600 dark:text-blue-400">System Prompt</h4>
           </div>
           <p className="text-foreground/80 whitespace-pre-wrap text-sm">{prompt.system}</p>
@@ -45,7 +39,7 @@ const PromptDisplay = ({ prompt }: { prompt: ComparisonTask['prompt'] }) => {
       {prompt.messages.map((message, index) => (
         <div key={index} className="flex items-start gap-3">
           <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${message.role === 'user' ? 'bg-gray-200 dark:bg-gray-700' : 'bg-green-200 dark:bg-green-800'}`}>
-            {message.role === 'user' ? <User className="w-5 h-5 text-gray-600 dark:text-gray-300" /> : <Bot className="w-5 h-5 text-green-600 dark:text-green-300" />}
+            {message.role === 'user' ? <Icon name="user" className="w-5 h-5 text-gray-600 dark:text-gray-300" /> : <Icon name="bot" className="w-5 h-5 text-green-600 dark:text-green-300" />}
           </div>
           <div className="flex-grow pt-1">
             <p className="text-foreground whitespace-pre-wrap">{message.content}</p>
@@ -136,7 +130,7 @@ const PairwiseComparisonForm = () => {
   if (isLoading && !task) {
     return (
         <div className="flex flex-col items-center justify-center min-h-[400px] text-muted-foreground">
-            <Loader2 className="w-12 h-12 animate-spin mb-4" />
+            <Icon name="loader-2" className="w-12 h-12 animate-spin mb-4" />
             <p>Fetching a new comparison...</p>
         </div>
     );
@@ -147,7 +141,7 @@ const PairwiseComparisonForm = () => {
         <div className="flex flex-col items-center justify-center min-h-[400px] text-red-500">
             <p className="mb-4">{error}</p>
             <Button onClick={fetchTask}>
-                <RefreshCw className="mr-2 h-4 w-4" />
+                <Icon name="refresh-cw" className="mr-2 h-4 w-4" />
                 Try Again
             </Button>
         </div>
@@ -183,7 +177,7 @@ const PairwiseComparisonForm = () => {
             </CardContent>
           </Card>
           <Button size="lg" onClick={() => handlePreferenceSelect('A')} disabled={isButtonDisabled}>
-            {isSubmitting && selectedPreference === 'A' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isSubmitting && selectedPreference === 'A' && <Icon name="loader-2" className="mr-2 h-4 w-4 animate-spin" />}
             A is Better
           </Button>
         </div>
@@ -197,7 +191,7 @@ const PairwiseComparisonForm = () => {
             </CardContent>
           </Card>
           <Button size="lg" onClick={() => handlePreferenceSelect('B')} disabled={isButtonDisabled}>
-            {isSubmitting && selectedPreference === 'B' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isSubmitting && selectedPreference === 'B' && <Icon name="loader-2" className="mr-2 h-4 w-4 animate-spin" />}
             B is Better
           </Button>
         </div>
@@ -219,7 +213,7 @@ const PairwiseComparisonForm = () => {
           </div>
           <div className="flex justify-center items-center gap-4">
              <Button variant="ghost" onClick={() => handleSubmit('Indifferent')} disabled={isButtonDisabled}>
-                {isSubmitting && selectedPreference === 'Indifferent' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isSubmitting && selectedPreference === 'Indifferent' && <Icon name="loader-2" className="mr-2 h-4 w-4 animate-spin" />}
                 About the Same
             </Button>
             <Button variant="link" onClick={fetchTask} disabled={isButtonDisabled}>

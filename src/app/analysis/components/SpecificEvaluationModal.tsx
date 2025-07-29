@@ -1,9 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import dynamic from 'next/dynamic';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelIdUtils';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
@@ -13,10 +11,7 @@ import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { CoverageResult } from '@/app/utils/types';
 import PromptInfo from './PromptInfo';
-
-const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
-const Quote = dynamic(() => import('lucide-react').then(mod => mod.Quote), { ssr: false });
-const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
+// import { usePreloadIcons } from '@/components/ui/use-preload-icons';
 
 interface ModelEvaluationVariant {
     modelId: string;
@@ -37,8 +32,17 @@ const SpecificEvaluationModal: React.FC = () => {
     const [isMobileView, setIsMobileView] = useState(false);
     const [selectedVariantIndex, setSelectedVariantIndex] = useState(0);
 
+    // Preload icons used in this modal and child components
+    // usePreloadIcons([
+    //     'message-square', 'chevron-down', 'quote', 'chevron-up', 
+    //     'alert-triangle', 'chevrons-up-down', 'server', 'thumbs-down', 
+    //     'check-circle', 'trophy'
+    // ]);
+
     // Extract modal data from context
     const { isOpen, promptId, modelId } = modelEvaluationModal;
+
+    console.log('[DEBUG] SpecificEvaluationModal render:', { isOpen, promptId, modelId });
 
     // Mobile detection
     useEffect(() => {
@@ -57,8 +61,12 @@ const SpecificEvaluationModal: React.FC = () => {
 
     // Prepare modal data when modal opens
     const modalData = React.useMemo(() => {
+        console.log('[DEBUG] modalData useMemo running:', { isOpen, promptId, modelId, hasData: !!data });
+        
         if (!isOpen || !promptId || !modelId || !data) return null;
 
+        console.log('[DEBUG] Starting modalData computation...');
+        
         const { evaluationResults, config, allFinalAssistantResponses, promptContexts, effectiveModels } = data;
         const llmCoverageScores = evaluationResults?.llmCoverageScores as Record<string, Record<string, CoverageResult>> | undefined;
         
@@ -133,7 +141,7 @@ const SpecificEvaluationModal: React.FC = () => {
         const baseModelId = clickedParsed.temperature !== undefined ? `${clickedParsed.baseId}[temp:${clickedParsed.temperature}]` : clickedParsed.baseId;
         const idealResponse = allFinalAssistantResponses?.[promptId]?.[IDEAL_MODEL_ID];
 
-        return {
+        const result = {
             baseModelId: baseModelId,
             promptContext: promptContext,
             promptDescription: promptConfig?.description,
@@ -143,6 +151,9 @@ const SpecificEvaluationModal: React.FC = () => {
             idealResponse: idealResponse,
             variantScores: analysisStats?.perSystemVariantHybridScores,
         };
+        
+        console.log('[DEBUG] modalData computation completed successfully:', result);
+        return result;
     }, [isOpen, promptId, modelId, data, analysisStats]);
 
     // Set initial variant index when modal data changes

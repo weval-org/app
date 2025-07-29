@@ -6,12 +6,13 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import PromptContextDisplay from './PromptContextDisplay';
 import { ConversationMessage } from '@/types/shared';
+import Icon from '@/components/ui/icon';
+// import { usePreloadIcons } from '@/components/ui/use-preload-icons';
+import ReactMarkdown from 'react-markdown';
+import RemarkGfmPlugin from 'remark-gfm';
 
-const ChevronDown = dynamic(() => import('lucide-react').then(mod => mod.ChevronDown), { ssr: false });
-const Quote = dynamic(() => import('lucide-react').then(mod => mod.Quote), { ssr: false });
-const MessageSquare = dynamic(() => import('lucide-react').then(mod => mod.MessageSquare), { ssr: false });
-const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
-const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
+// const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
+// const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
 
 interface PromptInfoProps {
   description: string | undefined;
@@ -30,6 +31,8 @@ const PromptInfo: React.FC<PromptInfoProps> = ({
 }) => {
   const [isOpen, setIsOpen] = React.useState(true);
 
+  // usePreloadIcons(['message-square', 'chevron-down']);
+
   return (
     <Card className="border-border/50">
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -37,10 +40,10 @@ const PromptInfo: React.FC<PromptInfoProps> = ({
           <CardHeader className="cursor-pointer hover:bg-muted/30 transition-colors">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                <Icon name="message-square" className="h-4 w-4 text-muted-foreground" />
                 Prompt & Context Details
               </CardTitle>
-              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+              <Icon name="chevron-down" className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} />
             </div>
           </CardHeader>
         </CollapsibleTrigger>
@@ -83,7 +86,7 @@ const PromptInfo: React.FC<PromptInfoProps> = ({
               <div className="space-y-2">
                 <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Source</h4>
                 <div className="flex items-start space-x-2 p-3 rounded-md bg-slate-50 dark:bg-slate-950/30 border border-slate-200 dark:border-slate-800/30">
-                  <Quote className="h-3.5 w-3.5 mt-0.5 flex-shrink-0 text-slate-600 dark:text-slate-400" />
+                  <Icon name="quote" className="h-3.5 w-3.5 mt-0.5 flex-shrink-0 text-slate-600 dark:text-slate-400" />
                   <span className="text-xs text-slate-700 dark:text-slate-300">{citation}</span>
                 </div>
               </div>

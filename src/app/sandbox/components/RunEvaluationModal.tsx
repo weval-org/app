@@ -4,9 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { ModelSelector } from './ModelSelector';
-import dynamic from 'next/dynamic';
-
-const Loader2 = dynamic(() => import('lucide-react').then(mod => mod.Loader2), { ssr: false });
+import Icon from '@/components/ui/icon';
 
 const AVAILABLE_PLAYGROUND_MODELS = [
   "openai:gpt-4o-mini",
@@ -66,7 +64,7 @@ export function RunEvaluationModal({ isOpen, onClose, onRun, isSubmitting }: Run
             disabled={isSubmitting || selectedModels.length === 0}
           >
             {isSubmitting ? (
-              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Running...</>
+              <><Icon name="loader-2" className="w-4 h-4 mr-2 animate-spin" /> Running...</>
             ) : (
               `Run with ${selectedModels.length} model(s)`
             )}

@@ -3,12 +3,7 @@
 import React from 'react';
 import dynamic from 'next/dynamic';
 import { cn } from '@/lib/utils';
-
-const AlertTriangle = dynamic(() => import('lucide-react').then(mod => mod.AlertTriangle));
-const Users = dynamic(() => import('lucide-react').then(mod => mod.Users));
-const Unlink = dynamic(() => import('lucide-react').then(mod => mod.Unlink));
-const Thermometer = dynamic(() => import('lucide-react').then(mod => mod.Thermometer));
-const MessageSquare = dynamic(() => import('lucide-react').then(mod => mod.MessageSquare));
+import Icon from '@/components/ui/icon';
 
 export type ActiveHighlight = 'outlier' | 'disagreement' | 'critical_failure' | 'temp_sensitivity' | 'sys_sensitivity';
 
@@ -20,27 +15,27 @@ interface CoverageTableLegendProps {
 
 const legendConfig: Record<ActiveHighlight, { icon: React.ElementType, text: string, iconClassName: string }> = {
   critical_failure: {
-    icon: AlertTriangle,
+    icon: () => <Icon name="alert-triangle" />,
     text: "Violated a 'should not' constraint",
     iconClassName: "text-red-600 dark:text-red-500",
   },
   temp_sensitivity: {
-    icon: Thermometer,
+    icon: () => <Icon name="thermometer" />,
     text: "Sensitive to temperature changes",
     iconClassName: "text-orange-500 dark:text-orange-400",
   },
   sys_sensitivity: {
-    icon: MessageSquare,
+    icon: () => <Icon name="message-square" />,
     text: "Sensitive to system prompt changes",
     iconClassName: "text-indigo-500 dark:text-indigo-400",
   },
   outlier: {
-    icon: Unlink,
+    icon: () => <Icon name="unlink" />,
     text: 'Outlier score (>1.5σ from prompt average)',
     iconClassName: "text-amber-600 dark:text-amber-500",
   },
   disagreement: {
-    icon: Users,
+    icon: () => <Icon name="users" />,
     text: 'High judge disagreement on a criterion',
     iconClassName: "text-sky-600 dark:text-sky-500",
   },

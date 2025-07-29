@@ -13,11 +13,7 @@ import PromptPerformanceModal from '@/app/analysis/components/PromptPerformanceM
 import SpecificEvaluationModal from '@/app/analysis/components/SpecificEvaluationModal';
 import CoverageHeatmapCanvas from '@/app/analysis/components/CoverageHeatmapCanvas';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
-
-const Loader2 = dynamic(() => import("lucide-react").then((mod) => mod.Loader2))
-const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.AlertCircle))
-const AlertTriangle = dynamic(() => import("lucide-react").then((mod) => mod.AlertTriangle))
-const ArrowLeft = dynamic(() => import("lucide-react").then(mod => mod.ArrowLeft));
+import Icon from '@/components/ui/icon';
 
 export const SandboxClientPage: React.FC = () => {
     const { 
@@ -59,7 +55,7 @@ export const SandboxClientPage: React.FC = () => {
     if (loading) {
         return (
           <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
-            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            <Icon name="loader-2" className="h-12 w-12 animate-spin text-primary" />
             <p className="ml-4 text-lg text-muted-foreground">Loading analysis data...</p>
           </div>
         )
@@ -68,7 +64,7 @@ export const SandboxClientPage: React.FC = () => {
     if (error) {
         return (
             <Alert variant="destructive" className="max-w-2xl mx-auto my-10">
-                <AlertCircle className="h-4 w-4" />
+                <Icon name="alert-circle" className="h-4 w-4" />
                 <AlertTitle>Error Loading Data</AlertTitle>
                 <AlertDescription>{error}</AlertDescription>
             </Alert>
@@ -78,7 +74,7 @@ export const SandboxClientPage: React.FC = () => {
     if (promptNotFound) {
         return (
           <Alert variant="destructive" className="max-w-2xl mx-auto my-10">
-            <AlertCircle className="h-4 w-4" />
+            <Icon name="alert-circle" className="h-4 w-4" />
             <AlertTitle>Prompt Not Found</AlertTitle>
             <AlertDescription>
               The prompt ID <code className="font-mono bg-muted px-1 py-0.5 rounded">{currentPromptId}</code> was not found in this evaluation run.
@@ -92,13 +88,13 @@ export const SandboxClientPage: React.FC = () => {
     return (
         <div className="mx-auto p-4 md:p-6 lg:p-8 space-y-8">
             <Alert className="border-primary/50 bg-primary/5">
-                <AlertTriangle className="h-4 w-4 text-primary" />
+                <Icon name="alert-triangle" className="h-4 w-4 text-primary" />
                 <AlertTitle className="text-primary font-semibold">Sandbox Studio Test Results</AlertTitle>
                 <AlertDescription className="text-sm">
                     <p>This is a temporary result page for your test run. These results will be automatically deleted after one week.</p>
                     <Button asChild variant="link" className="p-0 h-auto mt-2 text-primary font-semibold text-sm">
                         <Link href="/sandbox">
-                            <ArrowLeft className="w-4 h-4 mr-2" />
+                            <Icon name="arrow-left" className="w-4 h-4 mr-2" />
                             Return to Sandbox Studio
                         </Link>
                     </Button>
@@ -110,7 +106,7 @@ export const SandboxClientPage: React.FC = () => {
             <div className="mt-12 text-center border-t border-border pt-8">
                 <Button asChild size="lg">
                     <Link href="/sandbox">
-                        <ArrowLeft className="w-4 h-4 mr-2" />
+                        <Icon name="arrow-left" className="w-4 h-4 mr-2" />
                         Return to Sandbox Studio
                     </Link>
                 </Button>

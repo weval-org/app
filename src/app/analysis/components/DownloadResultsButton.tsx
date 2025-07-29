@@ -1,11 +1,9 @@
 'use client';
 
-import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import { ComparisonDataV2 } from '@/app/utils/types';
 import { toSafeTimestamp } from '@/lib/timestampUtils';
-
-const DownloadIcon = dynamic(() => import('lucide-react').then(mod => mod.Download));
+import Icon from '@/components/ui/icon';
 
 interface DownloadResultsButtonProps {
   data: ComparisonDataV2 | null;
@@ -59,7 +57,7 @@ export default function DownloadResultsButton({ data, label }: DownloadResultsBu
       className="text-green-600 dark:text-green-400 border-green-600/70 dark:border-green-700/70 hover:bg-green-600/10 dark:hover:bg-green-700/30 hover:text-green-700 dark:hover:text-green-300 px-3 py-1.5 text-xs"
       title="Download the full analysis data as a JSON file"
     >
-      {DownloadIcon && <DownloadIcon className="w-3.5 h-3.5 mr-1.5" />}
+      <Icon name="download" className="w-3.5 h-3.5 mr-1.5" />
       Download JSON
     </Button>
   );

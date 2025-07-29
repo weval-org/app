@@ -177,7 +177,8 @@ export async function executeComparisonPipeline(
         evaluationInputs.push({
             promptData: promptData,
             config: config,
-            effectiveModelIds: modelIdsForThisPrompt
+            effectiveModelIds: modelIdsForThisPrompt,
+            embeddingModel: config.embeddingModel, // Pass embedding model
         });
     }
 
@@ -202,6 +203,39 @@ export async function executeComparisonPipeline(
         const results = await evaluator.evaluate(evaluationInputs);
         combinedEvaluationResults = { ...combinedEvaluationResults, ...results };
         logger.info(`[PipelineService] --- Finished ${evaluator.getMethodName()} evaluator ---`);
+        
+        // Early validation: Check if embedding evaluation failed completely
+        if (evaluator.getMethodName() === 'embedding' && results.perPromptSimilarities) {
+            const allSimilarityValues: number[] = [];
+            
+            // Collect all similarity scores
+            Object.values(results.perPromptSimilarities).forEach(promptData => {
+                Object.values(promptData).forEach(modelData => {
+                    Object.values(modelData).forEach(score => {
+                        if (typeof score === 'number') {
+                            allSimilarityValues.push(score);
+                        }
+                    });
+                });
+            });
+            
+            // Filter out self-similarities (which are always 1.0) and check if all others are NaN
+            const nonSelfSimilarities = allSimilarityValues.filter(score => score !== 1.0);
+            const allNaN = nonSelfSimilarities.length > 0 && nonSelfSimilarities.every(score => isNaN(score));
+            
+            if (allNaN) {
+                const errorMsg = 'Embedding evaluation failed completely - all similarity scores are NaN. This typically indicates an issue with the embedding API (missing OPENAI_API_KEY, API errors, or network issues). Aborting run to prevent data contamination.';
+                logger.error(`[PipelineService] ${errorMsg}`);
+                throw new Error(errorMsg);
+            }
+            
+            const nanCount = nonSelfSimilarities.filter(score => isNaN(score)).length;
+            if (nanCount > 0) {
+                logger.warn(`[PipelineService] Found ${nanCount} NaN similarity scores out of ${nonSelfSimilarities.length} comparisons. Some embeddings may have failed.`);
+            } else {
+                logger.info(`[PipelineService] Embedding evaluation successful - ${nonSelfSimilarities.length} valid similarity scores generated.`);
+            }
+        }
     }
 
     // Step 4: Aggregate and save results

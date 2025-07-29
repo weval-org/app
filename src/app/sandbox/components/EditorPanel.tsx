@@ -8,8 +8,7 @@ import { yaml as yamlLanguage } from '@codemirror/lang-yaml';
 import { githubDark, githubLight } from '@uiw/codemirror-theme-github';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useDebouncedCallback } from 'use-debounce';
-
-const AlertTriangle = dynamic(() => import('lucide-react').then(mod => mod.AlertTriangle));
+import Icon from '@/components/ui/icon';
 
 interface EditorPanelProps {
     rawContent: string | null;
@@ -81,7 +80,7 @@ export function EditorPanel({ rawContent, onChange, isLoading, isSaving, readOnl
                 </div>
                 {yamlError && (
                     <div className="flex flex-shrink-0 items-center gap-2 bg-destructive p-2 text-xs font-mono text-destructive-foreground">
-                        <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                        <Icon name="alert-triangle" className="h-4 w-4 flex-shrink-0" />
                         <p className="truncate">YAML Error: {yamlError}</p>
                     </div>
                 )}

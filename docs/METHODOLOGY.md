@@ -123,7 +123,7 @@ The Hybrid Score is a composite metric designed to provide a single, balanced me
     *   $S_{\text{cov}}$ is the rubric coverage score.
     *   $\beta$ is the weighting factor for similarity.
 
-    Weval uses a default weighting of **$\beta = 0.35$ (35% for similarity) and $1-\beta=0.65$ (65% for coverage)**. This reflects the platform's emphasis on rubric-based evaluation as the primary measure of performance, while still valuing the holistic quality captured by semantic similarity.
+    Weval uses a default weighting of **$\beta = 0.35$ (35% for similarity) and $1-\beta=0.65$ (65% for coverage)**. This reflects the platform's emphasis on rubric-based evaluation as the primary measure of performance, while still valuing the holistic quality captured by semantic similarity. On the homepage leaderboard, this default weighting is used, but users are provided with a slider to dynamically adjust this weighting, which re-ranks the models in real-time.
 
 *   **(Legacy) Geometric Mean**: Previously, the platform used a geometric mean ($\sqrt{S_{\text{sim}} \cdot S_{\text{cov}}}$). While statistically sound for averaging normalized ratios, it was replaced because the weighted arithmetic mean makes the platform's priorities more explicit and easier for users to understand.
 
@@ -145,7 +145,59 @@ The homepage displays several aggregate statistics, including a leaderboard of t
 *   **Metric**: Models are ranked by their **Overall Average Hybrid Score**.
 *   **Blueprint Weighting**: To ensure that each evaluation blueprint contributes equally to the final rankings, the leaderboard calculation uses only the **single most recent run** of each unique blueprint. This prevents blueprints that are run more frequently from having an outsized influence on the results.
 *   **Calculation**: For each model, the system takes its average Hybrid Score from the latest run of every blueprint it participated in. These scores are then averaged to produce the final `overallAverageScore` used for ranking.
-*   **Participation Threshold**: To ensure statistical significance and prevent models from being ranked based on performance in only a few, specialized tests, a model must have participated in a minimum number of evaluation runs to be included on the leaderboard.
+*   **Participation Threshold**: To ensure statistical significance and prevent models from being ranked based on performance in only a few, specialized tests, a model must have participated in a minimum of **10 evaluation runs** to be included on the leaderboard.
+
+### 5.4. Dimension Champions
+
+The "Dimension Champions" section of the homepage highlights models that exhibit exceptional performance in specific qualitative areas.
+
+*   **Data Source**: This metric is derived exclusively from the structured `grades` provided in the `executiveSummary` of evaluation runs. In these runs, a "judge" LLM assigns a 1-10 score to a model's response across various dimensions (e.g., Clarity, Adherence, Safety).
+*   **Eligibility Criteria**: To qualify as a potential champion for a specific dimension, a model must have been graded for that dimension in at least **10 unique evaluation blueprints (configs)**. This ensures that a champion has demonstrated broad, cross-domain competence rather than narrow excellence on a single task.
+*   **Champion Selection**: For each dimension, the system calculates the average score for all eligible models. The model with the highest average score is declared the "Dimension Champion" for that category.
+
+### 5.5. Qualitative Analysis via Executive Summary
+
+For certain blueprints, an additional layer of qualitative analysis is performed by an "analyst" LLM to generate an **Executive Summary**. This process adds a rich, human-readable interpretation on top of the quantitative scores.
+
+*   **The Analyst Model**: Gemini-2.5-flash is enlisted to act as an expert analyst. Its task is not to participate in the evaluation, but to analyze its results.
+*   **The Prompt [see here](https://github.com/weval-org/app/blob/main/src/cli/services/executive-summary-service.ts)**: The service constructs a single, comprehensive prompt containing:
+    1.  The full data from the evaluation run, including every prompt and every model's response.
+    2.  A detailed set of grading criteria and scoring guidance, instructing the analyst on how to score models on a 1-10 scale across dimensions like Clarity, Adherence, and Safety.
+    3.  A strict command to output its analysis in a structured, XML-like format.
+*   **Structured Output**: The analyst model returns a detailed summary that includes:
+    *   **Qualitative Insights**: Key findings, strengths, weaknesses, and interesting patterns observed during the evaluation.
+    *   **Quantitative Grades**: A grade for every participating model across every dimension.
+*   **Parsing and Storage**: The system parses this structured text response into a JSON object, which is then stored as the `executiveSummary` field in the result file. This data is the source for the "Dimension Champions" metric.
+
+#### 5.5.1. Model Anonymization to Reduce LLM Bias
+
+To ensure objective analysis, we employ anonymization during executive summary generation. This addresses the well-documented phenomenon where LLMs exhibit bias based on recognizable model names or providers.
+
+**The Bias Problem**: LLMs may have preconceptions about specific models (e.g., "GPT-4o is creative" or "Claude is empathetic") that influence their analysis. This can lead to biased assessments where brand recognition overshadows actual performance.
+
+**The Anonymization Solution**: Before sending evaluation data to the analyst LLM, all model identifiers are systematically anonymized using a **maker-grouped format**:
+
+*   **Provider vs. Maker Distinction**: The system makes a crucial distinction between API *providers* (implementation details like `openai`, `openrouter`, `anthropic`) and model *makers* (the companies that actually created the models like OpenAI, Google, Anthropic). 
+*   **Provider Elimination**: All provider references are completely removed as they are semantically meaningless for analysis (the same model accessed via different APIs should be evaluated identically).
+*   **Maker Preservation**: Maker information is preserved in anonymized form to allow for meaningful comparative analysis within and across model families.
+
+**Anonymization Format**: Models are grouped by their maker and assigned sequential identifiers:
+```
+Original: openai:gpt-4o, openai:gpt-4o-mini, anthropic:claude-3-5-sonnet
+Anonymized: MAKER_A_MODEL_1, MAKER_A_MODEL_2, MAKER_B_MODEL_1
+```
+
+**Technical Process**:
+1.  **Maker Inference**: Models are grouped by actual creator (OpenAI, Anthropic, Google, etc.) using pattern matching on model IDs and names.
+2.  **Sequential Assignment**: Within each maker group, models receive sequential numbers ensuring deterministic, reproducible mappings.
+3.  **Aggressive Sanitization**: All provider names, prefixes (e.g., `openai:`), and grouping patterns are stripped from the evaluation report.
+4.  **Clean Analysis**: The analyst LLM sees only anonymous maker-model references like `MAKER_A_MODEL_1` with no indication of real identities.
+
+**Deanonymization**: After the analyst completes its evaluation, all anonymized references in the response are systematically restored to human-readable display names using reverse mapping. This handles various linguistic variations the LLM might use (e.g., "Maker A Model 1", "MAKER_A models").
+
+**Benefits**: This approach eliminates brand bias while preserving the ability to identify meaningful patterns like "models from the same maker show similar strengths" or "MAKER_A excels at reasoning tasks." The analyst's conclusions are based purely on observed performance rather than preconceptions.
+
+**Transparency**: All anonymization mappings are logged during processing, and the system provides extensive debugging output to verify complete elimination of identifying information before analysis begins.
 
 ## 6. Risks, Assumptions, and Affordances
 
@@ -158,6 +210,7 @@ The validity of Weval's metrics rests on these core assumptions:
 *   **Assumption of Appropriate Weighting in Hybrid Score**: The Hybrid Score's weighted average (35% similarity, 65% coverage) assumes that this is a reasonable and balanced reflection of importance for most general use cases. While this explicit weighting is more transparent than an unweighted mean, the specific ratio may not be optimal for every evaluation's unique goals.
 *   **Assumption of Linearity in Score Mapping**: The 5-point categorical scale from the LLM judge is mapped to a linear, equidistant numerical scale. This assumes the qualitative gap between "Absent" and "Slightly Present" is the same as between "Majorly Present" and "Fully Present," which may not be perceptually true.
 *   **Assumption of Criterion Independence**: The rubric score (`avgCoverageExtent`) is a weighted average that treats each criterion as an independent variable. It does not account for potential correlations between criteria (e.g., "clarity" and "conciseness").
+*   **Assumption of Effective Bias Reduction via Anonymization**: The model anonymization system assumes that removing real model names and providers significantly reduces analyst LLM bias, while preserving maker-level information provides meaningful comparative insights. This assumes that brand bias is primarily driven by explicit name recognition rather than subtle patterns in response style that might persist even when anonymized.
 
 ### 6.2. Known Risks and Limitations for Interpretation
 

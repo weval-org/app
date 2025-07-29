@@ -3,9 +3,7 @@
 import { ReactNode, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import dynamic from 'next/dynamic';
-
-const X = dynamic(() => import('lucide-react').then(mod => mod.X));
+import Icon from '@/components/ui/icon';
 
 interface BottomSheetProps {
   isOpen: boolean;
@@ -44,7 +42,7 @@ export function MobileBottomSheet({ isOpen, onClose, title, children }: BottomSh
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h3 className="text-lg font-semibold">{title}</h3>
           <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="w-5 h-5" />
+            <Icon name="x" className="w-5 h-5" />
           </Button>
         </div>
         

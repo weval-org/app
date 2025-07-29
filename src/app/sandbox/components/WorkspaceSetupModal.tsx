@@ -8,9 +8,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import dynamic from 'next/dynamic';
-
-const Loader2 = dynamic(() => import('lucide-react').then(mod => mod.Loader2), { ssr: false });
+import Icon from '@/components/ui/icon';
 
 interface WorkspaceSetupModalProps {
   isOpen: boolean;
@@ -46,7 +44,7 @@ export function WorkspaceSetupModal({ isOpen, onClose, onConfirm, isConfirming }
           <Button onClick={onConfirm} disabled={isConfirming}>
             {isConfirming ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Icon name="loader-2" className="mr-2 h-4 w-4 animate-spin" />
                 Creating Fork...
               </>
             ) : (

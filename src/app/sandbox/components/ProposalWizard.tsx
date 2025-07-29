@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import dynamic from 'next/dynamic';
 import {
   Dialog,
   DialogContent,
@@ -13,10 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-
-const Loader2 = dynamic(() => import('lucide-react').then(mod => mod.Loader2));
-const CheckCircle = dynamic(() => import('lucide-react').then(mod => mod.CheckCircle));
-const GitPullRequest = dynamic(() => import('lucide-react').then(mod => mod.GitPullRequest));
+import Icon from '@/components/ui/icon';
 
 type Step = 'intro' | 'form' | 'processing' | 'success' | 'error';
 
@@ -122,7 +118,7 @@ export function ProposalWizard({
 
   const renderProcessingStep = () => (
     <div className="flex flex-col items-center justify-center text-center py-8">
-      <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
+      <Icon name="loader-2" className="w-12 h-12 text-primary animate-spin mb-4" />
       <h3 className="text-lg font-semibold">Submitting Your Proposal...</h3>
       <p className="text-muted-foreground mt-2">
         Please wait while we prepare and send your contribution for review.
@@ -132,7 +128,7 @@ export function ProposalWizard({
 
   const renderSuccessStep = () => (
     <div className="flex flex-col items-center justify-center text-center py-8">
-      <CheckCircle className="w-12 h-12 text-green-500 mb-4" />
+      <Icon name="check-circle" className="w-12 h-12 text-green-500 mb-4" />
       <h3 className="text-lg font-semibold">Proposal Submitted!</h3>
       <p className="text-muted-foreground mt-2">
         You can track the review status via the icon next to the file name in your blueprint list.
@@ -150,7 +146,7 @@ export function ProposalWizard({
         {prUrl && (
             <Button asChild>
                 <a href={prUrl} target="_blank" rel="noopener noreferrer">
-                    <GitPullRequest className="w-4 h-4 mr-2" />
+                    <Icon name="git-pull-request" className="w-4 h-4 mr-2" />
                     View on GitHub
                 </a>
             </Button>

@@ -4,11 +4,8 @@ import nextDynamic from 'next/dynamic';
 import Link from 'next/link';
 import CoverageHeatmapCanvas from '@/app/analysis/components/CoverageHeatmapCanvas';
 import { BlueprintSummaryInfo } from '@/app/utils/blueprintSummaryUtils';
-
-const ReactMarkdown = nextDynamic(() => import('react-markdown'), { ssr: false });
-
-// Define dynamic components once, outside the render function
-const FolderOpen = nextDynamic(() => import('lucide-react').then(mod => mod.FolderOpen));
+import ReactMarkdown from 'react-markdown';
+import RemarkGfmPlugin from 'remark-gfm';
 
 const getHybridScoreColor = (score: number | null | undefined): string => {
   if (score === null || score === undefined || isNaN(score)) return 'text-muted-foreground dark:text-muted-foreground';

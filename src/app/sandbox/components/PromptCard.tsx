@@ -3,7 +3,6 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { AutoExpandTextarea } from '@/components/ui/textarea';
-import dynamic from 'next/dynamic';
 import React, { useState, useEffect } from 'react';
 import {
   PointDefinition,
@@ -21,12 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useMobile } from '../hooks/useMobile';
-
-const Trash2 = dynamic(() => import('lucide-react').then(mod => mod.Trash2));
-const Copy = dynamic(() => import('lucide-react').then(mod => mod.Copy));
-const Plus = dynamic(() => import('lucide-react').then(mod => mod.Plus));
-const CheckCircle = dynamic(() => import('lucide-react').then(mod => mod.CheckCircle));
-const X = dynamic(() => import('lucide-react').then(mod => mod.X));
+import Icon from '@/components/ui/icon';
 
 type PromptConfig = WevalPromptConfig;
 
@@ -180,7 +174,7 @@ export function PromptCard({ prompt, onUpdate, onRemove, onDuplicate, isEditable
         {isAdvancedMode && alternativePaths.length > 0 && (
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
-                <CheckCircle className="w-4 h-4" />
+                <Icon name="check-circle" className="w-4 h-4" />
                 <h4 className="font-semibold text-sm">
                   Alternative Paths: Additionally, criteria must be met in AT LEAST ONE of the following paths.
                 </h4>
@@ -203,7 +197,7 @@ export function PromptCard({ prompt, onUpdate, onRemove, onDuplicate, isEditable
                                         className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded-full p-0.5 hover:bg-muted-foreground/20 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
                                         aria-label={`Remove Path ${index + 1}`}
                                     >
-                                        <X className="h-3.5 w-3.5" />
+                                        <Icon name="x" className="h-3.5 w-3.5" />
                                     </button>
                                 )}
                             </div>
@@ -242,7 +236,7 @@ export function PromptCard({ prompt, onUpdate, onRemove, onDuplicate, isEditable
                     className="text-muted-foreground hover:text-primary hover:bg-primary/10 h-7 w-7"
                     title="Duplicate Prompt"
                 >
-                    <Copy className="h-3.5 w-3.5" />
+                    <Icon name="copy" className="h-3.5 w-3.5" />
                 </Button>
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -253,7 +247,7 @@ export function PromptCard({ prompt, onUpdate, onRemove, onDuplicate, isEditable
                             title="Remove Prompt"
                             aria-label="Remove prompt"
                         >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Icon name="trash" className="h-3.5 w-3.5" />
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent>
@@ -365,7 +359,7 @@ export function PromptCard({ prompt, onUpdate, onRemove, onDuplicate, isEditable
                     onClick={handleAddPath}
                     className="text-muted-foreground h-8 p-1 font-medium -ml-1"
                 >
-                    <Plus className="h-3.5 w-3.5 mr-1.5" />
+                    <Icon name="plus" className="h-3.5 w-3.5 mr-1.5" />
                     Add Path
                 </Button>
             </CardFooter>

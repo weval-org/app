@@ -1,30 +1,11 @@
 "use client"
 
 import * as React from "react"
-const { lazy, Suspense } = React;
 import * as SelectPrimitive from "@radix-ui/react-select"
 
 import { cn } from "@/lib/utils"
+import Icon from "./icon"
 
-// Define a type for the icon component props
-interface IconProps extends React.SVGProps<SVGSVGElement> { }
-
-// Lazy load icons with explicit typing
-const Check = lazy(() => 
-  import('lucide-react').then(module => 
-    ({ default: module.Check as React.ComponentType<IconProps> })
-  )
-);
-const ChevronDown = lazy(() => 
-  import('lucide-react').then(module => 
-    ({ default: module.ChevronDown as React.ComponentType<IconProps> })
-  )
-);
-const ChevronUp = lazy(() => 
-  import('lucide-react').then(module => 
-    ({ default: module.ChevronUp as React.ComponentType<IconProps> })
-  )
-);
 
 const Select = SelectPrimitive.Root
 
@@ -39,16 +20,14 @@ const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      "flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background data-[placeholder]:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1",
+      "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1",
       className
     )}
     {...props}
   >
     {children}
     <SelectPrimitive.Icon asChild>
-      <Suspense fallback={null}>
-        <ChevronDown className="h-4 w-4 opacity-50" />
-      </Suspense>
+      <Icon name="chevron-down" className="h-4 w-4 opacity-50" />
     </SelectPrimitive.Icon>
   </SelectPrimitive.Trigger>
 ))
@@ -66,9 +45,7 @@ const SelectScrollUpButton = React.forwardRef<
     )}
     {...props}
   >
-    <Suspense fallback={null}>
-      <ChevronUp className="h-4 w-4" />
-    </Suspense>
+    <Icon name="chevron-up" className="h-4 w-4" />
   </SelectPrimitive.ScrollUpButton>
 ))
 SelectScrollUpButton.displayName = SelectPrimitive.ScrollUpButton.displayName
@@ -85,9 +62,7 @@ const SelectScrollDownButton = React.forwardRef<
     )}
     {...props}
   >
-    <Suspense fallback={null}>
-      <ChevronDown className="h-4 w-4" />
-    </Suspense>
+    <Icon name="chevron-down" className="h-4 w-4" />
   </SelectPrimitive.ScrollDownButton>
 ))
 SelectScrollDownButton.displayName =
@@ -144,18 +119,17 @@ const SelectItem = React.forwardRef<
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
       className
     )}
     {...props}
   >
-    <span className="absolute right-2 flex h-3.5 w-3.5 items-center justify-center">
+    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
       <SelectPrimitive.ItemIndicator>
-        <Suspense fallback={null}>
-          <Check className="h-4 w-4" />
-        </Suspense>
+        <Icon name="check" className="h-4 w-4" />
       </SelectPrimitive.ItemIndicator>
     </span>
+
     <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
   </SelectPrimitive.Item>
 ))

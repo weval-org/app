@@ -14,8 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useState } from 'react';
 import { useDebouncedCallback } from 'use-debounce';
-
-const Trash2 = dynamic(() => import('lucide-react').then(mod => mod.Trash2));
+import Icon from '@/components/ui/icon';
 
 interface ExpectationEditorProps {
   expectation: PointDefinition;
@@ -58,7 +57,7 @@ export function ExpectationEditor({ expectation, onUpdate, onRemove, variant, is
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
                 <Button size="icon" variant="ghost" className="h-7 w-7 flex-shrink-0" title="Remove Criterion" aria-label="Remove criterion">
-                    <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                    <Icon name="trash" className="h-3.5 w-3.5 text-muted-foreground" />
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>

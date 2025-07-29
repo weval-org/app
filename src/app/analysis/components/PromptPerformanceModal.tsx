@@ -8,8 +8,9 @@ import KeyPointCoverageTable from '@/app/analysis/components/KeyPointCoverageTab
 import PromptContextDisplay from '@/app/analysis/components/PromptContextDisplay';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { parseEffectiveModelId } from '@/app/utils/modelIdUtils';
+import Icon from '@/components/ui/icon';
+import { usePreloadIcons } from '@/components/ui/use-preload-icons';
 
-const Quote = dynamic(() => import('lucide-react').then(mod => mod.Quote), { ssr: false });
 const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
 const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
 
@@ -21,6 +22,9 @@ const PromptPerformanceModal: React.FC = () => {
         displayedModels,
         configId
     } = useAnalysis();
+    
+    // Preload icons used in this modal and child components
+    usePreloadIcons(['quote', 'chevrons-up-down']);
     
     const { isOpen, promptId } = promptDetailModal;
 
@@ -80,7 +84,7 @@ const PromptPerformanceModal: React.FC = () => {
                         
                         {promptConfig?.citation && (
                             <div className="flex items-start space-x-1.5 text-xs text-muted-foreground/90 italic border-l-2 border-border pl-3 py-2 mb-4">
-                                <Quote className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                                <Icon name="quote" className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
                                 <span>Source: {promptConfig.citation}</span>
                             </div>
                         )}

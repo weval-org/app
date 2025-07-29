@@ -2,10 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import dynamic from 'next/dynamic';
-
-const Loader2 = dynamic(() => import('lucide-react').then(mod => mod.Loader2), { ssr: false });
-const Github = dynamic(() => import('lucide-react').then(mod => mod.Github), { ssr: false });
+import Icon from '@/components/ui/icon';
 
 interface AnonymousRunModalProps {
   isOpen: boolean;
@@ -39,9 +36,9 @@ export function AnonymousRunModal({ isOpen, onClose, onRun, onLogin, isSubmittin
         <DialogFooter className="sm:justify-between gap-2 flex-wrap">
            <Button onClick={onLogin} variant="outline" className="w-full sm:w-auto" disabled={isSubmitting || isLoggingInWithGitHub}>
                 {isLoggingInWithGitHub ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Connecting...</>
+                    <><Icon name="loader-2" className="w-4 h-4 mr-2 animate-spin" />Connecting...</>
                 ) : (
-                    <><Github className="w-4 h-4 mr-2" />Login for Full Features</>
+                    <><Icon name="github" className="w-4 h-4 mr-2" />Login for Full Features</>
                 )}
             </Button>
             <div className="flex gap-2 justify-end w-full sm:w-auto">
@@ -53,7 +50,7 @@ export function AnonymousRunModal({ isOpen, onClose, onRun, onLogin, isSubmittin
                     disabled={isSubmitting}
                 >
                     {isSubmitting ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Running...</>
+                    <><Icon name="loader-2" className="w-4 h-4 mr-2 animate-spin" /> Running...</>
                     ) : (
                     'Run Quick Evaluation'
                     )}

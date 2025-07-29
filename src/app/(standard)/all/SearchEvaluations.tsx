@@ -7,11 +7,7 @@ import { BlueprintSummaryInfo } from '@/app/utils/blueprintSummaryUtils';
 import DetailedBlueprintCard from '@/app/components/home/DetailedBlueprintCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PaginationControls } from './PaginationControls';
-import dynamic from 'next/dynamic';
-
-const SearchX = dynamic(() => import('lucide-react').then(mod => mod.SearchX));
-const Search = dynamic(() => import('lucide-react').then(mod => mod.Search));
-const Loader2 = dynamic(() => import('lucide-react').then(mod => mod.Loader2));
+import Icon from '@/components/ui/icon';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -95,9 +91,9 @@ export function SearchEvaluations({ initialBlueprints, currentPage, totalPages }
                     <div className="relative flex-1">
                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                             {isPending ? (
-                                <Loader2 className="h-5 w-5 text-muted-foreground animate-spin" />
+                                <Icon name="loader-2" className="h-5 w-5 text-muted-foreground animate-spin" />
                             ) : (
-                                <Search className="h-5 w-5 text-muted-foreground" />
+                                <Icon name="search" className="h-5 w-5 text-muted-foreground" />
                             )}
                         </div>
                         <Input
@@ -117,7 +113,7 @@ export function SearchEvaluations({ initialBlueprints, currentPage, totalPages }
                         className="px-6"
                     >
                         {isPending ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Icon name="loader-2" className="h-4 w-4 animate-spin" />
                         ) : (
                             'Search'
                         )}
@@ -135,7 +131,7 @@ export function SearchEvaluations({ initialBlueprints, currentPage, totalPages }
                 {isPending && searchQuery.length > 2 && (
                     <div className="absolute top-full left-0 right-0 mt-2 p-3 bg-primary/10 dark:bg-primary/20 border border-primary/20 rounded-md backdrop-blur-sm">
                         <div className="flex items-center justify-center space-x-2 text-sm text-primary font-medium">
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Icon name="loader-2" className="h-4 w-4 animate-spin" />
                             <span>Searching evaluations...</span>
                         </div>
                     </div>
@@ -176,7 +172,7 @@ export function SearchEvaluations({ initialBlueprints, currentPage, totalPages }
                 </>
             ) : (
                 <div className="text-center py-16">
-                    <SearchX className="mx-auto h-16 w-16 text-muted-foreground/50" />
+                    <Icon name="search-x" className="mx-auto h-16 w-16 text-muted-foreground/50" />
                     <h3 className="mt-4 text-lg font-semibold">No Evaluations Found</h3>
                     <p className="mt-2 text-sm text-muted-foreground">
                         {isSearchActive ? (

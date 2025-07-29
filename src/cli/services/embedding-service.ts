@@ -1,7 +1,7 @@
-import OpenAI from 'openai'
 import fs from 'fs/promises';
 import path from 'path';
-import crypto from 'crypto'; 
+import crypto from 'crypto';
+import { dispatchCreateEmbedding } from '@/lib/embedding-clients/client-dispatcher';
 
 interface EmbeddingServiceLogger {
     info: (msg: string) => void;
@@ -94,26 +94,18 @@ function createHash(input: string): string {
     return crypto.createHash('sha256').update(input).digest('hex');
 }
 
-// Initialize OpenAI client if in Node.js environment
-let openaiClient: OpenAI | null = null
-if (typeof window === 'undefined' && process.env.OPENAI_API_KEY) {
-  openaiClient = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
-  })
-}
-
 /**
  * Gets an embedding for the provided text using the specified model.
- * Defaults to text-embedding-3-small if no model is provided.
- * Uses a file-based cache (.cache_embeddings.json) to avoid redundant API calls.
+ * The modelId should be in the format "provider:model_name".
+ * Uses a file-based cache (.civic_eval_embed_service_cache_embeddings.json) to avoid redundant API calls.
  */
 export async function getEmbedding(
     text: string,
-    modelId: string = 'text-embedding-3-small',
-    logger: EmbeddingServiceLogger // Added logger parameter
+    modelId: string, // Now a required parameter
+    logger: EmbeddingServiceLogger
 ): Promise<number[]> {
 
-    await loadCache(logger); // Ensure cache is loaded, passing the logger.
+    await loadCache(logger); // Ensure cache is loaded
 
     const cacheKeyInput = `${modelId}:${text}`;
     const cacheKeyHash = createHash(cacheKeyInput);
@@ -125,54 +117,28 @@ export async function getEmbedding(
 
     logger.info(`  -> Cache miss for embedding (model: ${modelId}, key hash: ${cacheKeyHash.substring(0,8)}...). Requesting from API.`);
 
-    // Determine dimensions (existing logic)
-    let dimensions: number;
-    if (modelId === 'text-embedding-3-large') {
-        dimensions = 3072;
-    } else if (modelId === 'text-embedding-3-small') {
-        dimensions = 1536;
-    } else {
-        logger.error(`Unsupported embedding model ID: ${modelId}`);
-        throw new Error(`Unsupported embedding model ID: ${modelId}`);
-    }
+    try {
+        if (typeof window !== 'undefined') {
+            // Browser context is not supported for CLI embedding service.
+            // This logic path should ideally not be hit in the primary CLI workflow.
+            logger.error('getEmbedding from embedding-service is not supported in the browser context.');
+            throw new Error('Embedding generation from CLI service is not available in the browser.');
+        }
 
-  try {
-    let embedding: number[];
-    if (openaiClient) {
-      logger.info(`   --> [getEmbedding] Calling OpenAI API for model: ${modelId}, hash: ${cacheKeyHash.substring(0,8)}...`);
-      const response = await openaiClient.embeddings.create({
-        model: modelId,
-        input: text,
-        dimensions: dimensions,
-        encoding_format: 'float'
-      });
-      embedding = response.data[0].embedding;
-    } else {
-      // Browser context logic (remains unchanged, caching not applied here for file system)
-      logger.warn('Browser context detected for embedding. File caching not applied. Attempting API route.');
-      const response = await fetch('/api/embeddings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, model: modelId })
-      });
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to get embedding via API route');
-      }
-      const data = await response.json();
-      embedding = data.data[0].embedding;
-    }
+        logger.info(`   --> [getEmbedding] Calling embedding dispatcher for model: ${modelId}`);
+        
+        const embedding = await dispatchCreateEmbedding(text, modelId);
 
-    if (typeof window === 'undefined') { // Only perform file caching in Node.js environment
         embeddingCache[cacheKeyHash] = embedding; // Update in-memory cache
-        await saveCache(logger); // Persist the updated cache to file, passing the logger.
+        await saveCache(logger); // Persist the updated cache to file
         logger.info(`  -> Saved new embedding to cache (model: ${modelId}, key hash: ${cacheKeyHash.substring(0, 8)}...)`);
+
+        return embedding;
+
+    } catch (error) {
+        logger.error(`Embedding API call failed for model ${modelId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        // To prevent poisoning the evaluation with a single failed embedding, we throw here.
+        // The caller (EmbeddingEvaluator) will catch this and handle it gracefully.
+        throw error;
     }
-
-    return embedding;
-
-  } catch (error) {
-    logger.error(`Embedding API call failed for model ${modelId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    throw new Error(`Embedding generation failed for model ${modelId}: ${error instanceof Error ? error.message : 'Unknown error'}`)
-  }
 } 

@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { BlueprintFile, PRStatus } from '../hooks/useWorkspace';
 import { Button } from '@/components/ui/button';
@@ -18,34 +17,16 @@ import {
     DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { cn } from '@/lib/utils';
-
-const TrashIcon = dynamic(() => import('lucide-react').then(mod => mod.Trash), {
-    ssr: false,
-    loading: () => <Skeleton className="h-4 w-4" />,
-});
-const Loader2 = dynamic(() => import('lucide-react').then(mod => mod.Loader2), { ssr: false });
-const Wand = dynamic(() => import('lucide-react').then(mod => mod.Wand2));
-const BookOpenCheck = dynamic(() => import('lucide-react').then(mod => mod.BookOpenCheck));
-const Github = dynamic(() => import('lucide-react').then(mod => mod.Github), { ssr: false });
-const File = dynamic(() => import('lucide-react').then(mod => mod.File), { ssr: false });
-const GitPullRequestClosed = dynamic(() => import('lucide-react').then(mod => mod.GitPullRequestClosed));
-const Plus = dynamic(() => import('lucide-react').then(mod => mod.Plus));
-const MoreVertical = dynamic(() => import('lucide-react').then(mod => mod.MoreVertical));
-const RefreshCw = dynamic(() => import('lucide-react').then(mod => mod.RefreshCw), { ssr: false });
-const HelpCircle = dynamic(() => import('lucide-react').then(mod => mod.HelpCircle), { ssr: false });
-const Copy = dynamic(() => import('lucide-react').then(mod => mod.Copy));
-const Pencil = dynamic(() => import('lucide-react').then(mod => mod.Pencil));
-const GitMerge = dynamic(() => import('lucide-react').then(mod => mod.GitMerge));
-const GitPullRequest = dynamic(() => import('lucide-react').then(mod => mod.GitPullRequest));
+import Icon from '@/components/ui/icon';
 
 const getPrIcon = (status: PRStatus) => {
     if (status.merged) {
-      return <GitMerge className="w-4 h-4 text-purple-500" />;
+      return <Icon name="git-merge" className="w-4 h-4 text-purple-500" />;
     }
     if (status.state === 'open') {
-      return <GitPullRequest className="w-4 h-4 text-green-500" />;
+      return <Icon name="git-pull-request" className="w-4 h-4 text-green-500" />;
     }
-    return <GitPullRequestClosed className="w-4 h-4 text-red-500" />;
+    return <Icon name="git-pull-request-closed" className="w-4 h-4 text-red-500" />;
 };
 
 export interface FileNavigatorProps {
@@ -123,11 +104,11 @@ export function FileNavigator({
                 <div className="flex items-center gap-2 min-w-0 flex-1">
                     <div className="flex-shrink-0">
                         {file.isLocal ? (
-                            <File className="w-4 h-4" />
+                            <Icon name="file" className="w-4 h-4" />
                         ) : (
                             file.prStatus 
                                 ? getPrIcon(file.prStatus) 
-                                : <Github className="w-4 h-4" />
+                                : <Icon name="github" className="w-4 h-4" />
                         )}
                     </div>
                     <span className="truncate flex-1">{file.name}</span>
@@ -149,7 +130,7 @@ export function FileNavigator({
                 
                 <div className="flex-shrink-0 ml-2 transition-opacity">
                     {isFileBeingDeleted ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <Icon name="loader-2" className="w-4 h-4 animate-spin" />
                     ) : (
                         <DropdownMenu modal={false}>
                             <DropdownMenuTrigger asChild>
@@ -159,16 +140,16 @@ export function FileNavigator({
                                     className="h-6 w-6 text-muted-foreground hover:text-foreground hover:bg-slate-200 data-[state=open]:bg-slate-200 dark:hover:bg-slate-700 dark:data-[state=open]:bg-slate-700"
                                     onClick={(e) => e.stopPropagation()}
                                 >
-                                    <MoreVertical className="h-4 w-4" />
+                                    <Icon name="more-vertical" className="h-4 w-4" />
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent onClick={(e) => e.stopPropagation()}>
                                 <DropdownMenuItem onSelect={() => setTimeout(() => onRenameFile(file), 0)}>
-                                    <Pencil className="w-3.5 h-3.5 mr-2" />
+                                    <Icon name="pencil" className="w-3.5 h-3.5 mr-2" />
                                     Rename
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onSelect={() => setTimeout(() => onDuplicateFile(file), 0)}>
-                                    <Copy className="w-3.5 h-3.5 mr-2" />
+                                    <Icon name="copy" className="w-3.5 h-3.5 mr-2" />
                                     Duplicate
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
@@ -176,7 +157,7 @@ export function FileNavigator({
                                     onSelect={() => setTimeout(() => onDeleteFile(file), 0)}
                                     className="text-destructive focus:text-destructive focus:bg-destructive/10"
                                 >
-                                    <TrashIcon className="w-3.5 h-3.5 mr-2" />
+                                    <Icon name="trash" className="w-3.5 h-3.5 mr-2" />
                                     Delete
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
@@ -205,7 +186,7 @@ export function FileNavigator({
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 overflow-hidden">
                             <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                                <Github className="w-4 h-4 text-primary" />
+                                <Icon name="github" className="w-4 h-4 text-primary" />
                             </div>
                             <div className="flex-grow min-w-0">
                                 <div className="font-semibold text-sm truncate">{user.username}</div>
@@ -219,7 +200,7 @@ export function FileNavigator({
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0">
-                                    <MoreVertical className="h-4 w-4" />
+                                    <Icon name="more-vertical" className="h-4 w-4" />
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
@@ -243,7 +224,7 @@ export function FileNavigator({
                 ) : (
                     <div className="p-0 pt-3 border-t">
                         <div className="bg-background rounded-lg p-3 text-center">
-                            <Github className="w-6 h-6 mx-auto text-muted-foreground mb-2" />
+                            <Icon name="github" className="w-6 h-6 mx-auto text-muted-foreground mb-2" />
                             <h4 className="font-semibold text-sm mb-1">Connect your GitHub</h4>
                             <p className="text-xs text-muted-foreground mb-3">
                                 Save blueprints, create proposals, and sync your work.
@@ -256,9 +237,9 @@ export function FileNavigator({
                                 data-tour="login-button"
                             >
                                 {isLoggingInWithGitHub ? (
-                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    <Icon name="loader-2" className="w-4 h-4 mr-2 animate-spin" />
                                 ) : (
-                                    <Github className="w-4 h-4 mr-2" />
+                                    <Icon name="github" className="w-4 h-4 mr-2" />
                                 )}
                                 Login with GitHub
                             </Button>
@@ -274,7 +255,7 @@ export function FileNavigator({
                         onClick={onCreateNew}
                         disabled={isLoading || isCreating}
                     >
-                        <Plus className="w-4 h-4 mr-1" />
+                        <Icon name="plus" className="w-4 h-4 mr-1" />
                         {isCreating ? "Creating..." : "New"}
                     </Button>
                     <Button 
@@ -284,7 +265,7 @@ export function FileNavigator({
                         onClick={onAutoCreate}
                         disabled={isLoading || isCreating}
                     >
-                        <Wand className="w-4 h-4 mr-1" />
+                        <Icon name="wand-2" className="w-4 h-4 mr-1" />
                         Auto-create
                     </Button>
                 </div>
@@ -303,16 +284,16 @@ export function FileNavigator({
                             title="Refresh file list"
                         >
                             {isSyncingWithGitHub || isLoading ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <Icon name="loader-2" className="h-4 w-4 animate-spin" />
                             ) : (
-                                <RefreshCw className="h-4 w-4" />
+                                <Icon name="refresh-cw" className="h-4 w-4" />
                             )}
                         </Button>
                     </div>
                     
                     {isLoading && files.length === 0 ? (
                         <div className="text-sm text-muted-foreground flex items-center justify-center gap-2 mt-4">
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Icon name="loader-2" className="h-4 w-4 animate-spin" />
                             <span>Loading blueprints...</span>
                         </div>
                     ) : (
@@ -352,7 +333,7 @@ export function FileNavigator({
 
                 {isSyncingWithGitHub && (
                     <div className="p-2 text-xs text-muted-foreground flex items-center justify-center gap-1.5 border-t">
-                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <Icon name="loader-2" className="h-3 w-3 animate-spin" />
                         <span>Syncing with GitHub...</span>
                     </div>
                 )}

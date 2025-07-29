@@ -1,15 +1,12 @@
 'use client';
 
 import React from 'react';
-import dynamic from 'next/dynamic';
 import { SharedModelCard, ModelSummary } from './SharedModelCard';
 import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelIdUtils';
 import { CoverageResult } from '@/app/utils/types';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-
-const ArrowLeft = dynamic(() => import("lucide-react").then(mod => mod.ArrowLeft), { ssr: false });
-const ChevronsUpDown = dynamic(() => import("lucide-react").then(mod => mod.ChevronsUpDown), { ssr: false });
+import Icon from '@/components/ui/icon';
 
 interface MobileModelListProps {
     displayedModels: string[];
@@ -122,7 +119,7 @@ export const MobileModelList: React.FC<MobileModelListProps> = ({
                     className="flex items-center gap-2 px-3 py-2 hover:bg-muted rounded-lg transition-colors min-h-[44px]"
                     title="Back to prompt view"
                 >
-                    <ArrowLeft className="h-5 w-5" />
+                    <Icon name="arrow-left" className="h-5 w-5" />
                     <span className="font-medium">Back to Prompt</span>
                 </button>
                 <h2 className="font-semibold text-lg flex-1">Select Model</h2>
@@ -139,7 +136,7 @@ export const MobileModelList: React.FC<MobileModelListProps> = ({
                                         <span title={displayStrategy.getTooltipName(baseId)}>
                                             {displayStrategy.getDisplayName(baseId)}
                                         </span>
-                                        <ChevronsUpDown className="h-4 w-4 text-muted-foreground" />
+                                        <Icon name="chevrons-up-down" className="h-4 w-4 text-muted-foreground" />
                                     </div>
                                 </CollapsibleTrigger>
                                 <CollapsibleContent className="space-y-2 pt-2 pl-3">

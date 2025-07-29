@@ -19,7 +19,7 @@ import LatestEvaluationRunsSection, { DisplayableRunInstanceInfo } from '@/app/c
 import { BLUEPRINT_CONFIG_REPO_URL, APP_REPO_URL } from '@/lib/configConstants';
 import { processBlueprintSummaries } from '@/app/utils/blueprintSummaryUtils';
 import Link from 'next/link';
-import CIPLogo from '@/components/icons/CIPLogo';
+import Icon from '@/components/ui/icon';
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:8888' : 'https://weval.org');
 
@@ -168,7 +168,7 @@ export default async function HomePage() {
             </>
           ) : (
            <div className="bg-card/80 dark:bg-slate-800/50 backdrop-blur-md p-8 sm:p-12 rounded-xl shadow-xl ring-1 ring-border dark:ring-slate-700/80 text-center flex flex-col items-center mt-10">
-              {React.createElement(nextDynamic(() => import('lucide-react').then(mod => mod.LayoutGrid)) as any, {className:"w-16 h-16 mx-auto mb-6 text-primary opacity-80"})}
+              <Icon name="layout-grid" className="w-16 h-16 mx-auto mb-6 text-primary opacity-80" />
               <h2 className="text-xl sm:text-2xl font-semibold text-card-foreground dark:text-slate-100 mb-3">
                 No Evaluation Blueprints Found
               </h2>

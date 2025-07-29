@@ -10,10 +10,7 @@ import {
   } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import dynamic from "next/dynamic";
-
-const Loader2 = dynamic(() => import('lucide-react').then(mod => mod.Loader2), { ssr: false });
-const FlaskConical = dynamic(() => import('lucide-react').then(mod => mod.FlaskConical), { ssr: false });
+import Icon from '@/components/ui/icon';
 
 interface ConfirmRunModalProps {
     isOpen: boolean;
@@ -50,9 +47,9 @@ export function ConfirmRunModal({ isOpen, onClose, onConfirm, models, isSubmitti
                         className="bg-exciting text-exciting-foreground hover:bg-exciting/90"
                     >
                         {isSubmitting ? (
-                            <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Running...</>
+                            <><Icon name="loader-2" className="w-4 h-4 mr-2 animate-spin" /> Running...</>
                         ) : (
-                            <><FlaskConical className="w-4 h-4 mr-2" />Confirm and Run</>
+                            <><Icon name="flask-conical" className="w-4 h-4 mr-2" />Confirm and Run</>
                         )}
                     </Button>
                 </DialogFooter>

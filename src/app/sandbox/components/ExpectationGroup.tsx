@@ -5,10 +5,7 @@ import dynamic from 'next/dynamic';
 import { PointDefinition } from '@/cli/types/cli_types';
 import { ExpectationEditor } from './ExpectationEditor';
 import { produce } from 'immer';
-
-const Plus = dynamic(() => import('lucide-react').then(mod => mod.Plus));
-const CheckCircle = dynamic(() => import('lucide-react').then(mod => mod.CheckCircle));
-const XCircle = dynamic(() => import('lucide-react').then(mod => mod.XCircle));
+import Icon from '@/components/ui/icon';
 
 type ExpectationVariant = 'should' | 'should-not';
 
@@ -45,15 +42,15 @@ export function ExpectationGroup({ title, description, expectations, onUpdate, v
   };
 
   const styles = {
-    should: { Icon: CheckCircle, titleColor: 'text-green-700 dark:text-green-400' },
-    'should-not': { Icon: XCircle, titleColor: 'text-destructive' },
+    should: { Icon: 'check-circle', titleColor: 'text-green-700 dark:text-green-400' },
+    'should-not': { Icon: 'x-circle', titleColor: 'text-destructive' },
   }[variant];
 
   return (
     <div className="space-y-2">
       {title && (
         <h4 className={`font-semibold text-sm flex items-center gap-2 ${styles.titleColor}`}>
-          <styles.Icon className="w-4 h-4" />
+          <Icon name={styles.Icon as any} className="w-4 h-4" />
           {title}
         </h4>
       )}
@@ -77,7 +74,7 @@ export function ExpectationGroup({ title, description, expectations, onUpdate, v
                 onClick={handleAdd} 
                 className="text-muted-foreground h-8"
             >
-              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              <Icon name="plus" className="h-3.5 w-3.5 mr-1.5" />
               Add criterion
             </Button>
         )}

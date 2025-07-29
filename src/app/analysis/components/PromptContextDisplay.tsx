@@ -4,21 +4,19 @@ import React from 'react';
 import dynamic from 'next/dynamic';
 import { ConversationMessage } from '@/types/shared';
 import { cn } from '@/lib/utils';
+import Icon from '@/components/ui/icon';
+import ReactMarkdown from 'react-markdown';
 
-const User = dynamic(() => import('lucide-react').then(mod => mod.User), { ssr: false });
-const Bot = dynamic(() => import('lucide-react').then(mod => mod.Bot), { ssr: false });
-const Terminal = dynamic(() => import('lucide-react').then(mod => mod.Terminal), { ssr: false });
-const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
 const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
 
 const getRoleIcon = (role: 'user' | 'assistant' | 'system'): React.ReactNode => {
     switch (role) {
         case 'user':
-            return <User className="h-5 w-5 text-sky-800 dark:text-sky-300" />;
+            return <Icon name="user" className="h-5 w-5 text-sky-800 dark:text-sky-300" />;
         case 'assistant':
-            return <Bot className="h-5 w-5 text-slate-800 dark:text-slate-300" />;
+            return <Icon name="bot" className="h-5 w-5 text-slate-800 dark:text-slate-300" />;
         case 'system':
-            return <Terminal className="h-5 w-5 text-gray-800 dark:text-gray-300" />;
+            return <Icon name="terminal" className="h-5 w-5 text-gray-800 dark:text-gray-300" />;
         default:
             return null;
     }

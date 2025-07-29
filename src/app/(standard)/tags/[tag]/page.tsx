@@ -8,10 +8,7 @@ import { normalizeTag } from '@/app/utils/tagUtils';
 import BrowseAllBlueprintsSection from '@/app/components/home/BrowseAllBlueprintsSection';
 import { processBlueprintSummaries, BlueprintSummaryInfo } from '@/app/utils/blueprintSummaryUtils';
 import type { Metadata } from 'next';
-
-const Tag = dynamic(() => import('lucide-react').then(mod => mod.Tag));
-const AlertTriangle = dynamic(() => import('lucide-react').then(mod => mod.AlertTriangle));
-const XCircle = dynamic(() => import('lucide-react').then(mod => mod.XCircle));
+import Icon from '@/components/ui/icon';
 
 export async function generateMetadata({ params }: { params: Promise<{ tag: string }> }): Promise<Metadata> {
   const { tag } = await params;
@@ -69,7 +66,7 @@ export default async function TaggedBlueprintsPage({ params }: { params: Promise
       <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground p-8">
         <div className="fixed inset-0 -z-10 dark:bg-gradient-to-br dark:from-background dark:to-muted/20 bg-gradient-to-br from-background to-muted/10" />
         <div className="bg-card/80 dark:bg-card/50 backdrop-blur-md p-8 rounded-xl shadow-lg ring-1 ring-destructive/70 dark:ring-red-500/70 text-center max-w-lg w-full">
-          {AlertTriangle && <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-destructive dark:text-red-400" />}
+          <Icon name="alert-triangle" className="w-16 h-16 mx-auto mb-4 text-destructive dark:text-red-400" />
           <h2 className="text-2xl font-semibold mb-3 text-destructive dark:text-red-300">Error Loading Tag Results</h2>
           <p className="text-card-foreground dark:text-muted-foreground mb-4">Could not load evaluations for tag: <strong className="text-card-foreground dark:text-foreground">{tagName}</strong></p>
           <div className="text-sm text-muted-foreground dark:text-muted-foreground bg-muted/70 dark:bg-muted/50 p-4 rounded-md ring-1 ring-border dark:ring-border/80 mb-6">
@@ -105,7 +102,7 @@ export default async function TaggedBlueprintsPage({ params }: { params: Promise
         <main className="max-w-4xl mx-auto mt-6 md:mt-8">
           {filteredConfigs.length === 0 && (
             <div className="text-center py-12 bg-card/50 dark:bg-card/40 rounded-lg shadow-md">
-              {Tag && <Tag className="w-12 h-12 mx-auto mb-4 text-muted-foreground dark:text-muted-foreground" />}
+              <Icon name="tag" className="w-12 h-12 mx-auto mb-4 text-muted-foreground dark:text-muted-foreground" />
               <p className="text-lg text-muted-foreground dark:text-muted-foreground">
                 No evaluation blueprints found with the tag: <strong className="text-foreground dark:text-foreground">{tagName}</strong>
               </p>

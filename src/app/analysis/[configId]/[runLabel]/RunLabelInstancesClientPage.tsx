@@ -11,6 +11,7 @@ import { AnalysisProvider } from '@/app/analysis/context/AnalysisProvider';
 import CoverageHeatmapCanvas from '@/app/analysis/components/CoverageHeatmapCanvas';
 import { ApiRunsResponse } from '../page';
 import ClientDateTime from '@/app/components/ClientDateTime';
+import Icon from '@/components/ui/icon';
 
 export interface RunInstanceInfo extends EnhancedRunInfo {
   configId: string;
@@ -18,9 +19,6 @@ export interface RunInstanceInfo extends EnhancedRunInfo {
   displayDate: string;
   promptIds?: string[];
 }
-
-const ChevronRightIcon = dynamic(() => import('lucide-react').then(mod => mod.ChevronRight));
-const HistoryIcon = dynamic(() => import('lucide-react').then(mod => mod.History));
 
 const getHybridScoreColor = (score: number | null | undefined): string => {
   if (score === null || score === undefined || isNaN(score)) return 'text-muted-foreground';
@@ -74,7 +72,7 @@ export default function RunLabelInstancesClientPage({ configId, runLabel, data }
 
   const headerActions = useMemo(() => (
     <Link href={`/analysis/${configId}`} className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-md text-primary hover:bg-primary/10 transition-colors border border-primary/30">
-      <ChevronRightIcon className="w-4 h-4 mr-1.5 transform rotate-180" />
+      <Icon name="chevron-right" className="w-4 h-4 mr-1.5 transform rotate-180" />
       Back to All Runs for Blueprint: {configTitle || configId}
     </Link>
   ), [configId, configTitle]);
@@ -98,7 +96,7 @@ export default function RunLabelInstancesClientPage({ configId, runLabel, data }
         <>
           {runInstances.length === 0 && (
               <div className="text-center py-12">
-                  <HistoryIcon className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                  <Icon name="history" className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
                   <p className="text-lg text-muted-foreground">
                       No specific instances found for Run Label: <strong className="text-foreground">{runLabel}</strong>
                   </p>
@@ -155,7 +153,7 @@ export default function RunLabelInstancesClientPage({ configId, runLabel, data }
                                           <p className="text-xl font-semibold text-foreground">{instance.numPrompts}</p>
                                         </div>
                                       )}
-                                      <ChevronRightIcon className="w-5 h-5 text-muted-foreground self-center ml-2" />
+                                      <Icon name="chevron-right" className="w-5 h-5 text-muted-foreground self-center ml-2" />
                                   </div>
                               </div>
                           </Link>

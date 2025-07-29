@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,9 +20,8 @@ import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import KeyPointCoverageTable from '@/app/analysis/components/KeyPointCoverageTable';
-
-const AlertTriangle = dynamic(() => import("lucide-react").then((mod) => mod.AlertTriangle));
-const HelpCircle = dynamic(() => import("lucide-react").then(mod => mod.HelpCircle));
+import Icon from '@/components/ui/icon';
+import { usePreloadIcons } from '@/components/ui/use-preload-icons';
 
 const RenderPromptDetails: React.FC<{ promptId: string }> = ({ promptId }) => {
     const { data } = useAnalysis();
@@ -106,6 +105,9 @@ export const AggregateAnalysisView: React.FC = () => {
     
     const [showMacroTable, setShowMacroTable] = useState(false);
 
+    // Preload icons used in this component
+    usePreloadIcons(['alert-triangle', 'help-circle']);
+
     if (!data || !analysisStats) return null;
 
     const {
@@ -117,6 +119,24 @@ export const AggregateAnalysisView: React.FC = () => {
         perSystemVariantHybridScores,
         perTemperatureVariantHybridScores
     } = analysisStats;
+    
+    const hasValidSimilarityData = useMemo(() => {
+        const matrix = data?.evaluationResults?.similarityMatrix;
+        if (!matrix) return false;
+
+        const models = Object.keys(matrix);
+        for (let i = 0; i < models.length; i++) {
+            for (let j = i + 1; j < models.length; j++) {
+                const modelA = models[i];
+                const modelB = models[j];
+                const score = matrix[modelA]?.[modelB] ?? matrix[modelB]?.[modelA];
+                if (typeof score === 'number' && !isNaN(score)) {
+                    return true; // Found at least one valid score
+                }
+            }
+        }
+        return false; // No valid scores found
+    }, [data?.evaluationResults?.similarityMatrix]);
     
     const { promptIds, evalMethodsUsed, allFinalAssistantResponses } = data;
 
@@ -192,7 +212,7 @@ export const AggregateAnalysisView: React.FC = () => {
 
             {excludedModelsList.length > 0 && !forceIncludeExcludedModels && (
                 <Alert variant="destructive">
-                    <AlertTriangle className="h-4 w-4" />
+                    <Icon name="alert-triangle" className="h-4 w-4" />
                     <AlertTitle>Models Automatically Excluded</AlertTitle>
                     <AlertDescription>
                         <div className="flex justify-between items-start gap-4">
@@ -214,12 +234,12 @@ export const AggregateAnalysisView: React.FC = () => {
             )}
 
 
-            <DatasetStatistics />
+            {/* <DatasetStatistics /> */}
             
             {!evalMethodsUsed.includes('llm-coverage') && (
                 <div className="my-6">
                     <Alert variant="default" className="border-sky-500/50 dark:border-sky-400/30 bg-sky-50/50 dark:bg-sky-900/10">
-                        <HelpCircle className="h-4 w-4 text-sky-600 text-primary" />
+                        <Icon name="help-circle" className="h-4 w-4 text-sky-600 text-primary" />
                         <AlertTitle className="text-sky-800 dark:text-sky-300">Coverage Analysis Not Available</AlertTitle>
                         <AlertDescription className="text-sky-900 text-primary/90">
                             The 'llm-coverage' evaluation method was not included in this run. Therefore, the Macro Coverage Overview and other rubric-based analyses are not available. To enable this analysis, include 'llm-coverage' in the `--eval-method` flag when executing the run.
@@ -332,7 +352,7 @@ export const AggregateAnalysisView: React.FC = () => {
                         </CardContent>
                     </Card>
 
-                    {data?.evaluationResults?.similarityMatrix && modelsForAggregateView && modelsForAggregateView.length > 1 && (
+                    {hasValidSimilarityData && modelsForAggregateView && modelsForAggregateView.length > 1 && (
                         <>
                             <Card className="hidden md:block shadow-lg border-border dark:border-border">
                                 <CardHeader>

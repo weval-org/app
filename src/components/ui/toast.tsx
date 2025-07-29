@@ -4,16 +4,11 @@ import * as ToastPrimitives from "@radix-ui/react-toast"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
+import Icon from "./icon"
 
 // Define a type for the icon component props
 interface IconProps extends React.SVGProps<SVGSVGElement> { }
 
-// Lazy load the X icon with explicit typing
-const X = lazy(() => 
-  import('lucide-react').then(module => 
-    ({ default: module.X as React.ComponentType<IconProps> })
-  )
-);
 
 const ToastProvider = ToastPrimitives.Provider
 
@@ -91,9 +86,7 @@ const ToastClose = React.forwardRef<
     toast-close=""
     {...props}
   >
-    <Suspense fallback={null}>
-      <X className="h-4 w-4" />
-    </Suspense>
+    <Icon name="x" className="h-4 w-4" />
   </ToastPrimitives.Close>
 ))
 ToastClose.displayName = ToastPrimitives.Close.displayName

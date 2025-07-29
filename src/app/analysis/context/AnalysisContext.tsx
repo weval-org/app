@@ -65,6 +65,7 @@ export interface AnalysisContextType {
         worstPerformingModel: { id: string; score: number } | null;
         mostDifferentiatingPrompt: { id: string; score: number; text: string | null } | null;
         mostSimilarPair: { pair: [string, string]; value: number } | null;
+        modelLeaderboard: Array<{ id: string; score: number; count: number }> | null;
     } | null;
     isSandbox: boolean;
     sandboxId?: string;

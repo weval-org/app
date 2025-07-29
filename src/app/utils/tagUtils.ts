@@ -17,6 +17,9 @@ export function normalizeTag(tag: string): string {
 
 export function prettifyTag(tag: string): string {
     if (!tag) return '';
+    if (tag.charAt(0) === '_') {
+        return tag.slice(1).toUpperCase();
+    }
     return tag
         .split('-')
         .map(word => word.charAt(0).toUpperCase() + word.slice(1))

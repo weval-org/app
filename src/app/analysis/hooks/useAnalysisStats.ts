@@ -11,9 +11,12 @@ import {
     calculateAverageHybridScoreForRun,
     findIdealExtremes,
     calculateMostDifferentiatingPrompt,
+    calculateAllModelCoverageRankings,
+    calculateAllModelHybridRankings,
     OverallCoverageExtremes,
     HybridScoreExtremes,
     IdealScoreExtremes,
+    AllModelScoreRankings,
 } from '@/app/utils/calculationUtils';
 import { parseEffectiveModelId } from '@/app/utils/modelIdUtils';
 
@@ -28,6 +31,8 @@ export interface AnalysisStats {
     perSystemVariantHybridScores: Record<number, number | null>;
     perTemperatureVariantHybridScores: Record<string, number | null>;
     mostDifferentiatingPrompt: { id: string; score: number } | null;
+    allModelCoverageRankings: AllModelScoreRankings | null;
+    allModelHybridRankings: AllModelScoreRankings | null;
 }
 
 export const useAnalysisStats = (data: ComparisonDataV2 | null): AnalysisStats => {
@@ -53,51 +58,85 @@ export const useAnalysisStats = (data: ComparisonDataV2 | null): AnalysisStats =
         return scoresToSet as Map<string, { average: number | null; stddev: number | null }>;
     }, [data?.evaluationResults?.perModelSemanticScores]);
 
-    return useMemo(() => {
-        if (!data) {
-          return {
-            overallIdealExtremes: null,
-            overallAvgCoverageStats: null,
-            overallCoverageExtremes: null,
-            overallHybridExtremes: null,
-            overallRunHybridStats: { average: null, stddev: null },
-            calculatedPerModelHybridScores: new Map<string, { average: number | null; stddev: number | null }>(),
-            calculatedPerModelSemanticScores: new Map<string, { average: number | null; stddev: number | null }>(),
-            perSystemVariantHybridScores: {},
-            perTemperatureVariantHybridScores: {},
-            mostDifferentiatingPrompt: null,
-          };
-        }
-
-        const { evaluationResults, effectiveModels, promptIds, config } = data;
+    const overallIdealExtremes = useMemo(() => {
+        if (!data?.evaluationResults?.similarityMatrix) return null;
+        return findIdealExtremes(data.evaluationResults.similarityMatrix, IDEAL_MODEL_ID);
+    }, [data?.evaluationResults?.similarityMatrix]);
+    
+    const overallAvgCoverageStats = useMemo(() => {
+        if (!data) return null;
+        const { evaluationResults, effectiveModels, promptIds } = data;
         const llmCoverageScores = evaluationResults?.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>> | undefined;
+        return (llmCoverageScores && effectiveModels && promptIds) 
+            ? importedCalculateOverallAverageCoverage(llmCoverageScores, effectiveModels, promptIds) 
+            : null;
+    }, [data]);
 
-        const overallIdealExtremes = evaluationResults?.similarityMatrix ? findIdealExtremes(evaluationResults.similarityMatrix, IDEAL_MODEL_ID) : null;
-        
-        const overallAvgCoverageStats = (llmCoverageScores && effectiveModels && promptIds) 
-          ? importedCalculateOverallAverageCoverage(llmCoverageScores, effectiveModels, promptIds) 
-          : null;
+    const overallCoverageExtremes = useMemo(() => {
+        if (!data) return null;
+        const { evaluationResults, effectiveModels } = data;
+        const llmCoverageScores = evaluationResults?.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>> | undefined;
+        return (llmCoverageScores && effectiveModels) 
+            ? importedCalculateOverallCoverageExtremes(llmCoverageScores, effectiveModels) 
+            : null;
+    }, [data]);
 
-        const overallCoverageExtremes = (llmCoverageScores && effectiveModels) 
-          ? importedCalculateOverallCoverageExtremes(llmCoverageScores, effectiveModels) 
-          : null;
+    const overallHybridExtremes = useMemo(() => {
+        if (!data) return null;
+        const { evaluationResults, effectiveModels } = data;
+        const llmCoverageScores = evaluationResults?.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>> | undefined;
+        return (evaluationResults?.perPromptSimilarities && llmCoverageScores && effectiveModels)
+            ? importedCalculateHybridScoreExtremes(evaluationResults.perPromptSimilarities, llmCoverageScores, effectiveModels, IDEAL_MODEL_ID)
+            : null;
+    }, [data]);
 
-        const overallHybridExtremes = (evaluationResults?.perPromptSimilarities && llmCoverageScores && effectiveModels)
-          ? importedCalculateHybridScoreExtremes(evaluationResults.perPromptSimilarities, llmCoverageScores, effectiveModels, IDEAL_MODEL_ID)
-          : null;
-
-        const mostDifferentiatingPrompt = calculateMostDifferentiatingPrompt(
-          evaluationResults?.perPromptSimilarities,
-          llmCoverageScores,
-          effectiveModels,
-          promptIds,
+    const mostDifferentiatingPrompt = useMemo(() => {
+        if (!data) return null;
+        const { evaluationResults, effectiveModels, promptIds } = data;
+        const llmCoverageScores = evaluationResults?.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>> | undefined;
+        return calculateMostDifferentiatingPrompt(
+            evaluationResults?.perPromptSimilarities,
+            llmCoverageScores,
+            effectiveModels,
+            promptIds,
         );
+    }, [data]);
 
-        const overallRunHybridStats = (evaluationResults?.perPromptSimilarities && llmCoverageScores && effectiveModels && promptIds)
+    const allModelCoverageRankings = useMemo(() => {
+        if (!data) return null;
+        const { evaluationResults, effectiveModels } = data;
+        const llmCoverageScores = evaluationResults?.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>> | undefined;
+        return (llmCoverageScores && effectiveModels) 
+            ? calculateAllModelCoverageRankings(llmCoverageScores, effectiveModels)
+            : null;
+    }, [data]);
+
+    const allModelHybridRankings = useMemo(() => {
+        if (!data) return null;
+        const { evaluationResults, effectiveModels } = data;
+        const llmCoverageScores = evaluationResults?.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>> | undefined;
+        return (evaluationResults?.perPromptSimilarities && llmCoverageScores && effectiveModels)
+            ? calculateAllModelHybridRankings(evaluationResults.perPromptSimilarities, llmCoverageScores, effectiveModels, IDEAL_MODEL_ID)
+            : null;
+    }, [data]);
+
+    const overallRunHybridStats = useMemo(() => {
+        if (!data) return { average: null, stddev: null };
+        const { evaluationResults, effectiveModels, promptIds } = data;
+        const llmCoverageScores = evaluationResults?.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>> | undefined;
+        
+        return (evaluationResults?.perPromptSimilarities && llmCoverageScores && effectiveModels && promptIds)
           ? calculateAverageHybridScoreForRun(evaluationResults.perPromptSimilarities, llmCoverageScores, effectiveModels, promptIds, IDEAL_MODEL_ID)
           : { average: null, stddev: null };
+    }, [data]);
 
-        const perSystemVariantHybridScores: Record<number, number | null> = {};
+    const perSystemVariantHybridScores = useMemo(() => {
+        const scores: Record<number, number | null> = {};
+        if (!data) return scores;
+        
+        const { evaluationResults, effectiveModels, promptIds, config } = data;
+        const llmCoverageScores = evaluationResults?.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>> | undefined;
+        
         if (config.systems && config.systems.length > 1 && evaluationResults?.perPromptSimilarities && llmCoverageScores && effectiveModels && promptIds) {
             for (let i = 0; i < config.systems.length; i++) {
                 const modelsForVariant = effectiveModels.filter(modelId => {
@@ -109,14 +148,22 @@ export const useAnalysisStats = (data: ComparisonDataV2 | null): AnalysisStats =
                     const hybridStatsForVariant = calculateAverageHybridScoreForRun(
                         evaluationResults.perPromptSimilarities, llmCoverageScores, modelsForVariant, promptIds, IDEAL_MODEL_ID
                     );
-                    perSystemVariantHybridScores[i] = hybridStatsForVariant?.average ?? null;
+                    scores[i] = hybridStatsForVariant?.average ?? null;
                 } else {
-                    perSystemVariantHybridScores[i] = null;
+                    scores[i] = null;
                 }
             }
         }
+        return scores;
+    }, [data]);
+    
+    const perTemperatureVariantHybridScores = useMemo(() => {
+        const scores: Record<string, number | null> = {};
+        if (!data) return scores;
         
-        const perTemperatureVariantHybridScores: Record<string, number | null> = {};
+        const { evaluationResults, effectiveModels, promptIds, config } = data;
+        const llmCoverageScores = evaluationResults?.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>> | undefined;
+        
         if (config.temperatures && config.temperatures.length > 1 && evaluationResults?.perPromptSimilarities && llmCoverageScores && effectiveModels && promptIds) {
             const uniqueTemperatures = [...new Set(config.temperatures)];
             for (const temp of uniqueTemperatures) {
@@ -129,24 +176,40 @@ export const useAnalysisStats = (data: ComparisonDataV2 | null): AnalysisStats =
                     const hybridStatsForTemp = calculateAverageHybridScoreForRun(
                         evaluationResults.perPromptSimilarities, llmCoverageScores, modelsForTemp, promptIds, IDEAL_MODEL_ID
                     );
-                    perTemperatureVariantHybridScores[temp.toString()] = hybridStatsForTemp?.average ?? null;
+                    scores[temp.toString()] = hybridStatsForTemp?.average ?? null;
                 } else {
-                    perTemperatureVariantHybridScores[temp.toString()] = null;
+                    scores[temp.toString()] = null;
                 }
             }
         }
-        
-        return { 
-            overallIdealExtremes, 
-            overallAvgCoverageStats,
-            overallCoverageExtremes,
-            overallHybridExtremes,
-            overallRunHybridStats,
-            calculatedPerModelHybridScores,
-            calculatedPerModelSemanticScores,
-            perSystemVariantHybridScores,
-            perTemperatureVariantHybridScores,
-            mostDifferentiatingPrompt,
-        };
-    }, [data, calculatedPerModelHybridScores, calculatedPerModelSemanticScores]);
+        return scores;
+    }, [data]);
+
+    return useMemo(() => ({
+        overallIdealExtremes,
+        overallAvgCoverageStats,
+        overallCoverageExtremes,
+        overallHybridExtremes,
+        overallRunHybridStats,
+        calculatedPerModelHybridScores,
+        calculatedPerModelSemanticScores,
+        perSystemVariantHybridScores,
+        perTemperatureVariantHybridScores,
+        mostDifferentiatingPrompt,
+        allModelCoverageRankings,
+        allModelHybridRankings,
+    }), [
+        overallIdealExtremes,
+        overallAvgCoverageStats,
+        overallCoverageExtremes,
+        overallHybridExtremes,
+        overallRunHybridStats,
+        calculatedPerModelHybridScores,
+        calculatedPerModelSemanticScores,
+        perSystemVariantHybridScores,
+        perTemperatureVariantHybridScores,
+        mostDifferentiatingPrompt,
+        allModelCoverageRankings,
+        allModelHybridRankings,
+    ]);
 }; 

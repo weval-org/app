@@ -304,6 +304,12 @@ async function loadAndValidateConfig(options: {
         configJson.models = ["CORE"];
     }
 
+    if (!configJson.embeddingModel) {
+        const DEFAULT_EMBEDDING_MODEL = 'openai:text-embedding-3-small';
+        logger.info(`'embeddingModel' not found in blueprint. Defaulting to '${DEFAULT_EMBEDDING_MODEL}'.`);
+        configJson.embeddingModel = DEFAULT_EMBEDDING_MODEL;
+    }
+
     validatePrompts(configJson.prompts, logger);
     
     logger.info(`Initial validation passed for configId '${configJson.id}'. Original models: [${configJson.models.join(', ')}]`);
@@ -643,11 +649,15 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions, commi
                 if (newRunConfig) {
                     const newRun = newRunConfig.runs.find(r => r.runLabel === newResultData.runLabel && r.timestamp === newResultData.timestamp);
                     if (newRun && newRun.perModelScores) {
-                        loggerInstance.info(`Overall Run Hybrid Score Average: ${newRun.hybridScoreStats?.average?.toFixed(4)}`);
-                        loggerInstance.info('Per-Model Hybrid Score Averages:');
-                        const scoresToLog: Record<string, string> = {};
+                        loggerInstance.info(`Overall Run Hybrid Score Average: ${newRun.hybridScoreStats?.average?.toFixed(4) ?? 'N/A'}`);
+                        loggerInstance.info('Per-Model Score Averages:');
+                        const scoresToLog: Record<string, Record<string, string>> = {};
                         newRun.perModelScores.forEach((stats, modelId) => {
-                           scoresToLog[modelId] = stats.hybrid.average !== null && stats.hybrid.average !== undefined ? stats.hybrid.average.toFixed(4) : 'N/A';
+                           scoresToLog[modelId] = {
+                                'Hybrid': stats.hybrid.average !== null && stats.hybrid.average !== undefined ? stats.hybrid.average.toFixed(4) : 'N/A',
+                                'Similarity': stats.similarity.average !== null && stats.similarity.average !== undefined ? stats.similarity.average.toFixed(4) : 'N/A',
+                                'Coverage': stats.coverage?.average !== null && stats.coverage?.average !== undefined ? stats.coverage.average.toFixed(4) : 'N/A',
+                           };
                         });
                         if (typeof console.table === 'function') {
                             console.table(scoresToLog);

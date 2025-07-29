@@ -10,20 +10,10 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-
-const ChevronsUpDown = dynamic(() => import('lucide-react').then(mod => mod.ChevronsUpDown), { ssr: false });
-const Quote = dynamic(() => import('lucide-react').then(mod => mod.Quote), { ssr: false });
-const Server = dynamic(() => import('lucide-react').then(mod => mod.Server), { ssr: false });
-const CheckCircle = dynamic(() => import('lucide-react').then(mod => mod.CheckCircle), { ssr: false });
-const ThumbsDown = dynamic(() => import('lucide-react').then(mod => mod.ThumbsDown), { ssr: false });
-const Trophy = dynamic(() => import('lucide-react').then(mod => mod.Trophy), { ssr: false });
-
-const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
-const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
-const AlertTriangle = dynamic(() => import('lucide-react').then(mod => mod.AlertTriangle), { ssr: false });
-const MessageSquare = dynamic(() => import('lucide-react').then(mod => mod.MessageSquare), { ssr: false });
-const ChevronDown = dynamic(() => import('lucide-react').then(mod => mod.ChevronDown), { ssr: false });
-const ChevronUp = dynamic(() => import('lucide-react').then(mod => mod.ChevronUp), { ssr: false });
+import Icon from '@/components/ui/icon';
+import { usePreloadIcons } from '@/components/ui/use-preload-icons';
+import ReactMarkdown from 'react-markdown';
+import RemarkGfmPlugin from 'remark-gfm';
 
 const getScoreColor = (score?: number): string => {
     if (score === undefined || score === null || isNaN(score)) return 'bg-slate-500';
@@ -81,7 +71,7 @@ export const AssessmentItem: React.FC<{
                                 <Badge variant="outline" className="text-xs text-muted-foreground">N/A</Badge>
                             )}
                             <div className="w-4">
-                                {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                {isExpanded ? <Icon name="chevron-up" className="h-4 w-4" /> : <Icon name="chevron-down" className="h-4 w-4" />}
                             </div>
                         </div>
                     </button>
@@ -90,14 +80,14 @@ export const AssessmentItem: React.FC<{
                     <div className="pt-3 border-t border-border/50">
                         {assessment.citation && (
                             <div className="flex items-start space-x-1.5 mb-3 text-xs text-muted-foreground/90 italic border-l-2 border-border pl-2">
-                                <Quote className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                                <Icon name="quote" className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
                                 <span>Source: {assessment.citation}</span>
                             </div>
                         )}
                         
                         {assessment.error && (
                             <Badge variant="destructive" className="text-xs flex items-center space-x-1.5 py-1 px-2 w-full justify-start mb-3">
-                                <AlertTriangle className="h-3 w-3" />
+                                <Icon name="alert-triangle" className="h-3 w-3" />
                                 <span>Error: {assessment.error}</span>
                             </Badge>
                         )}
@@ -105,7 +95,7 @@ export const AssessmentItem: React.FC<{
                         {assessment.reflection ? (
                         <div className="mt-1 p-3 rounded-md bg-background/70 dark:bg-slate-900/50 border border-dashed border-primary/30">
                             <div className="flex items-center space-x-1.5 mb-1.5">
-                                <MessageSquare className="h-4 w-4 text-primary/80 flex-shrink-0" />
+                                <Icon name="message-square" className="h-4 w-4 text-primary/80 flex-shrink-0" />
                                 <span className="font-semibold text-xs text-muted-foreground">Judge's Reflection:</span>
                             </div>
                             <p className="text-sm text-foreground/80 pl-1 whitespace-pre-wrap italic">"{assessment.reflection}"</p>
@@ -118,7 +108,7 @@ export const AssessmentItem: React.FC<{
                             <Collapsible className="mt-3">
                                 <CollapsibleTrigger asChild>
                                     <Button type="button" variant="ghost" className="text-xs h-7 px-2 w-full justify-start text-muted-foreground hover:text-foreground">
-                                        <ChevronsUpDown className="h-3.5 w-3.5 mr-1" />
+                                        <Icon name="chevrons-up-down" className="h-3.5 w-3.5 mr-1" />
                                         Show Consensus Breakdown ({assessment.individualJudgements.length} judges)
                                     </Button>
                                 </CollapsibleTrigger>
@@ -150,7 +140,7 @@ export const AssessmentItem: React.FC<{
                         
                         {(assessment.judgeModelId || assessment.judgeLog) && (
                             <div className="flex items-start space-x-1.5 pt-2 border-t border-border/50 mt-3">
-                                <Server className="h-3.5 w-3.5 mt-0.5 text-muted-foreground flex-shrink-0" />
+                                <Icon name="server" className="h-3.5 w-3.5 mt-0.5 text-muted-foreground flex-shrink-0" />
                                 <div className="flex-grow">
                                     <div className="flex justify-between items-center">
                                         <div>
@@ -165,7 +155,7 @@ export const AssessmentItem: React.FC<{
                                         </div>
                                         {assessment.judgeLog && assessment.judgeLog.length > 0 && (
                                             <Button type="button" variant="ghost" onClick={() => toggleLogExpansion(index)} className="text-xs h-6 px-2">
-                                                {isLogExpanded ? <ChevronUp className="h-3.5 w-3.5 mr-1" /> : <ChevronDown className="h-3.5 w-3.5 mr-1" />}
+                                                {isLogExpanded ? <Icon name="chevron-up" className="h-3.5 w-3.5 mr-1" /> : <Icon name="chevron-down" className="h-3.5 w-3.5 mr-1" />}
                                                 Log
                                             </Button>
                                         )}
@@ -197,6 +187,8 @@ export const EvaluationView: React.FC<{
 }> = ({ assessments, modelResponse, idealResponse, expandedLogs, toggleLogExpansion, isMobile = false }) => {
     const [expandedAssessments, setExpandedAssessments] = useState<Set<number>>(new Set());
     const [activeTab, setActiveTab] = useState('model-response');
+
+    usePreloadIcons(['message-square', 'chevron-up', 'chevron-down', 'chevrons-up-down', 'server', 'thumbs-down', 'alert-triangle', 'check-circle', 'trophy']);
 
     const toggleAssessmentExpansion = (index: number) => {
         setExpandedAssessments(prev => {
@@ -289,7 +281,7 @@ export const EvaluationView: React.FC<{
             {categorized.criticalFailures.length > 0 && (
                 <div>
                     <h4 className="font-bold text-base text-red-600 dark:text-red-500 flex items-center mb-4" title="A critical failure occurs when the model does something it was explicitly told not to do.">
-                        <ThumbsDown className="h-5 w-5 mr-2" /> Critical Failures ({categorized.criticalFailures.length})
+                        <Icon name="thumbs-down" className="h-5 w-5 mr-2" /> Critical Failures ({categorized.criticalFailures.length})
                     </h4>
                     <div className="space-y-3 my-4">{renderAssessmentList(categorized.criticalFailures)}</div>
                 </div>
@@ -297,7 +289,7 @@ export const EvaluationView: React.FC<{
             {categorized.majorGaps.length > 0 && (
                  <div>
                     <h4 className="font-bold text-base text-orange-600 dark:text-orange-500 flex items-center mb-4" title="A major gap occurs when the model fails to include a key positive requirement.">
-                        <AlertTriangle className="h-5 w-5 mr-2" /> Major Gaps ({categorized.majorGaps.length})
+                        <Icon name="alert-triangle" className="h-5 w-5 mr-2" /> Major Gaps ({categorized.majorGaps.length})
                     </h4>
                     <div className="space-y-3 my-4">{renderAssessmentList(categorized.majorGaps)}</div>
                 </div>
@@ -305,7 +297,7 @@ export const EvaluationView: React.FC<{
             {categorized.passed.length > 0 && (
                 <div>
                     <h4 className="font-bold text-base text-green-600 dark:text-green-500 flex items-center">
-                        <CheckCircle className="h-5 w-5 mr-2" /> Passed Criteria ({categorized.passed.length})
+                        <Icon name="check-circle" className="h-5 w-5 mr-2" /> Passed Criteria ({categorized.passed.length})
                     </h4>
                     <div className="space-y-3 my-4">{renderAssessmentList(categorized.passed)}</div>
                 </div>
@@ -432,7 +424,7 @@ export const EvaluationView: React.FC<{
                                             <h5 className="font-semibold text-muted-foreground">Path #{index + 1}</h5>
                                             {path.pathId === bestPathId && (
                                                 <Badge variant="default" className="bg-green-600 hover:bg-green-700">
-                                                    <Trophy className="h-3.5 w-3.5 mr-1" />
+                                                    <Icon name="trophy" className="h-3.5 w-3.5 mr-1" />
                                                     Best Path
                                                 </Badge>
                                             )}

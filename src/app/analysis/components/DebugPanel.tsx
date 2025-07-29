@@ -6,8 +6,7 @@ import { Button } from '@/components/ui/button';
 import DownloadResultsButton from '@/app/analysis/components/DownloadResultsButton';
 import { ComparisonDataV2 } from '@/app/utils/types';
 import { fromSafeTimestamp } from '@/lib/timestampUtils';
-
-const TerminalIcon = dynamic(() => import("lucide-react").then((mod) => mod.Terminal));
+import Icon from '@/components/ui/icon';
 
 interface DebugPanelProps {
   data: ComparisonDataV2 | null;
@@ -56,7 +55,7 @@ export default function DebugPanel({ data, configId, runLabel, timestamp }: Debu
     <div className="mt-8 bg-card/60 dark:bg-slate-800/60 backdrop-blur-sm p-4 rounded-xl shadow-lg ring-1 ring-border">
       <div className="flex justify-between items-center">
         <div className="flex items-center">
-          {TerminalIcon && <TerminalIcon className="w-5 h-5 mr-2.5 text-highlight-info" />}
+          <Icon name="terminal" className="w-5 h-5 mr-2.5 text-highlight-info" />
           <h2 className="text-lg font-semibold text-card-foreground">Advanced Tools</h2>
         </div>
         <div className="space-x-2">

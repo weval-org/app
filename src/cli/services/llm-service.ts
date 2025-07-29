@@ -1,166 +1,116 @@
-import { dispatchMakeApiCall } from '../../lib/llm-clients/client-dispatcher';
-import { LLMApiCallOptions } from '../../lib/llm-clients/types';
-import { ConversationMessage } from '@/types/shared';
 import { getConfig } from '../config';
+import { dispatchMakeApiCall as dispatch } from '../../lib/llm-clients/client-dispatcher';
+import { LLMApiCallResult as ModelResponse, LLMApiCallOptions } from '../../lib/llm-clients/types';
 import { getCache, generateCacheKey } from '../../lib/cache-service';
+import { ConversationMessage } from '../../types/shared';
 
-export interface GetModelResponseOptions {
-    modelId: string; // Now expected to be the full OpenRouter model string, e.g., "openrouter:openai/gpt-4o-mini"
-    messages: ConversationMessage[];
-    systemPrompt?: string | null;
-    maxTokens?: number;
+const llmCache = getCache('llm-responses');
+
+// Constants
+export const DEFAULT_TEMPERATURE = 0;
+
+export interface GetModelResponseParams {
+    modelId: string;
+    prompt?: string;
+    systemPrompt?: string;
+    messages?: ConversationMessage[];
     temperature?: number;
-    logProgress?: boolean; 
-    useCache?: boolean; 
+    maxTokens?: number;
+    useCache?: boolean;
 }
 
-const DEFAULT_MAX_TOKENS = 2000;
-export const DEFAULT_TEMPERATURE = 0.0;
+// Legacy alias for backward compatibility
+export type GetModelResponseOptions = GetModelResponseParams;
 
-/**
- * Gets a streamed response from the specified LLM via OpenRouter.
- * Handles model name resolution and basic error wrapping.
- */
-export async function getModelResponse(options: GetModelResponseOptions): Promise<string> {
-    const chalk = (await import('chalk')).default;
-    const { logger } = getConfig();
-    
+export async function getModelResponse(params: GetModelResponseParams): Promise<string> {
     const {
-        modelId, // Full OpenRouter model string
+        modelId,
+        prompt,
         messages,
         systemPrompt,
-        maxTokens = DEFAULT_MAX_TOKENS,
-        temperature = DEFAULT_TEMPERATURE,
-        logProgress = false,
-        useCache = false 
-    } = options;
+        temperature = 0,
+        maxTokens,
+        useCache = true,
+    } = params;
+    const { logger } = getConfig();
 
-    const MAX_RETRIES = 3;
-    const RETRY_DELAY_MS = 2000;
-
-    if (logProgress) {
-        console.log(chalk.gray(`  -> Using model: ${modelId}`));
+    // Convert prompt to messages format if needed
+    let finalMessages: ConversationMessage[] | undefined = messages;
+    if (prompt && !messages) {
+        finalMessages = [{ role: 'user', content: prompt }];
     }
+
+    // Create a comprehensive cache key that includes ALL parameters that affect the response
+    const cacheKeyPayload = {
+        modelId,
+        prompt,
+        messages: finalMessages,
+        systemPrompt,
+        temperature,
+        maxTokens,
+        // Include any other parameters that might affect the response
+    };
+    const cacheKey = generateCacheKey(cacheKeyPayload);
 
     if (useCache) {
-        const cacheKeyPayload = {
-            modelId,
-            messages,
-            systemPrompt,
-            maxTokens,
-            temperature,
-        };
-        const cacheKey = generateCacheKey(cacheKeyPayload);
-        const cache = getCache('model-responses');
-        const cachedResponse = await cache.get(cacheKey);
-
-        if (cachedResponse && (cachedResponse as string).trim() !== '') {
-            if (logProgress) {
-                console.log(chalk.green(`  -> Cache HIT for model: ${modelId}`));
-            }
-            return cachedResponse as string;
-        }
-        if (logProgress) {
-            if (cachedResponse) { // This means it existed but was empty/whitespace
-                 console.log(chalk.yellow(`  -> Cache HIT but response was empty. Invalidating and treating as MISS for model: ${modelId}`));
-            } else {
-                 console.log(chalk.yellow(`  -> Cache MISS for model: ${modelId}`));
-            }
-        }
-    }
-
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-        // Create a copy of messages and modify the latest user message for retry attempts
-        let messagesForAttempt = [...messages];
-        
-        if (attempt > 1) {
-            // Find the last user message and add spaces to break caching
-            for (let i = messagesForAttempt.length - 1; i >= 0; i--) {
-                if (messagesForAttempt[i].role === 'user') {
-                    // Add (attempt - 1) spaces to the end of the user message
-                    const spacesToAdd = ' '.repeat(attempt - 1);
-                    messagesForAttempt[i] = {
-                        ...messagesForAttempt[i],
-                        content: messagesForAttempt[i].content + spacesToAdd
-                    };
-                    if (logProgress) {
-                        console.log(chalk.yellow(`  -> Retry attempt ${attempt}: Added ${attempt - 1} space(s) to break caching`));
-                    }
-                    break;
-                }
-            }
-        }
-
+        // Check cache first
         try {
-            if (logProgress && useCache) {
-                console.log(chalk.yellow('  -> Caching is enabled. Will store response after generation.'));
+            const cachedResponse = await llmCache.get(cacheKey);
+            if (cachedResponse) {
+                logger.info(`[LLM Service] Cache HIT for ${modelId}. Key: ${cacheKey.slice(0, 8)}...`);
+                return cachedResponse;
             }
-
-            const clientOptions: Omit<LLMApiCallOptions, 'modelName'> & { modelId: string } = {
-                modelId: modelId, 
-                messages: messagesForAttempt,
-                systemPrompt: systemPrompt ?? undefined,
-                maxTokens: maxTokens,
-                temperature: temperature,
-                timeout: 120000, // 120 seconds
-            };
-
-            if (logProgress || process.env.DEBUG_LLM_PAYLOAD === 'true') {
-                const { logger: internalLogger } = getConfig();
-                internalLogger.info(`[LLMService] Calling LLM client for model: ${modelId}. Client options payload (messages):`);
-                try {
-                    internalLogger.info(JSON.stringify(clientOptions.messages, null, 2));
-                } catch (e) {
-                    internalLogger.info('Could not JSON.stringify clientOptions.messages. Logging raw object below:');
-                    internalLogger.info(clientOptions.messages as any);
-                }
-                if (clientOptions.systemPrompt) {
-                     internalLogger.info(`[LLMService] System prompt being passed separately: ${clientOptions.systemPrompt}`);
-                }
-            }
-
-            const response = await dispatchMakeApiCall(clientOptions);
-
-            if (response.error) {
-                throw new Error(`API Error from model ${modelId}: ${response.error}`);
-            }
-
-            const fullResponse = response.responseText;
-
-
-            if (!fullResponse || fullResponse.trim() === '') {
-                throw new Error('Model returned an empty or whitespace-only response.');
-            }
-
-            if (useCache) {
-                // Note: We cache using the original messages, not the modified ones with spaces
-                const cacheKeyPayload = {
-                    modelId,
-                    messages, // Original messages without added spaces
-                    systemPrompt,
-                    maxTokens,
-                    temperature,
-                };
-                const cacheKey = generateCacheKey(cacheKeyPayload);
-                const cache = getCache('model-responses');
-                await cache.set(cacheKey, fullResponse);
-                if (logProgress) {
-                    console.log(chalk.blue(`  -> Cached response for model: ${modelId}`));
-                }
-            }
-
-            return fullResponse;
-
-        } catch (error: any) {
-            logger.warn(`[LLM Service] Attempt ${attempt} of ${MAX_RETRIES} failed for model ${modelId}: ${error.message}`);
-            if (attempt < MAX_RETRIES) {
-                await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
-            } else {
-                logger.error(`[LLM Service] All ${MAX_RETRIES} attempts failed for model ${modelId}.`);
-                throw error;
-            }
+        } catch (error) {
+            logger.warn(`[LLM Service] Cache read failed for ${modelId}: ${error}`);
         }
     }
+    
+    logger.info(`[LLM Service] Cache MISS for ${modelId}. Key: ${cacheKey.slice(0, 8)}... Calling API...`);
 
-    throw new Error(`Failed to get response for model ${modelId} after ${MAX_RETRIES} attempts.`);
+    const requestPayload: LLMApiCallOptions = {
+        modelId,
+        messages: finalMessages,
+        systemPrompt,
+        temperature,
+        maxTokens,
+    };
+
+    const apiCall = async () => {
+        const response: ModelResponse = await dispatch(requestPayload);
+
+        // This is a simplistic check. You might want to refine it based on actual API responses.
+        if (response.error || (response.responseText && response.responseText.trim() === '')) {
+            throw new Error(response.error || 'Empty response from model');
+        }
+        return response.responseText || '';
+    };
+
+    try {
+        const pRetry = (await import('p-retry')).default;
+        const responseContent = await pRetry(apiCall, {
+            retries: 3,
+            onFailedAttempt: (error: any) => {
+                logger.warn(`[LLM Service] API call failed. Attempt ${error.attemptNumber}. Retries left: ${error.retriesLeft}.`);
+                logger.warn(`[LLM Service] Error: ${error.message}`);
+            },
+            // TODO: Re-implement shouldRetry with a proper isRateLimitError function
+            // shouldRetry: (error) => {
+            //     return isRateLimitError(error);
+            // }
+        });
+        
+        if (useCache) {
+            try {
+                await llmCache.set(cacheKey, responseContent);
+                logger.info(`[LLM Service] Cached response for ${modelId}. Key: ${cacheKey.slice(0, 8)}...`);
+            } catch (cacheWriteError) {
+                logger.error(`[LLM Service] Failed to write to cache: ${cacheWriteError}`);
+            }
+        }
+        
+        return responseContent;
+    } catch (error: any) {
+        logger.error(`[LLM Service] API call failed after all retries for model ${modelId}. Error: ${error.message}`);
+        throw error; // Re-throw the final error
+    }
 } 

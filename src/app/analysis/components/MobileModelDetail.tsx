@@ -5,11 +5,7 @@ import dynamic from 'next/dynamic';
 import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import { CoverageResult } from '@/app/utils/types';
 import { EvaluationView } from './SharedEvaluationComponents';
-
-const ArrowLeft = dynamic(() => import("lucide-react").then(mod => mod.ArrowLeft), { ssr: false });
-
-const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
-const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
+import Icon from '@/components/ui/icon';
 
 interface MobileModelDetailProps {
     modelId: string;
@@ -41,7 +37,7 @@ export const MobileModelDetail: React.FC<MobileModelDetailProps> = ({
                         className="flex items-center gap-2 px-3 py-2 hover:bg-muted rounded-lg transition-colors min-h-[44px]"
                         title="Back to model list"
                     >
-                        <ArrowLeft className="h-5 w-5" />
+                        <Icon name="arrow-left" className="h-5 w-5" />
                         <span className="font-medium">Back</span>
                     </button>
                     <h2 className="font-semibold text-lg truncate flex-1">{getModelDisplayLabel(modelId)}</h2>
@@ -69,7 +65,7 @@ export const MobileModelDetail: React.FC<MobileModelDetailProps> = ({
                     className="flex items-center gap-2 px-3 py-2 hover:bg-muted rounded-lg transition-colors min-h-[44px]"
                     title="Back to model list"
                 >
-                    <ArrowLeft className="h-5 w-5" />
+                    <Icon name="arrow-left" className="h-5 w-5" />
                     <span className="font-medium">Back</span>
                 </button>
                 <h2 className="font-semibold text-lg truncate flex-1">{getModelDisplayLabel(modelId)}</h2>

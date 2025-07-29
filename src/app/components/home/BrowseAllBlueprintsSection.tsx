@@ -1,15 +1,12 @@
 'use client';
 
-import nextDynamic from 'next/dynamic';
 import Link from 'next/link';
 import { BLUEPRINT_CONFIG_REPO_URL } from '@/lib/configConstants';
 import { Button } from '@/components/ui/button';
 import { BlueprintSummaryInfo } from '@/app/utils/blueprintSummaryUtils';
 import DetailedBlueprintCard from './DetailedBlueprintCard';
 import SimplifiedBlueprintCard from './SimplifiedBlueprintCard';
-
-// Define dynamic components once, outside the render function
-const PackageSearch = nextDynamic(() => import('lucide-react').then(mod => mod.PackageSearch));
+import Icon from '@/components/ui/icon';
 
 interface BrowseAllBlueprintsSectionProps {
   blueprints: BlueprintSummaryInfo[];
@@ -50,7 +47,7 @@ const BrowseAllBlueprintsSection = ({
       </div>
       {filteredBlueprints.length === 0 ? (
         <div className="text-center py-10 bg-card/50 dark:bg-card/40 rounded-lg shadow-md">
-          {PackageSearch && <PackageSearch className="w-12 h-12 mx-auto mb-4 text-muted-foreground dark:text-muted-foreground" />}
+          <Icon name="package-search" className="w-12 h-12 mx-auto mb-4 text-muted-foreground dark:text-muted-foreground" />
           <p className="text-lg text-muted-foreground dark:text-muted-foreground">No evaluation blueprints found.</p>
           <p className="text-sm text-muted-foreground dark:text-muted-foreground mt-1">Contribute blueprints to the <a href={`${BLUEPRINT_CONFIG_REPO_URL}/tree/main/blueprints`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Weval Blueprints repository</a>.</p>
         </div>

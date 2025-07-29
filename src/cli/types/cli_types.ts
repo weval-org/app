@@ -72,6 +72,7 @@ export interface EvaluationInput {
     promptData: PromptResponseData;
     config: ComparisonConfig;
     effectiveModelIds: string[];
+    embeddingModel?: string;
 }
 
 export interface EmbeddingEvaluationResult {

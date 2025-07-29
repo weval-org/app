@@ -11,8 +11,7 @@ import { prettifyTag } from '@/app/utils/tagUtils';
 import { AnalysisProvider } from '@/app/analysis/context/AnalysisProvider';
 import { EnhancedRunInfo } from '@/app/utils/homepageDataUtils';
 import { fromSafeTimestamp, formatTimestampForDisplay } from '@/lib/timestampUtils';
-import dynamic from 'next/dynamic';
-const AlertCircle = dynamic(() => import('lucide-react').then(mod => mod.AlertCircle), { ssr: false });
+import Icon from '@/components/ui/icon';
 
 interface ConfigRunsClientPageProps {
     configId: string;
@@ -94,7 +93,7 @@ const ConfigRunsClientPage: React.FC<ConfigRunsClientPageProps> = ({
                     <CardContent>
                         {filteredRuns.length === 0 ? (
                             <div className="text-center py-8">
-                                <AlertCircle className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                                <Icon name="alert-circle" className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                                 <p className="text-muted-foreground">No runs found matching your criteria.</p>
                             </div>
                         ) : (

@@ -5,17 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-
-const Trophy = dynamic(() => import('lucide-react').then(mod => mod.Trophy), { ssr: true });
-const Target = dynamic(() => import('lucide-react').then(mod => mod.Target), { ssr: true });
-const TrendingUp = dynamic(() => import('lucide-react').then(mod => mod.TrendingUp), { ssr: true });
-const AlertTriangle = dynamic(() => import('lucide-react').then(mod => mod.AlertTriangle), { ssr: true });
-const Brain = dynamic(() => import('lucide-react').then(mod => mod.Brain), { ssr: true });
-const CheckCircle = dynamic(() => import('lucide-react').then(mod => mod.CheckCircle), { ssr: true });
-const XCircle = dynamic(() => import('lucide-react').then(mod => mod.XCircle), { ssr: true });
-const Activity = dynamic(() => import('lucide-react').then(mod => mod.Activity), { ssr: true });
-const ArrowLeft = dynamic(() => import('lucide-react').then(mod => mod.ArrowLeft), { ssr: true });
-const Users = dynamic(() => import('lucide-react').then(mod => mod.Users), { ssr: true });
+import Icon from '@/components/ui/icon';
 
 interface ModelCardPageProps {
   params: Promise<{
@@ -56,10 +46,10 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
   };
 
   const getPerformanceIcon = (score?: number | null) => {
-    if (!score) return Activity;
-    if (score >= 0.7) return Trophy;
-    if (score >= 0.5) return Target;
-    return TrendingUp;
+    if (!score) return () => <Icon name="activity" />;
+    if (score >= 0.7) return () => <Icon name="trophy" />;
+    if (score >= 0.5) return () => <Icon name="target" />;
+    return () => <Icon name="trending-up" />;
   };
 
   return (
@@ -72,7 +62,7 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
             href="/cards" 
             className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
           >
-            <ArrowLeft className="h-4 w-4 mr-1" />
+            <Icon name="arrow-left" className="h-4 w-4 mr-1" />
             Back to Model Cards
           </Link>
         </div>
@@ -85,7 +75,7 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
                 <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-                  <Brain className="h-6 w-6 text-primary" />
+                  <Icon name="brain" className="h-6 w-6 text-primary" />
                 </div>
                 <div>
                   <h1 className="text-xl font-bold">MODEL CARD: {modelCard.displayName.toUpperCase()}</h1>
@@ -115,7 +105,7 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
             {/* Left Column - Key Insights (Primary Focus) */}
             <div className="flex-1 p-6 lg:pr-4">
               <div className="flex items-center mb-6">
-                <Brain className="h-5 w-5 text-primary mr-2" />
+                <Icon name="brain" className="h-5 w-5 text-primary mr-2" />
                 <h2 className="text-lg font-semibold">Key Insights</h2>
               </div>
               
@@ -125,7 +115,7 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
                   {modelCard.analyticalSummary.strengths?.length > 0 && (
                     <div>
                       <div className="flex items-center mb-3">
-                        <CheckCircle className="h-4 w-4 text-green-600 mr-2" />
+                        <Icon name="check-circle" className="h-4 w-4 text-green-600 mr-2" />
                         <h3 className="font-semibold text-green-600 dark:text-green-400">Strengths</h3>
                       </div>
                       <ul className="space-y-2">
@@ -142,7 +132,7 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
                   {modelCard.analyticalSummary.weaknesses?.length > 0 && (
                     <div>
                       <div className="flex items-center mb-3">
-                        <XCircle className="h-4 w-4 text-orange-600 mr-2" />
+                        <Icon name="x-circle" className="h-4 w-4 text-orange-600 mr-2" />
                         <h3 className="font-semibold text-orange-600 dark:text-orange-400">Areas for Improvement</h3>
                       </div>
                       <ul className="space-y-2">
@@ -159,7 +149,7 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
                   {modelCard.analyticalSummary.patterns?.length > 0 && (
                     <div>
                       <div className="flex items-center mb-3">
-                        <Activity className="h-4 w-4 text-blue-600 mr-2" />
+                        <Icon name="activity" className="h-4 w-4 text-blue-600 mr-2" />
                         <h3 className="font-semibold text-blue-600 dark:text-blue-400">Behavioral Patterns</h3>
                       </div>
                       <ul className="space-y-2">
@@ -176,7 +166,7 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
                   {modelCard.analyticalSummary.risks?.length > 0 && (
                     <div>
                       <div className="flex items-center mb-3">
-                        <AlertTriangle className="h-4 w-4 text-red-600 mr-2" />
+                        <Icon name="alert-triangle" className="h-4 w-4 text-red-600 mr-2" />
                         <h3 className="font-semibold text-red-600 dark:text-red-400">Key Risks</h3>
                       </div>
                       <ul className="space-y-2">
@@ -191,7 +181,7 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
-                  <Brain className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <Icon name="brain" className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p>No analytical insights available yet.</p>
                 </div>
               )}
@@ -206,14 +196,14 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
-                      <Activity className="h-3.5 w-3.5 text-muted-foreground mr-2" />
+                        <Icon name="activity" className="h-3.5 w-3.5 text-muted-foreground mr-2" />
                       <span className="text-sm">Evaluations</span>
                     </div>
                     <span className="font-medium">{modelCard.overallStats.totalRuns}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
-                      <Users className="h-3.5 w-3.5 text-muted-foreground mr-2" />
+                      <Icon name="users" className="h-3.5 w-3.5 text-muted-foreground mr-2" />
                       <span className="text-sm">Blueprints</span>
                     </div>
                     <span className="font-medium">{modelCard.overallStats.totalBlueprints}</span>
@@ -229,11 +219,10 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
                     <h3 className="font-medium text-sm text-muted-foreground mb-3">Top Performance</h3>
                     <div className="space-y-2">
                       {topPerformingTags.map(([tag, data]) => {
-                        const IconComponent = getPerformanceIcon(data.averageScore);
                         return (
                           <div key={tag} className="flex items-center justify-between">
                             <div className="flex items-center space-x-2">
-                              <IconComponent className={`h-3.5 w-3.5 ${getPerformanceColor(data.averageScore)}`} />
+                              <Icon name={tag as any} className={`h-3.5 w-3.5 ${getPerformanceColor(data.averageScore)}`} />
                               <span className="text-sm capitalize">{tag.replace(/-/g, ' ')}</span>
                             </div>
                             <Badge variant="outline" className={`text-xs ${getPerformanceColor(data.averageScore)} border-current`}>

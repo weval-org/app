@@ -1,11 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import dynamic from 'next/dynamic';
 import React from 'react';
-import { cn } from '@/lib/utils';
-
-const ChevronRight = dynamic(() => import('lucide-react').then(mod => mod.ChevronRight));
+import Icon from '@/components/ui/icon';
 
 export interface BreadcrumbItem {
   label: string;
@@ -28,7 +25,7 @@ const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ items, className }) => {
     <nav aria-label="Breadcrumb" className={`flex items-center space-x-1 text-sm text-muted-foreground ${className || ''}`}>
       {items.map((item, index) => (
         <div key={index} className="flex items-center">
-          {index > 0 && <ChevronRight className="h-4 w-4 mx-1" />}
+          {index > 0 && <Icon name="chevron-right" className="h-4 w-4 mx-1" />}
           {item.href && !item.isCurrent ? (
             <Link href={item.href} className="hover:underline" title={item.title}>
               {item.label}

@@ -5,11 +5,8 @@ import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import CoverageHeatmapCanvas from '@/app/analysis/components/CoverageHeatmapCanvas';
 import { BlueprintSummaryInfo } from '@/app/utils/blueprintSummaryUtils';
-
-const ReactMarkdown = nextDynamic(() => import('react-markdown'), { ssr: false });
-
-// Define dynamic components once, outside the render function
-const FolderOpen = nextDynamic(() => import('lucide-react').then(mod => mod.FolderOpen));
+import Icon from '@/components/ui/icon';
+import ReactMarkdown from 'react-markdown';
 
 const getHybridScoreColor = (score: number | null | undefined): string => {
   if (score === null || score === undefined || isNaN(score)) return 'text-muted-foreground dark:text-muted-foreground';
@@ -34,7 +31,7 @@ export default function SimplifiedBlueprintCard({ blueprint: bp }: SimplifiedBlu
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
           <div className="flex-grow min-w-0">
             <div className="flex items-center mb-3">
-              {FolderOpen && <FolderOpen className="w-6 h-6 mr-2.5 text-primary flex-shrink-0" />}
+              <Icon name="folder-open" className="w-6 h-6 mr-2.5 text-primary flex-shrink-0" />
               <h3 className="font-semibold text-lg md:text-xl text-primary truncate group-hover:underline">
                 {bp.title || bp.configTitle}
               </h3>

@@ -2,12 +2,9 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import dynamic from 'next/dynamic';
-
-const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
-const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
-const ChevronRight = dynamic(() => import('lucide-react').then(mod => mod.ChevronRight));
-
+import Icon from '@/components/ui/icon';
+import ReactMarkdown from 'react-markdown';
+import RemarkGfmPlugin from 'remark-gfm';
 
 interface MarkdownAccordionProps {
   content: string;
@@ -111,7 +108,7 @@ export const MarkdownAccordion: React.FC<MarkdownAccordionProps> = ({ content })
       {sections.map((section, index) => (
         <Collapsible key={index} open={openSections.has(index)} onOpenChange={() => toggleSection(index)} className="border-t border-border/60">
           <CollapsibleTrigger className="flex items-center w-full text-left py-3 group -mx-3 px-3 hover:bg-muted/50 rounded-md">
-            <ChevronRight className={`w-4 h-4 mr-2 flex-shrink-0 transform transition-transform text-muted-foreground group-hover:text-primary ${openSections.has(index) ? 'rotate-90' : ''}`} />
+            <Icon name="chevron-right" className={`w-4 h-4 mr-2 flex-shrink-0 transform transition-transform text-muted-foreground group-hover:text-primary ${openSections.has(index) ? 'rotate-90' : ''}`} />
             <span className="flex-1 font-semibold group-hover:text-primary text-base">
               {section.title}
             </span>

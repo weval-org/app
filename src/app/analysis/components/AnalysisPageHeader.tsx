@@ -6,7 +6,7 @@ import Breadcrumbs from '@/app/components/Breadcrumbs';
 import Link from 'next/link';
 import { MarkdownAccordion } from '@/app/analysis/components/MarkdownAccordion';
 import { StructuredSummary } from '@/app/analysis/components/StructuredSummary';
-import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
+import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelIdUtils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { prettifyTag, normalizeTag } from '@/app/utils/tagUtils';
 import { Badge } from '@/components/ui/badge';
@@ -14,12 +14,11 @@ import { useUnifiedAnalysis } from '../hooks/useUnifiedAnalysis';
 import { cn } from '@/lib/utils';
 import PromptContextDisplay from './PromptContextDisplay';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
+import Icon from '@/components/ui/icon';
+// import { usePreloadIcons } from '@/components/ui/use-preload-icons';
 
-const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
-const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
-const Sparkles = dynamic(() => import("lucide-react").then(mod => mod.Sparkles));
-const InfoIcon = dynamic(() => import("lucide-react").then(mod => mod.Info));
-const MessageSquare = dynamic(() => import("lucide-react").then(mod => mod.MessageSquare));
+import ReactMarkdown from 'react-markdown';
+import RemarkGfmPlugin from 'remark-gfm';
 
 export interface AnalysisPageHeaderProps {
   actions?: React.ReactNode;
@@ -28,91 +27,145 @@ export interface AnalysisPageHeaderProps {
   isSticky?: boolean;
 }
 
-// Component for overall summary stats (aggregate view)
+// Component for overall summary stats (aggregate view) - now with leaderboard
 const SummaryStatsTable = () => {
-  const { summaryStats, isSandbox, openModelPerformanceModal, openPromptDetailModal } = useUnifiedAnalysis();
+  const { summaryStats, data, openModelPerformanceModal, openPromptDetailModal } = useUnifiedAnalysis();
 
   if (!summaryStats) return null;
 
-  const { bestPerformingModel, worstPerformingModel, mostDifferentiatingPrompt, mostSimilarPair } = summaryStats;
+  const { modelLeaderboard, mostDifferentiatingPrompt, mostSimilarPair } = summaryStats;
 
-  const performerTooltipText = isSandbox
-    ? 'Based on highest average key point coverage score.'
-    : 'Based on highest average hybrid score (coverage + similarity to ideal).';
+  // Detect variations and build appropriate title
+  const hasMultipleSystemPrompts = data?.config?.systems && data.config.systems.length > 1;
+  const hasMultipleTemperatures = data?.config?.temperatures && data.config.temperatures.length > 1;
   
-  const worstPerformerTooltipText = isSandbox
-    ? 'Based on lowest average key point coverage score.'
-    : 'Based on lowest average hybrid score (coverage + similarity to ideal).';
-
-  const rows = [
-    {
-      label: (
-        <span className="flex items-center gap-1.5">
-          🏆 Best Hybrid Score
-          {isSandbox && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild><InfoIcon className="w-3.5 h-3.5 text-muted-foreground" /></TooltipTrigger>
-                <TooltipContent><p>In Sandbox, this is based on Key Point Coverage.</p></TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-        </span>
-      ),
-      item: bestPerformingModel ? <span className="underline cursor-pointer" onClick={() => openModelPerformanceModal(bestPerformingModel!.id)}>{getModelDisplayLabel(bestPerformingModel.id, { hideProvider: true })}</span> : 'N/A',
-      value: bestPerformingModel ? `${(bestPerformingModel.score * 100).toFixed(1)}%` : 'N/A',
-      tooltip: `${performerTooltipText} Model: ${bestPerformingModel ? getModelDisplayLabel(bestPerformingModel.id) : 'N/A'}`,
-    },
-    { 
-      label: '📉 Worst Hybrid Score', 
-      item: worstPerformingModel ? <span className="underline cursor-pointer" onClick={() => openModelPerformanceModal(worstPerformingModel!.id)}>{getModelDisplayLabel(worstPerformingModel.id, { hideProvider: true })}</span> : 'N/A',
-      value: worstPerformingModel ? `${(worstPerformingModel.score * 100).toFixed(1)}%` : 'N/A', 
-      tooltip: `${worstPerformerTooltipText} Model: ${worstPerformingModel ? getModelDisplayLabel(worstPerformingModel.id) : 'N/A'}` 
-    },
-    {
-        label: '🤔 Most Differentiating Prompt',
-        item: mostDifferentiatingPrompt ? <span className="underline cursor-pointer" onClick={() => openPromptDetailModal(mostDifferentiatingPrompt.id)}>{mostDifferentiatingPrompt.text || mostDifferentiatingPrompt.id}</span> : 'N/A',
-        value: mostDifferentiatingPrompt ? `σ = ${(mostDifferentiatingPrompt.score).toFixed(2)}` : 'N/A',
-        tooltip: `The prompt with the highest standard deviation of scores across models. Prompt ID: ${mostDifferentiatingPrompt?.id}`
-    },
-    {
-        label: '👯 Most Semantically Similar Pair',
-        item: mostSimilarPair ? <><span className="underline cursor-pointer" onClick={() => openModelPerformanceModal(mostSimilarPair!.pair[0])}>{getModelDisplayLabel(mostSimilarPair.pair[0], { hideProvider: true })}</span> vs <span className="underline cursor-pointer" onClick={() => openModelPerformanceModal(mostSimilarPair!.pair[1])}>{getModelDisplayLabel(mostSimilarPair.pair[1], { hideProvider: true })}</span></> : 'N/A',
-        value: mostSimilarPair ? `${(mostSimilarPair.value * 100).toFixed(1)}%` : 'N/A',
-        tooltip: `The two models with the highest semantic similarity score. Pair: ${mostSimilarPair ? `${getModelDisplayLabel(mostSimilarPair.pair[0])} & ${getModelDisplayLabel(mostSimilarPair.pair[1])}` : 'N/A'}`
-    }
-  ];
-
-  const validRows = rows.filter(row => row.item !== 'N/A');
+  let scoreTypeText = 'Coverage';
+  let scoreTooltipText = 'Based on key point coverage scores across all prompts.';
+  
+  if (hasMultipleSystemPrompts && hasMultipleTemperatures) {
+    scoreTypeText = `Coverage across ${data?.config?.systems?.length || 0} system variations & ${data?.config?.temperatures?.length || 0} temperatures`;
+    scoreTooltipText = 'Scores are averaged across all system prompt and temperature variations for each model.';
+  } else if (hasMultipleSystemPrompts) {
+    scoreTypeText = `Coverage across ${data?.config?.systems?.length || 0} system variations`;
+    scoreTooltipText = 'Scores are averaged across all system prompt variations for each model.';
+  } else if (hasMultipleTemperatures) {
+    scoreTypeText = `Coverage across ${data?.config?.temperatures?.length || 0} temperatures`;
+    scoreTooltipText = 'Scores are averaged across all temperature variations for each model.';
+  }
 
   return (
     <div className="mb-2">
-      {/* Mobile: Card-based layout */}
-      <div className="block sm:hidden space-y-3">
-        {validRows.map((row, index) => (
-          <div key={index} className="bg-card/50 dark:bg-slate-800/30 rounded-lg p-3 border border-border/50">
-            <div className="flex flex-col space-y-2">
-              <div className="text-sm font-medium text-muted-foreground">{row.label}</div>
-              <div className="text-foreground font-medium">{row.item}</div>
-              <div className="text-right font-semibold text-foreground text-sm">{row.value}</div>
+      {/* Model Leaderboard */}
+      {modelLeaderboard && modelLeaderboard.length > 0 && (
+        <div className="bg-card/50 dark:bg-slate-800/30 rounded-lg p-4 border border-border/50 mb-4">
+          <div className="flex items-start justify-between mb-3">
+                         <h3 className="text-sm font-semibold text-foreground flex items-center">
+               <Icon name="trophy" className="w-4 h-4 mr-2 text-primary" />
+               Best Models ({scoreTypeText})
+             </h3>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Icon name="info" className="w-4 h-4 text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{scoreTooltipText}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          <ul className="space-y-2">
+            {modelLeaderboard.map((model, index) => (
+              <li 
+                key={model.id} 
+                className="flex items-center justify-between text-sm border-b border-border/30 dark:border-slate-700/30 pb-1.5 last:border-b-0 last:pb-0"
+              >
+                <div className="flex items-center">
+                  <span className="mr-2.5 w-6 text-right text-muted-foreground font-medium">{index + 1}.</span>
+                  {index < 3 && (
+                    <Icon 
+                      name="award" 
+                      className={`w-3.5 h-3.5 mr-1.5 ${
+                        index === 0 ? 'text-amber-400' : 
+                        index === 1 ? 'text-slate-400' : 
+                        'text-amber-700/80'
+                      }`} 
+                    />
+                  )}
+                  <span 
+                    className="font-medium text-card-foreground hover:text-primary cursor-pointer underline-offset-2 hover:underline" 
+                    title={model.id}
+                    onClick={() => openModelPerformanceModal(model.id)}
+                  >
+                    {getModelDisplayLabel(model.id, {
+                      hideProvider: true,
+                      hideModelMaker: true,
+                      hideSystemPrompt: true,
+                      hideTemperature: true,
+                      prettifyModelName: true
+                    })}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="font-semibold text-primary">
+                    {(model.score * 100).toFixed(1)}%
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Additional insights */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {mostDifferentiatingPrompt && (
+          <div className="bg-card/50 dark:bg-slate-800/30 rounded-lg p-3 border border-border/50">
+            <div className="flex items-start justify-between mb-2">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                🤔 Most Differentiating Prompt
+              </span>
+            </div>
+            <div 
+              className="text-sm font-medium text-foreground cursor-pointer hover:text-primary underline-offset-2 hover:underline truncate"
+              onClick={() => openPromptDetailModal(mostDifferentiatingPrompt.id)}
+              title={mostDifferentiatingPrompt.text || mostDifferentiatingPrompt.id}
+            >
+              {mostDifferentiatingPrompt.text || mostDifferentiatingPrompt.id}
+            </div>
+            <div className="text-xs text-primary font-mono mt-1">
+              σ = {mostDifferentiatingPrompt.score.toFixed(3)}
             </div>
           </div>
-        ))}
-      </div>
+        )}
 
-      {/* Desktop: Table layout */}
-      <div className="hidden sm:block">
-        <table className="w-full text-sm">
-          <tbody>
-            {validRows.map((row, index) => (
-              <tr key={index} className="border-b border-border/30 last:border-b-0">
-                <td className="py-1.5 pr-2 font-medium text-muted-foreground whitespace-nowrap">{row.label}</td>
-                <td className="py-1.5 px-2 text-foreground truncate max-w-[200px]" title={row.tooltip}>{row.item}</td>
-                <td className="py-1.5 pl-2 text-right font-semibold text-foreground whitespace-nowrap">{row.value}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {mostSimilarPair && (
+          <div className="bg-card/50 dark:bg-slate-800/30 rounded-lg p-3 border border-border/50">
+            <div className="flex items-start justify-between mb-2">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                👯 Most Similar Models
+              </span>
+            </div>
+            <div className="text-sm font-medium text-foreground">
+              <span 
+                className="cursor-pointer hover:text-primary underline-offset-2 hover:underline"
+                onClick={() => openModelPerformanceModal(mostSimilarPair.pair[0])}
+              >
+                {getModelDisplayLabel(mostSimilarPair.pair[0], { hideProvider: true, prettifyModelName: true })}
+              </span>
+              <span className="mx-1 text-muted-foreground">vs</span>
+              <span 
+                className="cursor-pointer hover:text-primary underline-offset-2 hover:underline"
+                onClick={() => openModelPerformanceModal(mostSimilarPair.pair[1])}
+              >
+                {getModelDisplayLabel(mostSimilarPair.pair[1], { hideProvider: true, prettifyModelName: true })}
+              </span>
+            </div>
+            <div className="text-xs text-primary font-mono mt-1">
+              {(mostSimilarPair.value * 100).toFixed(1)}% similarity
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -120,18 +173,19 @@ const SummaryStatsTable = () => {
 
 // Component for prompt-specific stats (single prompt view)
 const PromptSpecificStatsTable = () => {
-  const { data, currentPromptId, displayedModels, isSandbox, openModelPerformanceModal } = useUnifiedAnalysis();
+  const { data, currentPromptId, displayedModels, openModelPerformanceModal } = useUnifiedAnalysis();
 
   const promptStats = useMemo(() => {
     if (!data || !currentPromptId || !data.evaluationResults?.llmCoverageScores) return null;
 
     const promptCoverageScores = data.evaluationResults.llmCoverageScores[currentPromptId];
-    const promptSimilarities = data.evaluationResults.perPromptSimilarities?.[currentPromptId];
     
     if (!promptCoverageScores) return null;
 
     const nonIdealModels = displayedModels.filter(m => m !== IDEAL_MODEL_ID);
-    const modelScores: { modelId: string; coverageScore: number | null; similarityScore: number | null; hybridScore: number | null }[] = [];
+    
+    // Group by canonical model name and average across variants
+    const canonicalModelScores = new Map<string, { totalScore: number; count: number; variants: Set<string> }>();
 
     nonIdealModels.forEach(modelId => {
       const coverageResult = promptCoverageScores[modelId];
@@ -139,37 +193,48 @@ const PromptSpecificStatsTable = () => {
         ? coverageResult.avgCoverageExtent
         : null;
 
-      const similarityEntry = promptSimilarities?.[modelId]?.[IDEAL_MODEL_ID] ?? promptSimilarities?.[IDEAL_MODEL_ID]?.[modelId];
-      const similarityScore = (typeof similarityEntry === 'number' && !isNaN(similarityEntry)) ? similarityEntry : null;
-
-      let hybridScore: number | null = null;
-      if (coverageScore !== null && similarityScore !== null) {
-        hybridScore = (coverageScore + similarityScore) / 2;
-      } else if (coverageScore !== null && isSandbox) {
-        // In sandbox mode, use coverage score as the primary metric
-        hybridScore = coverageScore;
+      if (coverageScore !== null) {
+        // Parse to get canonical model name
+        const { baseId } = parseEffectiveModelId(modelId);
+        
+        if (!canonicalModelScores.has(baseId)) {
+          canonicalModelScores.set(baseId, { totalScore: 0, count: 0, variants: new Set() });
+        }
+        
+        const current = canonicalModelScores.get(baseId)!;
+        current.totalScore += coverageScore;
+        current.count++;
+        current.variants.add(modelId);
+        canonicalModelScores.set(baseId, current);
       }
-
-      modelScores.push({ modelId, coverageScore, similarityScore, hybridScore });
     });
 
-    // Find best and worst performers
-    const validHybridScores = modelScores.filter(m => m.hybridScore !== null);
+    // Convert to array format for ranking
+    const modelScores: { modelId: string; coverageScore: number | null }[] = [];
+    canonicalModelScores.forEach((data, baseId) => {
+      if (data.count > 0) {
+        const avgScore = data.totalScore / data.count;
+        modelScores.push({ modelId: baseId, coverageScore: avgScore });
+      }
+    });
+
+    // Find best and worst performers based on coverage scores only
+    const validCoverageScores = modelScores.filter(m => m.coverageScore !== null);
     let bestPerformer: { modelId: string; score: number } | null = null;
     let worstPerformer: { modelId: string; score: number } | null = null;
 
-    if (validHybridScores.length > 0) {
-      const sortedByHybrid = [...validHybridScores].sort((a, b) => b.hybridScore! - a.hybridScore!);
-      bestPerformer = { modelId: sortedByHybrid[0].modelId, score: sortedByHybrid[0].hybridScore! };
-      worstPerformer = { modelId: sortedByHybrid[sortedByHybrid.length - 1].modelId, score: sortedByHybrid[sortedByHybrid.length - 1].hybridScore! };
+    if (validCoverageScores.length > 0) {
+      const sortedByCoverage = [...validCoverageScores].sort((a, b) => b.coverageScore! - a.coverageScore!);
+      bestPerformer = { modelId: sortedByCoverage[0].modelId, score: sortedByCoverage[0].coverageScore! };
+      worstPerformer = { modelId: sortedByCoverage[sortedByCoverage.length - 1].modelId, score: sortedByCoverage[sortedByCoverage.length - 1].coverageScore! };
     }
 
-    // Calculate standard deviation of scores for this prompt
-    const hybridScores = validHybridScores.map(m => m.hybridScore!);
+    // Calculate standard deviation of coverage scores for this prompt
+    const coverageScores = validCoverageScores.map(m => m.coverageScore!);
     let scoreStdDev: number | null = null;
-    if (hybridScores.length >= 2) {
-      const mean = hybridScores.reduce((sum, score) => sum + score, 0) / hybridScores.length;
-      const variance = hybridScores.reduce((sum, score) => sum + Math.pow(score - mean, 2), 0) / hybridScores.length;
+    if (coverageScores.length >= 2) {
+      const mean = coverageScores.reduce((sum, score) => sum + score, 0) / coverageScores.length;
+      const variance = coverageScores.reduce((sum, score) => sum + Math.pow(score - mean, 2), 0) / coverageScores.length;
       scoreStdDev = Math.sqrt(variance);
     }
 
@@ -178,9 +243,9 @@ const PromptSpecificStatsTable = () => {
       worstPerformer,
       scoreStdDev,
       totalModels: nonIdealModels.length,
-      validModels: validHybridScores.length
+      validModels: validCoverageScores.length
     };
-  }, [data, currentPromptId, displayedModels, isSandbox]);
+  }, [data, currentPromptId, displayedModels]);
 
   if (!promptStats) return null;
 
@@ -198,14 +263,12 @@ const PromptSpecificStatsTable = () => {
       label: (
         <span className="flex items-center gap-1.5">
           🏆 Best for this prompt
-          {isSandbox && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild><InfoIcon className="w-3.5 h-3.5 text-muted-foreground" /></TooltipTrigger>
-                <TooltipContent><p>Based on Key Point Coverage for this specific prompt.</p></TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild><Icon name="info" className="w-3.5 h-3.5 text-muted-foreground" /></TooltipTrigger>
+              <TooltipContent><p>Based on Key Point Coverage for this specific prompt.</p></TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </span>
       ),
       item: <span className="underline cursor-pointer" onClick={() => openModelPerformanceModal(bestPerformer.modelId)}>{getModelDisplayLabel(bestPerformer.modelId, { hideProvider: true })}</span>,
@@ -271,6 +334,10 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
   children,
   isSticky = false,
 }) => {
+  // Preload icons used in this header component
+  // usePreloadIcons(['trophy', 'info', 'message-square', 'sparkles']);
+  // usePreloadMarkdown();
+
   const {
     data,
     pageTitle,
@@ -285,6 +352,20 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
 
   const { configTitle, description, tags } = data.config;
   const hasDescription = description && description.trim() !== '';
+  
+  // Combine manual tags and auto tags for unified display
+  const unifiedTags = useMemo(() => {
+    const manualTags = tags || [];
+    const autoTags = data.executiveSummary?.structured?.autoTags || [];
+    
+    // Combine and deduplicate tags (case-insensitive)
+    const allTags = [...manualTags, ...autoTags];
+    const uniqueTags = allTags.filter((tag, index, arr) => 
+      arr.findIndex(t => t.toLowerCase() === tag.toLowerCase()) === index
+    );
+    
+    return uniqueTags;
+  }, [tags, data.executiveSummary?.structured?.autoTags]);
 
   // Get prompt-specific data when in single prompt view
   const promptData = useMemo(() => {
@@ -348,7 +429,7 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
               
               <div className="bg-muted/50 dark:bg-slate-900/40 p-4 rounded-lg">
                 <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center">
-                  <MessageSquare className="w-4 h-4 mr-2 text-primary" />
+                  <Icon name="message-square" className="w-4 h-4 mr-2 text-primary" />
                   Prompt Content
                 </h3>
                 <PromptContextDisplay promptContext={promptData.promptContext} />
@@ -371,10 +452,10 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
              </p>
           )}
 
-          {tags && tags.length > 0 && (
+          {unifiedTags && unifiedTags.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 mt-3 border-t border-border/60 mt-4 pt-4">
               <span className="text-xs font-semibold text-muted-foreground">TAGS:</span>
-              {tags.map(tag => (
+              {unifiedTags.map(tag => (
                 <Link href={`/tags/${normalizeTag(tag)}`} key={tag}>
                   <Badge variant="secondary" className="hover:bg-primary/20 transition-colors">{prettifyTag(tag)}</Badge>
                 </Link>
@@ -384,15 +465,40 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
 
           {(isInSinglePromptView || summaryStats) && (
             <div className="mt-4 pt-4 border-t border-border/60">
-              <h3 className="text-base font-semibold text-foreground mb-2 flex items-center">
-                <Sparkles className="w-4 h-4 mr-2 text-primary" />
-                {isInSinglePromptView ? 'Results for this prompt' : 'Summary of results'}
-              </h3>
               {isInSinglePromptView ? (
-                <PromptSpecificStatsTable />
+                <>
+                  <h3 className="text-base font-semibold text-foreground mb-2 flex items-center">
+                    <Icon name="sparkles" className="w-4 h-4 mr-2 text-primary" />
+                    Stats for this prompt
+                    {((data?.config?.systems && data.config.systems.length > 1) || 
+                      (data?.config?.temperatures && data.config.temperatures.length > 1)) && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="text-sm font-normal text-muted-foreground ml-2 cursor-help">
+                              (averaged across variations)
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>
+                              Scores are averaged across {
+                                (data?.config?.systems && data.config.systems.length > 1) && 
+                                (data?.config?.temperatures && data.config.temperatures.length > 1)
+                                  ? `${data?.config?.systems?.length || 0} system prompts and ${data?.config?.temperatures?.length || 0} temperatures`
+                                  : (data?.config?.systems && data.config.systems.length > 1)
+                                    ? `${data?.config?.systems?.length || 0} system prompt variations`
+                                    : `${data?.config?.temperatures?.length || 0} temperature variations`
+                              } for each model.
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </h3>
+                  <PromptSpecificStatsTable />
+                </>
               ) : (
-                <SummaryStatsTable />
-              )}
+                <SummaryStatsTable />)}
             </div>
           )}
 

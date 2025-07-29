@@ -1,8 +1,7 @@
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-
-const ArrowLeft = dynamic(() => import('lucide-react').then(mod => mod.ArrowLeft));
+import Icon from '@/components/ui/icon';
 
 function SkeletonCard() {
     return (
@@ -30,7 +29,7 @@ export default function AllBlueprintsLoading() {
                     <h2 className="text-3xl font-bold tracking-tight">All Evaluations (...)</h2>
                     <Button asChild variant="ghost" disabled>
                         <Link href="/">
-                            {ArrowLeft && <ArrowLeft className="w-4 h-4 mr-2" />}
+                            <Icon name="arrow-left" className="w-4 h-4 mr-2" />
                             Back to Home
                         </Link>
                     </Button>

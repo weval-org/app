@@ -27,18 +27,22 @@ import { fromSafeTimestamp, formatTimestampForDisplay } from '@/lib/timestampUti
 import ModelPerformanceModal from '@/app/analysis/components/ModelPerformanceModal';
 import { PromptSelector } from '@/app/analysis/components/PromptSelector';
 import PromptPerformanceModal from '@/app/analysis/components/PromptPerformanceModal';
-
-const FlaskConical = dynamic(() => import('lucide-react').then(mod => mod.FlaskConical));
-const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.AlertCircle))
-const Loader2 = dynamic(() => import("lucide-react").then((mod) => mod.Loader2))
-const GitCommit = dynamic(() => import("lucide-react").then((mod) => mod.GitCommit))
-const AlertTriangle = dynamic(() => import("lucide-react").then((mod) => mod.AlertTriangle))
-const FileText = dynamic(() => import("lucide-react").then((mod) => mod.FileText));
-
+import Icon from '@/components/ui/icon';
+// import { usePreloadIcons } from '@/components/ui/use-preload-icons';
+// import { usePreloadMarkdown } from '@/app/analysis/components/PreloadMarkdown';
 
 export const ClientPage: React.FC = () => {
     const router = useRouter();
     const { toast } = useToast();
+
+    // Preload icons used in this page
+    // usePreloadIcons([
+    //     'loader-2', 'alert-circle', 'git-commit', 'alert-triangle', 
+    //     'file-text', 'flask-conical'
+    // ]);
+
+    // Preload markdown dependencies to prevent loading states when modals open
+    // usePreloadMarkdown();
 
     const { 
         data, 
@@ -111,7 +115,7 @@ export const ClientPage: React.FC = () => {
     if (loading) {
         return (
           <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
-            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            <Icon name="loader-2" className="h-12 w-12 animate-spin text-primary" />
             <p className="ml-4 text-lg text-muted-foreground">Loading analysis data...</p>
           </div>
         )
@@ -120,7 +124,7 @@ export const ClientPage: React.FC = () => {
     if (error) {
         return (
             <Alert variant="destructive" className="max-w-2xl mx-auto my-10">
-                <AlertCircle className="h-4 w-4" />
+                <Icon name="alert-circle" className="h-4 w-4" />
                 <AlertTitle>Error Loading Data</AlertTitle>
                 <AlertDescription>{error}</AlertDescription>
             </Alert>
@@ -130,7 +134,7 @@ export const ClientPage: React.FC = () => {
     if (promptNotFound) {
         return (
           <Alert variant="destructive" className="max-w-2xl mx-auto my-10">
-            <AlertCircle className="h-4 w-4" />
+            <Icon name="alert-circle" className="h-4 w-4" />
             <AlertTitle>Prompt Not Found</AlertTitle>
             <AlertDescription>
               The prompt ID <code className="font-mono bg-muted px-1 py-0.5 rounded">{currentPromptId}</code> was not found in this evaluation run.
@@ -142,14 +146,16 @@ export const ClientPage: React.FC = () => {
         )
     }
 
-    if (!data) return null; 
+    if (!data) {
+        return null; 
+    }
 
     const headerActions = (
         <div className="flex flex-wrap items-center justify-end gap-2">
             {data.sourceCommitSha ? (
                 <Button asChild variant="outline" size="sm" className="px-3 py-1.5 text-xs">
                     <Link href={`${BLUEPRINT_CONFIG_REPO_URL}/blob/${data.sourceCommitSha}/blueprints/${data.sourceBlueprintFileName || getBlueprintPathFromId(data.configId) + '.yml'}`} target="_blank" rel="noopener noreferrer" title={`View blueprint at commit ${data.sourceCommitSha.substring(0, 7)}`}>
-                        <GitCommit className="w-4 h-4 mr-2" />
+                        <Icon name="git-commit" className="w-4 h-4 mr-2" />
                         See Blueprint
                     </Link>
                 </Button>
@@ -159,14 +165,14 @@ export const ClientPage: React.FC = () => {
                     <TooltipTrigger asChild>
                       <Button asChild variant="outline">
                           <Link href={`${BLUEPRINT_CONFIG_REPO_URL}/blob/main/blueprints/${data.sourceBlueprintFileName || getBlueprintPathFromId(data.configId) + '.yml'}`} target="_blank" rel="noopener noreferrer">
-                              <GitCommit className="w-4 h-4 mr-2" />
+                              <Icon name="git-commit" className="w-4 h-4 mr-2" />
                               View Latest Blueprint
                           </Link>
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent>
                       <div className="flex items-center">
-                        <AlertTriangle className="w-4 h-4 mr-2 text-amber-500" />
+                        <Icon name="alert-triangle" className="w-4 h-4 mr-2 text-amber-500" />
                         <p>Links to latest version, not the exact one from this run.</p>
                       </div>
                     </TooltipContent>
@@ -176,12 +182,12 @@ export const ClientPage: React.FC = () => {
             <DownloadResultsButton data={data} label={`${data.configTitle || configId} - ${data.runLabel || runLabel}${timestamp ? ' (' + formatTimestampForDisplay(fromSafeTimestamp(timestamp)) + ')' : ''}`} />
             <Button asChild variant="outline" size="sm" className="text-green-600 dark:text-green-400 border-green-600/70 dark:border-green-700/70 hover:bg-green-600/10 dark:hover:bg-green-700/30 hover:text-green-700 dark:hover:text-green-300 px-3 py-1.5 text-xs">
                 <Link href={`/api/comparison/${configId}/${runLabel}/${timestamp}/markdown`} download>
-                    <FileText className="w-3.5 h-3.5 mr-1.5" />
+                    <Icon name="file-text" className="w-3.5 h-3.5 mr-1.5" />
                     Download Markdown
                 </Link>
             </Button>
             <Button onClick={handleExploreInSandbox} variant="outline" size="sm" className="bg-exciting text-exciting-foreground border-exciting hover:bg-exciting/90 hover:text-exciting-foreground text-xs">
-              <FlaskConical className="w-4 h-4 mr-2" />
+              <Icon name="flask-conical" className="w-4 h-4 mr-2" />
               Run in Sandbox
             </Button>
         </div>

@@ -14,13 +14,8 @@ import {
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
 import { IDEAL_MODEL_ID, findSimilarityExtremes as importedFindSimilarityExtremes } from '@/app/utils/calculationUtils';
-import dynamic from 'next/dynamic';
-
-const Sparkles = dynamic(() => import('lucide-react').then(mod => mod.Sparkles), { ssr: false });
-const BarChartBig = dynamic(() => import('lucide-react').then(mod => mod.BarChartBig), { ssr: false });
-const SlidersHorizontal = dynamic(() => import('lucide-react').then(mod => mod.SlidersHorizontal), { ssr: false });
-const Info = dynamic(() => import('lucide-react').then(mod => mod.Info), { ssr: false });
-const ChevronRight = dynamic(() => import('lucide-react').then(mod => mod.ChevronRight), { ssr: false });
+import Icon from '@/components/ui/icon';
+import { usePreloadIcons } from '@/components/ui/use-preload-icons';
 
 interface StatisticRow {
   statistic: string;
@@ -45,6 +40,11 @@ interface HeadlineStatRow {
 
 const DatasetStatistics = () => {
     const { data, analysisStats, displayedModels: modelsStrings, promptTextsForMacroTable: promptTexts } = useAnalysis();
+
+    // Preload icons used in this component
+    usePreloadIcons([
+        'sparkles', 'chevron-right', 'info', 'bar-chart-big', 'sliders-horizontal'
+    ]);
 
     if (!data || !analysisStats) return null;
 
@@ -326,7 +326,7 @@ const DatasetStatistics = () => {
         <Card className="bg-card backdrop-blur-md text-card-foreground rounded-xl shadow-lg ring-1 ring-border dark:ring-slate-700 overflow-hidden">
             <CardHeader className="border-b border-border dark:border-slate-700 py-4 px-4 sm:px-6">
                 <div className="flex items-center">
-                    <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 mr-2 sm:mr-3 text-primary" />
+                    <Icon name="sparkles" className="w-5 h-5 sm:w-6 sm:h-6 mr-2 sm:mr-3 text-primary" />
                     <CardTitle className="text-primary text-lg sm:text-xl">Key Dataset Statistics</CardTitle>
                 </div>
                 <CardDescription className="text-muted-foreground dark:text-slate-400 pt-1 text-sm">A consolidated overview of performance and semantic consistency metrics.</CardDescription>
@@ -335,9 +335,9 @@ const DatasetStatistics = () => {
                 <Collapsible defaultOpen={true}>
                     <CollapsibleTrigger asChild>
                         <Button variant="ghost" className="w-full justify-start p-2 sm:p-3 hover:bg-muted/50 dark:hover:bg-slate-800/60">
-                            <ChevronRight className="w-4 h-4 mr-2 transition-transform duration-200 ease-in-out group-data-[state=open]:rotate-90" />
+                            <Icon name="chevron-right" className="w-4 h-4 mr-2 transition-transform duration-200 ease-in-out group-data-[state=open]:rotate-90" />
                             <h4 className="text-sm sm:text-base font-semibold flex items-center">
-                                <Info className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-2.5 text-primary/80" /> Overall Dataset Summary
+                                <Icon name="info" className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-2.5 text-primary/80" /> Overall Dataset Summary
                             </h4>
                         </Button>
                     </CollapsibleTrigger>
@@ -393,9 +393,9 @@ const DatasetStatistics = () => {
                 <Collapsible defaultOpen={false}>
                     <CollapsibleTrigger asChild>
                         <Button variant="ghost" className="w-full justify-start p-2 sm:p-3 hover:bg-muted/50 dark:hover:bg-slate-800/60">
-                            <ChevronRight className="w-4 h-4 mr-2 transition-transform duration-200 ease-in-out group-data-[state=open]:rotate-90" />
+                            <Icon name="chevron-right" className="w-4 h-4 mr-2 transition-transform duration-200 ease-in-out group-data-[state=open]:rotate-90" />
                             <h4 className="text-sm sm:text-base font-semibold flex items-center">
-                                <BarChartBig className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-2.5 text-primary" /> Model Performance & Relationships
+                                <Icon name="bar-chart-big" className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-2.5 text-primary" /> Model Performance & Relationships
                             </h4>
                         </Button>
                     </CollapsibleTrigger>
@@ -455,9 +455,9 @@ const DatasetStatistics = () => {
                 {promptStatsTableData.length > 0 && <Collapsible defaultOpen={false}>
                     <CollapsibleTrigger asChild>
                         <Button variant="ghost" className="w-full justify-start p-2 sm:p-3 hover:bg-muted/50 dark:hover:bg-slate-800/60">
-                            <ChevronRight className="w-4 h-4 mr-2 transition-transform duration-200 ease-in-out group-data-[state=open]:rotate-90" />
+                            <Icon name="chevron-right" className="w-4 h-4 mr-2 transition-transform duration-200 ease-in-out group-data-[state=open]:rotate-90" />
                             <h4 className="text-sm sm:text-base font-semibold flex items-center">
-                                <SlidersHorizontal className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-2.5 text-primary/80" /> Prompt-Specific Variations
+                                <Icon name="sliders-horizontal" className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-2.5 text-primary/80" /> Prompt-Specific Variations
                             </h4>
                         </Button>
                     </CollapsibleTrigger>

@@ -10,17 +10,14 @@ import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import { GRADING_DIMENSIONS, getGradingDimension } from '@/lib/grading-criteria';
 import { addLinksToModelNames } from '@/app/utils/modelLinkification';
 import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
+import Icon from '@/components/ui/icon';
 import dynamic from 'next/dynamic';
+import { usePreloadIcons } from '@/components/ui/use-preload-icons';
+import ReactMarkdown from 'react-markdown';
+import RemarkGfmPlugin from 'remark-gfm';
 
-const ChevronRight = dynamic(() => import('lucide-react').then(mod => mod.ChevronRight), { ssr: false });
-const Star = dynamic(() => import('lucide-react').then(mod => mod.Star), { ssr: false });
-const TrendingUp = dynamic(() => import('lucide-react').then(mod => mod.TrendingUp), { ssr: false });
-const TrendingDown = dynamic(() => import('lucide-react').then(mod => mod.TrendingDown), { ssr: false });
-const Eye = dynamic(() => import('lucide-react').then(mod => mod.Eye), { ssr: false });
-const Award = dynamic(() => import('lucide-react').then(mod => mod.Award), { ssr: false });
-const Info = dynamic(() => import('lucide-react').then(mod => mod.Info), { ssr: false });
-const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
-const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
+// const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
+// const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
 
 interface StructuredSummaryProps {
   insights: StructuredInsights;
@@ -81,7 +78,7 @@ const DimensionLabel: React.FC<{
       onClick={() => onShowInfo(dimension)}
       className="flex items-center space-x-2 hover:text-foreground transition-colors cursor-pointer min-w-0 w-full text-left py-1 px-1 rounded hover:bg-muted/50"
     >
-      <Info className="w-3 h-3 text-muted-foreground/60 hover:text-muted-foreground flex-shrink-0" />
+      <Icon name="info" className="w-3 h-3 text-muted-foreground/60 hover:text-muted-foreground flex-shrink-0" />
       <span className="font-medium text-muted-foreground truncate">{label}</span>
     </button>
   );
@@ -148,7 +145,7 @@ const ModelGradesDisplay: React.FC<{ grades: ModelGrades[] }> = ({ grades }) => 
               onClick={() => toggleModel(modelData.modelId)}
             >
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3 flex-1">
+                <div className="flex items-center space-x-3">
                   <div className="flex items-center space-x-2">
                     <div className={`text-sm font-bold px-2 py-1 rounded ${
                       rank === 1 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' :
@@ -159,43 +156,23 @@ const ModelGradesDisplay: React.FC<{ grades: ModelGrades[] }> = ({ grades }) => 
                       #{rank}
                     </div>
                     <h4 className="font-semibold text-foreground m-0">
-                      {getModelDisplayLabel(modelData.modelId)}
+                      {getModelDisplayLabel(modelData.modelId, { prettifyModelName: true, hideProvider: true, hideModelMaker: true })}
                     </h4>
-                  </div>
-                  
-                  <div className="flex items-center space-x-4 flex-1">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-sm text-muted-foreground">Overall:</span>
-                      <span className={`font-semibold text-lg ${getGradeColor(modelData.overallScore)}`}>
-                        {modelData.overallScore.toFixed(1)}/10
-                      </span>
-                    </div>
-                    
-                    {/* Quick highlights */}
-                    <div className="hidden sm:flex items-center space-x-4 text-xs">
-                      {modelData.strengths.length > 0 && (
-                        <div className="flex items-center space-x-1">
-                          <TrendingUp className="w-3 h-3 text-green-600" />
-                          <span className="text-muted-foreground">
-                            {modelData.strengths[0].dimension}
-                          </span>
-                        </div>
-                      )}
-                      {modelData.weaknesses.length > 0 && (
-                        <div className="flex items-center space-x-1">
-                          <TrendingDown className="w-3 h-3 text-red-600" />
-                          <span className="text-muted-foreground">
-                            {modelData.weaknesses[0].dimension}
-                          </span>
-                        </div>
-                      )}
-                    </div>
                   </div>
                 </div>
                 
-                <ChevronRight className={`w-4 h-4 text-muted-foreground transform transition-transform ${
-                  isExpanded ? 'rotate-90' : ''
-                }`} />
+                <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm text-muted-foreground">Overall:</span>
+                    <span className={`font-semibold text-lg ${getGradeColor(modelData.overallScore)}`}>
+                      {modelData.overallScore.toFixed(1)}/10
+                    </span>
+                  </div>
+                  
+                  <Icon name="chevron-right" className={`w-4 h-4 text-muted-foreground transform transition-transform ${
+                    isExpanded ? 'rotate-90' : ''
+                  }`} />
+                </div>
               </div>
             </div>
 
@@ -208,7 +185,7 @@ const ModelGradesDisplay: React.FC<{ grades: ModelGrades[] }> = ({ grades }) => 
                     {modelData.strengths.length > 0 && (
                       <div>
                         <h5 className="text-sm font-medium text-green-600 dark:text-green-400 mb-2 flex items-center">
-                          <TrendingUp className="w-3 h-3 mr-1" />
+                          <Icon name="trending-up" className="w-3 h-3 mr-1" />
                           Top Strengths
                         </h5>
                         <div className="space-y-1">
@@ -224,7 +201,7 @@ const ModelGradesDisplay: React.FC<{ grades: ModelGrades[] }> = ({ grades }) => 
                     {modelData.weaknesses.length > 0 && (
                       <div>
                         <h5 className="text-sm font-medium text-red-600 dark:text-red-400 mb-2 flex items-center">
-                          <TrendingDown className="w-3 h-3 mr-1" />
+                          <Icon name="trending-down" className="w-3 h-3 mr-1" />
                           Areas for Improvement
                         </h5>
                         <div className="space-y-1">
@@ -302,8 +279,14 @@ const ModelGradesDisplay: React.FC<{ grades: ModelGrades[] }> = ({ grades }) => 
 };
 
 export const StructuredSummary: React.FC<StructuredSummaryProps> = ({ insights }) => {
-  const { data, openModelPerformanceModal } = useAnalysis();
-  const [openSections, setOpenSections] = useState<Set<string>>(new Set());
+    const { data, openModelPerformanceModal } = useAnalysis();
+    const [openSections, setOpenSections] = useState<Set<string>>(new Set());
+
+    // Preload icons used in this component
+    usePreloadIcons([
+        'info', 'trending-up', 'trending-down', 'chevron-right', 
+        'star', 'eye', 'award'
+    ]);
 
   const handleContentClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
@@ -323,28 +306,28 @@ export const StructuredSummary: React.FC<StructuredSummaryProps> = ({ insights }
     {
       id: 'findings',
       title: 'Key Findings',
-      icon: <Star className="w-4 h-4" />,
+      icon: <Icon name="star" className="w-4 h-4" />,
       items: insights.keyFindings,
       color: 'text-yellow-600 dark:text-yellow-400'
     },
     {
       id: 'strengths', 
       title: 'Model Strengths',
-      icon: <TrendingUp className="w-4 h-4" />,
+      icon: <Icon name="trending-up" className="w-4 h-4" />,
       items: insights.strengths,
       color: 'text-green-600 dark:text-green-400'
     },
     {
       id: 'weaknesses',
       title: 'Model Weaknesses', 
-      icon: <TrendingDown className="w-4 h-4" />,
+      icon: <Icon name="trending-down" className="w-4 h-4" />,
       items: insights.weaknesses,
       color: 'text-red-600 dark:text-red-400'
     },
     {
       id: 'patterns',
       title: 'Interesting Patterns',
-      icon: <Eye className="w-4 h-4" />,
+      icon: <Icon name="eye" className="w-4 h-4" />,
       items: insights.patterns,
       color: 'text-blue-600 dark:text-blue-400'
     }
@@ -353,6 +336,7 @@ export const StructuredSummary: React.FC<StructuredSummaryProps> = ({ insights }
   // Add grades section if available
   const validSections = sections.filter(section => section.items.length > 0);
   const hasGrades = insights.grades && insights.grades.length > 0;
+  const hasAutoTags = insights.autoTags && insights.autoTags.length > 0;
 
   // Set initial open state
   useEffect(() => {
@@ -381,7 +365,7 @@ export const StructuredSummary: React.FC<StructuredSummaryProps> = ({ insights }
     });
   };
 
-  if (validSections.length === 0 && !hasGrades) {
+  if (validSections.length === 0 && !hasGrades && !hasAutoTags) {
     return (
       <div className="text-sm text-muted-foreground italic">
         No structured insights available.
@@ -406,7 +390,7 @@ export const StructuredSummary: React.FC<StructuredSummaryProps> = ({ insights }
             className="border-t border-border/60 first:border-t-0"
           >
             <CollapsibleTrigger className="flex items-center w-full text-left py-3 group -mx-3 px-3 hover:bg-muted/50 rounded-md">
-              <ChevronRight className={`w-4 h-4 mr-2 flex-shrink-0 transform transition-transform text-muted-foreground group-hover:text-primary ${openSections.has(section.id) ? 'rotate-90' : ''}`} />
+              <Icon name="chevron-right" className={`w-4 h-4 mr-2 flex-shrink-0 transform transition-transform text-muted-foreground group-hover:text-primary ${openSections.has(section.id) ? 'rotate-90' : ''}`} />
               <div className={`mr-2 ${section.color}`}>
                 {section.icon}
               </div>
@@ -442,9 +426,9 @@ export const StructuredSummary: React.FC<StructuredSummaryProps> = ({ insights }
           className="border-t border-border/60"
         >
           <CollapsibleTrigger className="flex items-center w-full text-left py-3 group -mx-3 px-3 hover:bg-muted/50 rounded-md">
-            <ChevronRight className={`w-4 h-4 mr-2 flex-shrink-0 transform transition-transform text-muted-foreground group-hover:text-primary ${openSections.has('grades') ? 'rotate-90' : ''}`} />
+            <Icon name="chevron-right" className={`w-4 h-4 mr-2 flex-shrink-0 transform transition-transform text-muted-foreground group-hover:text-primary ${openSections.has('grades') ? 'rotate-90' : ''}`} />
             <div className="mr-2 text-purple-600 dark:text-purple-400">
-              <Award className="w-4 h-4" />
+              <Icon name="award" className="w-4 h-4" />
             </div>
             <span className="flex-1 font-semibold group-hover:text-primary text-base">
               Qualitative Model Grades

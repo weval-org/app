@@ -21,16 +21,8 @@ import { ComparisonDataV2 as ImportedComparisonDataV2, PointAssessment } from '@
 import { useAnalysis } from '../context/AnalysisContext';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import PromptPerformanceModal from '@/app/analysis/components/PromptPerformanceModal';
-
-const UsersIcon = dynamic(() => import("lucide-react").then((mod) => mod.Users), { ssr: false });
-const AlertCircle = dynamic(() => import("lucide-react").then((mod) => mod.AlertCircle), { ssr: false });
-const AlertTriangleIcon = dynamic(() => import("lucide-react").then((mod) => mod.AlertTriangle), { ssr: false });
-const ThermometerIcon = dynamic(() => import("lucide-react").then((mod) => mod.Thermometer), { ssr: false });
-const MessageSquareIcon = dynamic(() => import("lucide-react").then((mod) => mod.MessageSquare), { ssr: false });
-const UnlinkIcon = dynamic(() => import("lucide-react").then((mod) => mod.Unlink), { ssr: false });
-const MedalIcon = dynamic(() => import("lucide-react").then((mod) => mod.Medal), { ssr: false });
-const InfoIcon = dynamic(() => import("lucide-react").then((mod) => mod.Info), { ssr: false });
-const SearchIcon = dynamic(() => import("lucide-react").then((mod) => mod.Search), { ssr: false });
+import Icon from '@/components/ui/icon';
+// import { usePreloadIcons } from '@/components/ui/use-preload-icons';
 
 // Component for rendering model header cells (both diagonal name and rank/score)
 interface ModelHeaderCellProps {
@@ -181,7 +173,7 @@ const ModelHeaderCell: React.FC<ModelHeaderCellProps> = ({
                 }}
                 title={`View detailed analysis for ${getModelDisplayLabel(parsedModelsMap[modelId])}`}
             >
-                {SearchIcon && <SearchIcon className="w-3 h-3" />}
+                <Icon name="search" className="w-3 h-3" />
             </button>
         );
 
@@ -204,7 +196,7 @@ const ModelHeaderCell: React.FC<ModelHeaderCellProps> = ({
             return (
                 <div className="text-center">
                     <div className="flex items-center justify-center gap-1 mb-0.5">
-                        {MedalIcon && <MedalIcon className={`w-3 h-3 ${colorClass}`} />}
+                        <Icon name="medal" className={`w-3 h-3 ${colorClass}`} />
                         <span className="text-xs font-semibold">{rankStr}</span>
                     </div>
                     <div className={cn("text-xs font-mono font-semibold", scoreColorClasses)}>
@@ -263,6 +255,15 @@ const MacroCoverageTable: React.FC = () => {
 
     const [selectedModelForModal, setSelectedModelForModal] = useState<string | null>(null);
 
+    // Preload icons used in this table and modal components
+    // usePreloadIcons([
+    //     'search', 'medal', 'alert-circle', 'info', 'users', 
+    //     'alert-triangle', 'unlink', 'thermometer', 'message-square'
+    // ]);
+
+    // Preload markdown dependencies to prevent loading states when modals open
+    // usePreloadMarkdown();
+
     const [markdownModule, setMarkdownModule] = useState<{ ReactMarkdown: any, RemarkGfm: any } | null>(null);
     const [sortOption, setSortOption] = useState<SortOption>('alpha-asc');
     const [highlightBestInClass, setHighlightBestInClass] = useState<boolean>(false);
@@ -271,7 +272,10 @@ const MacroCoverageTable: React.FC = () => {
     const [errorModalContent, setErrorModalContent] = useState<string>('');
 
     const onCellClick = (promptId: string, modelId: string) => {
+        console.log('[DEBUG] Cell clicked:', { promptId, modelId });
+        console.log('[DEBUG] About to open modal...');
         openModelEvaluationDetailModal({ promptId, modelId, variantScores: analysisStats?.perSystemVariantHybridScores });
+        console.log('[DEBUG] Modal open call completed');
     };
 
     const onPromptClick = (promptId: string) => {
@@ -306,14 +310,14 @@ const MacroCoverageTable: React.FC = () => {
         promptModelRanks,
     } = useMacroCoverageData(allCoverageScores, promptIds, models, sortOption);
 
-    useEffect(() => {
-        Promise.all([
-            import('react-markdown'),
-            import('remark-gfm')
-        ]).then(([md, gfm]) => {
-            setMarkdownModule({ ReactMarkdown: md.default, RemarkGfm: gfm.default });
-        });
-    }, []);
+    // useEffect(() => {
+    //     Promise.all([
+    //         import('react-markdown'),
+    //         import('remark-gfm')
+    //     ]).then(([md, gfm]) => {
+    //         setMarkdownModule({ ReactMarkdown: md.default, RemarkGfm: gfm.default });
+    //     });
+    // }, []);
 
     useEffect(() => {
         // Notify parent component when highlights change
@@ -376,7 +380,7 @@ const MacroCoverageTable: React.FC = () => {
                 }}
             >
                 <span className="px-2 py-1 rounded-md bg-coverage-grade-0 text-white font-semibold text-sm w-full text-center flex items-center justify-center min-h-[1.5rem]">
-                    <AlertCircle className="w-5 h-5" />
+                    <Icon name="alert-circle" className="w-5 h-5" />
                 </span>
             </div>
         );
@@ -408,7 +412,7 @@ const MacroCoverageTable: React.FC = () => {
                 <div className="w-full h-full flex flex-col items-center justify-center gap-1" title={tooltipText}>
                     <div className={`w-full h-3 rounded-sm ${bgColorClass}`} />
                     <div className="flex items-center gap-1">
-                        {InfoIcon && <InfoIcon className="w-3 h-3 text-muted-foreground/60" />}
+                        <Icon name="info" className="w-3 h-3 text-muted-foreground/60" />
                         <span className="text-xs text-foreground font-medium">
                             {avgExtent !== undefined ? `${(avgExtent * 100).toFixed(0)}%` : 'N/A'}
                         </span>
@@ -707,7 +711,7 @@ const MacroCoverageTable: React.FC = () => {
         <div>
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
                 <Alert className="bg-sky-50 border border-sky-200 text-sky-900 dark:bg-sky-900/20 dark:border-sky-500/30 dark:text-sky-200 w-auto">
-                    <InfoIcon className="h-4 w-4" />
+                    <Icon name="info" className="h-4 w-4" />
                     <AlertTitle className="font-semibold">Pro Tip</AlertTitle>
                     <AlertDescription>
                         Click on any result cell to open a detailed view.
@@ -970,7 +974,7 @@ const MacroCoverageTable: React.FC = () => {
                                                                 )} 
                                                                 title={`Ranked #${rank} for this prompt`}
                                                             >
-                                                                <MedalIcon className={cn(enhancedIconSize, colorClass)} />
+                                                                <Icon name="medal" className={cn(enhancedIconSize, colorClass)} />
                                                             </span>
                                                         );
                                                     }
@@ -982,31 +986,31 @@ const MacroCoverageTable: React.FC = () => {
                                                 {!simplifiedView && (
                                                     <>
                                                         <div className="absolute bottom-0.5 right-0.5 flex items-center gap-0.5">
-                                                            {hasHighDisagreement && UsersIcon && (
+                                                            {hasHighDisagreement && (
                                                                 <span title="High judge disagreement on a criterion">
-                                                                    <UsersIcon className="w-3 h-3 text-sky-600 dark:text-sky-500" />
+                                                                    <Icon name="users" className="w-3 h-3 text-sky-600 dark:text-sky-500" />
                                                                 </span>
                                                             )}
-                                                            {hasCriticalFailure && AlertTriangleIcon && (
+                                                            {hasCriticalFailure && (
                                                                 <span title="Violated a 'should not' constraint">
-                                                                    <AlertTriangleIcon className="w-3 h-3 text-red-600 dark:text-red-500" />
+                                                                    <Icon name="alert-triangle" className="w-3 h-3 text-red-600 dark:text-red-500" />
                                                                 </span>
                                                             )}
                                                         </div>
                                                         <div className="absolute top-0.5 right-0.5 flex items-center gap-0.5">
-                                                            {isOutlier && UnlinkIcon && (
+                                                            {isOutlier && (
                                                                 <span title="Outlier score (>1.5σ from prompt average)">
-                                                                    <UnlinkIcon className="w-3 h-3 text-amber-600 dark:text-amber-500" />
+                                                                    <Icon name="unlink" className="w-3 h-3 text-amber-600 dark:text-amber-500" />
                                                                 </span>
                                                             )}
-                                                            {(sensitivity === 'temp' || sensitivity === 'both') && ThermometerIcon && (
+                                                            {(sensitivity === 'temp' || sensitivity === 'both') && (
                                                                 <span title="Sensitive to temperature changes">
-                                                                    <ThermometerIcon className="w-3 h-3 text-orange-500 dark:text-orange-400" />
+                                                                    <Icon name="thermometer" className="w-3 h-3 text-orange-500 dark:text-orange-400" />
                                                                 </span>
                                                             )}
-                                                            {(sensitivity === 'sys' || sensitivity === 'both') && MessageSquareIcon && (
+                                                            {(sensitivity === 'sys' || sensitivity === 'both') && (
                                                                 <span title="Sensitive to system prompt changes">
-                                                                    <MessageSquareIcon className="w-3 h-3 text-indigo-500 dark:text-indigo-400" />
+                                                                    <Icon name="message-square" className="w-3 h-3 text-indigo-500 dark:text-indigo-400" />
                                                                 </span>
                                                             )}
                                                         </div>
@@ -1026,7 +1030,7 @@ const MacroCoverageTable: React.FC = () => {
                 <DialogContent className="max-w-lg">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
-                            <AlertCircle className="w-5 h-5 text-destructive" />
+                            <Icon name="alert-circle" className="w-5 h-5 text-destructive" />
                             Error Details
                         </DialogTitle>
                     </DialogHeader>

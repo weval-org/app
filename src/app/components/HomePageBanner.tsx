@@ -1,19 +1,11 @@
 'use client';
 
 import React from 'react';
-import { APP_REPO_URL } from '@/lib/configConstants';
 import Link from 'next/link';
-import dynamic from 'next/dynamic';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
+import { APP_REPO_URL } from '@/lib/configConstants';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import Icon from '@/components/ui/icon';
 
-const BookOpen = dynamic(() => import('lucide-react').then(mod => mod.BookOpen));
-const Edit3 = dynamic(() => import('lucide-react').then(mod => mod.Edit3));
-const ChevronDown = dynamic(() => import('lucide-react').then(mod => mod.ChevronDown));
-const Scale = dynamic(() => import('lucide-react').then(mod => mod.Scale));
 
 export default function HomePageBanner() {
   const [isLearnMoreOpen, setLearnMoreOpen] = React.useState(false);
@@ -32,7 +24,7 @@ export default function HomePageBanner() {
           {/* Card 1: Why Weval? */}
           <div className="bg-card/40 dark:bg-card/40 backdrop-blur-sm p-6 rounded-lg shadow-lg ring-1 ring-border/50 dark:ring-border/50 flex flex-col h-full">
             <div className="flex items-center mb-4">
-              <Scale className="w-8 h-8 mr-4 text-primary" />
+              <Icon name="scale" className="w-8 h-8 mr-4 text-primary" />
               <h2 className="text-2xl font-semibold text-foreground dark:text-slate-100">Evaluate What Matters</h2>
             </div>
             <p className="text-sm text-foreground/80 dark:text-muted-foreground leading-relaxed flex-grow mb-4">
@@ -53,7 +45,7 @@ export default function HomePageBanner() {
           {/* Card 2: For Consumers */}
           <div className="bg-card/40 dark:bg-card/40 backdrop-blur-sm p-6 rounded-lg shadow-lg ring-1 ring-border/50 dark:ring-border/50 flex flex-col h-full">
             <div className="flex items-center mb-4">
-              <BookOpen className="w-8 h-8 mr-4 text-primary" />
+              <Icon name="book-open" className="w-8 h-8 mr-4 text-primary" />
               <h2 className="text-2xl font-semibold text-foreground dark:text-slate-100">Explore the Results</h2>
             </div>
             <p className="text-sm text-foreground/80 dark:text-muted-foreground leading-relaxed flex-grow mb-4">
@@ -72,7 +64,7 @@ export default function HomePageBanner() {
           {/* Card 3: For Contributors */}
           <div className="bg-card/40 dark:bg-card/40 backdrop-blur-sm p-6 rounded-lg shadow-lg ring-1 ring-border/50 dark:ring-border/50 flex flex-col h-full">
             <div className="flex items-center mb-4">
-              <Edit3 className="w-8 h-8 mr-4 text-highlight-success" />
+              <Icon name="edit-3" className="w-8 h-8 mr-4 text-highlight-success" />
               <h2 className="text-2xl font-semibold text-foreground dark:text-slate-100">Contribute an Eval</h2>
             </div>
             <p className="text-sm text-foreground/80 dark:text-muted-foreground leading-relaxed flex-grow mb-4">
@@ -94,7 +86,7 @@ export default function HomePageBanner() {
                 <CollapsibleTrigger asChild>
                     <button className="inline-flex items-center text-sm font-medium text-primary hover:text-primary/90">
                         Learn more about why we've built Weval.
-                        <ChevronDown className={`ml-1.5 h-4 w-4 transition-transform duration-200 ${isLearnMoreOpen ? 'rotate-180' : ''}`} />
+                        <Icon name="chevron-down" className={`ml-1.5 h-4 w-4 transition-transform duration-200 ${isLearnMoreOpen ? 'rotate-180' : ''}`} />
                     </button>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="mt-6 max-w-5xl mx-auto text-left text-md text-foreground/80 dark:text-muted-foreground space-y-4 prose prose-sm dark:prose-invert">

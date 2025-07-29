@@ -62,11 +62,15 @@ export class EmbeddingEvaluator implements Evaluator {
         let embeddedCount = 0;
 
         textsToEmbed.forEach((text, key) => {
-            this.logger.info(`[EmbeddingEvaluator] Queueing embedding for key: ${key}`);
+            const promptId = key.split(':')[0];
+            const inputForPrompt = inputs.find(i => i.promptData.promptId === promptId);
+            const embeddingModel = inputForPrompt?.embeddingModel || 'together:intfloat/multilingual-e5-large-instruct'; // Fallback for safety
+
+            this.logger.info(`[EmbeddingEvaluator] Queueing embedding for key: ${key} using model ${embeddingModel}`);
             embeddingTasks.push(limit(async () => {
                 try {
                     // Using the imported getEmbedding service function and passing the logger
-                    const embedding = await getEmbedding(text, undefined, this.logger); // Pass this.logger
+                    const embedding = await getEmbedding(text, embeddingModel, this.logger); // Pass this.logger
                     embeddingsMap.set(key, embedding);
                 } catch (error: any) {
                     this.logger.error(`[EmbeddingEvaluator] Failed to get embedding for key ${key}: ${error.message || String(error)}`);

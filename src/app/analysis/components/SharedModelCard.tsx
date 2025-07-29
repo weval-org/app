@@ -3,10 +3,7 @@
 import React from 'react';
 import dynamic from 'next/dynamic';
 import { cn } from '@/lib/utils';
-
-const XCircle = dynamic(() => import("lucide-react").then((mod) => mod.XCircle), { ssr: false });
-const AlertTriangle = dynamic(() => import("lucide-react").then((mod) => mod.AlertTriangle), { ssr: false });
-const GitCompareArrows = dynamic(() => import("lucide-react").then((mod) => mod.GitCompareArrows), { ssr: false });
+import Icon from '@/components/ui/icon';
 
 export interface ModelSummary {
     total: number;
@@ -60,13 +57,13 @@ export const SharedModelCard: React.FC<SharedModelCardProps> = ({
             <div className="flex items-center gap-3 flex-shrink-0">
                 {summary.criticalFailures > 0 && (
                     <span className="flex items-center gap-1 text-red-500 font-semibold" title="Critical Failures">
-                        <XCircle className="h-4 w-4" />
+                        <Icon name="x-circle" className="h-4 w-4" />
                         <span>{summary.criticalFailures}</span>
                     </span>
                 )}
                 {summary.majorGaps > 0 && (
                      <span className="flex items-center gap-1 text-orange-500 font-semibold" title="Major Gaps">
-                        <AlertTriangle className="h-4 w-4" />
+                        <Icon name="alert-triangle" className="h-4 w-4" />
                          <span>{summary.majorGaps}</span>
                     </span>
                 )}
@@ -78,7 +75,7 @@ export const SharedModelCard: React.FC<SharedModelCardProps> = ({
                         <>
                             <div className="h-4 w-px bg-border" />
                             <span className="flex items-center gap-1 font-semibold text-sky-600 dark:text-sky-400" title={`Similarity to Ideal: ${(similarityScore * 100).toFixed(0)}%`}>
-                                <GitCompareArrows className="h-3 w-3" />
+                                <Icon name="git-compare-arrows" className="h-3 w-3" />
                                 <span className='text-base'>{Math.round(similarityScore * 100)}</span>
                             </span>
                         </>

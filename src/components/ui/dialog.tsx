@@ -1,20 +1,7 @@
 import * as React from "react"
-const { lazy, Suspense } = React;
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { cn } from "@/lib/utils"
-
-// Define a type for the X icon component props if not automatically inferred
-// This helps TypeScript understand the props for the lazy-loaded component.
-interface IconProps extends React.SVGProps<SVGSVGElement> { }
-
-// Lazy load the X icon, ensuring the module and export are correctly typed
-const X = lazy(() => 
-  import('lucide-react').then(module => {
-    // Make sure module.X is recognized as a component
-    const XComponent = module.X as React.ComponentType<IconProps>; // Cast to ComponentType
-    return { default: XComponent };
-  })
-);
+import Icon from "./icon"
 
 const Dialog = DialogPrimitive.Root
 
@@ -55,9 +42,7 @@ const DialogContent = React.forwardRef<
     >
       {children}
       <DialogPrimitive.Close className="absolute right-4 top-4 flex items-center gap-2 px-3 py-2 bg-background/95 backdrop-blur-sm hover:bg-muted rounded-lg transition-all border border-border/50 shadow-lg font-medium opacity-100 ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
-        <Suspense fallback={null}>
-          <X className="h-6 w-6" />
-        </Suspense>
+        <Icon name="x" className="h-6 w-6" />
         <span className="text-sm">Close</span>
       </DialogPrimitive.Close>
     </DialogPrimitive.Content>

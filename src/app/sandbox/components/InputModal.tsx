@@ -12,9 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import dynamic from 'next/dynamic';
-
-const Loader2 = dynamic(() => import('lucide-react').then(mod => mod.Loader2));
+import Icon from '@/components/ui/icon';
 
 interface InputModalProps {
   isOpen: boolean;
@@ -79,7 +77,7 @@ export function InputModal({
             </div>
             <DialogFooter>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isSubmitting && <Icon name="loader-2" className="mr-2 h-4 w-4 animate-spin" />}
                 {submitButtonText}
               </Button>
             </DialogFooter>
