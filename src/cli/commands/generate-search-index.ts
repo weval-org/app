@@ -10,6 +10,7 @@ import {
 import { WevalResult } from '@/types/shared';
 import { SearchableBlueprintSummary } from '../types/cli_types';
 import { processBlueprintSummaries } from '../../app/utils/blueprintSummaryUtils';
+import pLimit from '@/lib/pLimit';
 
 async function actionGenerateSearchIndex(options: {
     verbose?: boolean;
@@ -30,7 +31,6 @@ async function actionGenerateSearchIndex(options: {
 
         logger.info(`Found ${configIds.length} configuration ID(s) to process.`);
         
-        const pLimit = (await import('p-limit')).default;
         const limit = pLimit(10);
         const tasks: Promise<SearchableBlueprintSummary | null>[] = [];
         let runCount = 0;

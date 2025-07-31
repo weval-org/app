@@ -29,6 +29,7 @@ jest.mock('../../app/utils/calculationUtils', () => ({
   calculateAverageHybridScoreForRun: jest.fn(() => ({ average: 0.9, stddev: 0.1 })),
   calculatePerModelHybridScoresForRun: jest.fn(() => new Map([['model-1', { average: 0.9, stddev: 0.1 }]])),
   calculateStandardDeviation: jest.fn(() => 0.05),
+  calculateHybridScore: jest.fn(() => 0.85),
 }));
 
 // Mock filesystem and S3 client

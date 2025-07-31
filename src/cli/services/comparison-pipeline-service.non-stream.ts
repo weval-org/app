@@ -3,6 +3,7 @@ import { ConversationMessage } from '@/types/shared';
 import { getModelResponse, DEFAULT_TEMPERATURE } from './llm-service';
 import { checkForErrors } from '../utils/response-utils';
 import { SimpleLogger } from '@/lib/blueprint-service';
+import pLimit from '@/lib/pLimit';
 
 export type ProgressCallback = (completed: number, total: number) => Promise<void>;
 
@@ -15,7 +16,6 @@ export async function generateAllResponses(
     onProgress?: ProgressCallback,
 ): Promise<Map<string, PromptResponseData>> {
     logger.info(`[PipelineService] Generating model responses... Caching: ${useCache}`);
-    const pLimit = (await import('p-limit')).default;
     const limit = pLimit(config.concurrency || DEFAULT_GENERATION_CONCURRENCY);
     const allResponsesMap = new Map<string, PromptResponseData>();
     const tasks: Promise<void>[] = [];

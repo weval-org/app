@@ -1,9 +1,10 @@
-import { BaseLLMClient } from '../llm-clients/types';
+import { jest } from '@jest/globals';
+import { BaseLLMClient, LLMApiCallOptions, LLMApiCallResult, StreamChunk } from '../llm-clients/types';
 
 // This is a generic mock client class.
 // We can spy on its constructor and methods to test the dispatcher's behavior.
-const mockMakeApiCall = jest.fn();
-const mockStreamApiCall = jest.fn();
+const mockMakeApiCall = jest.fn<(options: LLMApiCallOptions) => Promise<LLMApiCallResult>>();
+const mockStreamApiCall = jest.fn<(options: LLMApiCallOptions) => AsyncGenerator<StreamChunk, void, undefined>>();
 const mockConstructor = jest.fn();
 
 class MockLLMClient extends BaseLLMClient {

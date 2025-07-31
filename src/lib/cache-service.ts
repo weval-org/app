@@ -2,6 +2,7 @@ import Keyv from 'keyv';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
+import { KeyvFile } from 'keyv-file';
 
 // Use the /tmp directory for caching, which is writable in serverless environments.
 const cacheDir = path.resolve('/tmp', '.cache');
@@ -29,7 +30,6 @@ export function getCache(namespace: string): Keyv {
     if (!caches.has(namespace)) {
         let keyv: Keyv;
         try {
-            const { KeyvFile } = require('keyv-file');
             keyv = new Keyv({
                 store: new KeyvFile({
                     filename: path.join(cacheDir, `${namespace}.json`),

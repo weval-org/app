@@ -20,6 +20,7 @@ import { getCache, generateCacheKey } from '../../lib/cache-service';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { evaluateFunctionPoints, aggregateCoverageScores } from './coverage-logic';
 import { ProgressCallback } from '../services/comparison-pipeline-service.non-stream';
+import pLimit from '@/lib/pLimit';
 
 const DEFAULT_JUDGE_CONCURRENCY = 20;
 
@@ -220,8 +221,7 @@ export class LLMCoverageEvaluator implements Evaluator {
         judgeMode?: 'failover' | 'consensus' // Legacy
     ): Promise<JudgeResult> {
         const judgeLog: string[] = [];
-        const pLimitFunction = (await import('p-limit')).default;
-        const judgeRequestLimit = pLimitFunction(5);
+        const judgeRequestLimit = pLimit(5);
         const successfulJudgements: (PointwiseCoverageLLMResult & { judgeModelId: string })[] = [];
 
         // Determine which judges to use
@@ -577,7 +577,6 @@ Output: <reflection>The text mentions empathy, which means the criterion is MET 
         onProgress?: ProgressCallback,
     ): Promise<Partial<FinalComparisonOutputV2['evaluationResults'] & Pick<FinalComparisonOutputV2, 'extractedKeyPoints'>>> {
         this.logger.info(`[LLMCoverageEvaluator] Starting evaluation for ${inputs.length} prompts.`);
-        const pLimit = (await import('p-limit')).default;
         const limit = pLimit(DEFAULT_JUDGE_CONCURRENCY);
         const tasks: Promise<void>[] = [];
 

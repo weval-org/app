@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { deleteFromPairsCommand } from './delete-from-pairs';
 import * as storageService from '../../lib/storageService';
 import { getConfig } from '../config';
@@ -9,9 +10,9 @@ jest.mock('../services/pairwise-task-queue-service');
 jest.mock('../config');
 jest.mock('../utils/confirm');
 
-const mockedPairwiseService = pairwiseService as jest.Mocked<typeof pairwiseService>;
-const mockedGetConfig = getConfig as jest.Mocked<typeof getConfig>;
-const mockedConfirm = confirmUtil as jest.Mocked<typeof confirmUtil>;
+const mockedPairwiseService = jest.mocked(pairwiseService);
+const mockedGetConfig = jest.mocked(getConfig);
+const mockedConfirm = jest.mocked(confirmUtil);
 
 const mockLogger = {
   info: jest.fn(),

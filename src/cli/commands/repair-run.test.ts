@@ -7,17 +7,17 @@ import { LLMCoverageEvaluator } from '../evaluators/llm-coverage-evaluator';
 import { getConfig } from '../config';
 import { FinalComparisonOutputV2 as FetchedComparisonData } from '../types/cli_types';
 
-jest.mock('../../lib/storageService');
-jest.mock('./backfill-summary');
-jest.mock('../services/executive-summary-service');
-jest.mock('../evaluators/llm-coverage-evaluator');
-jest.mock('../config');
+jest.mock('@/lib/storageService');
+jest.mock('@/cli/commands/backfill-summary');
+jest.mock('@/cli/services/executive-summary-service');
+jest.mock('@/cli/evaluators/llm-coverage-evaluator');
+jest.mock('@/cli/config');
 
 const mockedStorage = storageService as jest.Mocked<typeof storageService>;
 const mockedBackfill = backfillSummary as jest.Mocked<typeof backfillSummary>;
 const mockedExecutiveSummary = executiveSummaryService as jest.Mocked<typeof executiveSummaryService>;
 const mockedLLMCoverageEvaluator = LLMCoverageEvaluator as jest.MockedClass<typeof LLMCoverageEvaluator>;
-const mockedGetConfig = getConfig as jest.Mocked<typeof getConfig>;
+const mockedGetConfig = getConfig as jest.MockedFunction<typeof getConfig>;
 
 const mockLogger = {
   info: jest.fn(),

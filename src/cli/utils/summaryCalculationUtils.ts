@@ -19,6 +19,12 @@ import {
 import { fromSafeTimestamp } from '../../lib/timestampUtils';
 import { PerModelScoreStats } from '@/app/utils/homepageDataUtils';
 import { WevalResult } from '@/types/shared';
+// A simplified logger type for this function to avoid circular dependencies
+type SimpleLogger = {
+  info: (msg: string) => void;
+  warn: (msg: string) => void;
+  error: (msg: string) => void;
+};
 
 const SIGNIFICANT_SCORE_CHANGE_THRESHOLD = 0.1; // 10% change
 const MIN_ABSOLUTE_SCORE_DIFFERENCE = 0.05; // 5 percentage points
@@ -53,24 +59,32 @@ export interface TopicChampion {
   modelId: string;
   averageScore: number;
   uniqueConfigsCount: number;
+  contributingRuns: Array<{
+    configId: string;
+    configTitle: string;
+    runLabel: string;
+    timestamp: string;
+    score: number;
+  }>;
 }
 
 export function calculateHeadlineStats(
-  configs: EnhancedComparisonConfigInfo[] | null,
-  modelDimensionGrades: Map<string, Map<string, { totalScore: number; count: number; uniqueConfigs: Set<string>; scores: Array<{ score: number; configTitle: string; runLabel: string; timestamp: string; configId: string; }> }>>
+  allConfigs: EnhancedComparisonConfigInfo[],
+  modelDimensionGrades: Map<string, Map<string, { totalScore: number; count: number; uniqueConfigs: Set<string>; scores: Array<{ score: number; configTitle: string; runLabel: string; timestamp: string; configId: string; }> }>>,
+  logger?: SimpleLogger,
 ): HeadlineStats {
-  if (!configs || configs.length === 0) {
-    return {
-      bestPerformingConfig: null,
-      worstPerformingConfig: null,
-      leastConsistentConfig: null,
-      rankedOverallModels: null,
-      dimensionLeaderboards: null,
-    };
+  const testTaggedConfigs = new Set<string>();
+  allConfigs.forEach((config) => {
+    if (config.tags && config.tags.includes('test')) {
+      testTaggedConfigs.add(config.id || config.configId);
+    }
+  });
+
+  if (testTaggedConfigs.size > 0) {
+    console.log(`[calculateHeadlineStats] Found ${testTaggedConfigs.size} configs with "test" tag. Excluding them from calculations.`);
   }
 
-  // Filter out configs with 'test' tag before any calculations
-  const filteredConfigs = configs.filter(
+  const filteredConfigs = allConfigs.filter(
     config => !(config.tags && config.tags.includes('test'))
   );
 
@@ -205,7 +219,10 @@ export function calculateHeadlineStats(
   >();
   
   // --- For Executive Summary Grade Aggregation ---
-  const MIN_UNIQUE_CONFIGS_FOR_CHAMPION = 10;
+  const MIN_UNIQUE_CONFIGS_FOR_CHAMPION = 5; // Lowered from 10
+  const MIN_SCORE_THRESHOLD = 5.0;
+  const CONSISTENCY_THRESHOLD = 0.8; // 80% of scores must be >= 5.0
+
   const dimensionLeaderboards: DimensionLeaderboard[] = [];
   const dimensionGrades = new Map<string, Array<{ modelId: string; averageScore: number; runsCount: number, uniqueConfigsCount: number, latestScores: Array<{ configTitle: string; runUrl:string; score: number; }> }>>();
 
@@ -237,14 +254,31 @@ export function calculateHeadlineStats(
 
   // 2. Find top models for each dimension to create a leaderboard
   const LEADERBOARD_SIZE = 3;
-  const MIN_SCORE_THRESHOLD = 5.0;
   for (const [dimension, models] of dimensionGrades.entries()) {
       const eligibleModels = models.filter(m => {
-          // Must have enough unique configs AND never scored below threshold
           const hasEnoughConfigs = m.uniqueConfigsCount >= MIN_UNIQUE_CONFIGS_FOR_CHAMPION;
-          const hasConsistentScores = m.latestScores.every(score => score.score >= MIN_SCORE_THRESHOLD);
-          return hasEnoughConfigs && hasConsistentScores;
+          const scoresAboveThreshold = m.latestScores.filter(s => s.score >= MIN_SCORE_THRESHOLD).length;
+          const consistency = m.latestScores.length > 0 ? scoresAboveThreshold / m.latestScores.length : 0;
+          const hasConsistentScores = consistency >= CONSISTENCY_THRESHOLD;
+
+          let isEligible = hasEnoughConfigs && hasConsistentScores;
+          
+          if (logger) {
+              if (!hasEnoughConfigs) {
+                  logger.info(`[${dimension}] Excluding ${m.modelId}: Not enough unique configs (${m.uniqueConfigsCount} < ${MIN_UNIQUE_CONFIGS_FOR_CHAMPION})`);
+              } else if (!hasConsistentScores) {
+                  logger.info(`[${dimension}] Excluding ${m.modelId}: Score consistency too low (${(consistency * 100).toFixed(0)}% < ${(CONSISTENCY_THRESHOLD * 100).toFixed(0)}%)`);
+              } else {
+                  logger.info(`[${dimension}] Including ${m.modelId}: Passed all checks (Configs: ${m.uniqueConfigsCount}, Consistency: ${(consistency * 100).toFixed(0)}%)`);
+              }
+          }
+          
+          return isEligible;
       });
+
+      if (logger) {
+          logger.info(`[${dimension}] Leaderboard: Found ${eligibleModels.length} eligible models.`);
+      }
 
       if (eligibleModels.length > 0) {
           const sortedModels = eligibleModels.sort((a, b) => b.averageScore - a.averageScore);
@@ -404,7 +438,7 @@ export function calculateHeadlineStats(
 }
 
 export function calculateTopicChampions(
-  topicModelScores: Map<string, Map<string, { scores: number[]; uniqueConfigs: Set<string> }>>
+  topicModelScores: Map<string, Map<string, { scores: Array<{ score: number; configId: string; configTitle: string; runLabel: string; timestamp: string; }>; uniqueConfigs: Set<string> }>>
 ): Record<string, TopicChampion[]> {
   const MIN_UNIQUE_CONFIGS_FOR_TOPIC_CHAMPION = 5;
   const topicChampions: Record<string, TopicChampion[]> = {};
@@ -413,11 +447,13 @@ export function calculateTopicChampions(
     const champions: TopicChampion[] = [];
     modelScores.forEach((data, modelId) => {
       if (data.uniqueConfigs.size >= MIN_UNIQUE_CONFIGS_FOR_TOPIC_CHAMPION) {
-        const averageScore = data.scores.reduce((a, b) => a + b, 0) / data.scores.length;
+        const totalScore = data.scores.reduce((a, b) => a + b.score, 0);
+        const averageScore = totalScore / data.scores.length;
         champions.push({
           modelId,
           averageScore,
           uniqueConfigsCount: data.uniqueConfigs.size,
+          contributingRuns: data.scores.sort((a, b) => b.score - a.score), // Sort runs by score desc
         });
       }
     });

@@ -49,6 +49,11 @@ export function parseEffectiveModelId(effectiveModelId: string): ParsedModelId {
   const sysMatch = remainingId.match(sysRegex);
   if (sysMatch) {
     systemPromptHash = sysMatch[0]; // Store the full [sys:hash]
+    // Also check if it's a numeric index
+    const numericIndex = parseInt(sysMatch[1], 10);
+    if (!isNaN(numericIndex) && sysMatch[1].match(/^\d+$/)) {
+        systemPromptIndex = numericIndex;
+    }
     remainingId = remainingId.replace(sysRegex, '');
   }
   

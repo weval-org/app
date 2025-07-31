@@ -45,6 +45,7 @@ import {
 } from '@/cli/constants';
 import { getConfig } from '@/cli/config';
 import { WevalResult } from '../types/shared';
+import pLimit from '@/lib/pLimit';
 
 const storageProvider = process.env.STORAGE_PROVIDER || (process.env.NODE_ENV === 'development' ? 'local' : 's3');
 
@@ -1575,7 +1576,6 @@ export async function backupData(backupName: string, dryRun: boolean, logger: Re
         const s3BackupPrefix = `${BACKUPS_DIR}/${backupName}/`;
         
         logger.info(`Copying ${liveKeys.length} objects to S3 prefix: ${s3BackupPrefix}`);
-        const pLimit = (await import('p-limit')).default;
         const limit = pLimit(20); // Limit concurrency
         const copyPromises = liveKeys.map(key => limit(async () => {
             try {
@@ -1761,7 +1761,6 @@ export async function restoreData(backupName: string, dryRun: boolean, logger: R
     logger.info(`Restoring ${manifest.fileCount} files from backup '${backupName}'...`);
     if (storageProvider === 's3' && s3Client && s3BucketName) {
         const s3BackupPrefix = `${BACKUPS_DIR}/${backupName}/`;
-        const pLimit = (await import('p-limit')).default;
         const limit = pLimit(20);
         const copyPromises = manifest.files.map(key => limit(async () => {
             const copySource = `${s3BucketName}/${s3BackupPrefix}${key}`;
@@ -1847,7 +1846,6 @@ export async function migrateDataToNewLayout(dryRun: boolean, logger: ReturnType
 
     if (storageProvider === 's3' && s3Client && s3BucketName) {
         logger.info(`Copying ${oldKeys.length} S3 objects to new 'live/' structure...`);
-        const pLimit = (await import('p-limit')).default;
         const limit = pLimit(20);
         const copyPromises = oldKeys.map(oldKey => limit(async () => {
             try {

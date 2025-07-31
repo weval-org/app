@@ -70,6 +70,10 @@ export async function getComparisonRunInfo(): Promise<EnhancedComparisonConfigIn
   return fullData?.configs || [];
 }
 
+export async function getCachedHomepageStats(): Promise<HomepageSummaryFileContent | null> {
+  return getFullHomepageData();
+}
+
 export async function getCachedHomepageHeadlineStats(): Promise<AggregateStatsData | null> {
   const fullData = await getFullHomepageData();
   return fullData?.headlineStats || null;

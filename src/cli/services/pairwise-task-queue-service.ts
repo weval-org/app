@@ -10,6 +10,7 @@ const TASK_QUEUE_BLOB_STORE_NAME = 'pairwise-tasks-v2';
 const TASK_INDEX_KEY = '_index';
 const IDEAL_MODEL_ID = 'IDEAL_MODEL_ID';
 const OFFICIAL_ANCHOR_MODEL = 'openrouter:openai/gpt-4.1-mini';
+import pLimit from '@/lib/pLimit';
 
 let netlifyToken: string | null = null;
 
@@ -152,7 +153,6 @@ export async function populatePairwiseQueue(
     
     if (uniqueNewTasks.length > 0) {
         logger.info(`[PairwiseQueueService] Found ${uniqueNewTasks.length} new unique tasks to add.`);
-        const pLimit = (await import('p-limit')).default;
         const limit = pLimit(20);
         let savedCount = 0;
 
@@ -237,7 +237,6 @@ export async function deletePairwiseTasks(options: { configId?: string, logger: 
         }
 
         if (tasksToDelete.length > 0) {
-            const pLimit = (await import('p-limit')).default;
             const limit = pLimit(20);
             const deletePromises = tasksToDelete.map(taskId => limit(() => store.delete(taskId)));
             await Promise.all(deletePromises);

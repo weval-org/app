@@ -5,10 +5,17 @@ import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { APP_REPO_URL } from '@/lib/configConstants';
-import { Slider } from '@/components/ui/slider';
-import { Label } from '@/components/ui/label';
 import ModelRunsDialog from './ModelRunsDialog';
 import DimensionChampionDialog from './DimensionChampionDialog';
+import { prettifyTag, normalizeTag } from '@/app/utils/tagUtils';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+
+import TopicChampionDialog from './TopicChampionDialog';
 
 import Icon from '@/components/ui/icon';
 
@@ -55,12 +62,26 @@ export interface DimensionLeaderboard {
   leaderboard: DimensionScoreInfo[];
 }
 
+export interface TopicChampionInfo {
+  modelId: string;
+  averageScore: number;
+  uniqueConfigsCount: number;
+  contributingRuns: Array<{
+    configId: string;
+    configTitle: string;
+    runLabel: string;
+    timestamp: string;
+    score: number;
+  }>;
+}
+
 export interface AggregateStatsData {
   bestPerformingConfig: HeadlineStatInfo | null;
   worstPerformingConfig: HeadlineStatInfo | null;
   leastConsistentConfig: HeadlineStatInfo | null;
   rankedOverallModels: TopModelStatInfo[] | null;
   dimensionLeaderboards?: DimensionLeaderboard[] | null;
+  topicChampions?: Record<string, TopicChampionInfo[]> | null;
 }
 
 type StatStatusType = 'best' | 'worst' | 'mostConsistent' | 'mostDifferentiating' | 'neutral' | 'error';
@@ -281,38 +302,48 @@ const DimensionChampionsDisplay: React.FC<{ leaderboards: DimensionLeaderboard[]
   return (
     <>
     <div className="mt-8">
-      <h3 className="text-xl font-semibold tracking-tight text-center mb-6 flex items-center justify-center">
-        <Icon name="brain-circuit" className="w-6 h-6 mr-3 text-primary" />
-        Most Dependable Models by Dimension
-      </h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="text-center mb-6">
+        <h3 className="text-xl font-semibold tracking-tight flex items-center justify-center">
+          <Icon name="brain-circuit" className="w-6 h-6 mr-3 text-primary" />
+          Qualitative Grades
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button className="ml-2 text-muted-foreground/80 hover:text-primary">
+                <Icon name="info" className="w-4 h-4" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs text-center">
+              <p>Models are graded from 1-10 by an AI analyst on behavioral traits like clarity, safety, and adherence to instructions.</p>
+            </TooltipContent>
+          </Tooltip>
+        </h3>
+      </div>
+      <div className="bg-card p-4 rounded-lg border border-border/70 dark:border-slate-700/50 space-y-3">
         {leaderboards.map((leaderboard) => (
-          <div key={leaderboard.dimension} className="bg-card p-4 rounded-lg border border-border/70 dark:border-slate-700/50">
-            <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider text-center mb-3">{leaderboard.dimension}</h4>
-            <ul className="space-y-2">
-              {leaderboard.leaderboard.map((champion, index) => {
-          const hasDetailedScores = champion.latestScores && champion.latestScores.length > 0;
-          return (
-                  <li key={champion.modelId} className="flex items-center justify-between text-sm border-b border-border/50 dark:border-slate-700/30 pb-1.5 last:border-b-0 last:pb-0">
-                    <div className="flex items-center">
-                      
-                      {index < 3 && <Icon name="award" className={`w-3.5 h-3.5 mr-1.5 ${index === 0 ? 'text-amber-400' : index === 1 ? 'text-slate-400' : 'text-amber-700/80'}`} />}
-                      <button
-                        className="font-medium text-card-foreground text-left hover:underline disabled:no-underline"
-                        title={champion.modelId}
-                        onClick={() => hasDetailedScores && handleChampionClick(champion, leaderboard.dimension)}
-                        disabled={!hasDetailedScores}
-                      >
-                {getModelDisplayLabel(champion.modelId, { hideProvider: true, hideModelMaker: true, hideSystemPrompt: true, hideTemperature: true, prettifyModelName: true })}
-                      </button>
-                    </div>
-                    <div className="text-right">
-                      <span className="font-semibold text-primary">{(champion.averageScore).toFixed(1)}/10</span>
-                    </div>
-                  </li>
-          );
-        })}
-            </ul>
+          <div key={leaderboard.dimension} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-sm border-b border-border/50 dark:border-slate-700/30 pb-2 last:border-b-0 last:pb-0">
+            <div className="w-full sm:w-auto md:w-1/4 font-semibold text-muted-foreground uppercase tracking-wider text-left">
+              {leaderboard.dimension}
+            </div>
+            <div className="w-full sm:w-auto md:w-3/4 flex flex-wrap justify-start sm:justify-end gap-2">
+              {leaderboard.leaderboard.slice(0, 3).map((champion, index) => {
+                const hasDetailedScores = champion.latestScores && champion.latestScores.length > 0;
+                return (
+                  <button
+                    key={champion.modelId}
+                    className="flex items-center bg-muted dark:bg-slate-700/40 px-2 py-1 rounded-md text-xs hover:bg-primary/10 dark:hover:bg-slate-600/60 disabled:hover:bg-muted disabled:opacity-70"
+                    title={hasDetailedScores ? `View details for ${champion.modelId}` : `Details not available`}
+                    onClick={() => hasDetailedScores && handleChampionClick(champion, leaderboard.dimension)}
+                    disabled={!hasDetailedScores}
+                  >
+                    <Icon name="award" className={`w-3.5 h-3.5 mr-1.5 ${index === 0 ? 'text-amber-400' : index === 1 ? 'text-slate-400' : 'text-amber-700/80'}`} />
+                    <span className="font-medium text-card-foreground mr-2 truncate" title={champion.modelId}>
+                      {getModelDisplayLabel(champion.modelId, { hideProvider: true, hideModelMaker: true, hideSystemPrompt: true, hideTemperature: true, prettifyModelName: true })}
+                    </span>
+                    <span className="font-semibold text-primary">{(champion.averageScore).toFixed(1)}/10</span>
+                  </button>
+                )
+              })}
+            </div>
           </div>
         ))}
       </div>
@@ -326,6 +357,90 @@ const DimensionChampionsDisplay: React.FC<{ leaderboards: DimensionLeaderboard[]
       isOpen={!!selectedChampion}
       onClose={handleCloseDialog}
     />
+    </>
+  );
+};
+
+const TopicChampionsDisplay: React.FC<{ champions: Record<string, TopicChampionInfo[]> | null }> = ({ champions }) => {
+  const [selectedChampion, setSelectedChampion] = useState<TopicChampionInfo | null>(null);
+  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+
+  if (!champions) {
+    return null;
+  }
+
+  const championsWithData = Object.entries(champions).filter(
+    ([, championList]) => championList && championList.length > 0
+  );
+
+  if (championsWithData.length === 0) {
+    return null;
+  }
+
+  const handleChampionClick = (champion: TopicChampionInfo, topic: string) => {
+    setSelectedChampion(champion);
+    setSelectedTopic(topic);
+  };
+
+  const handleCloseDialog = () => {
+    setSelectedChampion(null);
+    setSelectedTopic(null);
+  };
+
+  return (
+    <>
+      <div className="mt-8">
+        <div className="text-center mb-6">
+          <h3 className="text-xl font-semibold tracking-tight flex items-center justify-center">
+            <Icon name="tag" className="w-6 h-6 mr-3 text-primary" />
+            Performance by Subject
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button className="ml-2 text-muted-foreground/80 hover:text-primary">
+                  <Icon name="info" className="w-4 h-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs text-center">
+                <p>Models are scored based on their average hybrid score (%) across all evaluations within a specific subject area.</p>
+              </TooltipContent>
+            </Tooltip>
+          </h3>
+        </div>
+        <div className="bg-card p-4 rounded-lg border border-border/70 dark:border-slate-700/50 space-y-3">
+          {championsWithData.map(([topic, championList]) => (
+            <div key={topic} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-sm border-b border-border/50 dark:border-slate-700/30 pb-2 last:border-b-0 last:pb-0">
+              <Link href={`/tags/${normalizeTag(topic)}`} className="w-full sm:w-auto md:w-1/4 font-semibold text-muted-foreground uppercase tracking-wider text-left hover:underline">
+                {prettifyTag(topic)}
+              </Link>
+              <div className="w-full sm:w-auto md:w-3/4 flex flex-wrap justify-start sm:justify-end gap-2">
+                {championList.map((champion, index) => (
+                  <button
+                    key={champion.modelId}
+                    className="flex items-center bg-muted dark:bg-slate-700/40 px-2 py-1 rounded-md text-xs hover:bg-primary/10 dark:hover:bg-slate-600/60 disabled:hover:bg-muted disabled:opacity-70"
+                    title={`View details for ${champion.modelId}`}
+                    onClick={() => handleChampionClick(champion, topic)}
+                  >
+                    <Icon name="award" className={`w-3.5 h-3.5 mr-1.5 ${index === 0 ? 'text-amber-400' : index === 1 ? 'text-slate-400' : 'text-amber-700/80'}`} />
+                    <span className="font-medium text-card-foreground mr-2 truncate" title={champion.modelId}>
+                      {getModelDisplayLabel(champion.modelId, { hideProvider: true, hideModelMaker: true, hideSystemPrompt: true, hideTemperature: true, prettifyModelName: true })}
+                    </span>
+                    <span className="font-semibold text-primary">{(champion.averageScore * 100).toFixed(1)}%</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground mt-4 text-center">
+          Highest average hybrid score for each topic, based on models with at least 5 unique evaluations for that topic.
+        </p>
+      </div>
+      <TopicChampionDialog
+        champion={selectedChampion}
+        topic={selectedTopic}
+        isOpen={!!selectedChampion}
+        onClose={handleCloseDialog}
+      />
     </>
   );
 };
@@ -347,73 +462,76 @@ const AggregateStatsDisplay: React.FC<AggregateStatsDisplayProps> = ({ stats }) 
   );
 
   return (
-    <div className="my-2">
-      <div className="text-center mb-8">
-        <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground dark:text-foreground mb-2">
-          Model Leaderboard
-        </h2>
-        <p className="text-muted-foreground dark:text-muted-foreground text-sm">
-          Measured by average hybrid score across all evaluations.
-        </p>
+    <TooltipProvider>
+      <div className="my-2">
+        <div className="text-center mb-8">
+          <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground dark:text-foreground mb-2">
+            Model Leaderboard
+          </h2>
+          <p className="text-muted-foreground dark:text-muted-foreground text-sm">
+            Measured by average hybrid score across all evaluations.
+          </p>
+        </div>
+        {/* <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          <StatCard 
+            title="Best Performing Eval"
+            data={stats.bestPerformingConfig ? { ...stats.bestPerformingConfig, description: "Avg. Hybrid Score" } : null} 
+            icon={TrendingUp}
+            statusType="best"
+            blurb="The evaluation with the highest average hybrid score across all its runs, showing broad competency across models."
+          />
+          <StatCard 
+            title="Worst Performing Eval"
+            data={stats.worstPerformingConfig ? { ...stats.worstPerformingConfig, description: "Avg. Hybrid Score" } : null} 
+            icon={TrendingDown}
+            statusType="worst"
+            blurb="The evaluation with the lowest average hybrid score across all its runs, showing less competency across models."
+          />
+          <StatCard 
+            title="Most Differentiating Eval" 
+            data={stats.leastConsistentConfig ? { ...stats.leastConsistentConfig, description: "Score StdDev (Higher is better for differentiation)" } : null} 
+            icon={Zap}
+            statusType="mostDifferentiating"
+            blurb="The evaluation that shows the widest range of scores, making it best for telling models apart."
+          />
+        </div> */}
+        <div className="grid grid-cols-1 gap-4">
+          <OverallModelLeaderboard
+            models={filteredRankedModels || null}
+            title="Overall Model Leaderboard"
+          />
+        </div>
+        <DimensionChampionsDisplay leaderboards={stats.dimensionLeaderboards || null} />
+        <TopicChampionsDisplay champions={stats.topicChampions || null} />
+        <div className="mt-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowDetails(!showDetails)}
+            className="h-auto p-1 text-muted-foreground hover:text-primary"
+          >
+            <Icon name="info" className="w-4 h-4 mr-1" />
+            <span className="text-xs">{showDetails ? 'Hide Details' : 'More Info'}</span>
+          </Button>
+          {showDetails && (
+            <div className="mt-2 p-3 text-xs text-muted-foreground bg-card border border-border/70 dark:border-slate-700/50 rounded-lg space-y-2">
+              <p className="flex items-start">
+                <Icon name="info" className="w-4 h-4 mr-2 text-primary flex-shrink-0" />
+                <span>
+                  <strong>Note on Leaderboard:</strong> Only models that have participated in at least {MIN_CONFIGS_FOR_LEADERBOARD} unique evaluation blueprints are shown. This leaderboard serves ONLY as a commentary on the types of competencies expressed in the blueprints on <strong style={{ textDecoration: 'underline' }}>this deployment</strong> of Weval. It is not a comprehensive or representative sample of all models or skills.
+                </span>
+              </p>
+              <p className="flex items-start">
+                <Icon name="flask-conical" className="w-4 h-4 mr-2 text-primary flex-shrink-0" />
+                <span>
+                  The Hybrid Score is a weighted average combining semantic similarity and key point coverage. This emphasizes rubric adherence while still valuing overall response quality. Read more about our methodology <a href={`${APP_REPO_URL}/blob/main/docs/METHODOLOGY.md`} target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">here</a>.
+                </span>
+              </p>
+            </div>
+          )}
+        </div>
       </div>
-      {/* <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-        <StatCard 
-          title="Best Performing Eval"
-          data={stats.bestPerformingConfig ? { ...stats.bestPerformingConfig, description: "Avg. Hybrid Score" } : null} 
-          icon={TrendingUp}
-          statusType="best"
-          blurb="The evaluation with the highest average hybrid score across all its runs, showing broad competency across models."
-        />
-        <StatCard 
-          title="Worst Performing Eval"
-          data={stats.worstPerformingConfig ? { ...stats.worstPerformingConfig, description: "Avg. Hybrid Score" } : null} 
-          icon={TrendingDown}
-          statusType="worst"
-          blurb="The evaluation with the lowest average hybrid score across all its runs, showing less competency across models."
-        />
-        <StatCard 
-          title="Most Differentiating Eval" 
-          data={stats.leastConsistentConfig ? { ...stats.leastConsistentConfig, description: "Score StdDev (Higher is better for differentiation)" } : null} 
-          icon={Zap}
-          statusType="mostDifferentiating"
-          blurb="The evaluation that shows the widest range of scores, making it best for telling models apart."
-        />
-      </div> */}
-      <div className="grid grid-cols-1 gap-4">
-        <OverallModelLeaderboard
-          models={filteredRankedModels || null}
-          title="Overall Model Leaderboard"
-        />
-      </div>
-      <DimensionChampionsDisplay leaderboards={stats.dimensionLeaderboards || null} />
-      <div className="mt-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setShowDetails(!showDetails)}
-          className="h-auto p-1 text-muted-foreground hover:text-primary"
-        >
-          <Icon name="info" className="w-4 h-4 mr-1" />
-          <span className="text-xs">{showDetails ? 'Hide Details' : 'More Info'}</span>
-        </Button>
-        {showDetails && (
-          <div className="mt-2 p-3 text-xs text-muted-foreground bg-card border border-border/70 dark:border-slate-700/50 rounded-lg space-y-2">
-            <p className="flex items-start">
-              <Icon name="info" className="w-4 h-4 mr-2 text-primary flex-shrink-0" />
-              <span>
-                <strong>Note on Leaderboard:</strong> Only models that have participated in at least {MIN_CONFIGS_FOR_LEADERBOARD} unique evaluation blueprints are shown. This leaderboard serves ONLY as a commentary on the types of competencies expressed in the blueprints on <strong style={{ textDecoration: 'underline' }}>this deployment</strong> of Weval. It is not a comprehensive or representative sample of all models or skills.
-              </span>
-            </p>
-            <p className="flex items-start">
-              <Icon name="flask-conical" className="w-4 h-4 mr-2 text-primary flex-shrink-0" />
-              <span>
-                The Hybrid Score is a weighted average combining semantic similarity and key point coverage. This emphasizes rubric adherence while still valuing overall response quality. Read more about our methodology <a href={`${APP_REPO_URL}/blob/main/docs/METHODOLOGY.md`} target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">here</a>.
-              </span>
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
+    </TooltipProvider>
   );
 };
 

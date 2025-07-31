@@ -56,7 +56,6 @@ export function useWorkspace(
   username: string | null,
   isAuthLoading: boolean,
 ) {
-  console.log(`[useWorkspace] Hook init. isLoggedIn: ${isLoggedIn}, username: ${username}`);
   const { toast } = useToast();
   const [status, setStatusState] = useState<WorkspaceStatus>('idle');
   const [setupMessage, setSetupMessage] = useState<string>('');

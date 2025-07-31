@@ -1,5 +1,7 @@
 import { Command } from 'commander';
 import { getConfig } from '../config';
+import pLimit from '@/lib/pLimit';
+
 import {
     listConfigIds,
     listRunsForConfig,
@@ -41,7 +43,7 @@ async function actionBackfillSummary(options: { verbose?: boolean; configId?: st
     let totalRunsProcessed = 0;
     let totalRunsFailed = 0;
     const modelDimensionGrades = new Map<string, Map<string, { totalScore: number; count: number; uniqueConfigs: Set<string>; scores: Array<{ score: number; configTitle: string; runLabel: string; timestamp: string; configId: string; }> }>>();
-    const topicModelScores = new Map<string, Map<string, { scores: number[]; uniqueConfigs: Set<string> }>>();
+    const topicModelScores = new Map<string, Map<string, { scores: Array<{ score: number; configId: string; configTitle: string; runLabel: string; timestamp: string; }>; uniqueConfigs: Set<string> }>>();
 
     try {
         const configIds = options.configId ? [options.configId] : await listConfigIds();
@@ -67,7 +69,6 @@ async function actionBackfillSummary(options: { verbose?: boolean; configId?: st
             logger.info(`Processing ${runs.length} runs for config: ${configId}...`);
             
             // --- Step 1: Fetch all run data in parallel ---
-            const pLimit = (await import('p-limit')).default;
             const limit = pLimit(10); // Limit concurrency to 10 parallel downloads
 
             const fetchPromises = runs.map(runInfo => 
@@ -131,18 +132,39 @@ async function actionBackfillSummary(options: { verbose?: boolean; configId?: st
                         }
                     }
 
-                    // --- Process Auto Tags ---
-                    const autoTags = resultData.executiveSummary?.structured?.autoTags;
-                    if (autoTags && autoTags.length > 0) {
+                    // --- Process All Tags for Topic Champions ---
+                    const manualTags = resultData.config?.tags || [];
+                    const autoTags = resultData.executiveSummary?.structured?.autoTags || [];
+                    const allTags = [...new Set([...manualTags, ...autoTags].map(tag => normalizeTag(tag)).filter(Boolean))];
+
+                    if (allTags.length > 0 && runInfo.fileName === latestRunInfo.fileName) {
                         const perModelScores = calculatePerModelScoreStatsForRun(resultData);
+                        
+                        const logLines: string[] = [];
+                        if (options.verbose) {
+                            logLines.push(`  [VERBOSE] Tags for ${runInfo.fileName}:`);
+                            logLines.push(`    - Manual: [${manualTags.join(', ')}]`);
+                            logLines.push(`    - Auto:   [${(autoTags || []).join(', ')}]`);
+                            logLines.push(`    - Unified: [${allTags.join(', ')}]`);
+                        }
+
                         perModelScores.forEach((scoreData, modelId) => {
                             if (scoreData.hybrid.average !== null && scoreData.hybrid.average !== undefined) {
-                                autoTags.forEach((topic: string) => {
-                                    const { baseId } = parseEffectiveModelId(modelId);
+                                const { baseId } = parseEffectiveModelId(modelId);
+                                if (options.verbose) {
+                                    logLines.push(`      - Model ${baseId} scored ${scoreData.hybrid.average.toFixed(4)}, applied to topics.`);
+                                }
+                                allTags.forEach((topic: string) => {
                                     const currentTopicData = topicModelScores.get(topic) || new Map();
                                     const currentModelData = currentTopicData.get(baseId) || { scores: [], uniqueConfigs: new Set() };
                                     
-                                    currentModelData.scores.push(scoreData.hybrid.average);
+                                    currentModelData.scores.push({
+                                        score: scoreData.hybrid.average,
+                                        configId: resultData.configId,
+                                        configTitle: resultData.configTitle || resultData.config.title || resultData.configId,
+                                        runLabel: resultData.runLabel,
+                                        timestamp: resultData.timestamp,
+                                    });
                                     currentModelData.uniqueConfigs.add(resultData.configId);
 
                                     currentTopicData.set(baseId, currentModelData);
@@ -150,6 +172,10 @@ async function actionBackfillSummary(options: { verbose?: boolean; configId?: st
                                 });
                             }
                         });
+
+                        if (options.verbose && logLines.length > 3) { // Only log if there's more than just the header
+                            logger.info(logLines.join('\n'));
+                        }
                     }
 
 
@@ -330,7 +356,7 @@ async function actionBackfillSummary(options: { verbose?: boolean; configId?: st
             // The calculation functions will internally filter out any configs with the 'test' tag.
             logger.info(`Headline stats will be calculated based on all ${allConfigsForHomepage.length} configs (excluding 'test' tag).`);
 
-            const headlineStats = calculateHeadlineStats(allConfigsForHomepage, modelDimensionGrades);
+            const headlineStats = calculateHeadlineStats(allConfigsForHomepage, modelDimensionGrades, logger);
             const driftDetectionResult = calculatePotentialModelDrift(allConfigsForHomepage);
             const topicChampions = calculateTopicChampions(topicModelScores);
 
@@ -455,6 +481,14 @@ async function actionBackfillSummary(options: { verbose?: boolean; configId?: st
 
             } else {
                 logger.info('Saving comprehensive homepage summary...');
+                if (options.verbose) {
+                    logger.info('--- Verbose Logging: Data being saved to homepage_summary.json ---');
+                    logger.info('--- Headline Stats ---');
+                    console.log(JSON.stringify(finalHomepageSummaryObject.headlineStats, null, 2));
+                    logger.info('--- Topic Champions ---');
+                    console.log(JSON.stringify(topicChampions, null, 2));
+                    logger.info('--- End Verbose Logging ---');
+                }
                 await saveHomepageSummary(finalHomepageSummaryObject);
                 logger.info('Comprehensive homepage summary saved successfully.');
 

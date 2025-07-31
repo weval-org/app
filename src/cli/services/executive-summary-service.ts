@@ -3,7 +3,7 @@ import { generateMarkdownReport } from '../../app/utils/markdownGenerator';
 import { getModelResponse } from './llm-service';
 import { checkForErrors } from '../utils/response-utils';
 import { getConfig } from '../config';
-import { getModelDisplayLabel } from '../../app/utils/modelIdUtils';
+import { getModelDisplayLabel, parseEffectiveModelId } from '../../app/utils/modelIdUtils';
 import { IDEAL_MODEL_ID } from '../../app/utils/calculationUtils';
 import { 
     generateGradingCriteriaText, 
@@ -26,43 +26,24 @@ interface ModelAnonymizationMapping {
 function createModelAnonymizationMapping(modelIds: string[]): ModelAnonymizationMapping {
     const realToAnonymized = new Map<string, string>();
     const anonymizedToReal = new Map<string, string>();
-    
-    // Sort input for deterministic mapping
-    const sortedModelIds = [...modelIds].sort();
-    
-    // Group models by actual maker (not provider) for comparative insights
+
+    // Group models by their actual maker for consistent MAKER_A, MAKER_B naming
     const modelsByMaker = new Map<string, string[]>();
-    
-    for (const modelId of sortedModelIds) {
-        const displayLabel = getModelDisplayLabel(modelId, {
-            hideProvider: true,
-            hideSystemPrompt: true,
-            hideTemperature: true
-        });
-        
-        // Extract actual maker/company (not API provider)
+    for (const modelId of modelIds) {
+        // This is a simplified maker extraction. A more robust one might be needed.
         let maker = 'UNKNOWN';
-        if (modelId.includes('openai:') || displayLabel.toLowerCase().includes('gpt')) {
-            maker = 'OPENAI';
-        } else if (modelId.includes('anthropic:') || displayLabel.toLowerCase().includes('claude')) {
-            maker = 'ANTHROPIC';
-        } else if (modelId.includes('google:') || modelId.includes('gemini') || displayLabel.toLowerCase().includes('gemini')) {
-            maker = 'GOOGLE';
-        } else if (modelId.includes('meta:') || displayLabel.toLowerCase().includes('llama')) {
-            maker = 'META';
-        } else if (modelId.includes('mistral:') || displayLabel.toLowerCase().includes('mistral')) {
-            maker = 'MISTRAL';
-        } else if (modelId.includes('cohere:')) {
-            maker = 'COHERE';
-        } else if (modelId.includes('deepseek:') || displayLabel.toLowerCase().includes('deepseek')) {
-            maker = 'DEEPSEEK';
-        } else if (modelId.includes('xai:') || modelId.includes('x-ai:') || displayLabel.toLowerCase().includes('grok')) {
-            maker = 'XAI';
-        } else if (modelId.includes('openrouter:')) {
-            // For OpenRouter, extract the actual maker from the path
+        if (modelId.startsWith('openai:')) maker = 'OPENAI';
+        else if (modelId.startsWith('anthropic:')) maker = 'ANTHROPIC';
+        else if (modelId.startsWith('google:')) maker = 'GOOGLE';
+        else if (modelId.startsWith('meta:')) maker = 'META';
+        else if (modelId.startsWith('mistral:')) maker = 'MISTRAL';
+        else if (modelId.startsWith('cohere:')) maker = 'COHERE';
+        else if (modelId.startsWith('deepseek:')) maker = 'DEEPSEEK';
+        else if (modelId.startsWith('xai:') || modelId.startsWith('x-ai:')) maker = 'XAI';
+        else if (modelId.startsWith('openrouter:')) {
             const pathParts = modelId.split('/');
             if (pathParts.length > 1) {
-                const providerPart = pathParts[0].split(':')[1]; // e.g., "google" from "openrouter:google/gemini"
+                const providerPart = pathParts[0].split(':')[1];
                 if (providerPart === 'anthropic') maker = 'ANTHROPIC';
                 else if (providerPart === 'google') maker = 'GOOGLE';
                 else if (providerPart === 'meta-llama') maker = 'META';
@@ -77,200 +58,128 @@ function createModelAnonymizationMapping(modelIds: string[]): ModelAnonymization
         }
         modelsByMaker.get(maker)!.push(modelId);
     }
-    
-    // Create anonymized names with maker groupings: MAKER_A_MODEL_1, MAKER_A_MODEL_2, etc.
-    const makerNames = Array.from(modelsByMaker.keys()).sort(); // Consistent ordering
-    makerNames.forEach((maker, makerIndex) => {
-        const anonymizedMaker = `MAKER_${String.fromCharCode(65 + makerIndex)}`; // MAKER_A, MAKER_B, etc.
-        const modelsForThisMaker = modelsByMaker.get(maker)!;
-        
-        modelsForThisMaker.forEach((modelId, modelIndex) => {
-            const anonymizedName = `${anonymizedMaker}_MODEL_${modelIndex + 1}`; // MAKER_A_MODEL_1, MAKER_A_MODEL_2, etc.
-            realToAnonymized.set(modelId, anonymizedName);
-            anonymizedToReal.set(anonymizedName, modelId);
-        });
-    });
+
+    // Sort makers for deterministic naming (MAKER_A, MAKER_B)
+    const sortedMakers = Array.from(modelsByMaker.keys()).sort();
+
+    for (let i = 0; i < sortedMakers.length; i++) {
+        const makerName = sortedMakers[i];
+        const anonymizedMaker = `MAKER_${String.fromCharCode(65 + i)}`;
+        const makerModelIds = modelsByMaker.get(makerName)!;
+
+        // Within each maker, group models by their base ID
+        const modelsByBaseId = new Map<string, string[]>();
+        for (const modelId of makerModelIds) {
+            const { baseId } = parseEffectiveModelId(modelId);
+            if (!modelsByBaseId.has(baseId)) {
+                modelsByBaseId.set(baseId, []);
+            }
+            modelsByBaseId.get(baseId)!.push(modelId);
+        }
+
+        // Sort base IDs for deterministic naming (MODEL_1, MODEL_2)
+        const sortedBaseIds = Array.from(modelsByBaseId.keys()).sort();
+
+        console.log('sortedBaseIds', sortedBaseIds)
+
+        for (let j = 0; j < sortedBaseIds.length; j++) {
+            const baseId = sortedBaseIds[j];
+            const anonymizedBase = `MODEL_${j + 1}`;
+            const variants = modelsByBaseId.get(baseId)!;
+            console.log('>>variants', variants);
+
+            // Sort variants to have a deterministic order for SYS_0, SYS_1, etc.
+            variants.sort();
+
+            for (let k = 0; k < variants.length; k++) {
+                const fullId = variants[k];
+                const parsed = parseEffectiveModelId(fullId);
+                let suffix = '';
+
+                // Only add variant suffixes if there are multiple variants for a base model
+                if (variants.length > 1) {
+                    // Use the variant's index (k) to create a unique, stable name like _SYS_0, _SYS_1
+                    suffix += `_SYS_${k}`;
+                }
+                
+                if (parsed.temperature !== undefined) {
+                    // Format temperature to avoid decimals in the name, e.g., 0.7 -> 07
+                    suffix += `_TEMP_${String(parsed.temperature).replace('.', '')}`;
+                }
+
+                const anonymizedName = `${anonymizedMaker}_${anonymizedBase}${suffix}`;
+                realToAnonymized.set(fullId, anonymizedName);
+                anonymizedToReal.set(anonymizedName, fullId);
+            }
+        }
+    }
     
     return { realToAnonymized, anonymizedToReal };
 }
 
-function anonymizeModelNamesInText(text: string, mapping: ModelAnonymizationMapping): string {
-    let anonymizedText = text;
-    
-    // Step 1: Replace all model IDs and variations with anonymized names
-    // Sort by length (longest first) to avoid partial replacements
-    const sortedRealNames = Array.from(mapping.realToAnonymized.keys())
-        .sort((a, b) => b.length - a.length);
-    
-    for (const realName of sortedRealNames) {
-        const anonymizedName = mapping.realToAnonymized.get(realName)!;
-        const displayLabel = getModelDisplayLabel(realName, {
-            hideProvider: true,
-            hideSystemPrompt: true,
-            hideTemperature: true
-        });
-        
-        // Get all possible variations of how this model might appear in text
-        const namesToReplace = new Set<string>();
-        
-        // 1. Full model ID (e.g., "openai:gpt-4o")
-        namesToReplace.add(realName);
-        
-        // 2. Display label (e.g., "google/gemini-2.0-flash")
-        namesToReplace.add(displayLabel);
-        
-        // 3. Just the model name part (after last slash or colon)
-        const modelOnlyName = displayLabel.split('/').pop() || displayLabel.split(':').pop() || displayLabel;
-        namesToReplace.add(modelOnlyName);
-        
-        // 4. Handle common variations like removing provider prefixes
-        if (realName.includes(':')) {
-            const afterColon = realName.split(':')[1];
-            namesToReplace.add(afterColon);
-            
-            // Also handle paths like "google/gemini-2.0-flash" -> "gemini-2.0-flash"
-            if (afterColon.includes('/')) {
-                const afterSlash = afterColon.split('/').pop();
-                if (afterSlash) namesToReplace.add(afterSlash);
-            }
-        }
-        
-        // Replace all variations
-        for (const nameVariation of namesToReplace) {
-            if (nameVariation && nameVariation.length > 2) { // Avoid replacing very short strings
-                const escaped = nameVariation.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                anonymizedText = anonymizedText.replace(new RegExp(`\\b${escaped}\\b`, 'gi'), anonymizedName);
-            }
-        }
+function anonymizeWevalResultData(
+    resultData: WevalResult,
+    mapping: Map<string, string>
+): WevalResult {
+    // Deep clone to avoid mutating the original data
+    const anonymizedData = JSON.parse(JSON.stringify(resultData));
+    const replacer = (id: string) => mapping.get(id) || id;
+
+    // Replace in top-level fields
+    anonymizedData.effectiveModels = anonymizedData.effectiveModels.map(replacer);
+    if (anonymizedData.modelSystemPrompts) {
+        anonymizedData.modelSystemPrompts = Object.fromEntries(
+            Object.entries(anonymizedData.modelSystemPrompts).map(([key, value]) => [replacer(key), value])
+        );
+    }
+    if (anonymizedData.allFinalAssistantResponses) {
+        anonymizedData.allFinalAssistantResponses = Object.fromEntries(
+            Object.entries(anonymizedData.allFinalAssistantResponses).map(([promptId, models]) => [
+                promptId,
+                Object.fromEntries(Object.entries(models as object).map(([modelId, response]) => [replacer(modelId), response]))
+            ])
+        );
     }
     
-    // Step 2: Aggressively remove ALL provider references
-    const allProviders = new Set<string>();
-    for (const realName of mapping.realToAnonymized.keys()) {
-        if (realName.includes(':')) {
-            const provider = realName.split(':')[0];
-            allProviders.add(provider);
-        }
+    // Replace in evaluationResults
+    const evalResults = anonymizedData.evaluationResults;
+    if (evalResults.llmCoverageScores) {
+        evalResults.llmCoverageScores = Object.fromEntries(
+            Object.entries(evalResults.llmCoverageScores).map(([promptId, models]) => [
+                promptId,
+                Object.fromEntries(Object.entries(models as object).map(([modelId, score]) => [replacer(modelId), score]))
+            ])
+        );
     }
-    
-    // Remove provider names and provider: prefixes completely
-    for (const provider of allProviders) {
-        const escapedProvider = provider.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        
-        // Remove "provider:" prefixes (e.g., "openai:" -> "")
-        anonymizedText = anonymizedText.replace(new RegExp(`\\b${escapedProvider}:`, 'gi'), '');
-        
-        // Remove standalone provider mentions completely (e.g., "openai" -> "")
-        anonymizedText = anonymizedText.replace(new RegExp(`\\b${escapedProvider}\\b(?!:)`, 'gi'), '');
+    if (evalResults.perPromptSimilarities) {
+        evalResults.perPromptSimilarities = Object.fromEntries(
+            Object.entries(evalResults.perPromptSimilarities).map(([promptId, matrix]) => [
+                promptId,
+                Object.fromEntries(Object.entries(matrix as object).map(([modelA, scores]) => [
+                    replacer(modelA),
+                    Object.fromEntries(Object.entries(scores as object).map(([modelB, score]) => [replacer(modelB), score]))
+                ]))
+            ])
+        );
     }
-    
-    // Step 3: Clean up any remaining provider artifacts
-    // Remove any remaining `:` that might be floating around
-    anonymizedText = anonymizedText.replace(/([A-Z_]+):\s*MODEL_/g, '$1 MODEL_');
-    
-    // Remove common provider grouping patterns that might appear in tables/headers
-    anonymizedText = anonymizedText.replace(/\b(openai|anthropic|google|meta|mistral|cohere|together|openrouter|xai|x-ai)\s*(models?|group|provider|api)\b/gi, 'model');
-    anonymizedText = anonymizedText.replace(/\b(models?|group|provider|api)\s*(from|by|via)\s*(openai|anthropic|google|meta|mistral|cohere|together|openrouter|xai|x-ai)\b/gi, 'models');
-    
-    // Remove any remaining isolated provider names that might have been missed
-    const commonProviders = ['openai', 'anthropic', 'google', 'meta', 'mistral', 'cohere', 'together', 'openrouter', 'xai', 'x-ai'];
-    for (const provider of commonProviders) {
-        const escapedProvider = provider.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        anonymizedText = anonymizedText.replace(new RegExp(`\\b${escapedProvider}\\b`, 'gi'), '');
-    }
-    
-    // Replace consecutive whitespace with single space and trim
-    anonymizedText = anonymizedText.replace(/\s+/g, ' ').trim();
-    
-    return anonymizedText;
+
+    return anonymizedData;
 }
 
 function deanonymizeModelNamesInText(text: string, mapping: ModelAnonymizationMapping): string {
     let deanonymizedText = text;
     
-    // Step 1: Handle full model references (MAKER_A_MODEL_1 -> gpt-4o)
+    // Step 1: Replace anonymized names with the *full* real model ID
     for (const [anonymizedName, realName] of mapping.anonymizedToReal.entries()) {
-        const displayLabel = getModelDisplayLabel(realName, {
-            hideProvider: true,
-            hideSystemPrompt: true,
-            hideTemperature: true
-        });
-        
-        // Handle all possible variations the LLM might use for full model names
-        const anonymizedVariations = [
-            anonymizedName,                                                          // MAKER_A_MODEL_1
-            anonymizedName.replace(/_/g, ' '),                                      // MAKER A MODEL 1  
-            anonymizedName.replace(/MAKER_([A-Z])_MODEL_(\d+)/, 'Maker $1 Model $2'), // Maker A Model 1
-            anonymizedName.replace(/MAKER_([A-Z])_MODEL_(\d+)/, 'maker $1 model $2'), // maker A model 1
-            anonymizedName.toLowerCase(),                                            // maker_a_model_1
-            anonymizedName.replace(/MAKER_([A-Z])_MODEL_(\d+)/, '$1_$2'),           // A_1 (shortened)
-            anonymizedName.replace(/MAKER_([A-Z])_MODEL_(\d+)/, 'Model $2 from Maker $1'), // Model 1 from Maker A
-        ];
-        
-        for (const variation of anonymizedVariations) {
-            const escaped = variation.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            deanonymizedText = deanonymizedText.replace(new RegExp(`\\b${escaped}\\b`, 'gi'), displayLabel);
-        }
+        const escaped = anonymizedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        deanonymizedText = deanonymizedText.replace(new RegExp(escaped, 'g'), realName);
     }
-    
-    // Step 2: Handle partial references that LLM might use
-    // Group models by maker for partial reference handling
-    const modelsByMaker = new Map<string, string[]>();
-    for (const [anonymizedName, realName] of mapping.anonymizedToReal.entries()) {
-        const makerPart = anonymizedName.split('_MODEL_')[0]; // Extract MAKER_A
-        if (!modelsByMaker.has(makerPart)) {
-            modelsByMaker.set(makerPart, []);
-        }
-        modelsByMaker.get(makerPart)!.push(realName);
-    }
-    
-    // Handle partial maker references (e.g., "MAKER_A models" -> "OpenAI models")
-    for (const [makerPart, realModels] of modelsByMaker.entries()) {
-        if (realModels.length > 0) {
-            // Use first model to determine maker display name
-            const sampleModel = realModels[0];
-            let makerDisplayName = 'models'; // fallback
-            
-            if (sampleModel.includes('openai:') || sampleModel.toLowerCase().includes('gpt')) {
-                makerDisplayName = 'OpenAI';
-            } else if (sampleModel.includes('anthropic:') || sampleModel.toLowerCase().includes('claude')) {
-                makerDisplayName = 'Anthropic';
-            } else if (sampleModel.includes('google:') || sampleModel.toLowerCase().includes('gemini')) {
-                makerDisplayName = 'Google';
-            } else if (sampleModel.includes('meta:') || sampleModel.toLowerCase().includes('llama')) {
-                makerDisplayName = 'Meta';
-            } else if (sampleModel.includes('mistral:') || sampleModel.toLowerCase().includes('mistral')) {
-                makerDisplayName = 'Mistral';
-            } else if (sampleModel.includes('xai:') || sampleModel.toLowerCase().includes('grok')) {
-                makerDisplayName = 'xAI';
-            }
-            
-            // Replace maker references
-            const makerVariations = [
-                `${makerPart} models`,                                     // MAKER_A models
-                `${makerPart.replace(/_/g, ' ')} models`,                 // MAKER A models  
-                `${makerPart.replace(/MAKER_([A-Z])/, 'Maker $1')} models`, // Maker A models
-                `${makerPart}`,                                           // MAKER_A (standalone)
-                `${makerPart.replace(/_/g, ' ')}`,                       // MAKER A (standalone)
-                `${makerPart.replace(/MAKER_([A-Z])/, 'Maker $1')}`,     // Maker A (standalone)
-            ];
-            
-            for (const variation of makerVariations) {
-                const escaped = variation.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                deanonymizedText = deanonymizedText.replace(new RegExp(`\\b${escaped}\\b`, 'gi'), makerDisplayName);
-            }
-        }
-    }
-    
-    // Step 3: Handle standalone model number references (less common but possible)
-    // This is tricky because MODEL_1 could refer to any MAKER_X_MODEL_1
-    // For now, we'll leave these as-is since they're ambiguous
     
     return deanonymizedText;
 }
 
 // Export for testing
-export { createModelAnonymizationMapping, anonymizeModelNamesInText, deanonymizeModelNamesInText };
+export { createModelAnonymizationMapping, deanonymizeModelNamesInText, anonymizeWevalResultData };
 
 export function parseStructuredSummary(content: string): StructuredInsights | null {
     try {
@@ -454,7 +363,16 @@ export async function generateExecutiveSummary(
     try {
         logger.info(`Generating executive summary with model: ${SUMMARIZER_MODEL_ID}`);
 
-        const markdownReport = generateMarkdownReport(resultData, MAX_CHARS);
+        // Create anonymization mapping
+        const anonymizationMapping = createModelAnonymizationMapping(
+            resultData.effectiveModels.filter(m => m !== 'ideal' && m !== IDEAL_MODEL_ID)
+        );
+        logger.info(`Created anonymization mapping for ${resultData.effectiveModels.length - 1} models`);
+
+        // Anonymize the entire WevalResult data object *before* generating the report
+        const anonymizedResultData = anonymizeWevalResultData(resultData, anonymizationMapping.realToAnonymized);
+        
+        const markdownReport = generateMarkdownReport(anonymizedResultData, MAX_CHARS);
         
         if (markdownReport.length > MAX_CHARS + 100) { 
             logger.warn(`Markdown report was truncated to ~${markdownReport.length} characters for summary generation.`);
@@ -462,10 +380,6 @@ export async function generateExecutiveSummary(
 
         // Get list of evaluated models for grading
         const evaluatedModels = resultData.effectiveModels.filter(m => m !== 'ideal' && m !== IDEAL_MODEL_ID);
-        
-        // Create anonymization mapping
-        const anonymizationMapping = createModelAnonymizationMapping(evaluatedModels);
-        logger.info(`Created anonymization mapping for ${evaluatedModels.length} models to reduce LLM bias`);
         
         // Debug: Show maker groupings
         logger.info(`=== MAKER GROUPINGS ===`);
@@ -484,59 +398,14 @@ export async function generateExecutiveSummary(
         }
         logger.info(`=== END MAKER GROUPINGS ===`);
         
-        // Anonymize the markdown report
-        const anonymizedMarkdownReport = anonymizeModelNamesInText(markdownReport, anonymizationMapping);
-        
+        // The markdown report is now already anonymized. No need for anonymizeModelNamesInText.
+        const anonymizedMarkdownReport = markdownReport;
+
         // DEBUG: Log anonymization results
         logger.info(`=== ANONYMIZATION DEBUG ===`);
-        logger.info(`Original report length: ${markdownReport.length} chars`);
         logger.info(`Anonymized report length: ${anonymizedMarkdownReport.length} chars`);
         
-        // Check if any real model names still exist in anonymized report
-        const remainingRealNames = [];
-        for (const [realName] of anonymizationMapping.realToAnonymized.entries()) {
-            const displayLabel = getModelDisplayLabel(realName, {
-                hideProvider: true,
-                hideSystemPrompt: true,
-                hideTemperature: true
-            });
-            
-            if (anonymizedMarkdownReport.toLowerCase().includes(realName.toLowerCase())) {
-                remainingRealNames.push(`Full ID: ${realName}`);
-            }
-            if (anonymizedMarkdownReport.toLowerCase().includes(displayLabel.toLowerCase())) {
-                remainingRealNames.push(`Display: ${displayLabel}`);
-            }
-            
-            // Check for provider names (these should be completely eliminated)
-            if (realName.includes(':')) {
-                const provider = realName.split(':')[0];
-                if (anonymizedMarkdownReport.toLowerCase().includes(provider.toLowerCase())) {
-                    // Count occurrences for better debugging
-                    const providerRegex = new RegExp(`\\b${provider.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
-                    const matches = anonymizedMarkdownReport.match(providerRegex);
-                    remainingRealNames.push(`Provider: ${provider} (${matches?.length || 0} occurrences)`);
-                }
-            }
-            
-            // Check for model-only names
-            const modelOnly = displayLabel.split('/').pop() || displayLabel.split(':').pop() || displayLabel;
-            if (modelOnly.length > 3 && anonymizedMarkdownReport.toLowerCase().includes(modelOnly.toLowerCase())) {
-                remainingRealNames.push(`Model-only: ${modelOnly}`);
-            }
-        }
-        
-        if (remainingRealNames.length > 0) {
-            logger.warn(`❌ ANONYMIZATION FAILED - Real names still present: ${remainingRealNames.join(', ')}`);
-            // Log a sample of the problematic content
-            const sampleSize = 500;
-            logger.warn(`Sample of anonymized report: ${anonymizedMarkdownReport.substring(0, sampleSize)}...`);
-        } else {
-            logger.info(`✅ Anonymization successful - no real model names detected, using maker-grouped format`);
-        }
-        logger.info(`=== END ANONYMIZATION DEBUG ===`);
-        
-        // Create completely clean anonymized model lists for the system prompt (NO provider info)
+        // Create completely clean anonymized model lists for the system prompt
         const anonymizedModelList = evaluatedModels
             .map(m => anonymizationMapping.realToAnonymized.get(m) || m)
             .join(', ');
@@ -548,7 +417,7 @@ export async function generateExecutiveSummary(
         if (anonymizedModelList.includes(':') || anonymizedModelList.toLowerCase().includes('openai') || 
             anonymizedModelList.toLowerCase().includes('openrouter') || anonymizedModelList.toLowerCase().includes('anthropic') ||
             anonymizedModelList.toLowerCase().includes('google') || anonymizedModelList.toLowerCase().includes('meta') ||
-            !anonymizedModelList.match(/^MAKER_[A-Z]_MODEL_\d+(, MAKER_[A-Z]_MODEL_\d+)*$/)) {
+            !anonymizedModelList.match(/^MAKER_[A-Z]_MODEL_\d+(_SYS_\d+)?(_TEMP_\d+)?(, MAKER_[A-Z]_MODEL_\d+(_SYS_\d+)?(_TEMP_\d+)?)*$/)) {
             logger.error(`🚨 CRITICAL: System prompt contains non-anonymized content: ${anonymizedModelList}`);
         }
 
@@ -595,6 +464,7 @@ ${TOPICS.join(',\n')}
 === /END TOPICS ===
 
 IMPORTANT ANALYSIS CONSIDERATIONS:
+- The anonymized model names give you clues about their relationships. For example, 'MAKER_A_MODEL_1_SYS_0_TEMP_05' and 'MAKER_A_MODEL_1_SYS_1_TEMP_05' are the same base model but with different system prompts. Use this to analyze how different system prompts or temperatures affect a model's performance.
 - Pay close attention to the "System Prompt Strategy" section - this tells you whether the evaluation tested different system prompts, used a single global prompt, or used default model behavior
 - When system prompt permutations were tested, consider whether performance differences might be attributable to prompting strategy rather than inherent model capabilities  
 - Look for patterns related to system prompt effectiveness across different models
@@ -607,12 +477,12 @@ IMPORTANT ANALYSIS CONSIDERATIONS:
         ${GRADING_INSTRUCTIONS}
 
 ==== FINAL IMPORTANT REQUIREMENTS: ====
-1. You MUST analyze ALL models that participated in this evaluation, though you can ignore system prompts and temperatures for the purposes of GRADING.
-2. You MUST provide grades for EVERY model listed above - no exceptions
-3. Be highly specific, using verbatim quotes and specific examples from the evaluation
-4. Focus on actionable insights that would help someone choose between these models
-5. Each grade should be based on evidence from the evaluation data
-6. Consider the system prompt strategy when interpreting performance differences - note if results might be influenced by prompting choices rather than model capabilities
+1. You MUST analyze ALL models that participated in this evaluation. Each variant (including different system prompts or temperatures) should be considered independently.
+2. You MUST provide grades for EVERY model listed above—no exceptions.
+3. Be highly specific, using verbatim quotes and specific examples from the evaluation.
+4. Focus on actionable insights that would help someone choose between these models.
+5. Each grade should be based on evidence from the evaluation data.
+6. Consider the system prompt strategy when interpreting performance differences—note if results might be influenced by prompting choices rather than model capabilities.
 
 The models being evaluated are: ${anonymizedModelList}
 
@@ -702,28 +572,13 @@ Please provide multiple instances of each tag type as appropriate. Each tag shou
                 logger.info(`Grades provided for models (after deanonymization): ${gradedModels.join(', ')}`);
                 
                 // Check if we got grades for all expected models
-                // Convert anonymized expected models to real model display names for comparison
-                logger.info(`Converting anonymized model list for grade validation: ${anonymizedModelListForGrading.join(', ')} → real model names`);
+                const expectedRealModels = evaluatedModels; // No need to map to display names anymore
+                logger.info(`Expected models for grade validation: ${expectedRealModels.join(', ')}`);
                 
-                const expectedRealModels = anonymizedModelListForGrading.map(anonymizedName => {
-                    const realName = anonymizationMapping.anonymizedToReal.get(anonymizedName) || anonymizedName;
-                    const displayName = getModelDisplayLabel(realName, {
-                        hideProvider: true,
-                        hideSystemPrompt: true,
-                        hideTemperature: true
-                    });
-                    logger.info(`  ${anonymizedName} → ${displayName}`);
-                    return displayName;
-                });
-                
-                logger.info(`Expected models (after deanonymization): ${expectedRealModels.join(', ')}`);
-                
-                const missingGrades = expectedRealModels.filter((expected: string) => 
-                    !gradedModels.some(graded => 
-                        graded.toLowerCase().includes(expected.toLowerCase()) || 
-                        expected.toLowerCase().includes(graded.toLowerCase())
-                    )
+                const missingGrades = expectedRealModels.filter(expected => 
+                    !gradedModels.some(graded => graded === expected)
                 );
+
                 if (missingGrades.length > 0) {
                     logger.warn(`Missing grades for models: ${missingGrades.join(', ')}`);
                 } else {

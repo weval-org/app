@@ -4,6 +4,7 @@ import { getEmbedding } from '../services/embedding-service'; // Correct path to
 import { cosineSimilarity as calculateSimilarity } from '@/lib/math';
 import { parseEffectiveModelId } from '@/app/utils/modelIdUtils';
 import { ProgressCallback } from '../services/comparison-pipeline-service.non-stream';
+import pLimit from '@/lib/pLimit';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
@@ -23,7 +24,6 @@ export class EmbeddingEvaluator implements Evaluator {
     ): Promise<Partial<FinalComparisonOutputV2['evaluationResults'] & Pick<FinalComparisonOutputV2, 'extractedKeyPoints'>>> {
         this.logger.info('[EmbeddingEvaluator] Starting evaluation...');
         const ora = (await import('ora')).default; // Keep ora for potential CLI use if this class were ever used there directly, though pipeline service won't show it.
-        const pLimit = (await import('p-limit')).default;
         const limit = pLimit(20); // Concurrency for embedding calls
 
         const textsToEmbed = new Map<string, string>();

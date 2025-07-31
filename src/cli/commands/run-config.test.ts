@@ -9,7 +9,7 @@ import fs from 'fs/promises';
 
 // Mock the fs/promises module
 jest.mock('fs/promises');
-const mockedFs = fs as jest.Mocked<typeof fs>;
+const mockedFs = jest.mocked(fs);
 
 // Mock logger to prevent console output during tests and to spy on its methods
 const mockLogger = {

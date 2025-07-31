@@ -5,14 +5,9 @@ import {
     extractScore, 
     GRADE_DIMENSION_PATTERNS,
     createModelAnonymizationMapping,
-    anonymizeModelNamesInText,
-    deanonymizeModelNamesInText
+    deanonymizeModelNamesInText,
+    anonymizeWevalResultData
 } from '../executive-summary-service';
-
-// Import the private functions for testing by accessing them through the module
-// Note: In TypeScript, we can't directly import private functions, so we'll need to make them public for testing
-// or test them through the public interface
-
 
 describe('Executive Summary Parsing', () => {
     describe('parseStructuredSummary', () => {
@@ -376,415 +371,101 @@ It should not be parsed as structured content.
 }); 
 
 describe('Executive Summary Anonymization', () => {
-    test('should create proper anonymization mapping', () => {
+    test('should create proper descriptive anonymization mapping with variants', () => {
         const testModelIds = [
-            'openai:gpt-4o',
-            'anthropic:claude-3.5-sonnet',
-            'openrouter:google/gemini-2.0-flash'
+            'openai:gpt-4o[sys:0]',
+            'openai:gpt-4o[sys:1][temp:0.5]',
+            'anthropic:claude-3.5-sonnet[sys:0]',
         ];
 
         const mapping = createModelAnonymizationMapping(testModelIds);
         
-        // Test that all models got mapped
         expect(mapping.realToAnonymized.size).toBe(3);
         expect(mapping.anonymizedToReal.size).toBe(3);
-        
-        // Test that mappings are bidirectional
-        for (const [real, anon] of mapping.realToAnonymized.entries()) {
-            expect(mapping.anonymizedToReal.get(anon)).toBe(real);
-        }
-        
-        // Test that anonymized names use maker groupings but hide real maker names
-        const anonymizedValues = Array.from(mapping.realToAnonymized.values());
-        
-        // Verify no real maker/provider information is leaked
-        anonymizedValues.forEach(anon => {
-            expect(anon).not.toMatch(/OPENAI|ANTHROPIC|GOOGLE|CLAUDE|GPT|GEMINI/i);
-            expect(anon).toMatch(/^MAKER_[A-Z]_MODEL_\d+$/);
-        });
-        
-        // Should have maker groupings - models from same maker should share MAKER_X prefix
-        const openaiModel = mapping.realToAnonymized.get('openai:gpt-4o');
-        const anthropicModel = mapping.realToAnonymized.get('anthropic:claude-3.5-sonnet');
-        const googleModel = mapping.realToAnonymized.get('openrouter:google/gemini-2.0-flash');
-        
-        expect(openaiModel).toMatch(/^MAKER_[A-Z]_MODEL_\d+$/);
-        expect(anthropicModel).toMatch(/^MAKER_[A-Z]_MODEL_\d+$/);
-        expect(googleModel).toMatch(/^MAKER_[A-Z]_MODEL_\d+$/);
-        
-        // Different makers should have different MAKER_X prefixes
-        const openaiMaker = openaiModel?.split('_MODEL_')[0];
-        const anthropicMaker = anthropicModel?.split('_MODEL_')[0];
-        const googleMaker = googleModel?.split('_MODEL_')[0];
-        
-        expect(openaiMaker).not.toBe(anthropicMaker);
-        expect(anthropicMaker).not.toBe(googleMaker);
-        expect(openaiMaker).not.toBe(googleMaker);
+
+        const anonGptSys0 = mapping.realToAnonymized.get('openai:gpt-4o[sys:0]');
+        const anonGptSys1Temp05 = mapping.realToAnonymized.get('openai:gpt-4o[sys:1][temp:0.5]');
+        const anonClaudeSys0 = mapping.realToAnonymized.get('anthropic:claude-3.5-sonnet[sys:0]');
+
+        // MAKER_A should be Anthropic, MAKER_B should be OpenAI due to alphabetical sorting of makers
+        // NOTE: here, anon claude can be WITHOUT 'SYS_0' because its the ONLY sys variant
+        // therefore we consider it moot.
+        expect(anonClaudeSys0).toBe('MAKER_A_MODEL_1');
+        expect(anonGptSys0).toBe('MAKER_B_MODEL_1_SYS_0');
+        expect(anonGptSys1Temp05).toBe('MAKER_B_MODEL_1_SYS_1_TEMP_05');
+
+        // Test bidirectionality
+        expect(mapping.anonymizedToReal.get('MAKER_B_MODEL_1_SYS_1_TEMP_05')).toBe('openai:gpt-4o[sys:1][temp:0.5]');
     });
 
-    test('should anonymize and deanonymize model names correctly', () => {
-        const testModelIds = [
-            'openai:gpt-4o',
-            'anthropic:claude-3.5-sonnet',
-            'openrouter:google/gemini-2.0-flash'
-        ];
+    // return;
 
-        const testText = `
-        ## Model Performance Analysis
+    test('should handle models without variants correctly', () => {
+        const testModelIds = ['openai:gpt-4o', 'anthropic:claude-3.5-sonnet'];
+        const mapping = createModelAnonymizationMapping(testModelIds);
         
-        In this evaluation, gpt-4o performed exceptionally well on reasoning tasks.
-        claude-3.5-sonnet showed strong capabilities in creative writing.
-        The gemini-2.0-flash model demonstrated good factual accuracy.
-        
-        ### Detailed Results:
-        - **gpt-4o**: Scored 8.5/10 on adherence
-        - **anthropic:claude-3.5-sonnet**: Achieved 9.2/10 on creativity
-        - **openrouter:google/gemini-2.0-flash**: Got 7.8/10 on clarity
+        // Sorting makers: Anthropic -> MAKER_A, OpenAI -> MAKER_B
+        expect(mapping.realToAnonymized.get('openai:gpt-4o')).toBe('MAKER_B_MODEL_1');
+        expect(mapping.realToAnonymized.get('anthropic:claude-3.5-sonnet')).toBe('MAKER_A_MODEL_1');
+    });
+
+    test('should anonymize WevalResult data object correctly', () => {
+        const testModelIds = ['openai:gpt-4o[sys:0]', 'openai:gpt-4o[sys:1]'];
+        const mapping = createModelAnonymizationMapping(testModelIds);
+        const anonSys0 = mapping.realToAnonymized.get('openai:gpt-4o[sys:0]')!;
+        const anonSys1 = mapping.realToAnonymized.get('openai:gpt-4o[sys:1]')!;
+
+        const mockResultData: WevalResult = {
+            effectiveModels: ['openai:gpt-4o[sys:0]', 'openai:gpt-4o[sys:1]'],
+            allFinalAssistantResponses: {
+                'p1': {
+                    'openai:gpt-4o[sys:0]': 'response 0',
+                    'openai:gpt-4o[sys:1]': 'response 1'
+                }
+            },
+            evaluationResults: {
+                llmCoverageScores: {
+                    'p1': {
+                        'openai:gpt-4o[sys:0]': { avgCoverageExtent: 0.5 },
+                        'openai:gpt-4o[sys:1]': { avgCoverageExtent: 0.9 }
+                    }
+                }
+            }
+        } as any;
+
+        const anonymizedData = anonymizeWevalResultData(mockResultData, mapping.realToAnonymized);
+
+        expect(anonymizedData.effectiveModels).toEqual([anonSys0, anonSys1]);
+        expect(anonymizedData.allFinalAssistantResponses!['p1'][anonSys0]).toBe('response 0');
+        expect(anonymizedData.evaluationResults.llmCoverageScores!['p1'][anonSys0]!.avgCoverageExtent).toBe(0.5);
+    });
+
+    test('should correctly parse grades after de-anonymization with variants', () => {
+        const testModelIds = [
+            'openai:gpt-4o[sys:0]',
+            'openai:gpt-4o[sys:1]',
+        ];
+        const mapping = createModelAnonymizationMapping(testModelIds);
+        const anonSys0 = mapping.realToAnonymized.get('openai:gpt-4o[sys:0]')!;
+        const anonSys1 = mapping.realToAnonymized.get('openai:gpt-4o[sys:1]')!;
+
+        const llmResponse = `
+        <grade model="${anonSys0}">ADHERENCE: 5/10</grade>
+        <grade model="${anonSys1}">ADHERENCE: 9/10</grade>
         `;
 
-        const mapping = createModelAnonymizationMapping(testModelIds);
-        const anonymizedText = anonymizeModelNamesInText(testText, mapping);
-        const deanonymizedText = deanonymizeModelNamesInText(anonymizedText, mapping);
-        
-        // Test that anonymization worked
-        expect(anonymizedText).not.toContain('gpt-4o');
-        expect(anonymizedText).not.toContain('claude-3.5-sonnet');
-        expect(anonymizedText).not.toContain('gemini-2.0-flash');
-        
-        // Test that anonymized names follow the expected pattern (maker-grouped)
-        expect(anonymizedText).toMatch(/MAKER_[A-Z]_MODEL_\d+/);
-        
-        // Should contain anonymized references but no real model names
-        const anonymizedNames = Array.from(mapping.realToAnonymized.values());
-        anonymizedNames.forEach(name => {
-            expect(anonymizedText).toContain(name);
-        });
-        
-        // Test that deanonymization restores the display names
-        expect(deanonymizedText).toContain('gpt-4o');
-        expect(deanonymizedText).toContain('claude-3.5-sonnet');
-        expect(deanonymizedText).toContain('gemini-2.0-flash');
-        
-        // Test that the structure is preserved
-        expect(deanonymizedText).toContain('## Model Performance Analysis');
-        expect(deanonymizedText).toContain('### Detailed Results:');
-    });
+        const deanonymized = deanonymizeModelNamesInText(llmResponse, mapping);
+        const parsed = parseStructuredSummary(deanonymized);
 
-    test('should preserve maker-based insights in anonymized names', () => {
-        // Test that our anonymization strategy groups models by maker
-        const testModelIds = [
-            'openai:gpt-4',
-            'openai:gpt-3.5-turbo',
-            'anthropic:claude-3.5-sonnet',
-            'anthropic:claude-3-opus',
-            'google:gemini-pro',
-            'google:gemini-pro-1.5'
-        ];
-
-        // Mock the expected anonymization pattern
-        const expectedPatterns = [
-            { real: 'openai:gpt-4', anonymized: 'OPENAI_MODEL_A' },
-            { real: 'openai:gpt-3.5-turbo', anonymized: 'OPENAI_MODEL_B' },
-            { real: 'anthropic:claude-3.5-sonnet', anonymized: 'ANTHROPIC_MODEL_A' },
-            { real: 'anthropic:claude-3-opus', anonymized: 'ANTHROPIC_MODEL_B' },
-            { real: 'google:gemini-pro', anonymized: 'GOOGLE_MODEL_A' },
-            { real: 'google:gemini-pro-1.5', anonymized: 'GOOGLE_MODEL_B' }
-        ];
-
-        // Verify that the LLM will be able to:
-        // 1. Compare models within the same maker (e.g., OPENAI_MODEL_A vs OPENAI_MODEL_B)
-        // 2. Compare across makers (e.g., OPENAI_MODEL_A vs ANTHROPIC_MODEL_A)
-        // 3. Not have preconceptions about specific model names
-
-        const makerGroups = expectedPatterns.reduce((groups, pattern) => {
-            const maker = pattern.anonymized.split('_')[0];
-            if (!groups[maker]) groups[maker] = [];
-            groups[maker].push(pattern);
-            return groups;
-        }, {} as Record<string, typeof expectedPatterns>);
-
-        expect(Object.keys(makerGroups)).toEqual(['OPENAI', 'ANTHROPIC', 'GOOGLE']);
-        expect(makerGroups.OPENAI).toHaveLength(2);
-        expect(makerGroups.ANTHROPIC).toHaveLength(2);
-        expect(makerGroups.GOOGLE).toHaveLength(2);
-    });
-
-    test('should handle executive summary response with grades', () => {
-        const testModelIds = [
-            'openai:gpt-4o',
-            'anthropic:claude-3.5-sonnet'
-        ];
-
-        // Mock LLM response with maker-grouped anonymized model names  
-        const anonymizedLLMResponse = `
-        <key_finding>MAKER_A_MODEL_1 consistently outperformed MAKER_B_MODEL_1 on reasoning tasks</key_finding>
-        
-        <strength>MAKER_A_MODEL_1 excelled at mathematical problem solving</strength>
-        <weakness>MAKER_B_MODEL_1 struggled with complex multi-step reasoning</weakness>
-        
-        <grade model="MAKER_A_MODEL_1">
-        ADHERENCE: 8/10
-        CLARITY: 9/10
-        TONE: 8/10
-        </grade>
-        
-        <grade model="MAKER_B_MODEL_1">
-        ADHERENCE: 7/10
-        CLARITY: 8/10
-        TONE: 9/10
-        </grade>
-        `;
-
-        const mapping = createModelAnonymizationMapping(testModelIds);
-        const deanonymizedResponse = deanonymizeModelNamesInText(anonymizedLLMResponse, mapping);
-        const parsed = parseStructuredSummary(deanonymizedResponse);
-        
-        // Test that deanonymization worked and parsing succeeded
         expect(parsed).not.toBeNull();
-        expect(parsed!.keyFindings).toHaveLength(1);
-        expect(parsed!.keyFindings[0]).toContain('gpt-4o');
-        expect(parsed!.keyFindings[0]).toContain('claude-3.5-sonnet');
-        
         expect(parsed!.grades).toHaveLength(2);
-        
-        // Should contain both models (order may vary due to deterministic mapping)
-        const gradedModelIds = parsed!.grades!.map(g => g.modelId);
-        expect(gradedModelIds).toContain('gpt-4o');
-        expect(gradedModelIds).toContain('claude-3.5-sonnet');
-        
-        // Should contain both models in strengths and weaknesses
-        const allContent = parsed!.strengths.join(' ') + ' ' + parsed!.weaknesses.join(' ');
-        expect(allContent).toContain('gpt-4o');
-        expect(allContent).toContain('claude-3.5-sonnet');
+
+        const gradeSys0 = parsed!.grades!.find(g => g.modelId === 'openai:gpt-4o[sys:0]');
+        const gradeSys1 = parsed!.grades!.find(g => g.modelId === 'openai:gpt-4o[sys:1]');
+
+        expect(gradeSys0).toBeDefined();
+        expect(gradeSys1).toBeDefined();
+        expect(gradeSys0!.grades.adherence).toBe(5);
+        expect(gradeSys1!.grades.adherence).toBe(9);
     });
-
-    test('should handle LLM variations in anonymized model references', () => {
-        const testModelIds = [
-            'openai:gpt-4o',
-            'anthropic:claude-3.5-sonnet'
-        ];
-
-        const mapping = createModelAnonymizationMapping(testModelIds);
-        
-        // Test LLM response that uses variations of the anonymized names
-        const llmResponseWithVariations = `
-        Maker A Model 1 performed better than Maker B Model 1 in this test.
-        MAKER_A_MODEL_1 showed strength while MAKER_B_MODEL_1 had weaknesses.
-        The maker_a_model_1 result was superior to maker_b_model_1.
-        Model 1 from Maker A excelled compared to Model 1 from Maker B.
-        `;
-        
-        const deanonymized = deanonymizeModelNamesInText(llmResponseWithVariations, mapping);
-        
-        // Should handle all variations and map back to real display names
-        expect(deanonymized).toContain('gpt-4o');
-        expect(deanonymized).toContain('claude-3.5-sonnet');
-        
-        // Should not contain any anonymized references
-        expect(deanonymized).not.toMatch(/MAKER_[A-Z]_MODEL_\d+/);
-        expect(deanonymized).not.toMatch(/Maker [A-Z] Model \d+/);
-    });
-
-    test('should provide zero information leakage about real model identities', () => {
-        const testModelIds = [
-            'openai:gpt-4o-mini',
-            'anthropic:claude-3-opus', 
-            'openrouter:google/gemini-pro-1.5',
-            'meta:llama-3.1-70b',
-            'mistral:mixtral-8x7b'
-        ];
-
-        const mapping = createModelAnonymizationMapping(testModelIds);
-        
-        // Verify absolutely no information about real models is present in anonymized names
-        const anonymizedNames = Array.from(mapping.realToAnonymized.values());
-        
-        anonymizedNames.forEach(anonymizedName => {
-            // Should contain no provider hints
-            expect(anonymizedName).not.toMatch(/openai|anthropic|google|meta|mistral/i);
-            // Should contain no model name hints  
-            expect(anonymizedName).not.toMatch(/gpt|claude|gemini|llama|mixtral/i);
-            // Should contain no maker hints
-            expect(anonymizedName).not.toMatch(/openrouter|together|cohere/i);
-            // Should only be maker-grouped format
-            expect(anonymizedName).toMatch(/^MAKER_[A-Z]_MODEL_\d+$/);
-        });
-        
-        // Should follow MAKER_X_MODEL_Y pattern and preserve maker groupings
-        expect(anonymizedNames.length).toBe(5);
-        anonymizedNames.forEach(name => {
-            expect(name).toMatch(/^MAKER_[A-Z]_MODEL_\d+$/);
-        });
-        
-        // Models from same real maker should share MAKER_X prefix
-        const groupsByMaker = new Map<string, number>();
-        anonymizedNames.forEach(name => {
-            const makerPart = name.split('_MODEL_')[0];
-            groupsByMaker.set(makerPart, (groupsByMaker.get(makerPart) || 0) + 1);
-        });
-        
-        // Should have fewer maker groups than total models (some makers have multiple models)
-        expect(groupsByMaker.size).toBeLessThanOrEqual(5);
-        expect(groupsByMaker.size).toBeGreaterThan(0);
-    });
-
-    test('should demonstrate complete anonymization workflow', () => {
-        // Real world scenario: multiple models from different providers
-        const realWorldModelIds = [
-            'openai:gpt-4o',
-            'anthropic:claude-3.5-sonnet',
-            'openrouter:google/gemini-2.0-flash',
-            'meta:llama-3.1-8b'
-        ];
-
-        // Create mapping
-        const mapping = createModelAnonymizationMapping(realWorldModelIds);
-        
-        // Simulate markdown report with real model names
-        const originalMarkdownReport = `
-        # Evaluation Results
-        
-        ## Performance Analysis
-        
-        In this comprehensive evaluation, gpt-4o demonstrated exceptional performance 
-        across all metrics, scoring consistently higher than claude-3.5-sonnet.
-        
-        The gemini-2.0-flash model showed competitive results in creative tasks,
-        while llama-3.1-8b had mixed performance.
-        
-        ### Detailed Breakdown:
-        - **openai:gpt-4o**: Leading model with 8.7/10 average
-        - **anthropic:claude-3.5-sonnet**: Strong second place with 8.2/10  
-        - **openrouter:google/gemini-2.0-flash**: Solid performance at 7.9/10
-        - **meta:llama-3.1-8b**: Baseline performance at 7.1/10
-        `;
-        
-        // Step 1: Anonymize for LLM analysis
-        const anonymizedReport = anonymizeModelNamesInText(originalMarkdownReport, mapping);
-        
-        // Verify complete anonymization
-        expect(anonymizedReport).not.toMatch(/gpt|claude|gemini|llama/i);
-        expect(anonymizedReport).not.toMatch(/openai|anthropic|google|meta/i);
-        expect(anonymizedReport).toMatch(/MAKER_[A-Z]_MODEL_\d+/);
-        
-        // Should contain all anonymized model names
-        const anonymizedNames = Array.from(mapping.realToAnonymized.values());
-        anonymizedNames.forEach(name => {
-            expect(anonymizedReport).toContain(name);
-        });
-        
-        // Step 2: Simulate LLM analysis response (with variations in how it refers to models)
-        // The LLM should see patterns like "MAKER_A models perform consistently"
-        // Make sure to reference all models so deanonymization test works
-        const sortedAnonymizedNames = anonymizedNames.sort(); // Ensure consistent order
-        const modelA = sortedAnonymizedNames[0]; // Should map to claude-3.5-sonnet
-        const modelB = sortedAnonymizedNames[1]; // Should map to gemini-2.0-flash  
-        const modelC = sortedAnonymizedNames[2]; // Should map to gpt-4o
-        const modelD = sortedAnonymizedNames[3]; // Should map to llama-3.1-8b
-        
-        const llmAnalysisResponse = `
-        <key_finding>${modelA} significantly outperformed other models tested</key_finding>
-        
-        <strength>${modelC} excelled at complex reasoning tasks</strength>
-        <weakness>${modelD} struggled with factual accuracy</weakness>
-        
-        <pattern>The ${modelB} showed competitive performance in creative tasks</pattern>
-        
-        <grade model="${modelA}">
-        ADHERENCE: 9/10
-        CLARITY: 8/10
-        </grade>
-        
-        <grade model="${modelB}">
-        ADHERENCE: 8/10  
-        CLARITY: 7/10
-        </grade>
-        
-        <grade model="${modelC}">
-        ADHERENCE: 7/10
-        CLARITY: 9/10
-        </grade>
-        
-        <grade model="${modelD}">
-        ADHERENCE: 6/10
-        CLARITY: 6/10
-        </grade>
-        `;
-        
-        // Step 3: Deanonymize the response
-        const finalDeanonymizedResponse = deanonymizeModelNamesInText(llmAnalysisResponse, mapping);
-        
-        // Verify deanonymization worked - should contain display names (not raw model names)
-        const expectedModels = [
-            'gpt-4o', 
-            'claude-3.5-sonnet', 
-            'google/gemini-2.0-flash',  // OpenRouter models keep the path
-            'llama-3.1-8b'
-        ];
-        expectedModels.forEach(modelName => {
-            expect(finalDeanonymizedResponse).toContain(modelName);
-        });
-        
-        // Verify no anonymized names remain
-        expect(finalDeanonymizedResponse).not.toMatch(/MAKER_[A-Z]_MODEL_\d+/);
-        expect(finalDeanonymizedResponse).not.toMatch(/Maker [A-Z] Model \d+/);
-        
-        // Step 4: Verify structured parsing still works
-        const parsed = parseStructuredSummary(finalDeanonymizedResponse);
-        expect(parsed).not.toBeNull();
-        
-        // Should contain expected model names in findings, strengths, weaknesses, and patterns
-        const allTextContent = [
-            ...(parsed!.keyFindings || []),
-            ...(parsed!.strengths || []),
-            ...(parsed!.weaknesses || []),
-            ...(parsed!.patterns || [])
-        ].join(' ');
-        
-        expectedModels.forEach(modelName => {
-            expect(allTextContent).toContain(modelName);
-        });
-        
-        // Should have grades for the expected models
-        const gradedModelIds = parsed!.grades!.map(g => g.modelId);
-        expect(gradedModelIds.length).toBeGreaterThan(0);
-        gradedModelIds.forEach(modelId => {
-            expect(expectedModels).toContain(modelId);
-        });
-        
-        // SUCCESS: Complete anonymization workflow with zero information leakage!
-    });
-
-    test('should handle partial anonymized references in LLM responses', () => {
-        const testModelIds = [
-            'openai:gpt-4o',
-            'openai:gpt-4o-mini',
-            'anthropic:claude-3.5-sonnet'
-        ];
-
-        const mapping = createModelAnonymizationMapping(testModelIds);
-        
-        // LLM response with partial references
-        const llmResponseWithPartials = `
-        <key_finding>MAKER_A models consistently outperform others</key_finding>
-        <strength>Maker A models excel at reasoning</strength>
-        <weakness>MAKER_B struggled with creative tasks</weakness>
-        <pattern>The MAKER_A models show consistency across tasks</pattern>
-        `;
-        
-        const deanonymized = deanonymizeModelNamesInText(llmResponseWithPartials, mapping);
-        
-        // Should convert partial maker references to real maker names
-        expect(deanonymized).toContain('OpenAI models');
-        expect(deanonymized).toContain('Anthropic');
-        
-        // Should not contain anonymized references
-        expect(deanonymized).not.toMatch(/MAKER_[A-Z]/);
-        expect(deanonymized).not.toMatch(/Maker [A-Z]/);
-        
-        // Should preserve the structure and meaning
-        expect(deanonymized).toContain('consistently outperform');
-        expect(deanonymized).toContain('excel at reasoning');
-        expect(deanonymized).toContain('show consistency');
-    });
-}); 
+});

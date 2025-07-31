@@ -6,9 +6,9 @@ import {
   getComparisonRunInfo,
   EnhancedComparisonConfigInfo,
   EnhancedRunInfo,
-  getCachedHomepageHeadlineStats,
-  getCachedHomepageDriftDetectionResult,
+  getCachedHomepageStats,
 } from '@/app/utils/homepageDataUtils';
+import { HomepageSummaryFileContent } from '@/lib/storageService';
 import { fromSafeTimestamp } from '@/lib/timestampUtils';
 import React from 'react';
 import type { Metadata } from 'next';
@@ -53,15 +53,16 @@ export const metadata: Metadata = {
 export const revalidate = 3600;
 
 export default async function HomePage() {
-  const [initialConfigsRaw, headlineStats, driftDetectionResult]: [
+  const [initialConfigsRaw, homepageStats]: [
     EnhancedComparisonConfigInfo[], 
-    AggregateStatsData | null, 
-    PotentialDriftInfo | null
+    HomepageSummaryFileContent | null, 
   ] = await Promise.all([
     getComparisonRunInfo(),
-    getCachedHomepageHeadlineStats(),
-    getCachedHomepageDriftDetectionResult()
+    getCachedHomepageStats(),
   ]);
+
+  const headlineStats = homepageStats?.headlineStats || null;
+  const driftDetectionResult = homepageStats?.driftDetectionResult || null;
 
   const isDevelopment = process.env.NODE_ENV === 'development';
   // Filter for featured configs on the client, or show all in development.
@@ -142,7 +143,7 @@ export default async function HomePage() {
                 Latest Platform Stats
               </h2> */}
               <div className="space-y-8 md:space-y-10">
-                  <AggregateStatsDisplay stats={headlineStats} />
+                  <AggregateStatsDisplay stats={headlineStats ? { ...headlineStats, topicChampions: homepageStats?.topicChampions } : null} />
               </div>
             </section>
           )}
