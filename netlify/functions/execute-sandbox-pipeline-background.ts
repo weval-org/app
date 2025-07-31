@@ -8,7 +8,7 @@ import { EmbeddingEvaluator } from '@/cli/evaluators/embedding-evaluator';
 import { LLMCoverageEvaluator } from '@/cli/evaluators/llm-coverage-evaluator';
 import { ComparisonConfig, FinalComparisonOutputV2, IDEAL_MODEL_ID, EvaluationMethod, PromptResponseData, EvaluationInput } from '@/cli/types/cli_types';
 import { toSafeTimestamp } from '@/lib/timestampUtils';
-import { generateExecutiveSummary } from '@/cli/services/executive-summary-service';
+import { generateExecutiveSummary as generateExecutiveSummary } from '@/cli/services/executive-summary-service';
 import { ConversationMessage } from '@/types/shared';
 import { normalizeTag } from '@/app/utils/tagUtils';
 import { configure } from '@/cli/config';

@@ -7,7 +7,7 @@ import {
     saveResult,
 } from '../../lib/storageService';
 import { WevalResult } from '@/types/shared';
-import { generateExecutiveSummary } from '../services/executive-summary-service';
+import { generateExecutiveSummary as generateExecutiveSummary } from '../services/executive-summary-service';
 
 const SUMMARIZER_MODEL_ID = 'openrouter:google/gemini-2.5-flash';
 

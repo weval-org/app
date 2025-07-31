@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { StructuredInsights, ModelGrades } from '@/types/shared';
 import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import { GRADING_DIMENSIONS, getGradingDimension } from '@/lib/grading-criteria';
-import { addLinksToModelNames } from '@/app/utils/modelLinkification';
+
 import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
 import Icon from '@/components/ui/icon';
 import dynamic from 'next/dynamic';
@@ -45,7 +45,9 @@ const gradeLabels = GRADING_DIMENSIONS.reduce((acc, dimension) => {
 }, {} as Record<string, string>);
 
 function cleanOutModelProviders(text: string): string {
-  return text.replace(/(?:openrouter|openai|anthropic|together|xai|google):(?=[\w-.]+\/[\w-.]+)/ig, '');
+  // Don't clean providers from URLs (markdown links)
+  // Only clean standalone provider references in text
+  return text.replace(/(?<!#model-perf:)(?:openrouter|openai|anthropic|together|xai|google):(?=[\w-.]+\/[\w-.]+)/ig, '');
 }
 
 function getGradeColor(score: number): string {
@@ -281,6 +283,11 @@ const ModelGradesDisplay: React.FC<{ grades: ModelGrades[] }> = ({ grades }) => 
 export const StructuredSummary: React.FC<StructuredSummaryProps> = ({ insights }) => {
     const { data, openModelPerformanceModal } = useAnalysis();
     const [openSections, setOpenSections] = useState<Set<string>>(new Set());
+    const [selectedSystemPrompt, setSelectedSystemPrompt] = useState<number | null>(null);
+
+    const openSystemPromptModal = (systemIndex: number) => {
+        setSelectedSystemPrompt(systemIndex);
+    };
 
     // Preload icons used in this component
     usePreloadIcons([
@@ -298,9 +305,17 @@ export const StructuredSummary: React.FC<StructuredSummaryProps> = ({ insights }
         const encodedModelId = href.substring('#model-perf:'.length);
         const modelId = decodeURIComponent(encodedModelId);
         openModelPerformanceModal(modelId);
+      } else if (href && href.startsWith('#system-prompt:')) {
+        e.preventDefault();
+        const systemIndex = href.substring('#system-prompt:'.length);
+        openSystemPromptModal(parseInt(systemIndex));
       }
     }
   };
+
+  console.log('Debug Key Findings raw text', {
+    keyFindings: insights.keyFindings,
+  })
 
   const sections: SummarySection[] = [
     {
@@ -378,8 +393,8 @@ export const StructuredSummary: React.FC<StructuredSummaryProps> = ({ insights }
       {validSections.map((section) => {
         const processedItems = section.items.map(item => {
           const cleaned = cleanOutModelProviders(item);
-          if (!data) return cleaned;
-          return addLinksToModelNames(cleaned, data.effectiveModels, data.config);
+          // Executive summaries come pre-linkified from backend - no need for client-side linkification
+          return cleaned;
         });
 
         return (
@@ -442,6 +457,38 @@ export const StructuredSummary: React.FC<StructuredSummaryProps> = ({ insights }
           </CollapsibleContent>
         </Collapsible>
       )}
+      
+      {/* System Prompt Modal */}
+      <Dialog open={selectedSystemPrompt !== null} onOpenChange={(open) => !open && setSelectedSystemPrompt(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>System Prompt Variant {selectedSystemPrompt}</DialogTitle>
+            <DialogDescription>
+              The system prompt used for this evaluation variant
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4 overflow-auto flex-1">
+            {selectedSystemPrompt !== null && data?.config?.systems ? (
+              data.config.systems[selectedSystemPrompt] ? (
+                <pre className="text-sm bg-muted p-3 rounded whitespace-pre-wrap font-mono">
+                  {data.config.systems[selectedSystemPrompt]}
+                </pre>
+              ) : (
+                <div className="text-muted-foreground bg-muted/50 p-4 rounded border-2 border-dashed">
+                  <p className="text-center">
+                    <strong>No system prompt</strong>
+                  </p>
+                  <p className="text-sm text-center mt-2">
+                    This variant uses the model's default behavior without any system prompt.
+                  </p>
+                </div>
+              )
+            ) : (
+              <p className="text-muted-foreground">System prompt information not available.</p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }; 

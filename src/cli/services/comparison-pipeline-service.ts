@@ -5,7 +5,7 @@ import { EmbeddingEvaluator } from '@/cli/evaluators/embedding-evaluator';
 import { LLMCoverageEvaluator } from '@/cli/evaluators/llm-coverage-evaluator';
 import { saveResult as saveResultToStorage } from '@/lib/storageService';
 import { toSafeTimestamp } from '@/lib/timestampUtils';
-import { generateExecutiveSummary } from './executive-summary-service';
+import { generateExecutiveSummary as generateExecutiveSummary } from './executive-summary-service';
 import { generateAllResponses } from './comparison-pipeline-service.non-stream';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
@@ -19,6 +19,7 @@ async function aggregateAndSaveResults(
     logger: Logger,
     commitSha?: string,
     blueprintFileName?: string,
+    requireExecutiveSummary?: boolean,
 ): Promise<{ data: FinalComparisonOutputV2, fileName: string | null }> {
     logger.info('[PipelineService] Aggregating results...');
     logger.info(`[PipelineService] Received blueprint ID for saving: '${config.id}'`);
@@ -126,6 +127,16 @@ async function aggregateAndSaveResults(
     const summaryResult = await generateExecutiveSummary(finalOutput, logger);
     if (!('error' in summaryResult)) {
         finalOutput.executiveSummary = summaryResult;
+        logger.info(`[PipelineService] ✅ Executive summary generated successfully.`);
+    } else {
+        logger.error(`[PipelineService] ❌ Executive summary generation failed: ${summaryResult.error}`);
+        if (requireExecutiveSummary) {
+            logger.error(`[PipelineService] 🚨 FATAL: --require-executive-summary flag is set, but summary generation failed.`);
+            throw new Error(`Executive summary generation failed and is required: ${summaryResult.error}`);
+        } else {
+            logger.warn(`[PipelineService] ⚠️  Run will continue without executive summary. Use 'backfill-executive-summary' to retry later.`);
+            // Still save the run data without the executive summary
+        }
     }
 
     const fileName = `${runLabel}_${safeTimestamp}_comparison.json`;
@@ -162,6 +173,7 @@ export async function executeComparisonPipeline(
     useCache: boolean = false,
     commitSha?: string,
     blueprintFileName?: string,
+    requireExecutiveSummary?: boolean,
 ): Promise<{ data: FinalComparisonOutputV2, fileName: string | null }> {
     logger.info(`[PipelineService] Starting comparison pipeline for configId: '${config.id || config.configId}' runLabel: '${runLabel}'`);
     
@@ -248,6 +260,7 @@ export async function executeComparisonPipeline(
         logger,
         commitSha,
         blueprintFileName,
+        requireExecutiveSummary,
     );
     logger.info(`[PipelineService] executeComparisonPipeline finished successfully. Results at: ${finalResult.fileName}`);
     return finalResult;

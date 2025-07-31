@@ -8,7 +8,7 @@ export interface AnonymizedModelReference {
     temp?: string;
 }
 
-export function generateSystemPromptV2(anonymizedModels: AnonymizedModelReference[]): string {
+export function generateSystemPrompt(anonymizedModels: AnonymizedModelReference[]): string {
     // Create the list of models for grading instructions
     const gradingModelList = anonymizedModels
         .map(anon => {

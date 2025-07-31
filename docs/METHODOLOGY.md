@@ -175,29 +175,29 @@ To ensure objective analysis, we employ anonymization during executive summary g
 
 **The Bias Problem**: LLMs may have preconceptions about specific models (e.g., "GPT-4o is creative" or "Claude is empathetic") that influence their analysis. This can lead to biased assessments where brand recognition overshadows actual performance.
 
-**The Anonymization Solution**: Before sending evaluation data to the analyst LLM, all model identifiers are systematically anonymized using a **maker-grouped format**:
+**The Anonymization Solution**: Before sending evaluation data to the analyst LLM, all model identifiers are systematically anonymized using **opaque, high-numbered IDs** and a structured output format:
 
-*   **Provider vs. Maker Distinction**: The system makes a crucial distinction between API *providers* (implementation details like `openai`, `openrouter`, `anthropic`) and model *makers* (the companies that actually created the models like OpenAI, Google, Anthropic). 
-*   **Provider Elimination**: All provider references are completely removed as they are semantically meaningless for analysis (the same model accessed via different APIs should be evaluated identically).
-*   **Maker Preservation**: Maker information is preserved in anonymized form to allow for meaningful comparative analysis within and across model families.
+*   **Provider vs. Maker Distinction**: The system distinguishes between API *providers* (like `openrouter`, `anthropic`) and model *makers* (the companies that created the models like OpenAI, Google, Anthropic). 
+*   **Provider Elimination**: All provider references are stripped as they are implementation details irrelevant to performance analysis.
+*   **Opaque ID Assignment**: Components receive non-sequential, high-numbered anonymous IDs to avoid semantic confusion (e.g., `MK_5000` for makers, `MD_6000` for models, `S_7000` for system prompts, `T_8000` for temperatures).
 
-**Anonymization Format**: Models are grouped by their maker and assigned sequential identifiers:
+**Anonymization Format**: All references use opaque IDs that prevent the LLM from inferring real identities:
 ```
-Original: openai:gpt-4o, openai:gpt-4o-mini, anthropic:claude-3-5-sonnet
-Anonymized: MAKER_A_MODEL_1, MAKER_A_MODEL_2, MAKER_B_MODEL_1
+Original: openai:gpt-4o[sys:1][temp:0.7], anthropic:claude-3-5-sonnet[sys:0]
+Anonymized: MK_5001/MD_6001 (sys:S_7000, temp:T_8000), MK_5000/MD_6000 (sys:S_7001)
 ```
 
-**Technical Process**:
-1.  **Maker Inference**: Models are grouped by actual creator (OpenAI, Anthropic, Google, etc.) using pattern matching on model IDs and names.
-2.  **Sequential Assignment**: Within each maker group, models receive sequential numbers ensuring deterministic, reproducible mappings.
-3.  **Aggressive Sanitization**: All provider names, prefixes (e.g., `openai:`), and grouping patterns are stripped from the evaluation report.
-4.  **Clean Analysis**: The analyst LLM sees only anonymous maker-model references like `MAKER_A_MODEL_1` with no indication of real identities.
+**Structured Output**: The analyst LLM uses XML-like tags to reference models:
+```xml
+<ref maker="MK_5000" model="MD_6000" />          <!-- Base model reference -->
+<ref maker="MK_5001" model="MD_6001" sys="S_7000" temp="T_8000" />  <!-- Variant reference -->
+<grade maker="MK_5000" model="MD_6000">...</grade>  <!-- Model grading -->
+```
 
-**Deanonymization**: After the analyst completes its evaluation, all anonymized references in the response are systematically restored to human-readable display names using reverse mapping. This handles various linguistic variations the LLM might use (e.g., "Maker A Model 1", "MAKER_A models").
+**Deanonymization**: After analysis, structured tags are converted to human-readable text with clickable links for the UI. The LLM's expressiveness is preserved while ensuring reliable parsing.
 
-**Benefits**: This approach eliminates brand bias while preserving the ability to identify meaningful patterns like "models from the same maker show similar strengths" or "MAKER_A excels at reasoning tasks." The analyst's conclusions are based purely on observed performance rather than preconceptions.
+**Why this is important**: This approach eliminates brand bias while preserving the ability to identify meaningful patterns within maker families. The structured output format ensures reliable parsing while maintaining the analyst LLM's natural expressiveness. The analyst's conclusions are based purely on observed performance rather than preconceptions.
 
-**Transparency**: All anonymization mappings are logged during processing, and the system provides extensive debugging output to verify complete elimination of identifying information before analysis begins.
 
 ## 6. Risks, Assumptions, and Affordances
 

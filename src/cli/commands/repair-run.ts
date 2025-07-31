@@ -27,7 +27,7 @@ import {
 } from '@/types/shared';
 import { LLMCoverageEvaluator } from '../evaluators/llm-coverage-evaluator';
 import { EmbeddingEvaluator } from '../evaluators/embedding-evaluator';
-import { generateExecutiveSummary } from '../services/executive-summary-service';
+import { generateExecutiveSummary as generateExecutiveSummary } from '../services/executive-summary-service';
 import { toSafeTimestamp } from '@/lib/timestampUtils';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { getModelResponse, DEFAULT_TEMPERATURE } from '../services/llm-service';

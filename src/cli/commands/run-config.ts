@@ -456,6 +456,7 @@ interface RunOptions {
     evalMethod?: string;
     cache?: boolean;
     collectionsRepoPath?: string;
+    requireExecutiveSummary?: boolean;
 }
 
 async function promptForConfig(): Promise<string> {
@@ -592,7 +593,8 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions, commi
                 undefined, // forcePointwiseKeyEval
                 options.cache,
                 commitSha || undefined,
-                blueprintFileName
+                blueprintFileName,
+                options.requireExecutiveSummary
             ); 
 
             if (pipelineResult && typeof pipelineResult === 'object' && 'fileName' in pipelineResult && 'data' in pipelineResult) {
@@ -962,6 +964,7 @@ const localCommand = new Command('local')
     .option('--eval-method <methods>', "Comma-separated evaluation methods (embedding, llm-coverage, all)")
     .option('--cache', 'Enable caching for model responses (defaults to false).')
     .option('--collections-repo-path <path>', 'Path to a local checkout of a collections repository (e.g., weval/configs) to resolve model collection placeholders.')
+    .option('--require-executive-summary', 'Fail the entire run if executive summary generation fails (defaults to false).')
     .action(actionLocal);
 
 const githubCommand = new Command('github')
@@ -971,6 +974,7 @@ const githubCommand = new Command('github')
     .option('--eval-method <methods>', "Comma-separated evaluation methods (embedding, llm-coverage, all)")
     .option('--cache', 'Enable caching for model responses (defaults to false).')
     .option('--collections-repo-path <path>', 'Optional. Path to a local checkout of a collections repository to override the default behavior of fetching collections from GitHub.')
+    .option('--require-executive-summary', 'Fail the entire run if executive summary generation fails (defaults to false).')
     .action(actionGitHub);
 
 export const runConfigCommand = new Command('run-config')

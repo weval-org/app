@@ -247,7 +247,7 @@ export async function generateRunMarkdown(data: ComparisonDataV2, options: Markd
                 if (sys === null) {
                     md += `  ${index + 1}. (No system prompt)\n`;
                 } else {
-                    const truncatedSys = sys.length > 100 ? sys.substring(0, 100) + '...' : sys;
+                    const truncatedSys = sys.length > 500 ? sys.substring(0, 500) + '...' : sys;
                     md += `  ${index + 1}. "${escapeMarkdown(truncatedSys)}"\n`;
                 }
             });
@@ -555,4 +555,135 @@ export function generateMarkdownReport(data: WevalResult, maxCharacters?: number
     const truncationRatio = budgetForResponses / totalResponseChars;
     
     return buildMarkdown(data, truncationRatio);
+}
+
+/**
+ * Generates a markdown report for anonymized data, using anonymized system prompt references
+ * to prevent leakage to the executive summary LLM.
+ */
+export function generateMarkdownReportAnonymized(data: WevalResult, maxCharacters?: number, sysMapping?: Map<number, string>): string {
+    const fullMarkdown = buildMarkdownAnonymized(data, 1.0, sysMapping);
+
+    if (!maxCharacters || fullMarkdown.length <= maxCharacters) {
+        return fullMarkdown;
+    }
+
+    // Recalculate with truncation for anonymized version
+    let totalResponseChars = 0;
+    let staticChars = 0;
+
+    data.promptIds.forEach(promptId => {
+        const models = data.effectiveModels.filter(m => m !== IDEAL_MODEL_ID);
+        models.forEach(modelId => {
+            totalResponseChars += (data.allFinalAssistantResponses?.[promptId]?.[modelId] || '').length;
+        });
+    });
+    
+    staticChars = fullMarkdown.length - totalResponseChars;
+    
+    if (staticChars >= maxCharacters) {
+        return fullMarkdown.substring(0, maxCharacters);
+    }
+    
+    const budgetForResponses = maxCharacters - staticChars;
+    const truncationRatio = budgetForResponses / totalResponseChars;
+    
+    return buildMarkdownAnonymized(data, truncationRatio, sysMapping);
+}
+
+function buildMarkdownAnonymized(data: WevalResult, truncationRatio: number = 1.0, sysMapping?: Map<number, string>): string {
+    let md = ``;
+
+    md += `# Evaluation Report: ${data.configTitle}\n\n`;
+    if (data.description) {
+        md += `**Description:** ${data.description}\n\n`;
+    }
+    md += `**Run Label:** ${data.runLabel}\n`;
+    md += `**Timestamp:** ${formatTimestampForDisplay(fromSafeTimestamp(data.timestamp))}\n`;
+    if (data.sourceCommitSha) {
+        md += `**Commit SHA:** \`${data.sourceCommitSha.substring(0, 7)}\`\n`;
+    }
+    
+    // Add system prompt configuration information (anonymized)
+    if (data.config) {
+        if (data.config.tags && data.config.tags.length > 0) {
+            md += `**Tags:** ${data.config.tags.map(t => `\`${t}\``).join(', ')}\n`;
+        }
+        
+        // Handle different system prompt configurations using anonymized references
+        if (Array.isArray(data.config.systems) && data.config.systems.length > 0) {
+            md += `**System Prompt Strategy:** Permutation testing with ${data.config.systems.length} variants\n`;
+            if (sysMapping) {
+                md += `**System Prompt References:**\n`;
+                data.config.systems.forEach((sys, index) => {
+                    const anonymizedId = sysMapping.get(index) || `S_${index}`;
+                    if (sys === null) {
+                        md += `  ${anonymizedId}: (No system prompt)\n`;
+                    } else {
+                        const truncatedSys = sys.length > 500 ? sys.substring(0, 500) + '...' : sys;
+                        md += `  ${anonymizedId}: "${escapeMarkdown(truncatedSys)}"\n`;
+                    }
+                });
+            }
+        } else if (data.config.system || data.config.systemPrompt) {
+            md += `**System Prompt Strategy:** Single global system prompt\n`;
+            // Don't include the actual prompt content
+        } else {
+            md += `**System Prompt Strategy:** No global system prompt (models use default behavior)\n`;
+        }
+    }
+    
+    md += `\n---\n\n`;
+
+    md += `## Overall Results\n\n`;
+
+    const models = data.effectiveModels.filter(m => m !== IDEAL_MODEL_ID);
+    md += `**Models Tested:** ${models.length}\n`;
+    md += `**Prompts Evaluated:** ${data.promptIds.length}\n\n`;
+
+    md += `## Detailed Per-Prompt Results\n\n`;
+
+    data.promptIds.forEach(promptId => {
+        md += `### Prompt: \`${promptId}\`\n\n`;
+        const promptContext = data.promptContexts?.[promptId];
+        if (promptContext) {
+            if (typeof promptContext === 'string') {
+                md += `> ${promptContext}\n\n`;
+            } else if (Array.isArray(promptContext)) {
+                md += `**Conversation History:**\n`;
+                promptContext.forEach(msg => {
+                    md += `* **${msg.role}:** ${msg.content}\n`;
+                });
+                md += `\n`;
+            }
+        }
+
+        md += `| Model | Response | Coverage Score |\n`;
+        md += `|-------|----------|----------------|\n`;
+        
+        models.forEach(modelId => {
+            let response = data.allFinalAssistantResponses?.[promptId]?.[modelId] || '*No response*';
+            if (truncationRatio < 1.0) {
+                const newLength = Math.floor(response.length * truncationRatio);
+                if (response.length > newLength) {
+                    response = response.substring(0, newLength) + '... (truncated)';
+                }
+            }
+
+            const coverageResult = data.evaluationResults.llmCoverageScores?.[promptId]?.[modelId];
+            const score = (coverageResult && !('error' in coverageResult) && coverageResult.avgCoverageExtent !== undefined) ? coverageResult.avgCoverageExtent.toFixed(3) : 'N/A';
+            
+            // CRITICAL: Hide system prompt info to prevent leakage
+            const anonymizedModelLabel = getModelDisplayLabel(modelId, { 
+                hideSystemPrompt: true, 
+                hideTemperature: true 
+            });
+            
+            md += `| **${anonymizedModelLabel}** | ${response.replace(/\n/g, '<br/>')} | ${score} |\n`;
+        });
+        
+        md += `\n`;
+    });
+
+    return md;
 } 
