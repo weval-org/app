@@ -157,18 +157,34 @@ export interface StructuredInsights {
 export interface ModelGrades {
     modelId: string;
     grades: {
-        adherence: number;
-        clarity: number;
-        tone: number;
-        depth: number;
-        coherence: number;
-        helpfulness: number;
-        credibility: number;
-        empathy: number;
-        creativity: number;
-        safety: number;
-        argumentation: number;
-        efficiency: number;
+        adherence: number | null;
+        clarity: number | null;
+        tone: number | null;
+        depth: number | null;
+        coherence: number | null;
+        helpfulness: number | null;
+        credibility: number | null;
+        empathy: number | null;
+        creativity: number | null;
+        safety: number | null;
+        argumentation: number | null;
+        efficiency: number | null;
+        humility: number | null;
+    };
+    reasoning?: {
+        adherence?: string;
+        clarity?: string;
+        tone?: string;
+        depth?: string;
+        coherence?: string;
+        helpfulness?: string;
+        credibility?: string;
+        empathy?: string;
+        creativity?: string;
+        safety?: string;
+        argumentation?: string;
+        efficiency?: string;
+        humility?: string;
     };
 }
 

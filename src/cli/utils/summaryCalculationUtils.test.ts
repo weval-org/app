@@ -24,9 +24,9 @@ jest.mock('@/app/utils/modelIdUtils', () => ({
  * This matches the format expected by parseEffectiveModelId's regex patterns
  */
 const mockRun = (timestamp: string, perModelScores: Record<string, { hybrid: number | null, similarity: number | null, coverage: number | null }>, temp: number = 0): EnhancedRunInfo => ({
-  runLabel: 'test-run-label',
+  runLabel: 'mock-run-label',
   timestamp,
-  fileName: `test-run-label_${timestamp}_comparison.json`,
+  fileName: `mock-run-label_${timestamp}_comparison.json`,
   temperature: temp,
   perModelScores: new Map(Object.entries(perModelScores).map(([k, v]) => [k, { 
     hybrid: { average: v.hybrid, stddev: null },
@@ -59,7 +59,7 @@ describe('calculateHeadlineStats', () => {
       latestRunTimestamp: '2024-07-03T12:00:00Z',
     }];
     
-    const result = calculateHeadlineStats(configs, new Map(), mockLogger);
+    const result = calculateHeadlineStats(configs, new Map(), new Map(), mockLogger);
     
     expect(result.rankedOverallModels).toBeDefined();
     expect(result.rankedOverallModels!.length).toBe(1);
@@ -75,7 +75,7 @@ describe('calculateHeadlineStats', () => {
         configTitle: 'Config 1',
         runs: [mockRun('2024-07-03T12:00:00Z', { 'provider:model-a[temp:0]': { hybrid: 0.9, similarity: 0.9, coverage: 0.9 } })],
         latestRunTimestamp: '2024-07-03T12:00:00Z',
-        tags: ['test'], // Should be filtered out
+        tags: ['test'],
       },
       {
         configId: 'config-2', 
@@ -85,7 +85,7 @@ describe('calculateHeadlineStats', () => {
       }
     ];
     
-    const result = calculateHeadlineStats(configs, new Map(), mockLogger);
+    const result = calculateHeadlineStats(configs, new Map(), new Map(), mockLogger);
     
     expect(result.rankedOverallModels).toBeDefined();
     expect(result.rankedOverallModels!.length).toBe(1);
@@ -93,24 +93,33 @@ describe('calculateHeadlineStats', () => {
   });
 
   it('should create dimension leaderboards from provided grades', () => {
+    // Need some configs for the function to not return null
     const configs: EnhancedComparisonConfigInfo[] = [{
       configId: 'config-1',
-      configTitle: 'Config 1', 
+      configTitle: 'Config 1',
       runs: [mockRun('2024-07-03T12:00:00Z', { 'provider:model-a[temp:0]': { hybrid: 0.9, similarity: 0.9, coverage: 0.9 } })],
       latestRunTimestamp: '2024-07-03T12:00:00Z',
+      tags: [], // Explicitly set empty tags to prevent automatic test tag inference
     }];
 
+    // Mock some dimension grades
     const modelDimensionGrades = new Map();
-    const modelGrades = new Map();
-    modelGrades.set('clarity', { 
-      totalScore: 80, 
-      count: 10, 
-      uniqueConfigs: new Set(['config-1', 'config-2', 'config-3', 'config-4', 'config-5']),
-      scores: Array(10).fill({ score: 8, configTitle: 'Config 1', runLabel: 'run-1', timestamp: '2024-07-03T12:00:00Z', configId: 'config-1' })
+    const modelAGrades = new Map();
+    modelAGrades.set('clarity', { 
+      totalScore: 40, 
+      count: 5, 
+      uniqueConfigs: new Set(['config1', 'config2', 'config3', 'config4', 'config5']),
+      scores: [
+        { score: 8, configTitle: 'Config 1', runLabel: 'run1', timestamp: '2024-01-01', configId: 'config1' },
+        { score: 8, configTitle: 'Config 2', runLabel: 'run2', timestamp: '2024-01-02', configId: 'config2' },
+        { score: 8, configTitle: 'Config 3', runLabel: 'run3', timestamp: '2024-01-03', configId: 'config3' },
+        { score: 8, configTitle: 'Config 4', runLabel: 'run4', timestamp: '2024-01-04', configId: 'config4' },
+        { score: 8, configTitle: 'Config 5', runLabel: 'run5', timestamp: '2024-01-05', configId: 'config5' }
+      ]
     });
-    modelDimensionGrades.set('provider:model-a', modelGrades);
+    modelDimensionGrades.set('provider:model-a', modelAGrades);
     
-    const result = calculateHeadlineStats(configs, modelDimensionGrades, mockLogger);
+    const result = calculateHeadlineStats(configs, modelDimensionGrades, new Map(), mockLogger);
     
     expect(result.dimensionLeaderboards).toBeDefined();
     expect(result.dimensionLeaderboards!.length).toBe(1);
@@ -119,16 +128,8 @@ describe('calculateHeadlineStats', () => {
     expect(result.dimensionLeaderboards![0].leaderboard[0].averageScore).toBe(8);
   });
 
-  it('should return null for all stats when no configs remain after filtering', () => {
-    const configs: EnhancedComparisonConfigInfo[] = [{
-      configId: 'config-1',
-      configTitle: 'Config 1',
-      runs: [mockRun('2024-07-03T12:00:00Z', { 'provider:model-a[temp:0]': { hybrid: 0.9, similarity: 0.9, coverage: 0.9 } })],
-      latestRunTimestamp: '2024-07-03T12:00:00Z',
-      tags: ['test'], // Will be filtered out
-    }];
-    
-    const result = calculateHeadlineStats(configs, new Map(), mockLogger);
+  it('should return empty arrays when no data provided', () => {
+    const result = calculateHeadlineStats([], new Map(), new Map(), mockLogger);
     
     expect(result.bestPerformingConfig).toBeNull();
     expect(result.worstPerformingConfig).toBeNull();

@@ -309,7 +309,7 @@ async function actionBackfillSummary(options: { verbose?: boolean; configId?: st
             // The calculation functions will internally filter out any configs with the 'test' tag.
             logger.info(`Headline stats will be calculated based on all ${allConfigsForHomepage.length} configs (excluding 'test' tag).`);
 
-            const headlineStats = calculateHeadlineStats(allConfigsForHomepage, modelDimensionGrades, logger);
+            const headlineStats = calculateHeadlineStats(allConfigsForHomepage, modelDimensionGrades, topicModelScores, logger);
             const driftDetectionResult = calculatePotentialModelDrift(allConfigsForHomepage);
             const topicChampions = calculateTopicChampions(topicModelScores);
 
@@ -318,6 +318,7 @@ async function actionBackfillSummary(options: { verbose?: boolean; configId?: st
                 headlineStats: headlineStats,
                 driftDetectionResult: driftDetectionResult,
                 topicChampions: topicChampions,
+                capabilityLeaderboards: headlineStats.capabilityLeaderboards || undefined,
                 lastUpdated: new Date().toISOString(),
             };
 

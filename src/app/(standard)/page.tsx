@@ -1,5 +1,6 @@
 import nextDynamic from 'next/dynamic';
-import AggregateStatsDisplay, { AggregateStatsData } from '@/app/components/AggregateStatsDisplay';
+import AggregateStatsDisplay from '@/app/components/AggregateStatsDisplay';
+import { AggregateStatsData } from '@/app/components/home/types';
 import ModelDriftIndicator, { PotentialDriftInfo } from '@/app/components/ModelDriftIndicator';
 import HomePageBanner from "@/app/components/HomePageBanner";
 import {
@@ -143,7 +144,7 @@ export default async function HomePage() {
                 Latest Platform Stats
               </h2> */}
               <div className="space-y-8 md:space-y-10">
-                  <AggregateStatsDisplay stats={headlineStats ? { ...headlineStats, topicChampions: homepageStats?.topicChampions } : null} />
+                  <AggregateStatsDisplay stats={headlineStats ? { ...headlineStats, topicChampions: homepageStats?.topicChampions, capabilityLeaderboards: homepageStats?.capabilityLeaderboards } : null} />
               </div>
             </section>
           )}

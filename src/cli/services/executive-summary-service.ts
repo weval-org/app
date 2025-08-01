@@ -2,17 +2,20 @@ import { WevalResult, ExecutiveSummary, StructuredInsights, ModelGrades } from '
 import { generateMarkdownReportAnonymized } from '../../app/utils/markdownGenerator';
 import { getModelResponse } from './llm-service';
 import { getConfig } from '../config';
-import { getModelDisplayLabel, parseEffectiveModelId } from '../../app/utils/modelIdUtils';
+import { getModelDisplayLabel, parseEffectiveModelId, extractMakerFromModelId } from '../../app/utils/modelIdUtils';
 import { IDEAL_MODEL_ID } from '../../app/utils/calculationUtils';
 import { generateSystemPrompt, AnonymizedModelReference } from './executive-summary-prompt';
 import { TOPICS } from '../../lib/topics';
+import { GRADING_DIMENSIONS } from '../../lib/grading-criteria';
 
 const SUMMARIZER_MODEL_ID = 'openrouter:google/gemini-2.5-flash';
 const MAX_CHARS = 500000; // ~130k tokens
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
-// Anonymization System with Opaque IDs
+/**
+ * Anonymization System with Opaque IDs
+ */
 export interface AnonymizedModelData {
     realId: string;
     maker: string;
@@ -31,22 +34,6 @@ export interface ModelAnonymizationMapping {
     tempToReal: Map<string, number>;
 }
 
-// Regex patterns to match dimension names to property keys
-export const GRADE_DIMENSION_PATTERNS = {
-    adherence: /adherence|instruction/i,
-    clarity: /clarity|readability/i,
-    tone: /tone|style/i,
-    depth: /depth|nuance/i,
-    coherence: /coherence|conversational|flow/i,
-    helpfulness: /helpfulness|actionability/i,
-    credibility: /credibility|ethos/i,
-    empathy: /empathy|pathos/i,
-    creativity: /creativity|originality/i,
-    safety: /safety|self-awareness/i,
-    argumentation: /argumentation|logos|persuasiveness/i,
-    efficiency: /efficiency|succinctness/i
-} as const;
-
 export function extractScore(line: string): number | null {
     // Match patterns like "8/10", "8", "8.5", etc.
     const match = line.match(/(\d+(?:\.\d+)?)(?:\/10)?/);
@@ -58,43 +45,34 @@ export function extractScore(line: string): number | null {
     return null;
 }
 
-export function parseGradeContent(content: string): ModelGrades['grades'] | null {
+export function parseGradeContent(content: string): { score: number | null; reasoning: string } {
     try {
-        const grades = {
-            adherence: 0,
-            clarity: 0,
-            tone: 0,
-            depth: 0,
-            coherence: 0,
-            helpfulness: 0,
-            credibility: 0,
-            empathy: 0,
-            creativity: 0,
-            safety: 0,
-            argumentation: 0,
-            efficiency: 0
-        };
+        // Extract reasoning and score from the new format
+        let reasoning = '';
+        let score: number | null = null;
 
-        // Parse grade format like "ADHERENCE: 8/10" or "ADHERENCE: 8"
-        const gradeLines = content.split('\n').filter(line => line.trim());
+        const lines = content.split('\n').map(line => line.trim()).filter(line => line);
         
-        for (const line of gradeLines) {
-            // Use regex patterns to match dimensions
-            for (const [propertyKey, pattern] of Object.entries(GRADE_DIMENSION_PATTERNS)) {
-                if (pattern.test(line)) {
-                    const score = extractScore(line);
-                    if (score !== null) {
-                        grades[propertyKey as keyof typeof grades] = score;
-                        break; // Found a match, no need to check other dimensions
+        for (const line of lines) {
+            if (line.toUpperCase().startsWith('REASONING:')) {
+                reasoning = line.substring(10).trim(); // Remove "REASONING:" prefix
+            } else if (line.toUpperCase().startsWith('SCORE:')) {
+                const scorePart = line.substring(6).trim(); // Remove "SCORE:" prefix
+                if (scorePart.toUpperCase() === 'N/A' || scorePart.toUpperCase() === 'NA') {
+                    score = null;
+                } else {
+                    const extractedScore = extractScore(scorePart);
+                    if (extractedScore !== null) {
+                        score = extractedScore;
                     }
                 }
             }
         }
 
-        return grades;
+        return { score, reasoning };
     } catch (error) {
         console.error('Error parsing grade content:', error);
-        return null;
+        return { score: null, reasoning: '' };
     }
 }
 
@@ -120,28 +98,8 @@ export function createModelAnonymizationMapping(modelIds: string[]): ModelAnonym
     for (const modelId of modelIds) {
         const parsed = parseEffectiveModelId(modelId);
         
-        // Extract maker
-        let maker = 'UNKNOWN';
-        if (modelId.startsWith('openai:')) maker = 'OPENAI';
-        else if (modelId.startsWith('anthropic:')) maker = 'ANTHROPIC';
-        else if (modelId.startsWith('google:')) maker = 'GOOGLE';
-        else if (modelId.startsWith('meta:')) maker = 'META';
-        else if (modelId.startsWith('mistral:')) maker = 'MISTRAL';
-        else if (modelId.startsWith('cohere:')) maker = 'COHERE';
-        else if (modelId.startsWith('deepseek:')) maker = 'DEEPSEEK';
-        else if (modelId.startsWith('xai:') || modelId.startsWith('x-ai:')) maker = 'XAI';
-        else if (modelId.startsWith('openrouter:')) {
-            const pathParts = modelId.split('/');
-            if (pathParts.length > 1) {
-                const providerPart = pathParts[0].split(':')[1];
-                if (providerPart === 'anthropic') maker = 'ANTHROPIC';
-                else if (providerPart === 'google') maker = 'GOOGLE';
-                else if (providerPart === 'meta-llama') maker = 'META';
-                else if (providerPart === 'mistralai') maker = 'MISTRAL';
-                else if (providerPart === 'openai') maker = 'OPENAI';
-                else maker = providerPart.toUpperCase();
-            }
-        }
+        // Extract maker using utility function
+        const maker = extractMakerFromModelId(modelId);
 
         uniqueMakers.add(maker);
         uniqueModels.add(parsed.baseId);
@@ -188,28 +146,8 @@ export function createModelAnonymizationMapping(modelIds: string[]): ModelAnonym
     for (const modelId of modelIds) {
         const parsed = parseEffectiveModelId(modelId);
         
-        // Find maker
-        let maker = 'UNKNOWN';
-        if (modelId.startsWith('openai:')) maker = 'OPENAI';
-        else if (modelId.startsWith('anthropic:')) maker = 'ANTHROPIC';
-        else if (modelId.startsWith('google:')) maker = 'GOOGLE';
-        else if (modelId.startsWith('meta:')) maker = 'META';
-        else if (modelId.startsWith('mistral:')) maker = 'MISTRAL';
-        else if (modelId.startsWith('cohere:')) maker = 'COHERE';
-        else if (modelId.startsWith('deepseek:')) maker = 'DEEPSEEK';
-        else if (modelId.startsWith('xai:') || modelId.startsWith('x-ai:')) maker = 'XAI';
-        else if (modelId.startsWith('openrouter:')) {
-            const pathParts = modelId.split('/');
-            if (pathParts.length > 1) {
-                const providerPart = pathParts[0].split(':')[1];
-                if (providerPart === 'anthropic') maker = 'ANTHROPIC';
-                else if (providerPart === 'google') maker = 'GOOGLE';
-                else if (providerPart === 'meta-llama') maker = 'META';
-                else if (providerPart === 'mistralai') maker = 'MISTRAL';
-                else if (providerPart === 'openai') maker = 'OPENAI';
-                else maker = providerPart.toUpperCase();
-            }
-        }
+        // Extract maker using utility function  
+        const maker = extractMakerFromModelId(modelId);
 
         // Find opaque IDs
         const makerOpaqueId = Array.from(makerToReal.entries()).find(([_, realMaker]) => realMaker === maker)?.[0] || 'MK_UNKNOWN';
@@ -368,21 +306,13 @@ export function deanonymizeModelNamesInText(
 }
 
 function generateVariantLink(attrs: Record<string, string>, mapping: ModelAnonymizationMapping): string {
-    console.log('generateVariantLink called with attrs:', attrs);
     
     // Find the real model ID that matches these attributes
     for (const [realId, anon] of mapping.realToAnonymized.entries()) {
-        console.log('generateVariantLink', realId, ',', anon.maker, ',', anon.model, ',', anon.sys, ',', anon.temp);
-        console.log('  comparing with attrs:', attrs);
         const makerMatch = anon.maker === attrs.maker;
         const modelMatch = anon.model === attrs.model; 
         const sysMatch = anon.sys === attrs.sys;
         const tempMatch = anon.temp === attrs.temp;
-        
-        // Log when we have potential matches for debugging
-        if (makerMatch && modelMatch) {
-            console.log(`  -> Potential match for ${attrs.maker}/${attrs.model}: sys=${sysMatch}(${anon.sys}==${attrs.sys}) temp=${tempMatch}(${anon.temp}==${attrs.temp})`);
-        }
         
         if (makerMatch && modelMatch && sysMatch && tempMatch) {
             
@@ -406,8 +336,6 @@ function generateVariantLink(attrs: Record<string, string>, mapping: ModelAnonym
             if (variantParts.length > 0) {
                 displayName += ` (${variantParts.join(', ')})`;
             }
-
-            console.log('Actual link generated: ', `[${displayName}](#model-perf:${realId})`);
             
             return `[${displayName}](#model-perf:${realId})`;
         }
@@ -419,7 +347,6 @@ function generateVariantLink(attrs: Record<string, string>, mapping: ModelAnonym
 function generateBaseModelLink(attrs: Record<string, string>, mapping: ModelAnonymizationMapping): string {
     // Find any real model ID that matches maker and model (ignoring variants)
     for (const [realId, anon] of mapping.realToAnonymized.entries()) {
-        console.log('generateBaseModelLink', realId, ',', anon.maker, ',', anon.model);
         if (anon.maker === attrs.maker && anon.model === attrs.model) {
             const parsed = parseEffectiveModelId(realId);
             const displayName = getModelDisplayLabel(parsed.baseId, { 
@@ -428,8 +355,6 @@ function generateBaseModelLink(attrs: Record<string, string>, mapping: ModelAnon
                 hideModelMaker: true 
             });
 
-            console.log('generateBaseModelLink', realId, ',', displayName);
-            
             return `[${displayName}](#model-perf:${realId})`;
         }
     }
@@ -450,6 +375,7 @@ function generateMakerReference(makerId: string, mapping: ModelAnonymizationMapp
             case 'COHERE': return 'Cohere';
             case 'DEEPSEEK': return 'DeepSeek';
             case 'XAI': return 'xAI';
+            case 'MOONSHOT': return 'Moonshot AI';
             default: return realMaker.charAt(0) + realMaker.slice(1).toLowerCase();
         }
     }
@@ -567,9 +493,17 @@ export function parseStructuredSummary(
             });
         }
 
-        // Extract grades using the new attribute format
+        // Extract grades using the new individual dimension format
         const gradeMatches = content.match(/<grade\s+([^>]+)>(.*?)<\/grade>/gs);
         if (gradeMatches) {
+            // Group grades by base model (maker+model)
+            const baseModelGradesMap = new Map<string, { 
+                grades: Partial<ModelGrades['grades']>, 
+                reasoning: Partial<NonNullable<ModelGrades['reasoning']>>,
+                maker: string,
+                model: string
+            }>();
+
             gradeMatches.forEach(match => {
                 const attrMatch = match.match(/<grade\s+([^>]+)>/);
                 if (!attrMatch) return;
@@ -585,15 +519,67 @@ export function parseStructuredSummary(
                     attrs[attrResult[1]] = attrResult[2];
                 }
 
-                // Find the real model ID that matches these attributes
-                const realModelId = findRealModelIdFromAttributes(attrs, mapping);
-                if (realModelId && gradeContent) {
+                const dimension = attrs.dimension;
+                
+                if (attrs.maker && attrs.model && dimension && gradeContent) {
+                    // Validate dimension is a known key
+                    const validDimension = GRADING_DIMENSIONS.find(d => d.key === dimension);
+                    if (!validDimension) {
+                        console.warn(`Unknown dimension key: ${dimension}`);
+                        return;
+                    }
+
                     const gradeData = parseGradeContent(gradeContent);
-                    if (gradeData) {
-                        grades.push({ modelId: realModelId, grades: gradeData });
+                    
+                    // Use base model key (maker+model only)
+                    const baseModelKey = `${attrs.maker}|${attrs.model}`;
+                    
+                    // Get or create base model grades entry
+                    let baseModelGrades = baseModelGradesMap.get(baseModelKey);
+                    if (!baseModelGrades) {
+                        baseModelGrades = { 
+                            grades: {}, 
+                            reasoning: {},
+                            maker: attrs.maker,
+                            model: attrs.model
+                        };
+                        baseModelGradesMap.set(baseModelKey, baseModelGrades);
+                    }
+
+                    // Set the grade and reasoning for this dimension
+                    (baseModelGrades.grades as any)[dimension] = gradeData.score;
+                    if (gradeData.reasoning) {
+                        (baseModelGrades.reasoning as any)[dimension] = gradeData.reasoning;
                     }
                 }
             });
+
+            // Apply base model grades to all variants of each model
+            for (const [baseModelKey, baseModelData] of baseModelGradesMap.entries()) {
+                // Find the first real model ID that matches this base model to use as the representative
+                const representativeModelId = findRealModelIdFromAttributes({
+                    maker: baseModelData.maker,
+                    model: baseModelData.model
+                }, mapping);
+
+                if (representativeModelId) {
+                    // Use clean base model ID (remove variant suffixes)
+                    const parsed = parseEffectiveModelId(representativeModelId);
+                    const cleanBaseModelId = parsed.baseId;
+                    
+                    const fullGrades = Object.fromEntries(
+                        GRADING_DIMENSIONS.map(d => [d.key, baseModelData.grades[d.key as keyof typeof baseModelData.grades] ?? null])
+                    ) as ModelGrades['grades'];
+
+                    const modelGrade: ModelGrades = {
+                        modelId: cleanBaseModelId, // Use clean base model ID
+                        grades: fullGrades,
+                        reasoning: Object.keys(baseModelData.reasoning).length > 0 ? baseModelData.reasoning : undefined
+                    };
+
+                    grades.push(modelGrade);
+                }
+            }
         }
 
         // Always return structured data, even if empty
@@ -615,19 +601,14 @@ function findRealModelIdFromAttributes(
     attrs: Record<string, string>, 
     mapping: ModelAnonymizationMapping
 ): string | null {
-    // Need at least maker and model for a valid grade
+    // For base model grading, we only need maker and model
     if (!attrs.maker || !attrs.model) {
         return null;
     }
 
-    // Find matching real model ID
+    // Find any matching real model ID (we'll apply to all variants later)
     for (const [realId, anon] of mapping.realToAnonymized.entries()) {
-        const matches = anon.maker === attrs.maker && 
-                       anon.model === attrs.model &&
-                       anon.sys === attrs.sys &&
-                       anon.temp === attrs.temp;
-        
-        if (matches) {
+        if (anon.maker === attrs.maker && anon.model === attrs.model) {
             return realId;
         }
     }
@@ -735,14 +716,22 @@ export async function generateExecutiveSummary(
                 const gradedModels = structuredInsights.grades.map(g => g.modelId);
                 logger.info(`Grades provided for models: ${gradedModels.join(', ')}`);
                 
-                const missingGrades = evaluatedModels.filter(expected => 
-                    !gradedModels.some(graded => graded === expected)
+                // Create list of expected base models (deduplicated from all variants)
+                const expectedBaseModels = new Set<string>();
+                for (const modelId of evaluatedModels) {
+                    const parsed = parseEffectiveModelId(modelId);
+                    expectedBaseModels.add(parsed.baseId);
+                }
+                
+                const expectedBaseModelsList = Array.from(expectedBaseModels);
+                const missingGrades = expectedBaseModelsList.filter(expectedBaseId => 
+                    !gradedModels.some(gradedId => gradedId === expectedBaseId)
                 );
 
                 if (missingGrades.length > 0) {
-                    logger.warn(`Missing grades for models: ${missingGrades.join(', ')}`);
+                    logger.warn(`Missing grades for base models: ${missingGrades.join(', ')}`);
                 } else {
-                    logger.info(`✓ All expected models received grades`);
+                    logger.info(`✓ All expected base models received grades (${expectedBaseModelsList.length} total)`);
                 }
             } else {
                 logger.warn(`No model grades found in structured summary.`);

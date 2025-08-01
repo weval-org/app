@@ -147,7 +147,108 @@ The homepage displays several aggregate statistics, including a leaderboard of t
 *   **Calculation**: For each model, the system takes its average Hybrid Score from the latest run of every blueprint it participated in. These scores are then averaged to produce the final `overallAverageScore` used for ranking.
 *   **Participation Threshold**: To ensure statistical significance and prevent models from being ranked based on performance in only a few, specialized tests, a model must have participated in a minimum of **10 unique evaluation blueprints** to be included on the leaderboard.
 
-### 5.4. Dimension Champions
+### 5.4. Capability Leaderboards (New)
+
+The "Capability Leaderboards" represent a simplified, high-level aggregation system designed to present model performance across broad, intuitive categories rather than the granular dimension-by-dimension or topic-by-topic breakdowns.
+
+#### 5.4.1. Motivation and Design Philosophy
+
+Traditional leaderboards can overwhelm users with dozens of individual metrics across different dimensions and topics. The capability leaderboards address this by grouping related performance indicators into 5-7 broad "capability buckets" that represent areas most users care about:
+
+* **Helpfulness & Reasoning**: Core problem-solving and task execution abilities
+* **Safety & Responsibility**: Avoiding harm and acting ethically
+* **Communication Quality**: Clarity, tone, and expressive effectiveness  
+* **Trustworthiness & Accuracy**: Reliability and factual correctness
+* **Civic & Legal Knowledge**: Understanding of legal, political, and social systems
+
+#### 5.4.2. Data Sources and Methodology
+
+Each capability bucket combines two distinct data sources using weighted averaging:
+
+**Source 1: Dimension Scores (from Executive Summaries)**
+* Derived from structured `grades` in evaluation `executiveSummary` fields
+* Analyst LLM assigns 1-10 scores across dimensions like "clarity", "helpfulness", "safety"
+* Scores are normalized to 0-1 scale: `(score - 1) / 9`
+* Each dimension can contribute to multiple capability buckets with different weights
+
+**Source 2: Topic Scores (from Hybrid Scores)**
+* Derived from topic-specific hybrid scores across evaluation blueprints
+* Uses the standard hybrid score formula: `0.35 × similarity + 0.65 × coverage`
+* Topics are matched to capability buckets using normalized topic names (kebab-case → Title Case)
+* Each topic can contribute to multiple capability buckets with different weights
+
+#### 5.4.3. Aggregation Formula
+
+For each model in each capability bucket, the final score is calculated as:
+
+```math
+S_{\text{capability}} = \frac{\sum_{i} (D_i \times w_{d,i}) + \sum_{j} (T_j \times w_{t,j})}{\sum_{i} w_{d,i} + \sum_{j} w_{t,j}}
+```
+
+Where:
+* $D_i$ = normalized dimension score for dimension $i$
+* $T_j$ = topic hybrid score for topic $j$  
+* $w_{d,i}$ = weight assigned to dimension $i$ in this capability bucket
+* $w_{t,j}$ = weight assigned to topic $j$ in this capability bucket
+
+**Example Weighting Scheme:**
+```yaml
+Helpfulness & Reasoning:
+  dimensions:
+    - helpfulness: 1.0x weight
+    - adherence: 1.0x weight  
+    - depth: 0.75x weight
+  topics:
+    - "Instruction Following & Prompt Adherence": 1.0x weight
+    - "Reasoning": 1.0x weight
+    - "Coding": 0.75x weight
+```
+
+#### 5.4.4. Quality Assurance Mechanisms
+
+**Minimum Participation Thresholds:**
+To prevent artificially inflated scores from limited data, models must meet both criteria to appear in capability leaderboards:
+* **≥10 total contributing runs** across all topics/dimensions for this capability
+* **≥5 unique evaluation configs** (estimated from run distribution)
+
+**Data Validation:**
+* Topic names are normalized using `normalizeTopicKey()` to handle kebab-case → Title Case conversion
+* Models with insufficient data are excluded with detailed logging: `"✗ model-name: score% → Excluded: needs ≥X runs (has Y)"`
+* Only successful dimension/topic matches contribute to the weighted average
+
+#### 5.4.5. Interpretation Guidelines and Limitations
+
+**Strengths:**
+* **Intuitive Categories**: Broad buckets are more accessible than dozens of individual metrics
+* **Multi-Modal Scoring**: Combines both rubric-based assessment and semantic similarity
+* **Quality Filters**: Minimum thresholds ensure statistical reliability
+* **Transparency**: Full weighting schemes and calculation methods are documented
+
+**Important Limitations:**
+* **Information Loss**: Aggregation inevitably obscures nuanced performance differences
+* **Arbitrary Weighting**: The specific weights (e.g., "depth: 0.75x") are design decisions, not empirically derived
+* **Heterogeneous Data Mixing**: Combining 1-10 dimension scores with 0-1 hybrid scores assumes these scales are meaningfully comparable
+* **Cross-Domain Averaging**: Models may excel in narrow domains but appear mediocre when averaged across broad categories
+* **Limited Coverage**: Only includes models/topics with sufficient evaluation data
+
+**Recommended Use:**
+* Use as a **high-level screening tool**, not definitive ranking
+* **Always drill down** to examine individual dimension and topic performance  
+* **Consider domain-specific needs** - a model's capability ranking may not reflect its suitability for your specific use case
+* **Interpret scores relative to peer models**, not as absolute measures of capability
+
+#### 5.4.6. Technical Implementation Notes
+
+The capability leaderboards are calculated in `calculateCapabilityLeaderboards()` within the summary calculation pipeline. Key implementation details:
+
+* **Topic Normalization**: Uses `normalizeTopicKey()` from `tagUtils` to convert kebab-case topic keys to match capability bucket definitions
+* **Calculation Timing**: Computed during `backfill-summary` and `run-config` operations
+* **Storage**: Saved in `homepage-summary.json` as `capabilityLeaderboards` array
+* **Display Thresholds**: UI applies same ≥10 runs, ≥5 configs filter as calculation logic
+
+This multi-stage derivation process—from raw LLM outputs → dimension grades → topic scores → weighted capability aggregates—represents multiple layers of interpretation and should be understood as a **commentary on model performance patterns** rather than ground truth about model capabilities.
+
+### 5.5. Dimension Champions
 
 The "Dimension Champions" section of the homepage highlights models that exhibit exceptional performance in specific qualitative areas.
 
@@ -155,7 +256,7 @@ The "Dimension Champions" section of the homepage highlights models that exhibit
 *   **Eligibility Criteria**: To qualify as a potential champion for a specific dimension, a model must have been graded for that dimension in at least **5 unique evaluation blueprints (configs)**. This ensures that a champion has demonstrated broad, cross-domain competence rather than narrow excellence on a single task.
 *   **Champion Selection**: For each dimension, the system calculates the average score for all eligible models. The model with the highest average score is declared the "Dimension Champion" for that category.
 
-### 5.5. Qualitative Analysis via Executive Summary
+### 5.6. Qualitative Analysis via Executive Summary
 
 For certain blueprints, an additional layer of qualitative analysis is performed by an "analyst" LLM to generate an **Executive Summary**. This process adds a rich, human-readable interpretation on top of the quantitative scores.
 
@@ -169,7 +270,7 @@ For certain blueprints, an additional layer of qualitative analysis is performed
     *   **Quantitative Grades**: A grade for every participating model across every dimension.
 *   **Parsing and Storage**: The system parses this structured text response into a JSON object, which is then stored as the `executiveSummary` field in the result file. This data is the source for the "Dimension Champions" metric.
 
-#### 5.5.1. Model Anonymization to Reduce LLM Bias
+#### 5.6.1. Model Anonymization to Reduce LLM Bias
 
 To ensure objective analysis, we employ anonymization during executive summary generation. This addresses the well-documented phenomenon where LLMs exhibit bias based on recognizable model names or providers.
 

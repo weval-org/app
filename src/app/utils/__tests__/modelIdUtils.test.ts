@@ -1,4 +1,4 @@
-import { getModelDisplayLabel, parseEffectiveModelId, IDEAL_MODEL_ID_BASE } from '../modelIdUtils';
+import { getModelDisplayLabel, parseEffectiveModelId, extractMakerFromModelId, IDEAL_MODEL_ID_BASE } from '../modelIdUtils';
 
 describe('modelIdUtils', () => {
   describe('parseEffectiveModelId', () => {
@@ -164,6 +164,73 @@ describe('modelIdUtils', () => {
     it('should handle hideModelMaker correctly with a colon-separated model ID', () => {
       const modelId = 'openrouter:google/gemini-pro';
       expect(getModelDisplayLabel(modelId, { hideModelMaker: true })).toBe('openrouter:gemini-pro');
+    });
+  });
+
+  describe('extractMakerFromModelId', () => {
+    it('should extract makers from direct provider patterns', () => {
+      expect(extractMakerFromModelId('openai:gpt-4')).toBe('OPENAI');
+      expect(extractMakerFromModelId('anthropic:claude-3-opus')).toBe('ANTHROPIC');
+      expect(extractMakerFromModelId('google:gemini-pro')).toBe('GOOGLE');
+      expect(extractMakerFromModelId('xai:grok-4-0709')).toBe('XAI');
+      expect(extractMakerFromModelId('x-ai:grok-beta')).toBe('XAI'); // normalized
+    });
+
+    it('should extract makers from routing providers', () => {
+      expect(extractMakerFromModelId('openrouter:x-ai/grok-3-mini-beta')).toBe('XAI');
+      expect(extractMakerFromModelId('together:moonshotai/Kimi-K2-Instruct')).toBe('MOONSHOT');
+      expect(extractMakerFromModelId('together:meta-llama/Meta-Llama-3.1-405B')).toBe('META');
+      expect(extractMakerFromModelId('fireworks:anthropic/claude-3-sonnet')).toBe('ANTHROPIC');
+      expect(extractMakerFromModelId('replicate:mistralai/mixtral-8x7b')).toBe('MISTRAL');
+    });
+
+    it('should handle known provider mappings in routing providers', () => {
+      expect(extractMakerFromModelId('openrouter:anthropic/claude-3')).toBe('ANTHROPIC');
+      expect(extractMakerFromModelId('openrouter:google/gemini-pro')).toBe('GOOGLE');
+      expect(extractMakerFromModelId('openrouter:meta-llama/llama-2')).toBe('META');
+      expect(extractMakerFromModelId('openrouter:mistralai/mistral-7b')).toBe('MISTRAL');
+      expect(extractMakerFromModelId('openrouter:openai/gpt-4')).toBe('OPENAI');
+    });
+
+    it('should normalize unknown routing provider names', () => {
+      expect(extractMakerFromModelId('together:some-company/model')).toBe('SOME-COMPANY');
+      expect(extractMakerFromModelId('openrouter:new-ai-company/model')).toBe('NEW-AI-COMPANY');
+    });
+
+    it('should return UNKNOWN for unrecognized patterns', () => {
+      expect(extractMakerFromModelId('unknown-provider:model')).toBe('UNKNOWN');
+      expect(extractMakerFromModelId('just-a-model-name')).toBe('UNKNOWN');
+      expect(extractMakerFromModelId('')).toBe('UNKNOWN');
+    });
+
+    it('should handle model IDs with variants', () => {
+      expect(extractMakerFromModelId('openai:gpt-4[temp:0.7]')).toBe('OPENAI');
+      expect(extractMakerFromModelId('together:moonshotai/model[sp_idx:1][temp:0.5]')).toBe('MOONSHOT');
+    });
+  });
+
+  describe('parseEffectiveModelId with maker extraction', () => {
+    it('should include maker information in parsed results', () => {
+      const parsed = parseEffectiveModelId('openai:gpt-4[temp:0.7]');
+      expect(parsed.maker).toBe('OPENAI');
+      expect(parsed.baseId).toBe('openai:gpt-4');
+      expect(parsed.temperature).toBe(0.7);
+    });
+
+    it('should include maker for routing providers', () => {
+      const parsed = parseEffectiveModelId('together:moonshotai/Kimi-K2-Instruct[sp_idx:1]');
+      expect(parsed.maker).toBe('MOONSHOT');
+      expect(parsed.baseId).toBe('together:moonshotai/Kimi-K2-Instruct');
+      expect(parsed.systemPromptIndex).toBe(1);
+    });
+
+    it('should handle x-ai normalization correctly', () => {
+      const directXai = parseEffectiveModelId('xai:grok-4-0709');
+      const routedXai = parseEffectiveModelId('openrouter:x-ai/grok-3-mini-beta');
+      
+      expect(directXai.maker).toBe('XAI');
+      expect(routedXai.maker).toBe('XAI');
+      // Both should have the same normalized maker
     });
   });
 }); 

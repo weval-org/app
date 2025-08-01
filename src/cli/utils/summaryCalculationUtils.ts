@@ -8,7 +8,7 @@ import {
   TopModelStatInfo,
   DimensionLeaderboard,
   DimensionScoreInfo,
-} from '@/app/components/AggregateStatsDisplay';
+} from '@/app/components/home/types';
 import { PotentialDriftInfo } from '@/app/components/ModelDriftIndicator';
 import { parseEffectiveModelId, getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import {
@@ -18,8 +18,11 @@ import {
 } from '@/app/utils/calculationUtils';
 import { fromSafeTimestamp } from '../../lib/timestampUtils';
 import { PerModelScoreStats } from '@/app/utils/homepageDataUtils';
-import { normalizeTag } from '@/app/utils/tagUtils';
+import { normalizeTag, normalizeTopicKey } from '@/app/utils/tagUtils';
 import { WevalResult } from '@/types/shared';
+import { CAPABILITY_BUCKETS, CapabilityBucket } from '@/lib/capabilities';
+import { CapabilityLeaderboard, CapabilityScoreInfo } from '@/app/components/home/types';
+
 // A simplified logger type for this function to avoid circular dependencies
 type SimpleLogger = {
   info: (msg: string) => void;
@@ -52,6 +55,7 @@ export interface HeadlineStats {
   leastConsistentConfig: HeadlineStatInfo | null;
   rankedOverallModels: TopModelStatInfo[] | null;
   dimensionLeaderboards: DimensionLeaderboard[] | null;
+  capabilityLeaderboards?: CapabilityLeaderboard[] | null;
 }
 
 
@@ -72,6 +76,7 @@ export interface TopicChampion {
 export function calculateHeadlineStats(
   allConfigs: EnhancedComparisonConfigInfo[],
   modelDimensionGrades: Map<string, Map<string, { totalScore: number; count: number; uniqueConfigs: Set<string>; scores: Array<{ score: number; configTitle: string; runLabel: string; timestamp: string; configId: string; }> }>>,
+  topicModelScores: Map<string, Map<string, { scores: Array<{ score: number; configId: string; configTitle: string; runLabel: string; timestamp: string; }>; uniqueConfigs: Set<string> }>>,
   logger?: SimpleLogger,
 ): HeadlineStats {
   const testTaggedConfigs = new Set<string>();
@@ -97,6 +102,7 @@ export function calculateHeadlineStats(
       leastConsistentConfig: null,
       rankedOverallModels: null,
       dimensionLeaderboards: null,
+      capabilityLeaderboards: null,
     };
   }
 
@@ -431,14 +437,179 @@ export function calculateHeadlineStats(
     })
     .sort((a, b) => b.overallAverageHybridScore - a.overallAverageHybridScore);
 
+  const capabilityLeaderboards = calculateCapabilityLeaderboards(
+    modelDimensionGrades,
+    topicModelScores,
+    logger
+  );
+
   return {
     bestPerformingConfig,
     worstPerformingConfig,
     leastConsistentConfig,
     rankedOverallModels: rankedOverallModels.length > 0 ? rankedOverallModels : null,
     dimensionLeaderboards: dimensionLeaderboards.length > 0 ? dimensionLeaderboards : null,
+    capabilityLeaderboards,
   };
 }
+
+export function calculateCapabilityLeaderboards(
+  modelDimensionGrades: Map<string, Map<string, { totalScore: number; count: number; uniqueConfigs: Set<string> }>>,
+  topicModelScores: Map<string, Map<string, { scores: Array<{ score: number; configId: string; configTitle: string; runLabel: string; timestamp: string; }>; uniqueConfigs: Set<string> }>>,
+  logger?: SimpleLogger,
+): CapabilityLeaderboard[] {
+  const modelCapabilityScores = new Map<string, Map<string, { totalScore: number; totalWeight: number; contributingRuns: number; contributingDimensions: number; }>>();
+
+  if (logger) {
+    logger.info('=== CAPABILITY LEADERBOARDS CALCULATION DEBUG ===');
+    logger.info(`Processing ${modelDimensionGrades.size} models with dimension grades`);
+    logger.info(`Processing ${topicModelScores.size} topics with model scores`);
+  }
+
+  // 1. Process Dimension Scores
+  if (logger) logger.info('\n--- Processing Dimension Scores ---');
+  modelDimensionGrades.forEach((dimensions, modelId) => {
+    if (logger) logger.info(`\nModel: ${modelId}`);
+    dimensions.forEach((data, dimensionKey) => {
+      const avgDimensionScore = data.totalScore / data.count;
+      const normalizedScore = (avgDimensionScore - 1) / 9; // Normalize 1-10 to 0-1
+      
+      if (logger) {
+        logger.info(`  Dimension "${dimensionKey}": avg=${avgDimensionScore.toFixed(2)}/10, normalized=${(normalizedScore * 100).toFixed(1)}% (from ${data.count} evaluations across ${data.uniqueConfigs.size} configs)`);
+      }
+
+      CAPABILITY_BUCKETS.forEach(bucket => {
+        const matchingDim = bucket.dimensions.find(d => d.key === dimensionKey);
+        if (matchingDim) {
+          const bucketScores = modelCapabilityScores.get(bucket.id) || new Map();
+          const modelScores = bucketScores.get(modelId) || { totalScore: 0, totalWeight: 0, contributingRuns: 0, contributingDimensions: 0 };
+          
+          const weightedScore = normalizedScore * matchingDim.weight;
+          modelScores.totalScore += weightedScore;
+          modelScores.totalWeight += matchingDim.weight;
+          modelScores.contributingRuns += data.count;
+          modelScores.contributingDimensions++;
+          
+          if (logger) {
+            logger.info(`    -> Contributing to "${bucket.label}" with weight=${matchingDim.weight}, weighted_score=${(weightedScore * 100).toFixed(1)}%`);
+          }
+          
+          bucketScores.set(modelId, modelScores);
+          modelCapabilityScores.set(bucket.id, bucketScores);
+        }
+      });
+    });
+  });
+
+  // 2. Process Topic Scores
+  if (logger) logger.info('\n--- Processing Topic Scores ---');
+  topicModelScores.forEach((models, topicKey) => {
+    if (logger) logger.info(`\nTopic: "${topicKey}"`);
+    const normalizedTopicKey = normalizeTopicKey(topicKey);
+    if (logger && normalizedTopicKey !== topicKey) {
+      logger.info(`  Normalized "${topicKey}" -> "${normalizedTopicKey}"`);
+    }
+    
+    models.forEach((data, modelId) => {
+      const avgTopicScore = data.scores.reduce((sum, s) => sum + s.score, 0) / data.scores.length;
+      
+      if (logger) {
+        logger.info(`  Model "${modelId}": avg=${(avgTopicScore * 100).toFixed(1)}% (from ${data.scores.length} runs across ${data.uniqueConfigs.size} configs)`);
+      }
+
+      CAPABILITY_BUCKETS.forEach(bucket => {
+        const matchingTopic = bucket.topics.find(t => t.key === normalizedTopicKey);
+        if (matchingTopic) {
+          const bucketScores = modelCapabilityScores.get(bucket.id) || new Map();
+          const modelScores = bucketScores.get(modelId) || { totalScore: 0, totalWeight: 0, contributingRuns: 0, contributingDimensions: 0 };
+
+          const weightedScore = avgTopicScore * matchingTopic.weight;
+          modelScores.totalScore += weightedScore;
+          modelScores.totalWeight += matchingTopic.weight;
+          modelScores.contributingRuns += data.scores.length;
+          
+          if (logger) {
+            logger.info(`    -> Contributing to "${bucket.label}" with weight=${matchingTopic.weight}, weighted_score=${(weightedScore * 100).toFixed(1)}%`);
+          }
+          
+          bucketScores.set(modelId, modelScores);
+          modelCapabilityScores.set(bucket.id, bucketScores);
+        }
+      });
+    });
+  });
+
+  // 3. Calculate final scores and build leaderboards
+  if (logger) logger.info('\n--- Final Capability Scores ---');
+  const leaderboards: CapabilityLeaderboard[] = [];
+  
+  // Minimum thresholds for capability leaderboards (similar to main leaderboard)
+  const MIN_UNIQUE_CONFIGS_FOR_CAPABILITIES = 5;
+  const MIN_TOTAL_RUNS_FOR_CAPABILITIES = 10;
+  
+  CAPABILITY_BUCKETS.forEach(bucket => {
+    if (logger) logger.info(`\nCapability: "${bucket.label}"`);
+    const bucketScores = modelCapabilityScores.get(bucket.id);
+    if (bucketScores) {
+      const leaderboard: CapabilityScoreInfo[] = [];
+      bucketScores.forEach((data, modelId) => {
+        if (data.totalWeight > 0) {
+          const finalScore = data.totalScore / data.totalWeight;
+          
+          // Apply minimum thresholds - need to check actual unique configs for this model
+          // For now, use a heuristic based on contributing runs and dimensions
+          const estimatedUniqueConfigs = Math.max(data.contributingDimensions, Math.floor(data.contributingRuns / 3));
+          const meetsThreshold = data.contributingRuns >= MIN_TOTAL_RUNS_FOR_CAPABILITIES && 
+                                estimatedUniqueConfigs >= MIN_UNIQUE_CONFIGS_FOR_CAPABILITIES;
+          
+          if (logger) {
+            const status = meetsThreshold ? "✓" : "✗";
+            logger.info(`  ${status} ${modelId}: ${(finalScore * 100).toFixed(1)}% (total_weighted_score=${data.totalScore.toFixed(3)}, total_weight=${data.totalWeight.toFixed(1)}, runs=${data.contributingRuns}, dims=${data.contributingDimensions})`);
+            if (!meetsThreshold) {
+              logger.info(`    Excluded: needs ≥${MIN_TOTAL_RUNS_FOR_CAPABILITIES} runs (has ${data.contributingRuns}) and ≥${MIN_UNIQUE_CONFIGS_FOR_CAPABILITIES} configs (estimated ${estimatedUniqueConfigs})`);
+            }
+          }
+          
+          if (meetsThreshold) {
+            leaderboard.push({
+              modelId,
+              averageScore: finalScore,
+              contributingRuns: data.contributingRuns,
+              contributingDimensions: data.contributingDimensions,
+            });
+          }
+        }
+      });
+
+      if (leaderboard.length > 0) {
+        const sortedLeaderboard = leaderboard.sort((a, b) => b.averageScore - a.averageScore).slice(0, 5);
+        if (logger) {
+          logger.info(`  Top 5 for "${bucket.label}" (after applying thresholds):`);
+          sortedLeaderboard.forEach((model, idx) => {
+            logger.info(`    ${idx + 1}. ${model.modelId}: ${(model.averageScore * 100).toFixed(1)}%`);
+          });
+        }
+        
+        leaderboards.push({
+          ...bucket,
+          leaderboard: sortedLeaderboard,
+        });
+      } else {
+        if (logger) logger.info(`  No models meet minimum thresholds for "${bucket.label}"`);
+      }
+    } else {
+      if (logger) logger.info(`  No data found for "${bucket.label}"`);
+    }
+  });
+
+  if (logger) {
+    logger.info(`\n=== CAPABILITY LEADERBOARDS CALCULATION COMPLETE ===`);
+    logger.info(`Generated ${leaderboards.length} capability leaderboards`);
+  }
+
+  return leaderboards;
+}
+
 
 export function calculateTopicChampions(
   topicModelScores: Map<string, Map<string, { scores: Array<{ score: number; configId: string; configTitle: string; runLabel: string; timestamp: string; }>; uniqueConfigs: Set<string> }>>

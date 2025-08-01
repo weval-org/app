@@ -12,7 +12,7 @@ import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import { getGradingDimension } from '@/lib/grading-criteria';
 import Link from 'next/link';
 import Icon from '@/components/ui/icon';
-import { DimensionScoreInfo } from './AggregateStatsDisplay';
+import { DimensionScoreInfo } from '@/app/components/home/types';
 
 interface DimensionChampionDialogProps {
   champion: DimensionScoreInfo | null;

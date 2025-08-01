@@ -24,4 +24,21 @@ export function prettifyTag(tag: string): string {
         .split('-')
         .map(word => word.charAt(0).toUpperCase() + word.slice(1))
         .join(' ');
+}
+
+export function normalizeTopicKey(kebabCaseKey: string): string {
+  if (!kebabCaseKey) return '';
+  
+  // Convert kebab-case topic keys to title-case format
+  // Handle double-dash (--) as " & " separator
+  return kebabCaseKey
+    .split('--') // Split on double dashes first
+    .map(part => 
+      part
+        .split('-')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ')
+    )
+    .join(' & ')
+    .trim();
 } 

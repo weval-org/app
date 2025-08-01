@@ -8,9 +8,55 @@ export interface ParsedModelId {
   temperature?: number; // e.g., 0.7
   systemPromptIndex?: number;
   fullId: string; // The original effectiveModelId
+  maker?: string; // e.g., "OPENAI", "ANTHROPIC", etc.
 }
 
 export const IDEAL_MODEL_ID_BASE = 'IDEAL_MODEL_ID'; // Assuming this might be used or relevant
+
+// Helper function to normalize maker names
+function normalizeMakerName(maker: string): string {
+    const normalized = maker.toUpperCase();
+    // Normalize x-ai variants to XAI
+    if (normalized === 'X-AI') return 'XAI';
+    return normalized;
+}
+
+/**
+ * Extracts the maker (company) from a model ID
+ */
+export function extractMakerFromModelId(modelId: string): string {
+    if (!modelId) return 'UNKNOWN';
+    
+    let maker = 'UNKNOWN';
+    
+    // Handle direct provider patterns
+    if (modelId.startsWith('openai:')) maker = 'OPENAI';
+    else if (modelId.startsWith('anthropic:')) maker = 'ANTHROPIC';
+    else if (modelId.startsWith('google:')) maker = 'GOOGLE';
+    else if (modelId.startsWith('meta:')) maker = 'META';
+    else if (modelId.startsWith('mistral:')) maker = 'MISTRAL';
+    else if (modelId.startsWith('cohere:')) maker = 'COHERE';
+    else if (modelId.startsWith('deepseek:')) maker = 'DEEPSEEK';
+    else if (modelId.startsWith('xai:') || modelId.startsWith('x-ai:')) maker = 'XAI';
+    // Handle routing providers that follow provider:maker/model pattern
+    else if (modelId.startsWith('openrouter:') || modelId.startsWith('together:') || 
+             modelId.startsWith('fireworks:') || modelId.startsWith('replicate:')) {
+        const pathParts = modelId.split('/');
+        if (pathParts.length > 1) {
+            const providerPart = pathParts[0].split(':')[1];
+            // Apply known mappings first
+            if (providerPart === 'anthropic') maker = 'ANTHROPIC';
+            else if (providerPart === 'google') maker = 'GOOGLE';
+            else if (providerPart === 'meta-llama') maker = 'META';
+            else if (providerPart === 'mistralai') maker = 'MISTRAL';
+            else if (providerPart === 'openai') maker = 'OPENAI';
+            else if (providerPart === 'moonshotai') maker = 'MOONSHOT';
+            else maker = normalizeMakerName(providerPart);
+        }
+    }
+    
+    return maker;
+}
 
 export function parseEffectiveModelId(effectiveModelId: string): ParsedModelId {
   if (!effectiveModelId) {
@@ -61,6 +107,9 @@ export function parseEffectiveModelId(effectiveModelId: string): ParsedModelId {
   const baseId = remainingId;
   const displayName = baseId; // Display name is just the base, formatting happens in getModelDisplayLabel
 
+  // Extract maker from the original model ID
+  const maker = extractMakerFromModelId(effectiveModelId);
+
   return {
     baseId: baseId,
     displayName: displayName,
@@ -68,6 +117,7 @@ export function parseEffectiveModelId(effectiveModelId: string): ParsedModelId {
     temperature: temperature,
     systemPromptIndex: systemPromptIndex, // This can remain if needed elsewhere
     fullId: effectiveModelId,
+    maker: maker,
   };
 }
 

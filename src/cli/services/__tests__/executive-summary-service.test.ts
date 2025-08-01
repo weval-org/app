@@ -1,6 +1,6 @@
 import { WevalResult, ExecutiveSummary } from '@/types/shared';
-import { 
-    createModelAnonymizationMapping, 
+import {
+    createModelAnonymizationMapping,
     anonymizeWevalResultData,
     deanonymizeModelNamesInText,
     parseStructuredSummary,
@@ -8,6 +8,7 @@ import {
     ModelAnonymizationMapping,
     AnonymizedModelData
 } from '../executive-summary-service';
+import { GRADING_DIMENSIONS } from '../../../lib/grading-criteria';
 
 describe('Executive Summary Service - Opaque ID System', () => {
     
@@ -80,6 +81,52 @@ describe('Executive Summary Service - Opaque ID System', () => {
                 expect(anon!.maker).toMatch(/^MK_\d{4,}$/);
                 expect(anon!.model).toMatch(/^MD_\d{4,}$/);
             });
+        });
+
+        test('should normalize x-ai and xai makers to the same anonymized maker', () => {
+            const modelIds = [
+                'xai:grok-4-0709',                    // Direct xai provider
+                'openrouter:x-ai/grok-3-mini-beta'   // x-ai via openrouter
+            ];
+            
+            const mapping = createModelAnonymizationMapping(modelIds);
+            
+            const xaiDirectAnon = mapping.realToAnonymized.get('xai:grok-4-0709')!;
+            const xaiOpenrouterAnon = mapping.realToAnonymized.get('openrouter:x-ai/grok-3-mini-beta')!;
+            
+            // Both should have the same maker ID (normalized to XAI)
+            expect(xaiDirectAnon.maker).toBe(xaiOpenrouterAnon.maker);
+            
+            // Both should map to "XAI" in the makerToReal mapping
+            const realMaker = mapping.makerToReal.get(xaiDirectAnon.maker);
+            expect(realMaker).toBe('XAI');
+        });
+
+        test('should extract makers from routing providers like together, fireworks, replicate', () => {
+            const modelIds = [
+                'together:moonshotai/Kimi-K2-Instruct',     // Should extract moonshotai -> MOONSHOT
+                'together:meta-llama/Meta-Llama-3.1-405B', // Should extract meta-llama -> META
+                'fireworks:anthropic/claude-3-sonnet',     // Should extract anthropic -> ANTHROPIC  
+                'replicate:mistralai/mixtral-8x7b'         // Should extract mistralai -> MISTRAL
+            ];
+            
+            const mapping = createModelAnonymizationMapping(modelIds);
+            
+            const moonshotAnon = mapping.realToAnonymized.get('together:moonshotai/Kimi-K2-Instruct')!;
+            const metaAnon = mapping.realToAnonymized.get('together:meta-llama/Meta-Llama-3.1-405B')!;
+            const anthropicAnon = mapping.realToAnonymized.get('fireworks:anthropic/claude-3-sonnet')!;
+            const mistralAnon = mapping.realToAnonymized.get('replicate:mistralai/mixtral-8x7b')!;
+            
+            // Check that makers are extracted correctly
+            expect(mapping.makerToReal.get(moonshotAnon.maker)).toBe('MOONSHOT');
+            expect(mapping.makerToReal.get(metaAnon.maker)).toBe('META');  
+            expect(mapping.makerToReal.get(anthropicAnon.maker)).toBe('ANTHROPIC');
+            expect(mapping.makerToReal.get(mistralAnon.maker)).toBe('MISTRAL');
+            
+            // Verify they all get different maker IDs (since they're different makers)
+            const makerIds = [moonshotAnon.maker, metaAnon.maker, anthropicAnon.maker, mistralAnon.maker];
+            const uniqueMakerIds = new Set(makerIds);
+            expect(uniqueMakerIds.size).toBe(4); // All different makers
         });
     });
 
@@ -181,6 +228,18 @@ describe('Executive Summary Service - Opaque ID System', () => {
             
             expect(result).toBe(text); // Should be unchanged
         });
+
+        test('should convert moonshot maker ref tags to human-readable text', () => {
+            const modelIds = ['together:moonshotai/Kimi-K2-Instruct'];
+            const mapping = createModelAnonymizationMapping(modelIds);
+            
+            const moonshotAnon = mapping.realToAnonymized.get('together:moonshotai/Kimi-K2-Instruct')!;
+            const text = `Models from <ref maker="${moonshotAnon.maker}" /> performed well.`;
+            
+            const result = deanonymizeModelNamesInText(text, mapping);
+            
+            expect(result).toBe('Models from Moonshot AI performed well.');
+        });
     });
 
     describe('parseStructuredSummary', () => {
@@ -204,14 +263,24 @@ describe('Executive Summary Service - Opaque ID System', () => {
 <strength><ref maker="${claudeAnon.maker}" model="${claudeAnon.model}" sys="${claudeAnon.sys}" /> excelled at nuanced tasks</strength>
 <weakness>Models struggled with temperature sensitivity</weakness>
 
-<grade maker="${openaiAnon.maker}" model="${openaiAnon.model}">
-ADHERENCE: 8/10
-CLARITY: 9/10
+<grade maker="${openaiAnon.maker}" model="${openaiAnon.model}" dimension="adherence">
+REASONING: The model followed instructions very well.
+SCORE: 8/10
 </grade>
 
-<grade maker="${claudeAnon.maker}" model="${claudeAnon.model}" sys="${claudeAnon.sys}">
-ADHERENCE: 7/10
-CLARITY: 8/10
+<grade maker="${openaiAnon.maker}" model="${openaiAnon.model}" dimension="clarity">
+REASONING: Very clear responses.
+SCORE: 9/10
+</grade>
+
+<grade maker="${claudeAnon.maker}" model="${claudeAnon.model}" dimension="adherence">
+REASONING: Good instruction following.
+SCORE: 7/10
+</grade>
+
+<grade maker="${claudeAnon.maker}" model="${claudeAnon.model}" dimension="clarity">
+REASONING: Clear communication.
+SCORE: 8/10
 </grade>
             `;
 
@@ -225,17 +294,22 @@ CLARITY: 8/10
             expect(result!.strengths[0]).toContain('[Claude 3 Sonnet (System 0)](#model-perf:anthropic:claude-3-sonnet[sys:0])');
             
             expect(result!.grades).toHaveLength(2);
-            expect(result!.grades![0].modelId).toBe('openai:gpt-4o');
-            expect(result!.grades![1].modelId).toBe('anthropic:claude-3-sonnet[sys:0]');
+            expect(result!.grades![0].modelId).toBe('openai:gpt-4o'); // Clean base model ID
+            expect(result!.grades![1].modelId).toBe('anthropic:claude-3-sonnet'); // Clean base model ID
         });
 
         test('should handle grade tags with all variant attributes', () => {
             const geminiAnon = mapping.realToAnonymized.get('google:gemini-pro[sys:1][temp:0.7]')!;
             
             const content = `
-<grade maker="${geminiAnon.maker}" model="${geminiAnon.model}" sys="${geminiAnon.sys}" temp="${geminiAnon.temp}">
-ADHERENCE: 6/10
-CLARITY: 7/10
+<grade maker="${geminiAnon.maker}" model="${geminiAnon.model}" dimension="adherence">
+REASONING: The model followed instructions reasonably well.
+SCORE: 6/10
+</grade>
+
+<grade maker="${geminiAnon.maker}" model="${geminiAnon.model}" dimension="clarity">
+REASONING: The responses were clear and readable.
+SCORE: 7/10
 </grade>
             `;
 
@@ -243,7 +317,7 @@ CLARITY: 7/10
             
             expect(result).not.toBeNull();
             expect(result!.grades).toHaveLength(1);
-            expect(result!.grades![0].modelId).toBe('google:gemini-pro[sys:1][temp:0.7]');
+            expect(result!.grades![0].modelId).toBe('google:gemini-pro'); // Clean base model ID
             expect(result!.grades![0].grades.adherence).toBe(6);
             expect(result!.grades![0].grades.clarity).toBe(7);
         });
@@ -333,22 +407,94 @@ ADHERENCE: 8/10
 
 <pattern>System prompt <ref sys="${claudeAnon.sys}" /> generally improved performance across makers</pattern>
 
-<grade maker="${openaiAnon.maker}" model="${openaiAnon.model}">
-ADHERENCE: 8/10
-CLARITY: 9/10
-TONE: 8/10
+<grade maker="${openaiAnon.maker}" model="${openaiAnon.model}" dimension="adherence">
+REASONING: The model followed instructions very well.
+SCORE: 8/10
 </grade>
 
-<grade maker="${claudeAnon.maker}" model="${claudeAnon.model}" sys="${claudeAnon.sys}">
-ADHERENCE: 7/10
-CLARITY: 8/10
-TONE: 9/10
+<grade maker="${openaiAnon.maker}" model="${openaiAnon.model}" dimension="clarity">
+REASONING: Very clear responses.
+SCORE: 9/10
 </grade>
 
-<grade maker="${geminiAnon.maker}" model="${geminiAnon.model}" sys="${geminiAnon.sys}" temp="${geminiAnon.temp}">
-ADHERENCE: 6/10
-CLARITY: 7/10
-TONE: 6/10
+<grade maker="${openaiAnon.maker}" model="${openaiAnon.model}" dimension="tone">
+REASONING: The model's tone was professional and confident.
+SCORE: 8/10
+</grade>
+
+<grade maker="${openaiAnon.maker}" model="${openaiAnon.model}" dimension="depth">
+REASONING: The model provided deep, nuanced responses.
+SCORE: 7/10
+</grade>
+
+<grade maker="${openaiAnon.maker}" model="${openaiAnon.model}" dimension="coherence">
+REASONING: The model's responses flowed logically and coherently.
+SCORE: 9/10
+</grade>
+
+<grade maker="${openaiAnon.maker}" model="${openaiAnon.model}" dimension="helpfulness">
+REASONING: The model was highly helpful and provided clear, actionable advice.
+SCORE: 8/10
+</grade>
+
+<grade maker="${openaiAnon.maker}" model="${openaiAnon.model}" dimension="credibility">
+REASONING: The model's credibility was high, based on its proven track record.
+SCORE: 9/10
+</grade>
+
+<grade maker="${openaiAnon.maker}" model="${openaiAnon.model}" dimension="empathy">
+REASONING: The model demonstrated strong empathy and understanding of user needs.
+SCORE: 7/10
+</grade>
+
+<grade maker="${openaiAnon.maker}" model="${openaiAnon.model}" dimension="creativity">
+REASONING: The model was creative and innovative in its approach.
+SCORE: 8/10
+</grade>
+
+<grade maker="${openaiAnon.maker}" model="${openaiAnon.model}" dimension="safety">
+REASONING: The model demonstrated proactive safety and harm avoidance.
+SCORE: 9/10
+</grade>
+
+<grade maker="${openaiAnon.maker}" model="${openaiAnon.model}" dimension="humility">
+REASONING: The model demonstrated epistemic humility and self-awareness.
+SCORE: 8/10
+</grade>
+
+<grade maker="${openaiAnon.maker}" model="${openaiAnon.model}" dimension="argumentation">
+REASONING: The model provided strong, persuasive argumentation.
+SCORE: 9/10
+</grade>
+
+<grade maker="${openaiAnon.maker}" model="${openaiAnon.model}" dimension="efficiency">
+REASONING: The model was efficient and succinct in its responses.
+SCORE: 7/10
+</grade>
+
+<grade maker="${claudeAnon.maker}" model="${claudeAnon.model}" dimension="adherence">
+REASONING: Good instruction following.
+SCORE: 7/10
+</grade>
+
+<grade maker="${claudeAnon.maker}" model="${claudeAnon.model}" dimension="clarity">
+REASONING: Clear communication.
+SCORE: 8/10
+</grade>
+
+<grade maker="${geminiAnon.maker}" model="${geminiAnon.model}" dimension="adherence">
+REASONING: The model followed instructions well.
+SCORE: 6/10
+</grade>
+
+<grade maker="${geminiAnon.maker}" model="${geminiAnon.model}" dimension="clarity">
+REASONING: The model's responses were clear.
+SCORE: 7/10
+</grade>
+
+<grade maker="${geminiAnon.maker}" model="${geminiAnon.model}" dimension="tone">
+REASONING: The model's tone was professional.
+SCORE: 6/10
 </grade>
             `;
             
@@ -365,14 +511,25 @@ TONE: 6/10
             // Check that grades were properly mapped back to real IDs
             expect(parsed!.grades).toHaveLength(3);
             
-            const openaiGrade = parsed!.grades!.find((g: any) => g.modelId === 'openai:gpt-4o');
-            const claudeGrade = parsed!.grades!.find((g: any) => g.modelId === 'anthropic:claude-3-sonnet[sys:0]');
-            const geminiGrade = parsed!.grades!.find((g: any) => g.modelId === 'google:gemini-pro[sys:1][temp:0.7]');
+            const openaiGrade = parsed!.grades!.find((g: any) => g.modelId === 'openai:gpt-4o'); // Clean base model ID
+            const claudeGrade = parsed!.grades!.find((g: any) => g.modelId === 'anthropic:claude-3-sonnet'); // Clean base model ID
+            const geminiGrade = parsed!.grades!.find((g: any) => g.modelId === 'google:gemini-pro'); // Clean base model ID
             
             expect(openaiGrade).toBeDefined();
             expect(openaiGrade!.grades.adherence).toBe(8);
             expect(openaiGrade!.grades.clarity).toBe(9);
-            
+            expect(openaiGrade!.grades.tone).toBe(8);
+            expect(openaiGrade!.grades.depth).toBe(7);
+            expect(openaiGrade!.grades.coherence).toBe(9);
+            expect(openaiGrade!.grades.helpfulness).toBe(8);
+            expect(openaiGrade!.grades.credibility).toBe(9);
+            expect(openaiGrade!.grades.empathy).toBe(7);
+            expect(openaiGrade!.grades.creativity).toBe(8);
+            expect(openaiGrade!.grades.safety).toBe(9);
+            expect(openaiGrade!.grades.humility).toBe(8);
+            expect(openaiGrade!.grades.argumentation).toBe(9);
+            expect(openaiGrade!.grades.efficiency).toBe(7);
+
             expect(claudeGrade).toBeDefined();
             expect(claudeGrade!.grades.adherence).toBe(7);
             

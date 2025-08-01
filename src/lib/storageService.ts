@@ -21,7 +21,7 @@ import {
   EnhancedComparisonConfigInfo,
   EnhancedRunInfo,
 } from '@/app/utils/homepageDataUtils';
-import { AggregateStatsData } from '@/app/components/AggregateStatsDisplay';
+import { AggregateStatsData, CapabilityLeaderboard } from '@/app/components/home/types';
 import { PotentialDriftInfo } from '@/app/components/ModelDriftIndicator';
 import { ComparisonDataV2 as FetchedComparisonData } from '@/app/utils/types';
 import {
@@ -55,6 +55,7 @@ export interface HomepageSummaryFileContent {
   headlineStats: AggregateStatsData | null;
   driftDetectionResult: PotentialDriftInfo | null;
   topicChampions?: Record<string, TopicChampion[]>;
+  capabilityLeaderboards?: CapabilityLeaderboard[];
   lastUpdated: string;
 }
 
@@ -956,7 +957,7 @@ export async function removeConfigFromHomepageSummary(configIdToRemove: string):
 
     // Step 2: Recalculate headline stats and drift from the updated array
     console.log(`[StorageService] Recalculating headline stats and drift detection after removal...`);
-    const updatedHeadlineStats = calculateHeadlineStats(updatedConfigsArray, new Map());
+    const updatedHeadlineStats = calculateHeadlineStats(updatedConfigsArray, new Map(), new Map());
     const updatedDriftDetectionResult = calculatePotentialModelDrift(updatedConfigsArray);
 
     // Step 3: Construct the full, updated summary object to save
@@ -965,6 +966,7 @@ export async function removeConfigFromHomepageSummary(configIdToRemove: string):
       headlineStats: updatedHeadlineStats,
       driftDetectionResult: updatedDriftDetectionResult,
       topicChampions: currentSummaryObject.topicChampions,
+      capabilityLeaderboards: currentSummaryObject.capabilityLeaderboards,
       lastUpdated: new Date().toISOString(),
     };
 

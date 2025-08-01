@@ -15,9 +15,33 @@ import dynamic from 'next/dynamic';
 import { usePreloadIcons } from '@/components/ui/use-preload-icons';
 import ReactMarkdown from 'react-markdown';
 import RemarkGfmPlugin from 'remark-gfm';
+import { parseEffectiveModelId } from '../../utils/modelIdUtils';
 
-// const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
-// const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
+// Helper function to get base model ID (maker:model without variants)
+function getBaseModelId(modelId: string): string {
+  const parsed = parseEffectiveModelId(modelId);
+  return parsed.baseId;
+}
+
+// Helper function to find grades for a model, falling back to base model if needed
+function findGradesForModel(modelId: string, grades: ModelGrades[]): ModelGrades | undefined {
+  // First try exact match
+  let grade = grades.find(g => g.modelId === modelId);
+  
+  // If no exact match, try base model match
+  if (!grade) {
+    const baseModelId = getBaseModelId(modelId);
+    grade = grades.find(g => getBaseModelId(g.modelId) === baseModelId);
+  }
+  
+  return grade;
+}
+
+function cleanOutModelProviders(text: string): string {
+  // Don't clean providers from URLs (markdown links)
+  // Only clean standalone provider references in text
+  return text.replace(/(?<!#model-perf:)(?:openrouter|openai|anthropic|together|xai|google):(?=[\w-.]+\/[\w-.]+)/ig, '');
+}
 
 interface StructuredSummaryProps {
   insights: StructuredInsights;
@@ -43,12 +67,6 @@ const gradeLabels = GRADING_DIMENSIONS.reduce((acc, dimension) => {
   acc[dimension.key] = dimension.label;
   return acc;
 }, {} as Record<string, string>);
-
-function cleanOutModelProviders(text: string): string {
-  // Don't clean providers from URLs (markdown links)
-  // Only clean standalone provider references in text
-  return text.replace(/(?<!#model-perf:)(?:openrouter|openai|anthropic|together|xai|google):(?=[\w-.]+\/[\w-.]+)/ig, '');
-}
 
 function getGradeColor(score: number): string {
   if (score >= 8) return gradeColors.excellent;
@@ -88,20 +106,27 @@ const DimensionLabel: React.FC<{
 
 const ModelGradesDisplay: React.FC<{ grades: ModelGrades[] }> = ({ grades }) => {
   const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set());
-  const [selectedDimension, setSelectedDimension] = useState<any>(null);
+  const [selectedDimensionInfo, setSelectedDimensionInfo] = useState<{
+    dimension: any;
+    modelId: string;
+    score: number;
+    reasoning?: string;
+  } | null>(null);
   
   if (!grades.length) return null;
 
   // Calculate overall scores and sort models by performance
   const modelsWithOverallScore = grades.map(modelGrade => {
-    const gradeValues = Object.values(modelGrade.grades);
-    const overallScore = gradeValues.reduce((sum, score) => sum + score, 0) / gradeValues.length;
+    const gradeValues = Object.values(modelGrade.grades).filter((score): score is number => score !== null);
+    const overallScore = gradeValues.length > 0 ? gradeValues.reduce((sum, score) => sum + score, 0) / gradeValues.length : 0;
     
     // Find top 2 strengths and weaknesses
-    const dimensionScores = Object.entries(modelGrade.grades).map(([dim, score]) => ({
-      dimension: gradeLabels[dim as keyof typeof gradeLabels],
-      score
-    }));
+    const dimensionScores = Object.entries(modelGrade.grades)
+      .filter(([_, score]) => score !== null)
+      .map(([dim, score]) => ({
+        dimension: gradeLabels[dim as keyof typeof gradeLabels],
+        score: score as number
+      }));
     
     const strengths = dimensionScores
       .filter(d => d.score >= 7)
@@ -223,6 +248,12 @@ const ModelGradesDisplay: React.FC<{ grades: ModelGrades[] }> = ({ grades }) => 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                       {Object.entries(gradeLabels).map(([key, label]) => {
                         const score = modelData.grades[key as keyof typeof modelData.grades];
+                        
+                        // Skip dimensions that have null scores (not applicable)
+                        if (score === null || score === undefined) {
+                          return null;
+                        }
+
                         const percentage = (score / 10) * 100;
                         
                         return (
@@ -231,7 +262,12 @@ const ModelGradesDisplay: React.FC<{ grades: ModelGrades[] }> = ({ grades }) => 
                               <DimensionLabel 
                                 dimensionKey={key} 
                                 label={label} 
-                                onShowInfo={setSelectedDimension}
+                                onShowInfo={(dimension) => setSelectedDimensionInfo({
+                                  dimension,
+                                  modelId: modelData.modelId,
+                                  score,
+                                  reasoning: modelData.reasoning?.[key as keyof typeof modelData.reasoning]
+                                })}
                               />
                               <span className={`font-semibold ${getGradeColor(score)}`}>
                                 {score.toFixed(1)}
@@ -251,28 +287,58 @@ const ModelGradesDisplay: React.FC<{ grades: ModelGrades[] }> = ({ grades }) => 
       })}
       
       {/* Dimension Info Modal */}
-      <Dialog open={!!selectedDimension} onOpenChange={(open) => !open && setSelectedDimension(null)}>
+      <Dialog open={!!selectedDimensionInfo} onOpenChange={(open) => !open && setSelectedDimensionInfo(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{selectedDimension?.label}</DialogTitle>
-            <DialogDescription>{selectedDimension?.description}</DialogDescription>
+            <DialogTitle>{selectedDimensionInfo?.dimension?.label}</DialogTitle>
+            <DialogDescription>{selectedDimensionInfo?.dimension?.description}</DialogDescription>
           </DialogHeader>
           <div className="mt-4">
             <h4 className="font-medium mb-3">Scoring Guide:</h4>
             <div className="space-y-3">
               <div className="flex items-start space-x-3">
                 <span className="font-medium text-green-600 min-w-[3rem]">8-10:</span>
-                <span className="text-sm">{selectedDimension?.scoringGuidance?.excellent}</span>
+                <span className="text-sm">{selectedDimensionInfo?.dimension?.scoringGuidance?.excellent}</span>
               </div>
               <div className="flex items-start space-x-3">
                 <span className="font-medium text-blue-600 min-w-[3rem]">4-7:</span>
-                <span className="text-sm">{selectedDimension?.scoringGuidance?.fair}</span>
+                <span className="text-sm">{selectedDimensionInfo?.dimension?.scoringGuidance?.fair}</span>
               </div>
               <div className="flex items-start space-x-3">
                 <span className="font-medium text-red-600 min-w-[3rem]">1-3:</span>
-                <span className="text-sm">{selectedDimension?.scoringGuidance?.poor}</span>
+                <span className="text-sm">{selectedDimensionInfo?.dimension?.scoringGuidance?.poor}</span>
               </div>
             </div>
+            
+            {selectedDimensionInfo && (
+              <>
+                <div className="border-t border-border/50 my-4"></div>
+                <h4 className="font-medium mb-3">Model Performance:</h4>
+                <div className="bg-muted/30 rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">
+                      {getModelDisplayLabel(selectedDimensionInfo.modelId, { 
+                        prettifyModelName: true, 
+                        hideProvider: true, 
+                        hideModelMaker: true 
+                      })}
+                    </span>
+                    <span className={`font-semibold ${getGradeColor(selectedDimensionInfo.score)}`}>
+                      {selectedDimensionInfo.score.toFixed(1)}/10
+                    </span>
+                  </div>
+                  
+                  {selectedDimensionInfo.reasoning && (
+                    <div className="pt-2 border-t border-border/30">
+                      <div className="text-xs font-medium text-muted-foreground mb-1">AI Evaluator's Reasoning:</div>
+                      <div className="text-sm text-foreground italic bg-background/50 rounded p-2 border-l-2 border-primary/30">
+                        "{selectedDimensionInfo.reasoning}"
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -400,6 +466,8 @@ export const StructuredSummary: React.FC<StructuredSummaryProps> = ({ insights }
           // Executive summaries come pre-linkified from backend - no need for client-side linkification
           return cleaned;
         });
+
+        if (processedItems.length === 0) return null;
 
         return (
           <Collapsible 

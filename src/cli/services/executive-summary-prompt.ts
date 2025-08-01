@@ -1,5 +1,10 @@
 import { TOPICS } from '../../lib/topics';
-import { generateGradingCriteriaText, GRADING_INSTRUCTIONS, ENHANCED_SCORING_GUIDANCE } from '../../lib/grading-criteria';
+import {
+  generateGradingCriteriaText,
+  GRADING_INSTRUCTIONS,
+  ENHANCED_SCORING_GUIDANCE,
+  GRADING_DIMENSIONS,
+} from '../../lib/grading-criteria';
 
 export interface AnonymizedModelReference {
     maker: string;
@@ -13,25 +18,45 @@ export function generateSystemPrompt(anonymizedModels: AnonymizedModelReference[
     const hasSysVariations = anonymizedModels.some(model => model.sys);
     const hasTempVariations = anonymizedModels.some(model => model.temp);
     
+    // For grading purposes, deduplicate to unique maker+model combinations
+    const uniqueBaseModels = new Map<string, AnonymizedModelReference>();
+    anonymizedModels.forEach(model => {
+        const baseKey = `${model.maker}|${model.model}`;
+        if (!uniqueBaseModels.has(baseKey)) {
+            uniqueBaseModels.set(baseKey, {
+                maker: model.maker,
+                model: model.model,
+                // Don't include sys/temp for grading
+            });
+        }
+    });
+    
+    const baseModelsForGrading = Array.from(uniqueBaseModels.values());
+    
     // Create the list of models for grading instructions in exact XML format
-    const gradingModelList = anonymizedModels
+    const gradingModelList = baseModelsForGrading
         .map(anon => {
-            let attributes = `maker="${anon.maker}" model="${anon.model}"`;
-            if (anon.sys) attributes += ` sys="${anon.sys}"`;
-            if (anon.temp) attributes += ` temp="${anon.temp}"`;
-            return `<grade ${attributes}>...</grade>`;
+            return `<grade maker="${anon.maker}" model="${anon.model}" dimension="DIMENSION_KEY">...</grade>`;
         })
         .join('\n');
+
+    // Generate example individual grade blocks for each dimension
+    const dimensionKeys = GRADING_DIMENSIONS.map(d => d.key);
+    let exampleGradeBlocks = `For each model, you must provide individual grade blocks for each applicable dimension. Here's the format:\n\n`;
+    
+    // Show format for each dimension (base model only)
+    dimensionKeys.forEach(key => {
+        const exampleFormat = `<grade maker="..." model="..." dimension="${key}">`;
         
-    // Generate the example format based on what actually exists
-    let exampleFormat = `<grade maker="..." model="..."`;
-    if (hasSysVariations) exampleFormat += ` sys="..."`;
-    if (hasTempVariations) exampleFormat += ` temp="..."`;
-    exampleFormat += `>`;
+        exampleGradeBlocks += `${exampleFormat}\n`;
+        exampleGradeBlocks += `REASONING: [Explain your assessment for this specific dimension]\n`;
+        exampleGradeBlocks += `SCORE: X/10\n`;
+        exampleGradeBlocks += `</grade>\n\n`;
+    });
 
     return `You are an expert AI analyst. The following is a markdown report of a comprehensive evaluation run comparing multiple large language models on a specific set of tasks. Your goal is to synthesize this data and extract the most important, actionable insights for a human reader.
 
-You must provide your analysis using specific XML-like tags to structure your response. This is a TWO-PART task:
+You must provide your analysis using specific XML-like tags to structure your response. This is a THREE-PART task:
 
 === PART 1: QUALITATIVE ANALYSIS ===
 
@@ -60,24 +85,25 @@ For interesting patterns (clusters, temperature sensitivity, oddities, system pr
 
 === PART 2: QUANTITATIVE GRADING ===
 
-For this grading section, you MUST provide a grade block for EVERY SINGLE model listed below. Each model entry should be graded independently based on its performance in the evaluation. Use the following format:
+For this grading section, you MUST provide individual grade blocks for EVERY applicable dimension for EVERY BASE MODEL (maker+model combination). Grade the fundamental capabilities of each model, not specific configuration variants.
 
-${exampleFormat}
-INSTRUCTION ADHERENCE & RELEVANCE: X/10
-CLARITY & READABILITY: X/10
-TONE & STYLE: X/10
-NUANCE & DEPTH: X/10
-COHERENCE & CONVERSATIONAL FLOW: X/10
-HELPFULNESS & ACTIONABILITY: X/10
-ETHOS & CREDIBILITY: X/10
-PATHOS & EMPATHY: X/10
-ORIGINALITY & CREATIVITY: X/10
-SELF-AWARENESS & SAFETY: X/10
-PERSUASIVENESS & ARGUMENTATION (LOGOS): X/10
-EFFICIENCY & SUCCINCTNESS: X/10
-</grade>
+${exampleGradeBlocks}
 
-CRITICAL: You MUST provide a grade block for each model entry below using the EXACT attribute combinations shown (replace "..." with the actual grades):
+Available dimensions (use these exact keys for the dimension attribute):
+${dimensionKeys.map(key => `• ${key}: ${GRADING_DIMENSIONS.find(d => d.key === key)?.label}`).join('\n')}
+
+CRITICAL GRADING INSTRUCTIONS:
+• You MUST provide a separate <grade> block for each dimension that is applicable to this evaluation
+• Grade BASE MODELS only (maker + model), not individual system prompt or temperature variants
+• If a dimension is not relevant to the evaluation (e.g., "argumentation" in a pure factual retrieval task), you can either:
+  a) Skip that dimension entirely, OR
+  b) Include it with SCORE: N/A and explain why it's not applicable in the REASONING
+• Each grade block must contain both REASONING (explaining your assessment) and SCORE (0-10 or N/A)
+• Be thoughtful and specific in your reasoning - avoid generic explanations
+• Scores should reflect genuine differences in performance, not cluster around 8-9
+• Focus on the inherent capabilities of each model architecture, aggregating performance across all tested configurations
+
+You MUST evaluate these base models using the EXACT maker+model combinations shown below:
 
 ${gradingModelList}
 
@@ -97,7 +123,8 @@ ${TOPICS.join(',\n')}
 ${hasSysVariations ? `- Pay close attention to the "System Prompt Strategy" section - this tells you whether the evaluation tested different system prompts, used a single global prompt, or used default model behavior
 - When system prompt permutations were tested, consider whether performance differences might be attributable to prompting strategy rather than inherent model capabilities  
 - Look for patterns related to system prompt effectiveness across different models
-- Consider how the system prompt strategy might influence your interpretation of the results` : '- Pay close attention to the "System Prompt Strategy" section for context about how models were configured'}
+- Consider how the system prompt strategy might influence your interpretation of the results
+- For grading, focus on the underlying model capabilities rather than prompt-specific performance` : '- Pay close attention to the "System Prompt Strategy" section for context about how models were configured'}
 
 ${generateGradingCriteriaText()}
 
@@ -106,13 +133,15 @@ ${ENHANCED_SCORING_GUIDANCE}
 ${GRADING_INSTRUCTIONS}
 
 === FINAL IMPORTANT REQUIREMENTS ===
-1. You MUST analyze ALL models that participated in this evaluation.${hasSysVariations || hasTempVariations ? ` Each model entry${hasSysVariations && hasTempVariations ? ' (including different system prompts and temperatures)' : hasSysVariations ? ' (including different system prompts)' : ' (including different temperatures)'} should be considered independently.` : ''}
-2. You MUST provide grades for EVERY model listed above—no exceptions.
+1. You MUST analyze ALL model variants that participated in this evaluation.${hasSysVariations || hasTempVariations ? ` Each model entry${hasSysVariations && hasTempVariations ? ' (including different system prompts and temperatures)' : hasSysVariations ? ' (including different system prompts)' : ' (including different temperatures)'} should be considered in your analysis.` : ''}
+2. You MUST provide individual grade blocks for EVERY applicable dimension for EVERY BASE MODEL (maker+model only)—no exceptions.
 3. Be highly specific, using verbatim quotes and specific examples from the evaluation.
 4. Focus on actionable insights that would help someone choose between these models.
-5. Each grade should be based on evidence from the evaluation data.
-${hasSysVariations ? '6. Consider the system prompt strategy when interpreting performance differences—note if results might be influenced by prompting choices rather than model capabilities.' : ''}
-${hasSysVariations ? '7.' : '6.'} For Part 1 (analysis), use <ref /> tags consistently. For Part 2 (grading), use the exact attribute format shown in the model list.
+5. Each grade should be based on evidence from the evaluation data and include specific reasoning.
+6. If a dimension is not applicable to the evaluation, either skip it or mark it as N/A with clear reasoning.
+7. Grade the fundamental model capabilities, considering performance across all tested configurations but providing one grade per base model.
+${hasSysVariations ? '8. Consider the system prompt strategy when interpreting performance differences—note if results might be influenced by prompting choices rather than model capabilities.' : ''}
+${hasSysVariations ? '9.' : '8.'} For Part 1 (analysis), use <ref /> tags consistently. For Part 2 (grading), use individual grade blocks with reasoning for each applicable dimension.
 
 Please provide multiple instances of each tag type as appropriate. Each tag should contain substantive, specific content rather than generic observations.`;
 } 
