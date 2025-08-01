@@ -40,6 +40,18 @@ export function AutoCreateModal({ onGenerated, isOpen, onOpenChange }: AutoCreat
 
             const data = await response.json();
 
+            // Development-only logging for debugging
+            if (process.env.NODE_ENV === 'development') {
+                console.group('[AutoCreate] Full API Response Debug');
+                console.log('Response Status:', response.status);
+                console.log('Response OK:', response.ok);
+                console.log('Full Response Data:', data);
+                console.log('Generated YAML:', data.yaml);
+                console.log('Was Sanitized:', data.sanitized);
+                console.log('Validation Error:', data.validationError);
+                console.groupEnd();
+            }
+
             if (!response.ok) {
                 throw new Error(data.error || 'Failed to generate blueprint from goal.');
             }

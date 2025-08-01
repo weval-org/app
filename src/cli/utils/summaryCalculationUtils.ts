@@ -18,6 +18,7 @@ import {
 } from '@/app/utils/calculationUtils';
 import { fromSafeTimestamp } from '../../lib/timestampUtils';
 import { PerModelScoreStats } from '@/app/utils/homepageDataUtils';
+import { normalizeTag } from '@/app/utils/tagUtils';
 import { WevalResult } from '@/types/shared';
 // A simplified logger type for this function to avoid circular dependencies
 type SimpleLogger = {
@@ -304,97 +305,99 @@ export function calculateHeadlineStats(
       return;
     }
 
-    config.runs.forEach((run) => {
-        if (run.perModelScores || (run as any).perModelHybridScores) {
-            const isNewFormat = !!run.perModelScores;
+    // Only process the latest run per config (runs are sorted by timestamp desc)
+    // This matches the pattern used for dimension leaderboards and topic champions
+    const latestRun = config.runs[0];
+    
+    if (latestRun.perModelScores || (latestRun as any).perModelHybridScores) {
+        const isNewFormat = !!latestRun.perModelScores;
 
-            const scoresMap = isNewFormat
-            ? run.perModelScores instanceof Map
-                ? run.perModelScores
-                : new Map(
-                    Object.entries(run.perModelScores || {}) as [
-                    string,
-                    PerModelScoreStats,
-                    ][],
-                )
-            : (run as any).perModelHybridScores instanceof Map
-            ? (run as any).perModelHybridScores
+        const scoresMap = isNewFormat
+        ? latestRun.perModelScores instanceof Map
+            ? latestRun.perModelScores
             : new Map(
-                Object.entries((run as any).perModelHybridScores || {}) as [
-                    string,
-                    { average: number | null },
+                Object.entries(latestRun.perModelScores || {}) as [
+                string,
+                PerModelScoreStats,
                 ][],
-                );
-            
-            scoresMap.forEach(
-                (
-                    scoreStats: PerModelScoreStats | { average: number | null },
-                    modelId: string,
-                ) => {
-                    if (modelId === IDEAL_MODEL_ID) return;
-        
-                    let hybridScore: number | null | undefined;
-                    let similarityScore: number | null | undefined;
-                    let coverageScore: number | null | undefined;
-        
-                    if (isNewFormat) {
-                      const newStats = scoreStats as PerModelScoreStats;
-                      hybridScore = newStats.hybrid?.average;
-                      similarityScore = newStats.similarity?.average;
-                      coverageScore = newStats.coverage?.average;
-                    } else {
-                      const oldStats = scoreStats as { average: number | null };
-                      hybridScore = oldStats.average;
-                      similarityScore = undefined;
-                      coverageScore = undefined;
-                    }
-        
-                    const parsed = parseEffectiveModelId(modelId);
-                    const baseModelId = parsed.baseId;
-                    const current = allModelScores.get(baseModelId) || {
-                        totalHybridScore: 0,
-                        hybridCount: 0,
-                        totalSimilarityScore: 0,
-                        similarityCount: 0,
-                        totalCoverageScore: 0,
-                        coverageCount: 0,
-                        runs: [],
-                    };
-        
-                    if (hybridScore !== null && hybridScore !== undefined && !isNaN(hybridScore)) {
-                        current.totalHybridScore += hybridScore;
-                        current.hybridCount++;
-                    }
-                    if (similarityScore !== null && similarityScore !== undefined && !isNaN(similarityScore)) {
-                        current.totalSimilarityScore += similarityScore;
-                        current.similarityCount++;
-                    }
-                    if (coverageScore !== null && coverageScore !== undefined && !isNaN(coverageScore)) {
-                        current.totalCoverageScore += coverageScore;
-                        current.coverageCount++;
-                    }
-        
-                    const hasValidScore = 
-                        (hybridScore !== null && hybridScore !== undefined && !isNaN(hybridScore)) ||
-                        (similarityScore !== null && similarityScore !== undefined && !isNaN(similarityScore)) ||
-                        (coverageScore !== null && coverageScore !== undefined && !isNaN(coverageScore));
-
-                    if (hasValidScore) {
-                        current.runs.push({
-                            configId: config.configId,
-                            configTitle: config.title || config.configTitle,
-                            runLabel: run.runLabel,
-                            timestamp: run.timestamp,
-                            hybridScore,
-                            similarityScore,
-                            coverageScore,
-                        });
-                        allModelScores.set(baseModelId, current);
-                    }
-                }
+            )
+        : (latestRun as any).perModelHybridScores instanceof Map
+        ? (latestRun as any).perModelHybridScores
+        : new Map(
+            Object.entries((latestRun as any).perModelHybridScores || {}) as [
+                string,
+                { average: number | null },
+            ][],
             );
-        }
-    });
+        
+        scoresMap.forEach(
+            (
+                scoreStats: PerModelScoreStats | { average: number | null },
+                modelId: string,
+            ) => {
+                if (modelId === IDEAL_MODEL_ID) return;
+    
+                let hybridScore: number | null | undefined;
+                let similarityScore: number | null | undefined;
+                let coverageScore: number | null | undefined;
+    
+                if (isNewFormat) {
+                  const newStats = scoreStats as PerModelScoreStats;
+                  hybridScore = newStats.hybrid?.average;
+                  similarityScore = newStats.similarity?.average;
+                  coverageScore = newStats.coverage?.average;
+                } else {
+                  const oldStats = scoreStats as { average: number | null };
+                  hybridScore = oldStats.average;
+                  similarityScore = undefined;
+                  coverageScore = undefined;
+                }
+    
+                const parsed = parseEffectiveModelId(modelId);
+                const baseModelId = parsed.baseId;
+                const current = allModelScores.get(baseModelId) || {
+                    totalHybridScore: 0,
+                    hybridCount: 0,
+                    totalSimilarityScore: 0,
+                    similarityCount: 0,
+                    totalCoverageScore: 0,
+                    coverageCount: 0,
+                    runs: [],
+                };
+    
+                if (hybridScore !== null && hybridScore !== undefined && !isNaN(hybridScore)) {
+                    current.totalHybridScore += hybridScore;
+                    current.hybridCount++;
+                }
+                if (similarityScore !== null && similarityScore !== undefined && !isNaN(similarityScore)) {
+                    current.totalSimilarityScore += similarityScore;
+                    current.similarityCount++;
+                }
+                if (coverageScore !== null && coverageScore !== undefined && !isNaN(coverageScore)) {
+                    current.totalCoverageScore += coverageScore;
+                    current.coverageCount++;
+                }
+    
+                const hasValidScore = 
+                    (hybridScore !== null && hybridScore !== undefined && !isNaN(hybridScore)) ||
+                    (similarityScore !== null && similarityScore !== undefined && !isNaN(similarityScore)) ||
+                    (coverageScore !== null && coverageScore !== undefined && !isNaN(coverageScore));
+
+                if (hasValidScore) {
+                    current.runs.push({
+                        configId: config.configId,
+                        configTitle: config.title || config.configTitle,
+                        runLabel: latestRun.runLabel,
+                        timestamp: latestRun.timestamp,
+                        hybridScore,
+                        similarityScore,
+                        coverageScore,
+                    });
+                    allModelScores.set(baseModelId, current);
+                }
+            }
+        );
+    }
   });
 
   const rankedOverallModels: TopModelStatInfo[] = Array.from(
@@ -440,31 +443,129 @@ export function calculateHeadlineStats(
 export function calculateTopicChampions(
   topicModelScores: Map<string, Map<string, { scores: Array<{ score: number; configId: string; configTitle: string; runLabel: string; timestamp: string; }>; uniqueConfigs: Set<string> }>>
 ): Record<string, TopicChampion[]> {
+  const champions: Record<string, TopicChampion[]> = {};
   const MIN_UNIQUE_CONFIGS_FOR_TOPIC_CHAMPION = 5;
-  const topicChampions: Record<string, TopicChampion[]> = {};
 
-  topicModelScores.forEach((modelScores, topic) => {
-    const champions: TopicChampion[] = [];
-    modelScores.forEach((data, modelId) => {
+  for (const [topic, modelScores] of topicModelScores.entries()) {
+    const topicChampions: TopicChampion[] = [];
+
+    for (const [modelId, data] of modelScores.entries()) {
       if (data.uniqueConfigs.size >= MIN_UNIQUE_CONFIGS_FOR_TOPIC_CHAMPION) {
-        const totalScore = data.scores.reduce((a, b) => a + b.score, 0);
-        const averageScore = totalScore / data.scores.length;
-        champions.push({
+        const averageScore = data.scores.reduce((sum, s) => sum + s.score, 0) / data.scores.length;
+        
+        topicChampions.push({
           modelId,
           averageScore,
           uniqueConfigsCount: data.uniqueConfigs.size,
-          contributingRuns: data.scores.sort((a, b) => b.score - a.score), // Sort runs by score desc
+          contributingRuns: data.scores.map(s => ({
+            configId: s.configId,
+            configTitle: s.configTitle,
+            runLabel: s.runLabel,
+            timestamp: s.timestamp,
+            score: s.score,
+          })),
         });
       }
-    });
+    }
 
-    // Sort champions by average score and take top 3
-    topicChampions[topic] = champions
-      .sort((a, b) => b.averageScore - a.averageScore)
-      .slice(0, 3);
+    if (topicChampions.length > 0) {
+      champions[topic] = topicChampions
+        .sort((a, b) => b.averageScore - a.averageScore)
+        .slice(0, 3); // Top 3 champions per topic
+    }
+  }
+
+  return champions;
+}
+
+/**
+ * Shared function to process executive summary grades from result data.
+ * Used by both backfill-summary and run-config to maintain DRY principle.
+ */
+export function processExecutiveSummaryGrades(
+  resultData: WevalResult,
+  modelDimensionGrades: Map<string, Map<string, { totalScore: number; count: number; uniqueConfigs: Set<string>; scores: Array<{ score: number; configTitle: string; runLabel: string; timestamp: string; configId: string; }> }>>,
+  logger?: SimpleLogger
+): void {
+  if (!resultData.executiveSummary?.structured?.grades) {
+    return;
+  }
+
+  if (logger) {
+    logger.info(`Processing executive summary grades for: ${resultData.configId}/${resultData.runLabel}`);
+  }
+
+  for (const gradeInfo of resultData.executiveSummary.structured.grades) {
+    const { baseId: modelId } = parseEffectiveModelId(gradeInfo.modelId);
+    if (!modelDimensionGrades.has(modelId)) {
+      modelDimensionGrades.set(modelId, new Map());
+    }
+    const modelGrades = modelDimensionGrades.get(modelId)!;
+
+    for (const [dimension, score] of Object.entries(gradeInfo.grades)) {
+      if (score > 0) { // Only count valid, non-zero grades
+        const current = modelGrades.get(dimension) || { totalScore: 0, count: 0, uniqueConfigs: new Set(), scores: [] };
+        current.totalScore += score;
+        current.count++;
+        current.uniqueConfigs.add(resultData.configId);
+        current.scores.push({
+          score,
+          configTitle: resultData.configTitle || resultData.config.title || resultData.configId,
+          runLabel: resultData.runLabel,
+          timestamp: resultData.timestamp,
+          configId: resultData.configId,
+        });
+        modelGrades.set(dimension, current);
+      }
+    }
+  }
+}
+
+/**
+ * Shared function to process topic data from tags and scores.
+ * Used by both backfill-summary and run-config to maintain DRY principle.
+ */
+export function processTopicData(
+  resultData: WevalResult,
+  perModelScores: Map<string, PerModelScoreStats>,
+  topicModelScores: Map<string, Map<string, { scores: Array<{ score: number; configId: string; configTitle: string; runLabel: string; timestamp: string; }>; uniqueConfigs: Set<string> }>>,
+  logger?: SimpleLogger
+): void {
+  // Combine manual tags from config with auto tags from executive summary
+  const manualTags = resultData.config?.tags || [];
+  const autoTags = resultData.executiveSummary?.structured?.autoTags || [];
+  const allTags = [...new Set([...manualTags, ...autoTags].map(tag => normalizeTag(tag)).filter(Boolean))];
+
+  if (allTags.length === 0) {
+    return;
+  }
+
+  if (logger) {
+    logger.info(`Processing topic data for: ${resultData.configId}/${resultData.runLabel} with tags: [${allTags.join(', ')}]`);
+  }
+
+  perModelScores.forEach((scoreData, modelId) => {
+    if (scoreData.hybrid.average !== null && scoreData.hybrid.average !== undefined) {
+      const { baseId } = parseEffectiveModelId(modelId);
+      
+      allTags.forEach((topic: string) => {
+        const currentTopicData = topicModelScores.get(topic) || new Map();
+        const currentModelData = currentTopicData.get(baseId) || { scores: [], uniqueConfigs: new Set() };
+        
+        currentModelData.scores.push({
+          score: scoreData.hybrid.average,
+          configId: resultData.configId,
+          configTitle: resultData.configTitle || resultData.config.title || resultData.configId,
+          runLabel: resultData.runLabel,
+          timestamp: resultData.timestamp,
+        });
+        currentModelData.uniqueConfigs.add(resultData.configId);
+
+        currentTopicData.set(baseId, currentModelData);
+        topicModelScores.set(topic, currentTopicData);
+      });
+    }
   });
-
-  return topicChampions;
 }
 
 export function calculatePerModelScoreStatsForRun(resultData: WevalResult): Map<string, PerModelScoreStats> {

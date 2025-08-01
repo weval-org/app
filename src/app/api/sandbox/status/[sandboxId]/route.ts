@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
 
-const SANDBOX_V2_TEMP_DIR = 'sandbox';
+const SANDBOX_V2_TEMP_DIR = 'live/sandbox';
 
 // S3 Client Initialization
 const s3Client = new S3Client({
@@ -34,6 +34,12 @@ export async function GET(
 
   const statusKey = `${SANDBOX_V2_TEMP_DIR}/runs/${sandboxId}/status.json`;
 
+  // Development logging
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[Status API] Checking status for run: ${sandboxId}`);
+    console.log(`[Status API] Looking for status file at: ${statusKey}`);
+  }
+
   try {
     const command = new GetObjectCommand({
       Bucket: process.env.APP_S3_BUCKET_NAME!,
@@ -48,6 +54,11 @@ export async function GET(
 
     const statusContent = await streamToString(Body as Readable);
     const statusJson = JSON.parse(statusContent);
+
+    // Development logging  
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[Status API] Returning status for ${sandboxId}:`, statusJson);
+    }
 
     return NextResponse.json(statusJson);
 

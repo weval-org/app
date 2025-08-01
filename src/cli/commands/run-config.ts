@@ -27,7 +27,10 @@ import {
 } from '../../lib/storageService'; // Adjusted path
 import {
     calculateHeadlineStats,
-    calculatePotentialModelDrift
+    calculatePotentialModelDrift,
+    calculateTopicChampions,
+    processExecutiveSummaryGrades,
+    processTopicData,
 } from '../utils/summaryCalculationUtils'; // Import new calc utils
 
 import { executeComparisonPipeline } from '../services/comparison-pipeline-service';
@@ -43,6 +46,10 @@ import { normalizeTag } from '@/app/utils/tagUtils';
 import { generateBlueprintIdFromPath } from '@/app/utils/blueprintIdUtils';
 import { CustomModelDefinition } from '@/lib/llm-clients/types';
 import { registerCustomModels } from '@/lib/llm-clients/client-dispatcher';
+import { EnhancedComparisonConfigInfo, EnhancedRunInfo } from '../../app/utils/homepageDataUtils';
+import { WevalResult } from '../../types/shared';
+import { listConfigIds, listRunsForConfig } from '../../lib/storageService';
+import { calculateAverageHybridScoreForRun, calculatePerModelScoreStatsForRun } from '../utils/summaryCalculationUtils';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
@@ -457,6 +464,7 @@ interface RunOptions {
     cache?: boolean;
     collectionsRepoPath?: string;
     requireExecutiveSummary?: boolean;
+    updateSummaries?: boolean;
 }
 
 async function promptForConfig(): Promise<string> {
@@ -635,232 +643,167 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions, commi
                 loggerInstance.error(`Failed to update per-config summary for ${currentConfigId}: ${configSummaryError.message}`);
             }
 
-            // Update homepage summary
-            try {
-                loggerInstance.info('Attempting to update homepage summary manifest...');
-                const currentFullSummary = await getHomepageSummary();
-                const updatedConfigsArrayForHomepage = updateSummaryDataWithNewRun(
-                    currentFullSummary?.configs || null,
-                    newResultData, 
-                    actualResultFileName
-                );
-
-                // --- BEGIN: Log Hybrid Score for the New Run ---
-                loggerInstance.info('--- Newly Calculated Hybrid Scores ---');
-                const newRunConfig = updatedConfigsArrayForHomepage.find(c => c.configId === newResultData.configId);
-                if (newRunConfig) {
-                    const newRun = newRunConfig.runs.find(r => r.runLabel === newResultData.runLabel && r.timestamp === newResultData.timestamp);
-                    if (newRun && newRun.perModelScores) {
-                        loggerInstance.info(`Overall Run Hybrid Score Average: ${newRun.hybridScoreStats?.average?.toFixed(4) ?? 'N/A'}`);
-                        loggerInstance.info('Per-Model Score Averages:');
-                        const scoresToLog: Record<string, Record<string, string>> = {};
-                        newRun.perModelScores.forEach((stats, modelId) => {
-                           scoresToLog[modelId] = {
-                                'Hybrid': stats.hybrid.average !== null && stats.hybrid.average !== undefined ? stats.hybrid.average.toFixed(4) : 'N/A',
-                                'Similarity': stats.similarity.average !== null && stats.similarity.average !== undefined ? stats.similarity.average.toFixed(4) : 'N/A',
-                                'Coverage': stats.coverage?.average !== null && stats.coverage?.average !== undefined ? stats.coverage.average.toFixed(4) : 'N/A',
-                           };
-                        });
-                        if (typeof console.table === 'function') {
-                            console.table(scoresToLog);
-                        } else {
-                            loggerInstance.info(JSON.stringify(scoresToLog, null, 2));
-                        }
-                    } else {
-                        loggerInstance.warn('Could not find the specific new run in the updated summary to log its hybrid scores.');
-                    }
-                } else {
-                    loggerInstance.warn('Could not find the new run\'s config in the updated summary to log its hybrid scores.');
-                }
-                loggerInstance.info('------------------------------------');
-                // --- END: Log Hybrid Score for the New Run ---
-
-                const homepageConfigs = updatedConfigsArrayForHomepage.map(c => {
-                    if (c.tags?.includes('_featured')) return c;
-                    return { ...c, runs: [] };
-                });
+            // Only run backfill and summary updates if explicitly requested
+            if (options.updateSummaries) {
+                // --- BEGIN: Use Exact Backfill Logic for Homepage Summary (Perfect Consistency) ---
+                loggerInstance.info('Rebuilding homepage summary using exact backfill logic...');
                 
-                // The headline stats should be calculated on all configs, not just featured ones.
-                // The calculation functions will internally filter out any configs with the 'test' tag.
-                const newHeadlineStats = calculateHeadlineStats(updatedConfigsArrayForHomepage, new Map());
-                const newDriftDetectionResult = calculatePotentialModelDrift(updatedConfigsArrayForHomepage);
-
-                const newHomepageSummaryContent: HomepageSummaryFileContent = {
-                    configs: homepageConfigs,
-                    headlineStats: newHeadlineStats,
-                    driftDetectionResult: newDriftDetectionResult,
-                    lastUpdated: new Date().toISOString(),
-                };
-
-                await saveHomepageSummary(newHomepageSummaryContent);
-                loggerInstance.info('Homepage summary manifest updated successfully.');
-
-                // Find the full run info object that was just added to the updated homepage summary.
-                // This contains the calculated hybrid score s needed for subsequent updates.
-                const justAddedRunInfo = updatedConfigsArrayForHomepage
-                    .find(c => c.configId === newResultData.configId)?.runs
-                    .find(r => r.runLabel === newResultData.runLabel && r.timestamp === newResultData.timestamp);
-
-                // --- BEGIN: Update Latest Runs Summary (after homepage summary is successfully saved) ---
                 try {
-                    loggerInstance.info('Attempting to update latest runs summary...');
+                    const { actionBackfillSummary } = await import('./backfill-summary');
                     
-                    if (justAddedRunInfo) {
-                        const currentLatestRunsSummary = await getLatestRunsSummary();
-                        const newRunSummaryItem: LatestRunSummaryItem = {
-                            ...justAddedRunInfo,
-                            configId: newResultData.configId,
-                            configTitle: newResultData.configTitle
-                        };
-
-                        const newRuns = [newRunSummaryItem, ...currentLatestRunsSummary.runs];
-                        // De-duplicate based on filename to prevent multiple entries for the same execution
-                        const uniqueRuns = Array.from(new Map(newRuns.map(run => [run.fileName, run])).values());
-                        
-                        const sortedRuns = uniqueRuns.sort((a, b) => new Date(fromSafeTimestamp(b.timestamp)).getTime() - new Date(fromSafeTimestamp(a.timestamp)).getTime());
-                        const latest50Runs = sortedRuns.slice(0, 50);
-
-                        await saveLatestRunsSummary({
-                            runs: latest50Runs,
-                            lastUpdated: new Date().toISOString(),
-                        });
-                        loggerInstance.info(`Latest runs summary updated successfully. Now contains ${latest50Runs.length} runs.`);
-                    } else {
-                        loggerInstance.warn('Could not find the new run in the summary data to add it to the latest runs summary. Skipping update.');
-                    }
-                } catch (latestRunsError: any) {
-                    loggerInstance.error(`Failed to update latest runs summary: ${latestRunsError.message}`);
+                    // Run the exact same logic that backfill-summary uses (no verbose output)
+                    await actionBackfillSummary({ verbose: false, dryRun: false });
+                    
+                    loggerInstance.info('✅ Homepage summary rebuilt using exact backfill logic.');
+                } catch (backfillError: any) {
+                    loggerInstance.error(`Failed to rebuild homepage summary using backfill logic: ${backfillError.message}`);
+                    // Fall back to not updating homepage summary rather than failing completely
                 }
-                // --- END: Update Latest Runs Summary ---
+                // --- END: Use Exact Backfill Logic for Homepage Summary ---
+
+                // --- BEGIN: Process Executive Summary Grades and Topic Data for Leaderboards ---
+                // NOTE: This section is now handled above in the fresh calculation, so we can remove this duplicate processing
+                loggerInstance.info('Executive summary grades and topic data already processed in fresh calculation above.');
+                // --- END: Process Executive Summary Grades and Topic Data ---
 
                 // --- BEGIN: Update Model Summaries (Incremental) ---
                 try {
-                    if (!justAddedRunInfo) {
+                    if (!newResultData) {
                         loggerInstance.warn('Could not find the new run in the summary data, cannot update model summaries. Skipping update.');
-                    } else if (!justAddedRunInfo.perModelScores) {
-                        loggerInstance.error('Could not find newly calculated hybrid scores on the run data. Aborting model summary update.');
                     } else {
                         loggerInstance.info('Attempting to incrementally update model summaries...');
                         
+                        // Calculate per-model scores for the new run
+                        const newRunPerModelScores = calculatePerModelScoreStatsForRun(newResultData);
+                        
                         let scoresMap: Map<string, { average: number | null; stddev: number | null }>;
-                        if (justAddedRunInfo.perModelScores instanceof Map) {
+                        if (newRunPerModelScores instanceof Map) {
                             // Extract hybrid scores from the new structure
                             scoresMap = new Map();
-                            justAddedRunInfo.perModelScores.forEach((stats, modelId) => {
+                            newRunPerModelScores.forEach((stats, modelId) => {
                                 scoresMap.set(modelId, stats.hybrid);
                             });
                         } else {
                             // Handle serialized format
                             scoresMap = new Map();
-                            Object.entries(justAddedRunInfo.perModelScores || {}).forEach(([modelId, stats]) => {
+                            Object.entries(newRunPerModelScores || {}).forEach(([modelId, stats]: [string, any]) => {
                                 scoresMap.set(modelId, (stats as any).hybrid);
                             });
                         }
 
-                        const modelsInRun = new Set(newResultData.effectiveModels.map(m => parseEffectiveModelId(m).baseId));
-                        loggerInstance.info(`Found ${modelsInRun.size} unique base models in this run. Updating their summaries...`);
+                        for (const [effectiveModelId, hybridScore] of scoresMap.entries()) {
+                            if (hybridScore.average !== null && hybridScore.average !== undefined) {
+                                const { baseId } = parseEffectiveModelId(effectiveModelId);
+                                try {
+                                    const existingModelSummary = await getModelSummary(baseId);
+                                    
+                                    const newRunPerformance: ModelRunPerformance = {
+                                        configId: currentConfigId,
+                                        configTitle: newResultData.configTitle || newResultData.config.title || currentConfigId,
+                                        runLabel: newResultData.runLabel,
+                                        timestamp: newResultData.timestamp,
+                                        hybridScore: hybridScore.average,
+                                    };
 
-                        for (const baseModelId of modelsInRun) {
-                            // Skip the pseudo-model used for ideal responses
-                            if (baseModelId === 'IDEAL_MODEL_ID') {
-                                continue;
-                            }
-                            
-                            const existingSummary = await getModelSummary(baseModelId);
-                            const newRunsForThisModel: ModelRunPerformance[] = [];
+                                    if (existingModelSummary) {
+                                        // Update existing summary
+                                        const updatedRuns = [newRunPerformance, ...existingModelSummary.runs];
+                                        const validScores = updatedRuns.map(r => r.hybridScore).filter(s => s !== null) as number[];
+                                        const averageHybridScore = validScores.length > 0 ? validScores.reduce((a, b) => a + b, 0) / validScores.length : null;
 
-                            // Find all scores for this base model from the calculated scores
-                            newResultData.effectiveModels.forEach(effectiveModelId => {
-                                if (parseEffectiveModelId(effectiveModelId).baseId === baseModelId) {
-                                    const scoreData = scoresMap.get(effectiveModelId);
-                                    if (scoreData && scoreData.average !== null && scoreData.average !== undefined) {
-                                        newRunsForThisModel.push({
-                                            configId: newResultData.configId,
-                                            configTitle: newResultData.configTitle,
-                                            runLabel: newResultData.runLabel,
-                                            timestamp: newResultData.timestamp,
-                                            hybridScore: scoreData.average,
+                                        const blueprintsParticipated = new Set(updatedRuns.map(r => r.configId));
+                                        
+                                        // Strengths & Weaknesses
+                                        const blueprintScores = new Map<string, { scores: number[], title: string }>();
+                                        updatedRuns.forEach(run => {
+                                            if (run.hybridScore !== null) {
+                                                const existing = blueprintScores.get(run.configId) || { scores: [], title: run.configTitle };
+                                                existing.scores.push(run.hybridScore);
+                                                blueprintScores.set(run.configId, existing);
+                                            }
                                         });
+                                        
+                                        const avgBlueprintScores = Array.from(blueprintScores.entries()).map(([configId, data]) => ({
+                                            configId,
+                                            configTitle: data.title,
+                                            score: data.scores.reduce((a, b) => a + b, 0) / data.scores.length,
+                                        })).sort((a, b) => b.score - a.score);
+
+                                        const updatedModelSummary: ModelSummary = {
+                                            ...existingModelSummary,
+                                            overallStats: {
+                                                averageHybridScore,
+                                                totalRuns: updatedRuns.length,
+                                                totalBlueprints: blueprintsParticipated.size,
+                                            },
+                                            strengthsAndWeaknesses: {
+                                                topPerforming: avgBlueprintScores.slice(0, 3),
+                                                weakestPerforming: avgBlueprintScores.slice(-3).reverse(),
+                                            },
+                                            runs: updatedRuns.sort((a, b) => new Date(fromSafeTimestamp(b.timestamp)).getTime() - new Date(fromSafeTimestamp(a.timestamp)).getTime()),
+                                            lastUpdated: new Date().toISOString(),
+                                        };
+
+                                        await saveModelSummary(baseId, updatedModelSummary);
+                                        loggerInstance.info(`Updated model summary for ${baseId}.`);
+                                    } else {
+                                        // Create new summary
+                                        const newModelSummary: ModelSummary = {
+                                            modelId: baseId,
+                                            displayName: getModelDisplayLabel(baseId),
+                                            provider: baseId.split(':')[0] || 'unknown',
+                                            overallStats: {
+                                                averageHybridScore: hybridScore.average,
+                                                totalRuns: 1,
+                                                totalBlueprints: 1,
+                                            },
+                                            strengthsAndWeaknesses: {
+                                                topPerforming: [{
+                                                    configId: currentConfigId,
+                                                    configTitle: newResultData.configTitle || newResultData.config.title || currentConfigId,
+                                                    score: hybridScore.average,
+                                                }],
+                                                weakestPerforming: [{
+                                                    configId: currentConfigId,
+                                                    configTitle: newResultData.configTitle || newResultData.config.title || currentConfigId,
+                                                    score: hybridScore.average,
+                                                }],
+                                            },
+                                            runs: [newRunPerformance],
+                                            lastUpdated: new Date().toISOString(),
+                                        };
+
+                                        await saveModelSummary(baseId, newModelSummary);
+                                        loggerInstance.info(`Created new model summary for ${baseId}.`);
                                     }
+                                } catch (modelSummaryError: any) {
+                                    loggerInstance.error(`Failed to update model summary for ${baseId}: ${modelSummaryError.message}`);
                                 }
-                            });
-
-                            if (newRunsForThisModel.length === 0) {
-                                loggerInstance.warn(`No new performance data found for model ${baseModelId} in this run, skipping its summary update.`);
-                                continue;
                             }
-
-                            // Combine with existing runs
-                            const allRuns = [...(existingSummary?.runs || [])];
-                            newRunsForThisModel.forEach(newRun => {
-                                const existingIndex = allRuns.findIndex(r => r.configId === newRun.configId && r.runLabel === newRun.runLabel && r.timestamp === newRun.timestamp);
-                                if (existingIndex !== -1) {
-                                    allRuns[existingIndex] = newRun;
-                                } else {
-                                    allRuns.push(newRun);
-                                }
-                            });
-                            
-                            // Recalculate all stats
-                            const totalRuns = allRuns.length;
-                            const blueprintsParticipated = new Set(allRuns.map(r => r.configId));
-                            const totalBlueprints = blueprintsParticipated.size;
-
-                            const validScores = allRuns.map(r => r.hybridScore).filter(s => s !== null) as number[];
-                            const averageHybridScore = validScores.length > 0 ? validScores.reduce((a, b) => a + b, 0) / validScores.length : null;
-
-                            const blueprintScores = new Map<string, { scores: number[], title: string }>();
-                            allRuns.forEach(run => {
-                                 if (run.hybridScore !== null) {
-                                    const existing = blueprintScores.get(run.configId) || { scores: [], title: run.configTitle };
-                                    existing.scores.push(run.hybridScore);
-                                    blueprintScores.set(run.configId, existing);
-                                }
-                            });
-
-                             const avgBlueprintScores = Array.from(blueprintScores.entries()).map(([configId, data]) => ({
-                                configId,
-                                configTitle: data.title,
-                                score: data.scores.reduce((a, b) => a + b, 0) / data.scores.length,
-                            })).sort((a, b) => b.score - a.score);
-
-                            const updatedModelSummary: ModelSummary = {
-                                modelId: baseModelId,
-                                displayName: getModelDisplayLabel(baseModelId),
-                                provider: baseModelId.split(':')[0] || 'unknown',
-                                overallStats: { averageHybridScore, totalRuns, totalBlueprints },
-                                strengthsAndWeaknesses: {
-                                    topPerforming: avgBlueprintScores.slice(0, 3),
-                                    weakestPerforming: avgBlueprintScores.slice(-3).reverse(),
-                                },
-                                runs: allRuns.sort((a, b) => new Date(fromSafeTimestamp(b.timestamp)).getTime() - new Date(fromSafeTimestamp(a.timestamp)).getTime()),
-                                lastUpdated: new Date().toISOString(),
-                            };
-
-                            await saveModelSummary(baseModelId, updatedModelSummary);
                         }
-                        loggerInstance.info('Finished updating model summaries.');
+
+                        loggerInstance.info('Model summaries updated successfully.');
                     }
                 } catch (modelSummaryError: any) {
                     loggerInstance.error(`Failed to update model summaries: ${modelSummaryError.message}`);
                 }
-                // --- END: Update Model Summaries (Incremental) ---
+                // --- END: Update Model Summaries ---
 
                 // --- BEGIN: Populate Pairwise Task Queue ---
-                if (newResultData.config?.tags?.includes('_get_human_prefs')) {
-                    try {
-                        loggerInstance.info('Found _get_human_prefs tag. Attempting to populate pairwise comparison task queue...');
-                        const queueResult = await populatePairwiseQueue(newResultData, { logger: loggerInstance });
-                        loggerInstance.info(`Pairwise task queue processed. Added: ${queueResult.tasksAdded}, Total in queue: ${queueResult.totalTasksInQueue}`);
-                    } catch (pairwiseError: any) {
-                        loggerInstance.error(`Failed to populate pairwise task queue: ${pairwiseError.message}`);
+                try {
+                    if (newResultData.config?.tags?.includes('_get_human_prefs')) {
+                        loggerInstance.info('Found _get_human_prefs tag. Populating pairwise queue for latest run...');
+                        await populatePairwiseQueue(newResultData, { logger: loggerInstance });
+                        loggerInstance.info('Pairwise queue populated successfully.');
                     }
+                } catch (pairwiseError: any) {
+                    loggerInstance.error(`Failed to populate pairwise queue: ${pairwiseError.message}`);
                 }
                 // --- END: Populate Pairwise Task Queue ---
-
-            } catch (summaryError: any) {
-                loggerInstance.error(`Failed to update homepage summary manifest: ${summaryError.message}`);
+            } else {
+                loggerInstance.info('Skipping homepage summary, model summaries, and pairwise queue updates (use --update-summaries to enable).');
             }
+
         } else {
             loggerInstance.info('Skipping summary file updates.');
         }
@@ -965,6 +908,7 @@ const localCommand = new Command('local')
     .option('--cache', 'Enable caching for model responses (defaults to false).')
     .option('--collections-repo-path <path>', 'Path to a local checkout of a collections repository (e.g., weval/configs) to resolve model collection placeholders.')
     .option('--require-executive-summary', 'Fail the entire run if executive summary generation fails (defaults to false).')
+    .option('--update-summaries', 'Update model summaries and homepage summary after the evaluation run (defaults to false).')
     .action(actionLocal);
 
 const githubCommand = new Command('github')
@@ -975,6 +919,7 @@ const githubCommand = new Command('github')
     .option('--cache', 'Enable caching for model responses (defaults to false).')
     .option('--collections-repo-path <path>', 'Optional. Path to a local checkout of a collections repository to override the default behavior of fetching collections from GitHub.')
     .option('--require-executive-summary', 'Fail the entire run if executive summary generation fails (defaults to false).')
+    .option('--update-summaries', 'Update model summaries and homepage summary after the evaluation run (defaults to false).')
     .action(actionGitHub);
 
 export const runConfigCommand = new Command('run-config')

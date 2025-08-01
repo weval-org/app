@@ -152,9 +152,6 @@ importers:
       nprogress:
         specifier: ^0.2.0
         version: 0.2.0
-      openai:
-        specifier: ^5.10.2
-        version: 5.10.2(ws@8.18.2)(zod@4.0.10)
       p-limit:
         specifier: ^6.2.0
         version: 6.2.0
@@ -5168,18 +5165,6 @@ packages:
   onetime@7.0.0:
     resolution: {integrity: sha512-VXJjc87FScF88uafS3JllDgvAm+c/Slfz06lorj2uAY34rlUu0Nt+v8wreiImcrgAjjIHp1rXpTDlLOGw29WwQ==}
     engines: {node: '>=18'}
-
-  openai@5.10.2:
-    resolution: {integrity: sha512-n+vi74LzHtvlKcDPn9aApgELGiu5CwhaLG40zxLTlFQdoSJCLACORIPC2uVQ3JEYAbqapM+XyRKFy2Thej7bIw==}
-    hasBin: true
-    peerDependencies:
-      ws: ^8.18.0
-      zod: ^3.23.8
-    peerDependenciesMeta:
-      ws:
-        optional: true
-      zod:
-        optional: true
 
   opener@1.5.2:
     resolution: {integrity: sha512-ur5UIdyw5Y7yEj9wLzhqXiy6GZ3Mwx0yGI+5sMn2r0N0v3cKJvUmFH5yPP+WXh9e0xfyzyJX95D8l088DNFj7A==}
@@ -12116,11 +12101,6 @@ snapshots:
   onetime@7.0.0:
     dependencies:
       mimic-function: 5.0.1
-
-  openai@5.10.2(ws@8.18.2)(zod@4.0.10):
-    optionalDependencies:
-      ws: 8.18.2
-      zod: 4.0.10
 
   opener@1.5.2: {}
 

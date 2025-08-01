@@ -34,13 +34,32 @@ export function useEvaluation(
     const poll = async () => {
         try {
             const response = await fetch(`/api/sandbox/status/${runId}`);
+            
+            // Development debugging
+            if (process.env.NODE_ENV === 'development') {
+                console.log(`[useEvaluation] Polling status for runId: ${runId}`);
+                console.log(`[useEvaluation] Response status: ${response.status}`);
+            }
+            
             if (response.ok) {
                 const newStatus = await response.json();
+                
+                if (process.env.NODE_ENV === 'development') {
+                    console.log(`[useEvaluation] Status update:`, newStatus);
+                }
+                
                 setRunStatus(newStatus);
             } else if (response.status !== 404 && response.status !== 202) {
+                if (process.env.NODE_ENV === 'development') {
+                    console.error(`[useEvaluation] Non-OK response: ${response.status}`);
+                }
                  setRunStatus({ status: 'error', message: `Failed to get status (HTTP ${response.status}).` });
             }
         } catch (error: any) {
+            if (process.env.NODE_ENV === 'development') {
+                console.error(`[useEvaluation] Polling error for runId ${runId}:`, error);
+            }
+            console.error("Polling failed.", error);
              setRunStatus({ status: 'error', message: 'Polling failed.' });
         }
     };

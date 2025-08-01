@@ -139,7 +139,7 @@ These components power the public `weval.org` platform.
 
 ### Interactive Workflow Components
 These components support the developer and sandbox environments.
--   **`cli: run-config`**: The main command-line tool for developers. It runs the entire evaluation pipeline for a local or GitHub-based blueprint and saves the results to the local `/.results/` directory.
+-   **`cli: run-config`**: The main command-line tool for developers. By default, it runs the evaluation pipeline for a local or GitHub-based blueprint and saves the results to the local `/.results/` directory, updating only the per-config summary. When used with the `--update-summaries` flag, it additionally rebuilds platform-wide summaries (homepage leaderboards, model summaries, etc.) using the same logic as the backfill process.
 -   **Sandbox UI & Backend API**: A full-stack feature within the Next.js app that provides an interactive, browser-based IDE for blueprint creation. It has its own set of API endpoints (`/api/sandbox`, `/api/github`) and a dedicated background function (`fn: execute-sandbox-pipeline-background`) for running evaluations.
 
 ## 3. Deep Dive: The Core Evaluation Pipeline

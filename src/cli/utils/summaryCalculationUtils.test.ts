@@ -1,7 +1,28 @@
-import { calculatePotentialModelDrift } from './summaryCalculationUtils';
+import { calculatePotentialModelDrift, calculateHeadlineStats, calculateTopicChampions, processExecutiveSummaryGrades, processTopicData } from './summaryCalculationUtils';
 import { EnhancedComparisonConfigInfo, EnhancedRunInfo } from '@/app/utils/homepageDataUtils';
-import { PerModelScoreStats } from '@/app/utils/homepageDataUtils';
 
+// IMPORTANT: Mock parseEffectiveModelId for unit test isolation
+jest.mock('@/app/utils/modelIdUtils', () => ({
+  parseEffectiveModelId: jest.fn((modelId: string) => {
+    // These mocks return what the real parser would return for these formats
+    if (modelId === 'provider:model-a[temp:0]') {
+      return { baseId: 'provider:model-a', displayName: 'Model A', fullId: modelId };
+    }
+    if (modelId === 'provider:model-b[temp:0]') {
+      return { baseId: 'provider:model-b', displayName: 'Model B', fullId: modelId };
+    }
+    // Default fallback for any other test model IDs
+    return { baseId: modelId, displayName: modelId, fullId: modelId };
+  }),
+  getModelDisplayLabel: jest.fn((modelId: string) => `Display ${modelId}`)
+}));
+
+/**
+ * Test helper: Creates a mock run with properly formatted model IDs
+ * 
+ * Note: Model IDs use square bracket notation for suffixes (not colons)
+ * This matches the format expected by parseEffectiveModelId's regex patterns
+ */
 const mockRun = (timestamp: string, perModelScores: Record<string, { hybrid: number | null, similarity: number | null, coverage: number | null }>, temp: number = 0): EnhancedRunInfo => ({
   runLabel: 'test-run-label',
   timestamp,
@@ -14,6 +35,371 @@ const mockRun = (timestamp: string, perModelScores: Record<string, { hybrid: num
   }])),
 });
 
+const mockLogger = {
+  info: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn(),
+};
+
+describe('calculateHeadlineStats', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should only use latest run per config for main leaderboard', () => {
+    // This test validates the architectural fix: latest run only, not historical averages
+    const configs: EnhancedComparisonConfigInfo[] = [{
+      configId: 'config-1',
+      configTitle: 'Config 1',
+      runs: [
+        // Latest run first (runs are sorted by timestamp desc)
+        mockRun('2024-07-03T12:00:00Z', { 'provider:model-a[temp:0]': { hybrid: 0.9, similarity: 0.9, coverage: 0.9 } }),
+        mockRun('2024-07-01T12:00:00Z', { 'provider:model-a[temp:0]': { hybrid: 0.5, similarity: 0.5, coverage: 0.5 } }), // Older run should be ignored
+      ],
+      latestRunTimestamp: '2024-07-03T12:00:00Z',
+    }];
+    
+    const result = calculateHeadlineStats(configs, new Map(), mockLogger);
+    
+    expect(result.rankedOverallModels).toBeDefined();
+    expect(result.rankedOverallModels!.length).toBe(1);
+    expect(result.rankedOverallModels![0].modelId).toBe('provider:model-a');
+    expect(result.rankedOverallModels![0].overallAverageHybridScore).toBe(0.9); // Should use latest run score, not average of 0.9 and 0.5
+    expect(result.rankedOverallModels![0].runsParticipatedIn).toBe(1); // Only latest run counted
+  });
+
+  it('should filter out configs with test tag', () => {
+    const configs: EnhancedComparisonConfigInfo[] = [
+      {
+        configId: 'config-1',
+        configTitle: 'Config 1',
+        runs: [mockRun('2024-07-03T12:00:00Z', { 'provider:model-a[temp:0]': { hybrid: 0.9, similarity: 0.9, coverage: 0.9 } })],
+        latestRunTimestamp: '2024-07-03T12:00:00Z',
+        tags: ['test'], // Should be filtered out
+      },
+      {
+        configId: 'config-2', 
+        configTitle: 'Config 2',
+        runs: [mockRun('2024-07-03T12:00:00Z', { 'provider:model-b[temp:0]': { hybrid: 0.8, similarity: 0.8, coverage: 0.8 } })],
+        latestRunTimestamp: '2024-07-03T12:00:00Z',
+      }
+    ];
+    
+    const result = calculateHeadlineStats(configs, new Map(), mockLogger);
+    
+    expect(result.rankedOverallModels).toBeDefined();
+    expect(result.rankedOverallModels!.length).toBe(1);
+    expect(result.rankedOverallModels![0].modelId).toBe('provider:model-b'); // Only non-test config
+  });
+
+  it('should create dimension leaderboards from provided grades', () => {
+    const configs: EnhancedComparisonConfigInfo[] = [{
+      configId: 'config-1',
+      configTitle: 'Config 1', 
+      runs: [mockRun('2024-07-03T12:00:00Z', { 'provider:model-a[temp:0]': { hybrid: 0.9, similarity: 0.9, coverage: 0.9 } })],
+      latestRunTimestamp: '2024-07-03T12:00:00Z',
+    }];
+
+    const modelDimensionGrades = new Map();
+    const modelGrades = new Map();
+    modelGrades.set('clarity', { 
+      totalScore: 80, 
+      count: 10, 
+      uniqueConfigs: new Set(['config-1', 'config-2', 'config-3', 'config-4', 'config-5']),
+      scores: Array(10).fill({ score: 8, configTitle: 'Config 1', runLabel: 'run-1', timestamp: '2024-07-03T12:00:00Z', configId: 'config-1' })
+    });
+    modelDimensionGrades.set('provider:model-a', modelGrades);
+    
+    const result = calculateHeadlineStats(configs, modelDimensionGrades, mockLogger);
+    
+    expect(result.dimensionLeaderboards).toBeDefined();
+    expect(result.dimensionLeaderboards!.length).toBe(1);
+    expect(result.dimensionLeaderboards![0].dimension).toBe('clarity');
+    expect(result.dimensionLeaderboards![0].leaderboard[0].modelId).toBe('provider:model-a');
+    expect(result.dimensionLeaderboards![0].leaderboard[0].averageScore).toBe(8);
+  });
+
+  it('should return null for all stats when no configs remain after filtering', () => {
+    const configs: EnhancedComparisonConfigInfo[] = [{
+      configId: 'config-1',
+      configTitle: 'Config 1',
+      runs: [mockRun('2024-07-03T12:00:00Z', { 'provider:model-a[temp:0]': { hybrid: 0.9, similarity: 0.9, coverage: 0.9 } })],
+      latestRunTimestamp: '2024-07-03T12:00:00Z',
+      tags: ['test'], // Will be filtered out
+    }];
+    
+    const result = calculateHeadlineStats(configs, new Map(), mockLogger);
+    
+    expect(result.bestPerformingConfig).toBeNull();
+    expect(result.worstPerformingConfig).toBeNull();
+    expect(result.leastConsistentConfig).toBeNull();
+    expect(result.rankedOverallModels).toBeNull();
+    expect(result.dimensionLeaderboards).toBeNull();
+  });
+});
+
+describe('calculateTopicChampions', () => {
+  it('should calculate topic champions correctly', () => {
+    const topicModelScores = new Map();
+    const mathScores = new Map();
+    mathScores.set('provider:model-a', {
+      scores: [
+        { score: 0.9, configId: 'config-1', configTitle: 'Math 1', runLabel: 'run-1', timestamp: '2024-07-03T12:00:00Z' },
+        { score: 0.8, configId: 'config-2', configTitle: 'Math 2', runLabel: 'run-1', timestamp: '2024-07-02T12:00:00Z' },
+        { score: 0.85, configId: 'config-3', configTitle: 'Math 3', runLabel: 'run-1', timestamp: '2024-07-01T12:00:00Z' },
+        { score: 0.9, configId: 'config-4', configTitle: 'Math 4', runLabel: 'run-1', timestamp: '2024-06-30T12:00:00Z' },
+        { score: 0.8, configId: 'config-5', configTitle: 'Math 5', runLabel: 'run-1', timestamp: '2024-06-29T12:00:00Z' },
+      ],
+      uniqueConfigs: new Set(['config-1', 'config-2', 'config-3', 'config-4', 'config-5'])
+    });
+    topicModelScores.set('math', mathScores);
+    
+    const result = calculateTopicChampions(topicModelScores);
+    
+    expect(result.math).toBeDefined();
+    expect(result.math.length).toBe(1);
+    expect(result.math[0].modelId).toBe('provider:model-a');
+    expect(result.math[0].averageScore).toBe(0.85); // (0.9 + 0.8 + 0.85 + 0.9 + 0.8) / 5
+    expect(result.math[0].uniqueConfigsCount).toBe(5);
+    expect(result.math[0].contributingRuns).toHaveLength(5);
+  });
+
+  it('should filter out models with insufficient configs', () => {
+    const topicModelScores = new Map();
+    const mathScores = new Map();
+    mathScores.set('provider:model-a', {
+      scores: [
+        { score: 0.9, configId: 'config-1', configTitle: 'Math 1', runLabel: 'run-1', timestamp: '2024-07-03T12:00:00Z' },
+        { score: 0.8, configId: 'config-2', configTitle: 'Math 2', runLabel: 'run-1', timestamp: '2024-07-02T12:00:00Z' },
+      ],
+      uniqueConfigs: new Set(['config-1', 'config-2']) // Only 2 configs, need 5
+    });
+    topicModelScores.set('math', mathScores);
+    
+    const result = calculateTopicChampions(topicModelScores);
+    
+    expect(result.math).toBeUndefined(); // Should be filtered out
+  });
+
+  it('should sort champions by average score descending', () => {
+    const topicModelScores = new Map();
+    const mathScores = new Map();
+    
+    // Model A with lower average
+    mathScores.set('provider:model-a', {
+      scores: Array(5).fill(null).map((_, i) => ({ 
+        score: 0.7, 
+        configId: `config-${i+1}`, 
+        configTitle: `Math ${i+1}`, 
+        runLabel: 'run-1', 
+        timestamp: '2024-07-03T12:00:00Z' 
+      })),
+      uniqueConfigs: new Set(['config-1', 'config-2', 'config-3', 'config-4', 'config-5'])
+    });
+    
+    // Model B with higher average
+    mathScores.set('provider:model-b', {
+      scores: Array(5).fill(null).map((_, i) => ({ 
+        score: 0.9, 
+        configId: `config-${i+6}`, 
+        configTitle: `Math ${i+6}`, 
+        runLabel: 'run-1', 
+        timestamp: '2024-07-03T12:00:00Z' 
+      })),
+      uniqueConfigs: new Set(['config-6', 'config-7', 'config-8', 'config-9', 'config-10'])
+    });
+    
+    topicModelScores.set('math', mathScores);
+    
+    const result = calculateTopicChampions(topicModelScores);
+    
+    expect(result.math).toHaveLength(2);
+    expect(result.math[0].modelId).toBe('provider:model-b'); // Higher score first
+    expect(result.math[0].averageScore).toBe(0.9);
+    expect(result.math[1].modelId).toBe('provider:model-a'); // Lower score second
+    expect(result.math[1].averageScore).toBe(0.7);
+  });
+});
+
+describe('processExecutiveSummaryGrades', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should process executive summary grades correctly', () => {
+    const resultData = {
+      configId: 'config-1',
+      configTitle: 'Test Config',
+      runLabel: 'run-1',
+      timestamp: '2024-07-03T12:00:00Z',
+      executiveSummary: {
+        structured: {
+          grades: [
+            {
+              modelId: 'provider:model-a[temp:0]', // IMPORTANT: Square brackets format, not 'provider:model-a:temp-0'
+              grades: {
+                clarity: 8,
+                safety: 9,
+                helpfulness: 7
+              }
+            }
+          ]
+        }
+      }
+    } as any;
+
+    const modelDimensionGrades = new Map();
+    
+    processExecutiveSummaryGrades(resultData, modelDimensionGrades, mockLogger);
+    
+    // The mock parseEffectiveModelId returns { baseId: 'provider:model-a' } for our test input
+    expect(modelDimensionGrades.has('provider:model-a')).toBe(true);
+    const modelGrades = modelDimensionGrades.get('provider:model-a')!;
+    expect(modelGrades.has('clarity')).toBe(true);
+    expect(modelGrades.get('clarity')!.totalScore).toBe(8);
+    expect(modelGrades.get('clarity')!.count).toBe(1);
+    expect(modelGrades.get('safety')!.totalScore).toBe(9);
+    expect(modelGrades.get('helpfulness')!.totalScore).toBe(7);
+    expect(mockLogger.info).toHaveBeenCalledWith('Processing executive summary grades for: config-1/run-1');
+  });
+
+  it('should skip zero scores', () => {
+    const resultData = {
+      configId: 'config-1',
+      configTitle: 'Test Config',
+      runLabel: 'run-1', 
+      timestamp: '2024-07-03T12:00:00Z',
+      executiveSummary: {
+        structured: {
+          grades: [
+            {
+              modelId: 'provider:model-a[temp:0]',
+              grades: {
+                clarity: 8,
+                safety: 0, // Should be skipped
+                helpfulness: 7
+              }
+            }
+          ]
+        }
+      }
+    } as any;
+
+    const modelDimensionGrades = new Map();
+    
+    processExecutiveSummaryGrades(resultData, modelDimensionGrades, mockLogger);
+    
+    const modelGrades = modelDimensionGrades.get('provider:model-a')!;
+    expect(modelGrades.has('clarity')).toBe(true);
+    expect(modelGrades.has('safety')).toBe(false); // Should not exist
+    expect(modelGrades.has('helpfulness')).toBe(true);
+  });
+
+  it('should handle missing executive summary gracefully', () => {
+    const resultData = {
+      configId: 'config-1',
+      configTitle: 'Test Config',
+      runLabel: 'run-1',
+      timestamp: '2024-07-03T12:00:00Z',
+      // No executiveSummary
+    } as any;
+
+    const modelDimensionGrades = new Map();
+    
+    processExecutiveSummaryGrades(resultData, modelDimensionGrades, mockLogger);
+    
+    expect(modelDimensionGrades.size).toBe(0); // Should remain empty
+    expect(mockLogger.info).not.toHaveBeenCalled();
+  });
+});
+
+describe('processTopicData', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should process topic data correctly', () => {
+    const resultData = {
+      configId: 'config-1',
+      configTitle: 'Test Config',
+      runLabel: 'run-1',
+      timestamp: '2024-07-03T12:00:00Z',
+      config: {
+        tags: ['math', 'reasoning']
+      },
+      executiveSummary: {
+        structured: {
+          autoTags: ['algebra']
+        }
+      }
+    } as any;
+
+    const perModelScores = new Map();
+    perModelScores.set('provider:model-a[temp:0]', {
+      hybrid: { average: 0.85, stddev: null },
+      similarity: { average: 0.8, stddev: null },
+      coverage: { average: 0.9, stddev: null }
+    });
+
+    const topicModelScores = new Map();
+    
+    processTopicData(resultData, perModelScores, topicModelScores, mockLogger);
+    
+    expect(topicModelScores.has('math')).toBe(true);
+    expect(topicModelScores.has('reasoning')).toBe(true); 
+    expect(topicModelScores.has('algebra')).toBe(true);
+    
+    const mathData = topicModelScores.get('math')!.get('provider:model-a')!;
+    expect(mathData.scores.length).toBe(1);
+    expect(mathData.scores[0].score).toBe(0.85);
+    expect(mathData.uniqueConfigs.has('config-1')).toBe(true);
+    expect(mockLogger.info).toHaveBeenCalledWith('Processing topic data for: config-1/run-1 with tags: [math, reasoning, algebra]');
+  });
+
+  it('should handle missing tags gracefully', () => {
+    const resultData = {
+      configId: 'config-1',
+      configTitle: 'Test Config',  
+      runLabel: 'run-1',
+      timestamp: '2024-07-03T12:00:00Z',
+      config: {} // No tags
+    } as any;
+
+    const perModelScores = new Map();
+    const topicModelScores = new Map();
+    
+    processTopicData(resultData, perModelScores, topicModelScores, mockLogger);
+    
+    expect(topicModelScores.size).toBe(0); // Should remain empty
+    expect(mockLogger.info).not.toHaveBeenCalled();
+  });
+
+  it('should skip models with null hybrid scores', () => {
+    const resultData = {
+      configId: 'config-1',
+      configTitle: 'Test Config',
+      runLabel: 'run-1',
+      timestamp: '2024-07-03T12:00:00Z',
+      config: {
+        tags: ['math']
+      }
+    } as any;
+
+    const perModelScores = new Map();
+    perModelScores.set('provider:model-a[temp:0]', {
+      hybrid: { average: null, stddev: null }, // Null score should be skipped
+      similarity: { average: 0.8, stddev: null },
+      coverage: { average: 0.9, stddev: null }
+    });
+
+    const topicModelScores = new Map();
+    
+    processTopicData(resultData, perModelScores, topicModelScores, mockLogger);
+    
+    expect(topicModelScores.size).toBe(0); // Should remain empty since no valid scores
+  });
+});
+
 describe('calculatePotentialModelDrift', () => {
 
   it('should detect significant drift for a common model', () => {
@@ -22,19 +408,19 @@ describe('calculatePotentialModelDrift', () => {
       configTitle: 'Config 1',
       runs: [
         mockRun('2024-07-01T12:00:00Z', { 
-          'model-a': { hybrid: 0.8, similarity: 0.8, coverage: 0.8 }, 
-          'model-b': { hybrid: 0.9, similarity: 0.9, coverage: 0.9 } 
+          'provider:model-a[temp:0]': { hybrid: 0.8, similarity: 0.8, coverage: 0.8 }, 
+          'provider:model-b[temp:0]': { hybrid: 0.9, similarity: 0.9, coverage: 0.9 } 
         }),
         mockRun('2024-07-03T12:00:00Z', { 
-          'model-a': { hybrid: 0.6, similarity: 0.6, coverage: 0.6 }, 
-          'model-b': { hybrid: 0.91, similarity: 0.91, coverage: 0.91 } 
+          'provider:model-a[temp:0]': { hybrid: 0.6, similarity: 0.6, coverage: 0.6 }, 
+          'provider:model-b[temp:0]': { hybrid: 0.91, similarity: 0.91, coverage: 0.91 } 
         }),
       ],
       latestRunTimestamp: '2024-07-03T12:00:00Z',
     }];
     const result = calculatePotentialModelDrift(configs);
     expect(result).not.toBeNull();
-    expect(result?.modelId).toBe('model-a');
+    expect(result?.modelId).toBe('provider:model-a');
     expect(result?.scoreRange).toBeCloseTo(0.2);
     expect(result?.minScore).toBe(0.6);
     expect(result?.maxScore).toBe(0.8);
@@ -46,12 +432,12 @@ describe('calculatePotentialModelDrift', () => {
       configTitle: 'Config 1',
       runs: [
         mockRun('2024-07-01T12:00:00Z', { 
-          'model-a': { hybrid: 0.8, similarity: 0.8, coverage: 0.8 }, 
-          'model-b': { hybrid: 0.9, similarity: 0.9, coverage: 0.9 } 
+          'provider:model-a[temp:0]': { hybrid: 0.8, similarity: 0.8, coverage: 0.8 }, 
+          'provider:model-b[temp:0]': { hybrid: 0.9, similarity: 0.9, coverage: 0.9 } 
         }),
         mockRun('2024-07-03T12:00:00Z', { 
-          'model-a': { hybrid: 0.81, similarity: 0.81, coverage: 0.81 }, 
-          'model-b': { hybrid: 0.91, similarity: 0.91, coverage: 0.91 } 
+          'provider:model-a[temp:0]': { hybrid: 0.81, similarity: 0.81, coverage: 0.81 }, 
+          'provider:model-b[temp:0]': { hybrid: 0.91, similarity: 0.91, coverage: 0.91 } 
         }),
       ],
       latestRunTimestamp: '2024-07-03T12:00:00Z',
@@ -65,8 +451,8 @@ describe('calculatePotentialModelDrift', () => {
       configId: 'config-1',
       configTitle: 'Config 1',
       runs: [
-        mockRun('2024-07-01T12:00:00Z', { 'model-a': { hybrid: 0.8, similarity: 0.8, coverage: 0.8 } }),
-        mockRun('2024-07-01T18:00:00Z', { 'model-a': { hybrid: 0.6, similarity: 0.6, coverage: 0.6 } }), // Only 6 hours later
+        mockRun('2024-07-01T12:00:00Z', { 'provider:model-a[temp:0]': { hybrid: 0.8, similarity: 0.8, coverage: 0.8 } }),
+        mockRun('2024-07-01T18:00:00Z', { 'provider:model-a[temp:0]': { hybrid: 0.6, similarity: 0.6, coverage: 0.6 } }), // Only 6 hours later
       ],
       latestRunTimestamp: '2024-07-01T18:00:00Z',
     }];
@@ -79,8 +465,8 @@ describe('calculatePotentialModelDrift', () => {
       configId: 'config-1',
       configTitle: 'Config 1',
       runs: [
-        mockRun('2024-07-01T12:00:00Z', { 'model-a': { hybrid: 0.8, similarity: 0.8, coverage: 0.8 } }, 0),
-        mockRun('2024-07-03T12:00:00Z', { 'model-a': { hybrid: 0.6, similarity: 0.6, coverage: 0.6 } }, 0.7), // This run should be excluded
+        mockRun('2024-07-01T12:00:00Z', { 'provider:model-a[temp:0]': { hybrid: 0.8, similarity: 0.8, coverage: 0.8 } }, 0),
+        mockRun('2024-07-03T12:00:00Z', { 'provider:model-a[temp:0]': { hybrid: 0.6, similarity: 0.6, coverage: 0.6 } }, 0.7), // This run should be excluded
       ],
       latestRunTimestamp: '2024-07-03T12:00:00Z',
     }];
@@ -94,15 +480,15 @@ describe('calculatePotentialModelDrift', () => {
       configId: 'config-1',
       configTitle: 'Config 1',
       runs: [
-        mockRun('2024-07-01T12:00:00Z', { 'model-a': { hybrid: 0.8, similarity: 0.8, coverage: 0.8 }, 'model-b': { hybrid: 0.9, similarity: 0.9, coverage: 0.9 } }), // model-b is here
-        mockRun('2024-07-03T12:00:00Z', { 'model-a': { hybrid: 0.6, similarity: 0.6, coverage: 0.6 }, 'model-c': { hybrid: 0.9, similarity: 0.9, coverage: 0.9 } }), // but not here
+        mockRun('2024-07-01T12:00:00Z', { 'provider:model-a[temp:0]': { hybrid: 0.8, similarity: 0.8, coverage: 0.8 }, 'provider:model-b[temp:0]': { hybrid: 0.9, similarity: 0.9, coverage: 0.9 } }), // model-b is here
+        mockRun('2024-07-03T12:00:00Z', { 'provider:model-a[temp:0]': { hybrid: 0.6, similarity: 0.6, coverage: 0.6 }, 'provider:model-c[temp:0]': { hybrid: 0.9, similarity: 0.9, coverage: 0.9 } }), // but not here
       ],
       latestRunTimestamp: '2024-07-03T12:00:00Z',
     }];
     const result = calculatePotentialModelDrift(configs);
     // Drift is detected for model-a, which is common
     expect(result).not.toBeNull();
-    expect(result?.modelId).toBe('model-a');
+    expect(result?.modelId).toBe('provider:model-a');
   });
 
   it('should return null if no models are common across all runs', () => {
@@ -110,8 +496,8 @@ describe('calculatePotentialModelDrift', () => {
       configId: 'config-1',
       configTitle: 'Config 1',
       runs: [
-        mockRun('2024-07-01T12:00:00Z', { 'model-a': { hybrid: 0.8, similarity: 0.8, coverage: 0.8 } }),
-        mockRun('2024-07-03T12:00:00Z', { 'model-b': { hybrid: 0.6, similarity: 0.6, coverage: 0.6 } }),
+        mockRun('2024-07-01T12:00:00Z', { 'provider:model-a[temp:0]': { hybrid: 0.8, similarity: 0.8, coverage: 0.8 } }),
+        mockRun('2024-07-03T12:00:00Z', { 'provider:model-b[temp:0]': { hybrid: 0.6, similarity: 0.6, coverage: 0.6 } }),
       ],
       latestRunTimestamp: '2024-07-03T12:00:00Z',
     }];
@@ -125,8 +511,8 @@ describe('calculatePotentialModelDrift', () => {
         configId: 'config-1',
         configTitle: 'Config 1',
         runs: [
-          mockRun('2024-07-01T12:00:00Z', { 'model-a': { hybrid: 0.8, similarity: 0.8, coverage: 0.8 } }),
-          mockRun('2024-07-03T12:00:00Z', { 'model-a': { hybrid: 0.6, similarity: 0.6, coverage: 0.6 } }),
+          mockRun('2024-07-01T12:00:00Z', { 'provider:model-a[temp:0]': { hybrid: 0.8, similarity: 0.8, coverage: 0.8 } }),
+          mockRun('2024-07-03T12:00:00Z', { 'provider:model-a[temp:0]': { hybrid: 0.6, similarity: 0.6, coverage: 0.6 } }),
         ],
         latestRunTimestamp: '2024-07-03T12:00:00Z',
       },
@@ -134,15 +520,15 @@ describe('calculatePotentialModelDrift', () => {
         configId: 'config-2',
         configTitle: 'Config 2',
         runs: [
-          mockRun('2024-07-01T12:00:00Z', { 'model-b': { hybrid: 0.9, similarity: 0.9, coverage: 0.9 } }),
-          mockRun('2024-07-03T12:00:00Z', { 'model-b': { hybrid: 0.6, similarity: 0.6, coverage: 0.6 } }),
+          mockRun('2024-07-01T12:00:00Z', { 'provider:model-b[temp:0]': { hybrid: 0.9, similarity: 0.9, coverage: 0.9 } }),
+          mockRun('2024-07-03T12:00:00Z', { 'provider:model-b[temp:0]': { hybrid: 0.6, similarity: 0.6, coverage: 0.6 } }),
         ],
         latestRunTimestamp: '2024-07-03T12:00:00Z',
       }
     ];
     const result = calculatePotentialModelDrift(configs);
     expect(result).not.toBeNull();
-    expect(result?.modelId).toBe('model-b');
+    expect(result?.modelId).toBe('provider:model-b');
     expect(result?.scoreRange).toBeCloseTo(0.3);
   });
 
@@ -151,7 +537,7 @@ describe('calculatePotentialModelDrift', () => {
       configId: 'config-1',
       configTitle: 'Config 1',
       runs: [
-        mockRun('2024-07-01T12:00:00Z', { 'model-a': { hybrid: 0.8, similarity: 0.8, coverage: 0.8 } }),
+        mockRun('2024-07-01T12:00:00Z', { 'provider:model-a[temp:0]': { hybrid: 0.8, similarity: 0.8, coverage: 0.8 } }),
         { ...mockRun('2024-07-03T12:00:00Z', {}), perModelScores: undefined },
       ],
       latestRunTimestamp: '2024-07-03T12:00:00Z',

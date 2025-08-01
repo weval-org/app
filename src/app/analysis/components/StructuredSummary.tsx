@@ -281,7 +281,7 @@ const ModelGradesDisplay: React.FC<{ grades: ModelGrades[] }> = ({ grades }) => 
 };
 
 export const StructuredSummary: React.FC<StructuredSummaryProps> = ({ insights }) => {
-    const { data, openModelPerformanceModal } = useAnalysis();
+    const { data, openModelPerformanceModal, openPromptDetailModal } = useAnalysis();
     const [openSections, setOpenSections] = useState<Set<string>>(new Set());
     const [selectedSystemPrompt, setSelectedSystemPrompt] = useState<number | null>(null);
 
@@ -309,6 +309,10 @@ export const StructuredSummary: React.FC<StructuredSummaryProps> = ({ insights }
         e.preventDefault();
         const systemIndex = href.substring('#system-prompt:'.length);
         openSystemPromptModal(parseInt(systemIndex));
+      } else if (href && href.startsWith('#prompt-detail:')) {
+        e.preventDefault();
+        const promptId = href.substring('#prompt-detail:'.length);
+        openPromptDetailModal(promptId);
       }
     }
   };

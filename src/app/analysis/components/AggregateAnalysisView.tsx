@@ -151,6 +151,8 @@ export const AggregateAnalysisView: React.FC = () => {
     if (isSandbox) {
         return (
             <div className="space-y-8">
+                <SystemPromptsDisplay />
+                
                 <div className="flex items-center space-x-2 justify-end">
                   <Label htmlFor="macro-table-toggle">Show Macro Coverage Table</Label>
                   <Switch

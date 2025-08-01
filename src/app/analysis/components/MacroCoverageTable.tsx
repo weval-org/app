@@ -751,8 +751,8 @@ const MacroCoverageTable: React.FC = () => {
                                 <SelectValue placeholder="Select sort order..." />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="alpha-asc">Prompt Text (A-Z)</SelectItem>
-                                <SelectItem value="alpha-desc">Prompt Text (Z-A)</SelectItem>
+                                <SelectItem value="alpha-asc">Prompt ID (A-Z)</SelectItem>
+                                <SelectItem value="alpha-desc">Prompt ID (Z-A)</SelectItem>
                                 <SelectItem value="coverage-desc">Highest Avg. Coverage</SelectItem>
                                 <SelectItem value="coverage-asc">Lowest Avg. Coverage</SelectItem>
                                 <SelectItem value="disagreement-desc">Highest Performance Variance</SelectItem>

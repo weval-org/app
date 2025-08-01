@@ -143,7 +143,27 @@ describe('Executive Summary Service - Opaque ID System', () => {
             const result = deanonymizeModelNamesInText(text, mapping);
             
             expect(result).toContain('[System 0](#system-prompt:0) system prompt');
-            expect(result).toContain('temp:0.7 was too creative');
+            expect(result).toContain('temperature 0.7 was too creative');
+        });
+
+        test('should handle prompt ref tags', () => {
+            const text = `The model struggled with <ref prompt="uk-clinical-scenario-1-hypertension-formulary-nuance" /> specifically.`;
+            
+            const result = deanonymizeModelNamesInText(text, mapping);
+            
+            expect(result).toContain('[uk-clinical-scenario-1-hypertension-formulary-nuance](#prompt-detail:uk-clinical-scenario-1-hypertension-formulary-nuance)');
+        });
+
+        test('should handle model-only ref tags', () => {
+            const openaiAnon = mapping.realToAnonymized.get('openai:gpt-4o')!;
+            const claudeAnon = mapping.realToAnonymized.get('anthropic:claude-3-sonnet[sys:0]')!;
+            
+            const text = `Models like <ref model="${openaiAnon.model}" /> and <ref model="${claudeAnon.model}" /> performed differently.`;
+            
+            const result = deanonymizeModelNamesInText(text, mapping);
+            
+            expect(result).toContain('[gpt-4o](#model-perf:openai:gpt-4o)');
+            expect(result).toContain('[claude-3-sonnet](#model-perf:anthropic:claude-3-sonnet[sys:0])');
         });
 
         test('should leave unrecognized ref tags unchanged', () => {

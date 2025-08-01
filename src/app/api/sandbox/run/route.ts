@@ -25,7 +25,7 @@ const DEFAULT_ADVANCED_MODELS = [
     'openrouter:google/gemini-flash-1.5'
 ];
 
-const SANDBOX_V2_TEMP_DIR = 'sandbox';
+const SANDBOX_V2_TEMP_DIR = 'live/sandbox';
 
 // S3 Client Initialization
 const s3Client = new S3Client({
@@ -89,6 +89,7 @@ export async function POST(req: NextRequest) {
     } else {
       finalModels = [QUICK_RUN_MODEL];
       evaluationConfig = {
+        'embedding': {},
         'llm-coverage': {
           judges: [{ model: QUICK_RUN_JUDGE, approach: 'standard' }]
         }

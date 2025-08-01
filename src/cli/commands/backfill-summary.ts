@@ -23,6 +23,8 @@ import {
     calculatePerModelScoreStatsForRun,
     calculateAverageHybridScoreForRun,
     calculateTopicChampions,
+    processExecutiveSummaryGrades,
+    processTopicData,
 } from '../utils/summaryCalculationUtils';
 import { calculateStandardDeviation } from '../../app/utils/calculationUtils';
 import { fromSafeTimestamp } from '../../lib/timestampUtils';
@@ -106,30 +108,7 @@ async function actionBackfillSummary(options: { verbose?: boolean; configId?: st
                     // --- Process Executive Summary Grades ---
                     // Only process grades from the latest run per config for dimension leaderboards
                     if (resultData.executiveSummary?.structured?.grades && runInfo.fileName === latestRunInfo.fileName) {
-                        for (const gradeInfo of resultData.executiveSummary.structured.grades) {
-                            const { baseId: modelId } = parseEffectiveModelId(gradeInfo.modelId);
-                            if (!modelDimensionGrades.has(modelId)) {
-                                modelDimensionGrades.set(modelId, new Map());
-                            }
-                            const modelGrades = modelDimensionGrades.get(modelId)!;
-
-                            for (const [dimension, score] of Object.entries(gradeInfo.grades)) {
-                                if (score > 0) { // Only count valid, non-zero grades
-                                    const current = modelGrades.get(dimension) || { totalScore: 0, count: 0, uniqueConfigs: new Set(), scores: [] };
-                                    current.totalScore += score;
-                                    current.count++;
-                                    current.uniqueConfigs.add(resultData.configId);
-                                    current.scores.push({
-                                        score,
-                                        configTitle: resultData.configTitle || resultData.config.title || resultData.configId,
-                                        runLabel: resultData.runLabel,
-                                        timestamp: resultData.timestamp,
-                                        configId: resultData.configId,
-                                    });
-                                    modelGrades.set(dimension, current);
-                                }
-                            }
-                        }
+                        processExecutiveSummaryGrades(resultData, modelDimensionGrades, logger);
                     }
 
                     // --- Process All Tags for Topic Champions ---
@@ -140,42 +119,16 @@ async function actionBackfillSummary(options: { verbose?: boolean; configId?: st
                     if (allTags.length > 0 && runInfo.fileName === latestRunInfo.fileName) {
                         const perModelScores = calculatePerModelScoreStatsForRun(resultData);
                         
-                        const logLines: string[] = [];
                         if (options.verbose) {
+                            const logLines: string[] = [];
                             logLines.push(`  [VERBOSE] Tags for ${runInfo.fileName}:`);
                             logLines.push(`    - Manual: [${manualTags.join(', ')}]`);
                             logLines.push(`    - Auto:   [${(autoTags || []).join(', ')}]`);
                             logLines.push(`    - Unified: [${allTags.join(', ')}]`);
-                        }
-
-                        perModelScores.forEach((scoreData, modelId) => {
-                            if (scoreData.hybrid.average !== null && scoreData.hybrid.average !== undefined) {
-                                const { baseId } = parseEffectiveModelId(modelId);
-                                if (options.verbose) {
-                                    logLines.push(`      - Model ${baseId} scored ${scoreData.hybrid.average.toFixed(4)}, applied to topics.`);
-                                }
-                                allTags.forEach((topic: string) => {
-                                    const currentTopicData = topicModelScores.get(topic) || new Map();
-                                    const currentModelData = currentTopicData.get(baseId) || { scores: [], uniqueConfigs: new Set() };
-                                    
-                                    currentModelData.scores.push({
-                                        score: scoreData.hybrid.average,
-                                        configId: resultData.configId,
-                                        configTitle: resultData.configTitle || resultData.config.title || resultData.configId,
-                                        runLabel: resultData.runLabel,
-                                        timestamp: resultData.timestamp,
-                                    });
-                                    currentModelData.uniqueConfigs.add(resultData.configId);
-
-                                    currentTopicData.set(baseId, currentModelData);
-                                    topicModelScores.set(topic, currentTopicData);
-                                });
-                            }
-                        });
-
-                        if (options.verbose && logLines.length > 3) { // Only log if there's more than just the header
                             logger.info(logLines.join('\n'));
                         }
+
+                        processTopicData(resultData, perModelScores, topicModelScores, logger);
                     }
 
 
@@ -534,4 +487,5 @@ export const backfillSummaryCommand = new Command('backfill-summary')
     .option('--dry-run', 'Log what would be saved without writing any files.')
     .action(actionBackfillSummary);
 
+// Export the core function so other commands can use the exact same logic
 export { actionBackfillSummary }; 

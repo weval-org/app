@@ -111,7 +111,7 @@ This toolkit supports two primary workflows: a local, manual workflow for develo
 This is the recommended method for creating and testing new blueprints.
 
 1.  **Create Blueprint**: Define your tests in a local YAML or JSON file.
-2.  **Execute**: Run `pnpm cli run-config ...`. This generates responses and evaluations, saving them to a local `_comparison.json` file in the `/.results/` directory.
+2.  **Execute**: Run `pnpm cli run-config ...`. This generates responses and evaluations, saving them to a local `_comparison.json` file in the `/.results/` directory. By default, only the evaluation runs and per-config summary is updated. Use `--update-summaries` to also update platform-wide leaderboards and model summaries.
 3.  **Analyze**: Start the web dashboard (`pnpm dev`) to view the local results.
 
 **2. Automated Deployed Workflow**
@@ -140,6 +140,7 @@ pnpm cli run-config local --config path/to/your_blueprint.yml --run-label <your_
 -   `--eval-method <methods>`: Comma-separated methods. Defaults to `embedding`. (`embedding`, `llm-coverage`, `all`).
 -   `--cache`: Enables caching for model responses.
 -   `--collections-repo-path <path>`: Path to a local `weval/configs` repo to resolve model collections.
+-   `--update-summaries`: Updates platform-wide summaries (homepage, model leaderboards, etc.) after the evaluation. **Default: false** (only runs the evaluation and updates per-config summary).
 
 **2. Run with a blueprint from GitHub by name:**
 
@@ -148,6 +149,7 @@ pnpm cli run-config github --name udhr-misattribution-absurd-framing --run-label
 ```
 
 -   `--name <name>`: **(Required)** Name of the blueprint in the `weval/configs` repo (without extension). Can include subdirectories, e.g., `subdir/my-blueprint`.
+-   `--update-summaries`: Updates platform-wide summaries (homepage, model leaderboards, etc.) after the evaluation. **Default: false** (only runs the evaluation and updates per-config summary).
 
 ### `generate-search-index`
 

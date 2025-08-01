@@ -222,7 +222,7 @@ export const handler: BackgroundHandler = async (event) => {
         ContentType: 'application/json',
     }));
 
-    const resultUrl = `/${directory}/results/${runId}`;
+    const resultUrl = `/sandbox/results/${runId}`;
     await updateStatus('complete', 'Run finished!', { resultUrl });
 
   } catch (error: any) {

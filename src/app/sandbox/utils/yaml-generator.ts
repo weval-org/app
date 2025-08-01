@@ -110,6 +110,11 @@ export function generateMinimalBlueprintYaml(config: ComparisonConfig): string {
             newPrompt.promptText = p.promptText;
         }
 
+        // Preserve system prompt at the prompt level
+        if (p.system) {
+            newPrompt.system = p.system;
+        }
+
         return newPrompt;
     });
 

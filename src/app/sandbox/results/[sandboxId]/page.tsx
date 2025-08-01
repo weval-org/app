@@ -15,7 +15,7 @@ interface SandboxResultsPageProps {
 // Ensure the page is not cached and rendered dynamically
 export const revalidate = 0;
 
-const CREATOR_TEMP_DIR = 'sandbox';
+const CREATOR_TEMP_DIR = 'live/sandbox';
 
 const s3Client = new S3Client({
   region: process.env.APP_S3_REGION!,
@@ -37,6 +37,11 @@ const streamToString = (stream: Readable): Promise<string> =>
 async function getSandboxResult(runId: string): Promise<ComparisonDataV2 | null> {
     const resultKey = `${CREATOR_TEMP_DIR}/runs/${runId}/_comparison.json`;
 
+    // Development logging
+    if (process.env.NODE_ENV === 'development') {
+        console.log(`[Sandbox Results] Looking for result file at: ${resultKey}`);
+    }
+
     try {
         const command = new GetObjectCommand({
             Bucket: process.env.APP_S3_BUCKET_NAME!,
@@ -46,7 +51,18 @@ async function getSandboxResult(runId: string): Promise<ComparisonDataV2 | null>
         
         if (Body) {
             const content = await streamToString(Body as Readable);
-            return JSON.parse(content);
+            const parsedData = JSON.parse(content);
+            
+            // Development logging for debugging system prompts
+            if (process.env.NODE_ENV === 'development') {
+                console.log(`[Sandbox Results] Loaded data for ${runId}:`);
+                console.log(`[Sandbox Results] Config.systems:`, parsedData?.config?.systems);
+                console.log(`[Sandbox Results] Config.system:`, parsedData?.config?.system);
+                console.log(`[Sandbox Results] Has systems array:`, Array.isArray(parsedData?.config?.systems));
+                console.log(`[Sandbox Results] Systems length:`, parsedData?.config?.systems?.length);
+            }
+            
+            return parsedData;
         } else {
             return null;
         }

@@ -561,8 +561,8 @@ export function generateMarkdownReport(data: WevalResult, maxCharacters?: number
  * Generates a markdown report for anonymized data, using anonymized system prompt references
  * to prevent leakage to the executive summary LLM.
  */
-export function generateMarkdownReportAnonymized(data: WevalResult, maxCharacters?: number, sysMapping?: Map<number, string>): string {
-    const fullMarkdown = buildMarkdownAnonymized(data, 1.0, sysMapping);
+export function generateMarkdownReportAnonymized(data: WevalResult, maxCharacters?: number, sysMapping?: Map<number, string>, tempMapping?: Map<number, string>): string {
+    const fullMarkdown = buildMarkdownAnonymized(data, 1.0, sysMapping, tempMapping);
 
     if (!maxCharacters || fullMarkdown.length <= maxCharacters) {
         return fullMarkdown;
@@ -588,10 +588,10 @@ export function generateMarkdownReportAnonymized(data: WevalResult, maxCharacter
     const budgetForResponses = maxCharacters - staticChars;
     const truncationRatio = budgetForResponses / totalResponseChars;
     
-    return buildMarkdownAnonymized(data, truncationRatio, sysMapping);
+    return buildMarkdownAnonymized(data, truncationRatio, sysMapping, tempMapping);
 }
 
-function buildMarkdownAnonymized(data: WevalResult, truncationRatio: number = 1.0, sysMapping?: Map<number, string>): string {
+function buildMarkdownAnonymized(data: WevalResult, truncationRatio: number = 1.0, sysMapping?: Map<number, string>, tempMapping?: Map<number, string>): string {
     let md = ``;
 
     md += `# Evaluation Report: ${data.configTitle}\n\n`;
@@ -630,6 +630,14 @@ function buildMarkdownAnonymized(data: WevalResult, truncationRatio: number = 1.
             // Don't include the actual prompt content
         } else {
             md += `**System Prompt Strategy:** No global system prompt (models use default behavior)\n`;
+        }
+        
+        // Add temperature mapping if we have temperature variations
+        if (tempMapping && tempMapping.size > 0) {
+            md += `**Temperature References:**\n`;
+            for (const [realTemp, anonymizedId] of tempMapping.entries()) {
+                md += `  ${anonymizedId}: temperature=${realTemp}\n`;
+            }
         }
     }
     

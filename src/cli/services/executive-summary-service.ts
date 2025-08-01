@@ -8,7 +8,7 @@ import { generateSystemPrompt, AnonymizedModelReference } from './executive-summ
 import { TOPICS } from '../../lib/topics';
 
 const SUMMARIZER_MODEL_ID = 'openrouter:google/gemini-2.5-flash';
-const MAX_CHARS = 400000; // ~130k tokens
+const MAX_CHARS = 500000; // ~130k tokens
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
@@ -343,6 +343,9 @@ export function deanonymizeModelNamesInText(
         } else if (attrs.maker && attrs.model) {
             // Base model reference
             return generateBaseModelLink(attrs, mapping);
+        } else if (attrs.model) {
+            // Model-only reference (need to find the maker)
+            return generateModelOnlyReference(attrs.model, mapping);
         } else if (attrs.maker) {
             // Maker-only reference
             return generateMakerReference(attrs.maker, mapping);
@@ -352,6 +355,9 @@ export function deanonymizeModelNamesInText(
         } else if (attrs.temp) {
             // Temperature reference
             return generateTempReference(attrs.temp, mapping);
+        } else if (attrs.prompt) {
+            // Prompt reference
+            return generatePromptReference(attrs.prompt);
         }
 
         // If we can't parse it, return unchanged
@@ -458,12 +464,36 @@ function generateSysReference(sysId: string, mapping: ModelAnonymizationMapping)
     return `<ref sys="${sysId}" />`;
 }
 
+function generateModelOnlyReference(modelId: string, mapping: ModelAnonymizationMapping): string {
+    // Find any real model ID that has this model component
+    for (const [realId, anon] of mapping.realToAnonymized.entries()) {
+        if (anon.model === modelId) {
+            const parsed = parseEffectiveModelId(realId);
+            const displayName = getModelDisplayLabel(parsed.baseId, { 
+                prettifyModelName: false, // Keep original casing
+                hideProvider: true, 
+                hideModelMaker: true 
+            });
+            
+            return `[${displayName}](#model-perf:${realId})`;
+        }
+    }
+    
+    return `<ref model="${modelId}" />`;
+}
+
 function generateTempReference(tempId: string, mapping: ModelAnonymizationMapping): string {
     const realTemp = mapping.tempToReal.get(tempId);
     if (realTemp !== undefined) {
-        return `temp:${realTemp}`;
+        return `temperature ${realTemp}`;
     }
     return `<ref temp="${tempId}" />`;
+}
+
+function generatePromptReference(promptId: string): string {
+    // Create a clickable link that will trigger the prompt detail modal
+    // The promptId should be used as-is since it's already the real prompt ID
+    return `[${promptId}](#prompt-detail:${promptId})`;
 }
 
 /**
@@ -631,7 +661,15 @@ export async function generateExecutiveSummary(
         }
     }
     
-    const markdownReport = generateMarkdownReportAnonymized(anonymizedResultData, MAX_CHARS, sysIndexToAnonymizedId);
+    // Create a reverse mapping from temperature to anonymized ID
+    const tempToAnonymizedId = new Map<number, string>();
+    for (const [anonymizedId, realTemp] of anonymizationMapping.tempToReal.entries()) {
+        if (typeof realTemp === 'number') {
+            tempToAnonymizedId.set(realTemp, anonymizedId);
+        }
+    }
+    
+    const markdownReport = generateMarkdownReportAnonymized(anonymizedResultData, MAX_CHARS, sysIndexToAnonymizedId, tempToAnonymizedId);
         
         if (markdownReport.length > MAX_CHARS + 100) { 
             logger.warn(`Markdown report was truncated to ~${markdownReport.length} characters for summary generation.`);
@@ -665,7 +703,7 @@ export async function generateExecutiveSummary(
             messages: [{ role: 'user', content: userMessage }],
             systemPrompt: systemPrompt,
             temperature: 0.1,
-            maxTokens: 20000,
+            maxTokens: 30000,
             useCache: true,
         });
 
@@ -673,8 +711,9 @@ export async function generateExecutiveSummary(
         logger.info(`=== LLM OUTPUT DEBUG ===`);
         logger.info(`LLM response length: ${summaryText?.length || 0} chars`);
         if (summaryText) {
-            const sampleResponse = summaryText.substring(0, 1000);
-            logger.info(`Sample of LLM response: ${sampleResponse}...`);
+            logger.info(`Sample of LLM response (first 1000 chars): ${summaryText.substring(0, 1000)}...`);
+            logger.info('--------------------------------');
+            logger.info(`Sample of LLM response (last 2000 chars): ${summaryText.substring(summaryText.length - 2000)}...`);
         }
 
         if (!summaryText || summaryText.trim() === '') {

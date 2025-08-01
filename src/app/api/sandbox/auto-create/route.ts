@@ -32,10 +32,18 @@ ${EXPERT_PREAMBLE} Your task is to take a user's high-level goal and convert it 
     *   **CRITICAL:** The prompts must be standalone questions or challenges. They must not refer to "the article," "the provided text," or any other context outside of the prompt itself. They should be directly usable to test a model's general knowledge.
 3.  **Define High-Quality Criteria (CRITICAL):** For each prompt, you must define 'points' criteria.
 ${CRITERIA_QUALITY_INSTRUCTION}
-4.  **Generate JSON Structure:** Output a complete blueprint configuration as JSON.
-5.  **JSON Structure Format:**
+4.  **System Prompts (Optional - Use Sparingly):** Only include a 'systems' array if:
+    *   The user explicitly asks for different personas, roles, or system prompt variants, OR
+    *   The nature of the evaluation specifically benefits from testing different system prompt approaches (e.g., comparing formal vs casual communication, expert vs general assistant behavior)
+    *   **Default behavior:** Most blueprints should NOT include system prompts. Only add them when they genuinely enhance the testing goals.
+    *   **If including systems:** Create 2-3 meaningful variants that test different aspects relevant to the user's goal:
+        - Different expertise levels: "You are a helpful assistant" vs "You are an expert [domain] specialist"
+        - Different communication styles: formal vs casual, technical vs accessible
+        - Different roles: teacher vs consultant vs peer
+5.  **Generate JSON Structure:** Output a complete blueprint configuration as JSON.
+6.  **JSON Structure Format:**
 ${FULL_BLUEPRINT_JSON_STRUCTURE}
-6.  **Output Format:**
+7.  **Output Format:**
 ${JSON_OUTPUT_INSTRUCTION}
 
 ${AUTO_CREATE_EXAMPLE}
@@ -84,7 +92,23 @@ export async function POST(req: NextRequest) {
             throw new Error(`The YAML generation model returned an error: ${generatedYaml}`);
         }
 
+        // Development-only logging for debugging
+        if (process.env.NODE_ENV === 'development') {
+            logger.info('[Auto-Create] Raw AI Response Debug:');
+            logger.info('Generated Response Length: ' + generatedYaml.length);
+            logger.info('Raw Response: ' + generatedYaml);
+        }
+
         const configParseResult = await parseWevalConfigFromResponse(generatedYaml);
+
+        // Development-only logging for parsed result
+        if (process.env.NODE_ENV === 'development') {
+            logger.info('[Auto-Create] Parsed Result Debug:');
+            logger.info('Parsed Data: ' + JSON.stringify(configParseResult.data, null, 2));
+            logger.info('Generated YAML: ' + configParseResult.yaml);
+            logger.info('Systems field in parsed data: ' + JSON.stringify(configParseResult.data?.systems));
+            logger.info('System field in parsed data: ' + JSON.stringify(configParseResult.data?.system));
+        }
 
         return NextResponse.json({ 
             yaml: configParseResult.yaml, 

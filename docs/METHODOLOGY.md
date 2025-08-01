@@ -145,14 +145,14 @@ The homepage displays several aggregate statistics, including a leaderboard of t
 *   **Metric**: Models are ranked by their **Overall Average Hybrid Score**.
 *   **Blueprint Weighting**: To ensure that each evaluation blueprint contributes equally to the final rankings, the leaderboard calculation uses only the **single most recent run** of each unique blueprint. This prevents blueprints that are run more frequently from having an outsized influence on the results.
 *   **Calculation**: For each model, the system takes its average Hybrid Score from the latest run of every blueprint it participated in. These scores are then averaged to produce the final `overallAverageScore` used for ranking.
-*   **Participation Threshold**: To ensure statistical significance and prevent models from being ranked based on performance in only a few, specialized tests, a model must have participated in a minimum of **10 evaluation runs** to be included on the leaderboard.
+*   **Participation Threshold**: To ensure statistical significance and prevent models from being ranked based on performance in only a few, specialized tests, a model must have participated in a minimum of **10 unique evaluation blueprints** to be included on the leaderboard.
 
 ### 5.4. Dimension Champions
 
 The "Dimension Champions" section of the homepage highlights models that exhibit exceptional performance in specific qualitative areas.
 
 *   **Data Source**: This metric is derived exclusively from the structured `grades` provided in the `executiveSummary` of evaluation runs. In these runs, a "judge" LLM assigns a 1-10 score to a model's response across various dimensions (e.g., Clarity, Adherence, Safety).
-*   **Eligibility Criteria**: To qualify as a potential champion for a specific dimension, a model must have been graded for that dimension in at least **10 unique evaluation blueprints (configs)**. This ensures that a champion has demonstrated broad, cross-domain competence rather than narrow excellence on a single task.
+*   **Eligibility Criteria**: To qualify as a potential champion for a specific dimension, a model must have been graded for that dimension in at least **5 unique evaluation blueprints (configs)**. This ensures that a champion has demonstrated broad, cross-domain competence rather than narrow excellence on a single task.
 *   **Champion Selection**: For each dimension, the system calculates the average score for all eligible models. The model with the highest average score is declared the "Dimension Champion" for that category.
 
 ### 5.5. Qualitative Analysis via Executive Summary

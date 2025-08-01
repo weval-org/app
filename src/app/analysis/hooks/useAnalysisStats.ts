@@ -137,7 +137,18 @@ export const useAnalysisStats = (data: ComparisonDataV2 | null): AnalysisStats =
         const { evaluationResults, effectiveModels, promptIds, config } = data;
         const llmCoverageScores = evaluationResults?.llmCoverageScores as Record<string, Record<string, ImportedCoverageResult>> | undefined;
         
-        if (config.systems && config.systems.length > 1 && evaluationResults?.perPromptSimilarities && llmCoverageScores && effectiveModels && promptIds) {
+        // Development debugging
+        if (process.env.NODE_ENV === 'development') {
+            console.log('[useAnalysisStats] perSystemVariantHybridScores calculation:');
+            console.log('[useAnalysisStats] config.systems:', config.systems);
+            console.log('[useAnalysisStats] config.systems.length:', config.systems?.length);
+            console.log('[useAnalysisStats] perPromptSimilarities exists:', !!evaluationResults?.perPromptSimilarities);
+            console.log('[useAnalysisStats] llmCoverageScores exists:', !!llmCoverageScores);
+            console.log('[useAnalysisStats] effectiveModels:', effectiveModels);
+            console.log('[useAnalysisStats] promptIds:', promptIds);
+        }
+        
+        if (config.systems && config.systems.length > 1 && llmCoverageScores && effectiveModels && promptIds) {
             for (let i = 0; i < config.systems.length; i++) {
                 const modelsForVariant = effectiveModels.filter(modelId => {
                     const { systemPromptIndex } = parseEffectiveModelId(modelId);

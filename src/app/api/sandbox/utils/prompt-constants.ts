@@ -22,6 +22,7 @@ export const JSON_OUTPUT_INSTRUCTION = `
 export const FULL_BLUEPRINT_JSON_STRUCTURE = `
 *   \`title\`: string - blueprint title
 *   \`description\`: string - blueprint description  
+*   \`systems\`: array of strings (optional) - multiple system prompt variants to test. Each variant will be evaluated separately, allowing comparison of how different system prompts affect model performance
 *   \`models\`: array of strings - can be empty []
 *   \`prompts\`: array of prompt objects with:
     - \`id\`: unique identifier string
@@ -45,6 +46,10 @@ export const AUTO_CREATE_EXAMPLE = `
 {
   "title": "Concept Explanation and Recipe Generation",
   "description": "Tests a model's ability to explain concepts and to provide recipes directly or ask clarifying questions.",
+  "systems": [
+    "You are a helpful assistant. Provide clear, concise responses that are accessible to a general audience.",
+    "You are an expert educator. Break down complex topics into simple, understandable explanations suitable for beginners."
+  ],
   "models": [],
   "prompts": [
     {
@@ -76,6 +81,8 @@ export const AUTO_CREATE_EXAMPLE = `
   ]
 }
 </JSON>
+
+Note: This example includes 'systems' because the user's goal involves testing "simple explanations" - comparing how different educational approaches (general assistant vs expert educator) affect the clarity of explanations. For most blueprints, you should omit the 'systems' field entirely.
 `;
 
 export const AUTO_EXTEND_EXAMPLE = `
@@ -104,4 +111,4 @@ export const AUTO_EXTEND_EXAMPLE = `
   }
 ]
 </JSON>
-`; 
+`;

@@ -9,15 +9,25 @@ export interface AnonymizedModelReference {
 }
 
 export function generateSystemPrompt(anonymizedModels: AnonymizedModelReference[]): string {
-    // Create the list of models for grading instructions
+    // Detect what permutations exist in the data
+    const hasSysVariations = anonymizedModels.some(model => model.sys);
+    const hasTempVariations = anonymizedModels.some(model => model.temp);
+    
+    // Create the list of models for grading instructions in exact XML format
     const gradingModelList = anonymizedModels
         .map(anon => {
-            let id = `${anon.maker} ${anon.model}`;
-            if (anon.sys) id += ` ${anon.sys}`;
-            if (anon.temp) id += ` ${anon.temp}`;
-            return `- ${id}`;
+            let attributes = `maker="${anon.maker}" model="${anon.model}"`;
+            if (anon.sys) attributes += ` sys="${anon.sys}"`;
+            if (anon.temp) attributes += ` temp="${anon.temp}"`;
+            return `<grade ${attributes}>...</grade>`;
         })
         .join('\n');
+        
+    // Generate the example format based on what actually exists
+    let exampleFormat = `<grade maker="..." model="..."`;
+    if (hasSysVariations) exampleFormat += ` sys="..."`;
+    if (hasTempVariations) exampleFormat += ` temp="..."`;
+    exampleFormat += `>`;
 
     return `You are an expert AI analyst. The following is a markdown report of a comprehensive evaluation run comparing multiple large language models on a specific set of tasks. Your goal is to synthesize this data and extract the most important, actionable insights for a human reader.
 
@@ -25,13 +35,14 @@ You must provide your analysis using specific XML-like tags to structure your re
 
 === PART 1: QUALITATIVE ANALYSIS ===
 
-For this analysis section, when you refer to models, makers, system prompts, or temperatures, you MUST use the <ref /> tag format. Here are the rules:
+For this analysis section, when you refer to models, makers${hasSysVariations ? ', system prompts' : ''}${hasTempVariations ? ', or temperatures' : ''}, you MUST use the <ref /> tag format. Here are the rules:
 
 • To refer to a MAKER: <ref maker="MK_XXXX" />
 • To refer to a BASE MODEL: <ref maker="MK_XXXX" model="MD_YYYY" />
-• To refer to a SPECIFIC VARIANT: <ref maker="MK_XXXX" model="MD_YYYY" sys="S_ZZZZ" temp="T_WWWW" />
-• To refer to just a SYSTEM PROMPT: <ref sys="S_ZZZZ" />
-• To refer to just a TEMPERATURE: <ref temp="T_WWWW" />
+${hasSysVariations || hasTempVariations ? `• To refer to a SPECIFIC VARIANT: <ref maker="MK_XXXX" model="MD_YYYY"${hasSysVariations ? ' sys="S_ZZZZ"' : ''}${hasTempVariations ? ' temp="T_WWWW"' : ''} />` : ''}
+${hasSysVariations ? '• To refer to just a SYSTEM PROMPT: <ref sys="S_ZZZZ" />' : ''}
+${hasTempVariations ? '• To refer to just a TEMPERATURE: <ref temp="T_WWWW" />' : ''}
+• To refer to a SPECIFIC PROMPT: <ref prompt="prompt-id" />
 
 Use the following tags for your analysis:
 
@@ -49,9 +60,9 @@ For interesting patterns (clusters, temperature sensitivity, oddities, system pr
 
 === PART 2: QUANTITATIVE GRADING ===
 
-For this grading section, you MUST provide a grade block for EVERY SINGLE model variant that participated in this evaluation. Use the following format:
+For this grading section, you MUST provide a grade block for EVERY SINGLE model listed below. Each model entry should be graded independently based on its performance in the evaluation. Use the following format:
 
-<grade maker="MK_XXXX" model="MD_YYYY" sys="S_ZZZZ" temp="T_WWWW">
+${exampleFormat}
 INSTRUCTION ADHERENCE & RELEVANCE: X/10
 CLARITY & READABILITY: X/10
 TONE & STYLE: X/10
@@ -66,7 +77,7 @@ PERSUASIVENESS & ARGUMENTATION (LOGOS): X/10
 EFFICIENCY & SUCCINCTNESS: X/10
 </grade>
 
-CRITICAL: You MUST provide a grade block for each of these specific models (using the exact attribute combinations shown):
+CRITICAL: You MUST provide a grade block for each model entry below using the EXACT attribute combinations shown (replace "..." with the actual grades):
 
 ${gradingModelList}
 
@@ -82,11 +93,11 @@ ${TOPICS.join(',\n')}
 
 === IMPORTANT ANALYSIS CONSIDERATIONS ===
 
-- The anonymized model names give you clues about their relationships. Models with the same maker ID come from the same company. Models with the same sys ID use identical system prompts. Models with the same temp ID use identical temperature settings.
-- Pay close attention to the "System Prompt Strategy" section - this tells you whether the evaluation tested different system prompts, used a single global prompt, or used default model behavior
+- The anonymized model names give you clues about their relationships. Models with the same maker ID come from the same company.${hasSysVariations ? ' Models with the same sys ID use identical system prompts.' : ''}${hasTempVariations ? ' Models with the same temp ID use identical temperature settings.' : ''}
+${hasSysVariations ? `- Pay close attention to the "System Prompt Strategy" section - this tells you whether the evaluation tested different system prompts, used a single global prompt, or used default model behavior
 - When system prompt permutations were tested, consider whether performance differences might be attributable to prompting strategy rather than inherent model capabilities  
 - Look for patterns related to system prompt effectiveness across different models
-- Consider how the system prompt strategy might influence your interpretation of the results
+- Consider how the system prompt strategy might influence your interpretation of the results` : '- Pay close attention to the "System Prompt Strategy" section for context about how models were configured'}
 
 ${generateGradingCriteriaText()}
 
@@ -95,13 +106,13 @@ ${ENHANCED_SCORING_GUIDANCE}
 ${GRADING_INSTRUCTIONS}
 
 === FINAL IMPORTANT REQUIREMENTS ===
-1. You MUST analyze ALL models that participated in this evaluation. Each variant (including different system prompts or temperatures) should be considered independently.
+1. You MUST analyze ALL models that participated in this evaluation.${hasSysVariations || hasTempVariations ? ` Each model entry${hasSysVariations && hasTempVariations ? ' (including different system prompts and temperatures)' : hasSysVariations ? ' (including different system prompts)' : ' (including different temperatures)'} should be considered independently.` : ''}
 2. You MUST provide grades for EVERY model listed above—no exceptions.
 3. Be highly specific, using verbatim quotes and specific examples from the evaluation.
 4. Focus on actionable insights that would help someone choose between these models.
 5. Each grade should be based on evidence from the evaluation data.
-6. Consider the system prompt strategy when interpreting performance differences—note if results might be influenced by prompting choices rather than model capabilities.
-7. For Part 1 (analysis), use <ref /> tags consistently. For Part 2 (grading), use the exact attribute format shown in the model list.
+${hasSysVariations ? '6. Consider the system prompt strategy when interpreting performance differences—note if results might be influenced by prompting choices rather than model capabilities.' : ''}
+${hasSysVariations ? '7.' : '6.'} For Part 1 (analysis), use <ref /> tags consistently. For Part 2 (grading), use the exact attribute format shown in the model list.
 
 Please provide multiple instances of each tag type as appropriate. Each tag should contain substantive, specific content rather than generic observations.`;
 } 
