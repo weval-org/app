@@ -45,13 +45,15 @@ export interface TopicChampionInfo {
   modelId: string;
   averageScore: number;
   uniqueConfigsCount: number;
-  contributingRuns: Array<{
-    configId: string;
-    configTitle: string;
-    runLabel: string;
-    timestamp: string;
-    score: number;
-  }>;
+  contributingRuns: ContributingRunInfo[];
+}
+
+export interface ContributingRunInfo {
+  configId: string;
+  configTitle: string;
+  runLabel: string;
+  timestamp: string;
+  score: number;
 }
 
 export interface AggregateStatsData {

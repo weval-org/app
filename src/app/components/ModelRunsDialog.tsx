@@ -8,7 +8,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from '@/components/ui/sheet';
-import { TopModelStatInfo } from './AggregateStatsDisplay';
+import { TopModelStatInfo } from './home/types';
 import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import Link from 'next/link';
 import Icon from '@/components/ui/icon';

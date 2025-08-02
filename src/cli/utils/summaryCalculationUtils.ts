@@ -655,7 +655,7 @@ export function calculateTopicChampions(
  */
 export function processExecutiveSummaryGrades(
   resultData: WevalResult,
-  modelDimensionGrades: Map<string, Map<string, { totalScore: number; count: number; uniqueConfigs: Set<string>; scores: Array<{ score: number; configTitle: string; runLabel: string; timestamp: string; configId: string; }> }>>,
+  modelDimensionGrades: Map<string, Map<string, { totalScore: number; count: number; uniqueConfigs: Set<string>; scores: Array<{ score: number | null; configTitle: string; runLabel: string; timestamp: string; configId: string; }> }>>,
   logger?: SimpleLogger
 ): void {
   if (!resultData.executiveSummary?.structured?.grades) {
@@ -674,7 +674,7 @@ export function processExecutiveSummaryGrades(
     const modelGrades = modelDimensionGrades.get(modelId)!;
 
     for (const [dimension, score] of Object.entries(gradeInfo.grades)) {
-      if (score > 0) { // Only count valid, non-zero grades
+      if (score !== null && score > 0) { // Only count valid, non-zero grades
         const current = modelGrades.get(dimension) || { totalScore: 0, count: 0, uniqueConfigs: new Set(), scores: [] };
         current.totalScore += score;
         current.count++;

@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Sheet,
   SheetContent,
@@ -11,7 +12,7 @@ import {
 import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import Link from 'next/link';
 import Icon from '@/components/ui/icon';
-import { TopicChampionInfo } from './AggregateStatsDisplay';
+import { TopicChampionInfo, ContributingRunInfo } from './home/types';
 import { prettifyTag } from '@/app/utils/tagUtils';
 import { fromSafeTimestamp } from '@/lib/timestampUtils';
 
@@ -23,7 +24,25 @@ interface TopicChampionDialogProps {
 }
 
 const TopicChampionDialog: React.FC<TopicChampionDialogProps> = ({ champion, topic, isOpen, onClose }) => {
-  if (!champion || !topic) return null;
+  const [showAllRuns, setShowAllRuns] = useState(false);
+  const router = useRouter();
+
+  if (!champion) return null;
+
+  const handleRunClick = (configId: string, runLabel: string, timestamp: string) => {
+    onClose(); // Close the dialog first
+    router.push(`/analysis/${configId}/${runLabel}/${timestamp}`);
+  };
+
+  const contributingConfigs = new Map<string, { title: string, runs: ContributingRunInfo[] }>();
+  if (champion.contributingRuns) {
+    champion.contributingRuns.forEach((run: ContributingRunInfo) => {
+      if (!contributingConfigs.has(run.configId)) {
+        contributingConfigs.set(run.configId, { title: run.configTitle, runs: [] });
+      }
+      contributingConfigs.get(run.configId)!.runs.push(run);
+    });
+  }
 
   const hasDetailedScores = champion.contributingRuns && champion.contributingRuns.length > 0;
 
@@ -45,7 +64,13 @@ const TopicChampionDialog: React.FC<TopicChampionDialogProps> = ({ champion, top
       <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
         <SheetHeader className="mb-6">
           <SheetTitle className="text-xl">
-            <span className="text-primary font-semibold">{prettifyTag(topic)}</span> - Top Dependable Model
+            {topic ? (
+              <>
+                Topic Champion for <span className="text-primary">{prettifyTag(topic)}</span>
+              </>
+            ) : (
+              'Topic Champion'
+            )}
           </SheetTitle>
           <SheetDescription>
             <strong className="text-foreground">{getModelDisplayLabel(champion.modelId)}</strong>{' '}

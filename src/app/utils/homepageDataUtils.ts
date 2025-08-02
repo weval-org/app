@@ -6,7 +6,7 @@ import {
   listConfigIds,
   getConfigSummary,
 } from '@/lib/storageService'; 
-import { AggregateStatsData } from '@/app/components/AggregateStatsDisplay';
+import { AggregateStatsData } from '@/app/components/home/types';
 import { PotentialDriftInfo } from '@/app/components/ModelDriftIndicator';
 
 // Re-exporting this from the original source for use in the API route.

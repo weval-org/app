@@ -15,6 +15,7 @@ import {
     calculateHeadlineStats,
     calculatePotentialModelDrift
 } from '../../src/cli/utils/summaryCalculationUtils';
+import { actionBackfillSummary } from "../../src/cli/commands/backfill-summary";
 import { populatePairwiseQueue } from "../../src/cli/services/pairwise-task-queue-service";
 import { normalizeTag } from "../../src/app/utils/tagUtils";
 import { CustomModelDefinition } from "../../src/lib/llm-clients/types";
@@ -140,45 +141,16 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
     // Only proceed if we have the new result data and a filename.
     if (newResultData && actualResultFileName && process.env.STORAGE_PROVIDER === 's3') { 
         try {
-            logger.info('Attempting to update homepage summary manifest with new calculations...');
-            const currentFullSummary = await getHomepageSummary(); // Fetches HomepageSummaryFileContent | null
+            logger.info('New evaluation run completed. Triggering full summary backfill to update all platform statistics...');
+            
+            // The backfill action reads all data from storage and regenerates all summaries (homepage, models, etc.) from scratch.
+            // This is the most robust way to ensure all stats are consistent and is the same logic used by the 'run-config --update-summaries' command.
+            await actionBackfillSummary({ verbose: false, dryRun: false });
 
-            // 1. Update the configs array part of the summary
-            const updatedConfigsArray = updateSummaryDataWithNewRun(
-                currentFullSummary?.configs || null, // Pass only the configs array
-                newResultData,
-                actualResultFileName
-            );
-
-            // 2. Recalculate headlineStats and driftDetectionResult using the newly updated configs array
-            const newHeadlineStats = calculateHeadlineStats(updatedConfigsArray, new Map());
-            const newDriftDetectionResult = calculatePotentialModelDrift(updatedConfigsArray);
-
-            // 3. Construct the complete new HomepageSummaryFileContent object
-            const newHomepageSummaryContent: HomepageSummaryFileContent = {
-                configs: updatedConfigsArray,
-                headlineStats: newHeadlineStats,
-                driftDetectionResult: newDriftDetectionResult,
-                lastUpdated: new Date().toISOString(),
-            };
-
-            await saveHomepageSummary(newHomepageSummaryContent);
-            logger.info('Homepage summary manifest updated successfully with re-calculated stats.');
-
-            // --- BEGIN: Populate Pairwise Task Queue ---
-            if (newResultData.config?.tags?.includes('_get_human_prefs')) {
-                try {
-                    logger.info('Found _get_human_prefs tag. Attempting to populate pairwise comparison task queue...');
-                    const queueResult = await populatePairwiseQueue(newResultData, { logger });
-                    logger.info(`Pairwise task queue processed. Added: ${queueResult.tasksAdded}, Total in queue: ${queueResult.totalTasksInQueue}`);
-                } catch (pairwiseError: any) {
-                    logger.error(`Failed to populate pairwise task queue: ${pairwiseError.message}`);
-                }
-            }
-            // --- END: Populate Pairwise Task Queue ---
+            logger.info('✅ Homepage summary, model summaries, and all related analytics rebuilt successfully.');
             
         } catch (summaryError: any) {
-            logger.error(`Failed to update homepage summary manifest: ${summaryError.message}`);
+            logger.error(`Failed to rebuild all summary files: ${summaryError.message}`);
             if (process.env.DEBUG && summaryError.stack) {
                 logger.error(`Summary update stack trace: ${summaryError.stack}`);
             }
