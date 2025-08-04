@@ -29,7 +29,7 @@ import {
 import { calculateStandardDeviation } from '../../app/utils/calculationUtils';
 import { fromSafeTimestamp } from '../../lib/timestampUtils';
 import { ModelRunPerformance, ModelSummary } from '@/types/shared';
-import { parseEffectiveModelId, getModelDisplayLabel } from '@/app/utils/modelIdUtils';
+import { parseModelIdForDisplay, getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import { populatePairwiseQueue } from '../services/pairwise-task-queue-service';
 import { normalizeTag } from '@/app/utils/tagUtils';
 
@@ -319,6 +319,7 @@ async function actionBackfillSummary(options: { verbose?: boolean; configId?: st
                 driftDetectionResult: driftDetectionResult,
                 topicChampions: topicChampions,
                 capabilityLeaderboards: headlineStats.capabilityLeaderboards || undefined,
+                capabilityRawData: headlineStats.capabilityRawData || undefined,
                 lastUpdated: new Date().toISOString(),
             };
 
@@ -354,7 +355,7 @@ async function actionBackfillSummary(options: { verbose?: boolean; configId?: st
                     if (run.perModelScores) {
                         run.perModelScores.forEach((scoreData, effectiveModelId) => {
                             if (scoreData.hybrid.average !== null && scoreData.hybrid.average !== undefined) {
-                                const { baseId } = parseEffectiveModelId(effectiveModelId);
+                                const { baseId } = parseModelIdForDisplay(effectiveModelId);
                                 const currentRuns = modelRunData.get(baseId) || [];
                                 currentRuns.push({
                                     configId: config.configId,

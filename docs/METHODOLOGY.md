@@ -147,11 +147,27 @@ The homepage displays several aggregate statistics, including a leaderboard of t
 *   **Calculation**: For each model, the system takes its average Hybrid Score from the latest run of every blueprint it participated in. These scores are then averaged to produce the final `overallAverageScore` used for ranking.
 *   **Participation Threshold**: To ensure statistical significance and prevent models from being ranked based on performance in only a few, specialized tests, a model must have participated in a minimum of **10 unique evaluation blueprints** to be included on the leaderboard.
 
-### 5.4. Capability Leaderboards (New)
+### 5.4. Model Identity Normalization
+
+For cleaner leaderboards and consolidated performance tracking, the platform applies model identity normalization during aggregation and display processes:
+
+**Model Variant Consolidation:**
+- Dated versions are normalized to base models (e.g., `grok-4-0709` → `grok-4`, `claude-3-5-haiku-20241022` → `claude-3-5-haiku`)
+- Preview/beta versions are consolidated (e.g., `gemini-2.5-flash-preview-05-20` → `gemini-2.5-flash`, `grok-3-mini-beta` → `grok-3-mini`)
+- Provider format variations are standardized (e.g., `openrouter:x-ai/grok-3` → `xai:grok-3`)
+
+**Scope and Preservation:**
+- **Raw data preservation**: Original model IDs are preserved unchanged in evaluation result files
+- **Aggregation-only**: Normalization affects only summary statistics, leaderboards, and model grouping for display
+- **Traceability**: Individual evaluation results can always be traced to their exact model variant
+
+**Rationale:** This consolidation prevents model variants that represent the same underlying model capability from fragmenting leaderboard positions, providing users with cleaner, more meaningful performance comparisons while maintaining full data integrity for detailed analysis.
+
+### 5.5. Capability Leaderboards (New)
 
 The "Capability Leaderboards" represent a simplified, high-level aggregation system designed to present model performance across broad, intuitive categories rather than the granular dimension-by-dimension or topic-by-topic breakdowns.
 
-#### 5.4.1. Motivation and Design Philosophy
+#### 5.5.1. Motivation and Design Philosophy
 
 Traditional leaderboards can overwhelm users with dozens of individual metrics across different dimensions and topics. The capability leaderboards address this by grouping related performance indicators into 5-7 broad "capability buckets" that represent areas most users care about:
 
@@ -161,7 +177,7 @@ Traditional leaderboards can overwhelm users with dozens of individual metrics a
 * **Trustworthiness & Accuracy**: Reliability and factual correctness
 * **Civic & Legal Knowledge**: Understanding of legal, political, and social systems
 
-#### 5.4.2. Data Sources and Methodology
+#### 5.5.2. Data Sources and Methodology
 
 Each capability bucket combines two distinct data sources using weighted averaging:
 
@@ -177,7 +193,7 @@ Each capability bucket combines two distinct data sources using weighted averagi
 * Topics are matched to capability buckets using normalized topic names (kebab-case → Title Case)
 * Each topic can contribute to multiple capability buckets with different weights
 
-#### 5.4.3. Aggregation Formula
+#### 5.5.3. Aggregation Formula
 
 For each model in each capability bucket, the final score is calculated as:
 
@@ -204,7 +220,7 @@ Helpfulness & Reasoning:
     - "Coding": 0.75x weight
 ```
 
-#### 5.4.4. Quality Assurance Mechanisms
+#### 5.5.4. Quality Assurance Mechanisms
 
 **Minimum Participation Thresholds:**
 To prevent artificially inflated scores from limited data, models must meet both criteria to appear in capability leaderboards:
@@ -216,7 +232,7 @@ To prevent artificially inflated scores from limited data, models must meet both
 * Models with insufficient data are excluded with detailed logging: `"✗ model-name: score% → Excluded: needs ≥X runs (has Y)"`
 * Only successful dimension/topic matches contribute to the weighted average
 
-#### 5.4.5. Interpretation Guidelines and Limitations
+#### 5.5.5. Interpretation Guidelines and Limitations
 
 **Strengths:**
 * **Intuitive Categories**: Broad buckets are more accessible than dozens of individual metrics
@@ -237,7 +253,7 @@ To prevent artificially inflated scores from limited data, models must meet both
 * **Consider domain-specific needs** - a model's capability ranking may not reflect its suitability for your specific use case
 * **Interpret scores relative to peer models**, not as absolute measures of capability
 
-#### 5.4.6. Technical Implementation Notes
+#### 5.5.6. Technical Implementation Notes
 
 The capability leaderboards are calculated in `calculateCapabilityLeaderboards()` within the summary calculation pipeline. Key implementation details:
 
@@ -248,7 +264,7 @@ The capability leaderboards are calculated in `calculateCapabilityLeaderboards()
 
 This multi-stage derivation process—from raw LLM outputs → dimension grades → topic scores → weighted capability aggregates—represents multiple layers of interpretation and should be understood as a **commentary on model performance patterns** rather than ground truth about model capabilities.
 
-### 5.5. Dimension Champions
+### 5.6. Dimension Champions
 
 The "Dimension Champions" section of the homepage highlights models that exhibit exceptional performance in specific qualitative areas.
 
@@ -256,7 +272,7 @@ The "Dimension Champions" section of the homepage highlights models that exhibit
 *   **Eligibility Criteria**: To qualify as a potential champion for a specific dimension, a model must have been graded for that dimension in at least **5 unique evaluation blueprints (configs)**. This ensures that a champion has demonstrated broad, cross-domain competence rather than narrow excellence on a single task.
 *   **Champion Selection**: For each dimension, the system calculates the average score for all eligible models. The model with the highest average score is declared the "Dimension Champion" for that category.
 
-### 5.6. Qualitative Analysis via Executive Summary
+### 5.7. Qualitative Analysis via Executive Summary
 
 For certain blueprints, an additional layer of qualitative analysis is performed by an "analyst" LLM to generate an **Executive Summary**. This process adds a rich, human-readable interpretation on top of the quantitative scores.
 
@@ -270,7 +286,7 @@ For certain blueprints, an additional layer of qualitative analysis is performed
     *   **Quantitative Grades**: A grade for every participating model across every dimension.
 *   **Parsing and Storage**: The system parses this structured text response into a JSON object, which is then stored as the `executiveSummary` field in the result file. This data is the source for the "Dimension Champions" metric.
 
-#### 5.6.1. Model Anonymization to Reduce LLM Bias
+#### 5.7.1. Model Anonymization to Reduce LLM Bias
 
 To ensure objective analysis, we employ anonymization during executive summary generation. This addresses the well-documented phenomenon where LLMs exhibit bias based on recognizable model names or providers.
 

@@ -2,24 +2,14 @@ import { Command } from 'commander';
 import { getConfig } from '../config';
 import {
   getResultByFileName,
-  saveResult,
-  getHomepageSummary,
-  saveHomepageSummary,
-  updateSummaryDataWithNewRun,
-  listConfigIds,
-  listRunsForConfig,
-  saveConfigSummary,
+  saveResult
 } from '../../lib/storageService';
-import { backfillSummaryCommand } from './backfill-summary';
 import { actionBackfillSummary } from './backfill-summary';
 import {
   FinalComparisonOutputV2 as FetchedComparisonData,
-  EvaluationInput,
-  PromptResponseData,
-  Evaluator,
-  EvaluationMethod,
+  EvaluationInput
 } from '../types/cli_types';
-import { 
+import {
     CoverageResult as LLMCoverageResult,
     PointAssessment,
     ConversationMessage,
@@ -31,26 +21,7 @@ import { generateExecutiveSummary as generateExecutiveSummary } from '../service
 import { toSafeTimestamp } from '@/lib/timestampUtils';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { getModelResponse, DEFAULT_TEMPERATURE } from '../services/llm-service';
-import { parseEffectiveModelId } from '@/app/utils/modelIdUtils';
-
-async function runEvaluators(
-    inputs: EvaluationInput[],
-    methods: EvaluationMethod[],
-    logger: ReturnType<typeof getConfig>['logger'],
-    useCache: boolean
-): Promise<Partial<FetchedComparisonData['evaluationResults']>> {
-    const evaluators: Evaluator[] = [
-        new EmbeddingEvaluator(logger),
-        new LLMCoverageEvaluator(logger, useCache),
-    ];
-    const chosenEvaluators = evaluators.filter(e => methods.includes(e.getMethodName()));
-    let combinedResults: Partial<FetchedComparisonData['evaluationResults']> = {};
-    for (const evaluator of chosenEvaluators) {
-        const results = await evaluator.evaluate(inputs);
-        combinedResults = { ...combinedResults, ...results };
-    }
-    return combinedResults;
-}
+import { parseModelIdForApiCall } from '@/app/utils/modelIdUtils';
 
 async function actionRepairRun(runIdentifier: string, options: { cache?: boolean }) {
   const { logger } = getConfig();
@@ -161,10 +132,10 @@ async function actionRepairRun(runIdentifier: string, options: { cache?: boolean
         for (const modelId of modelIds) {
             logger.info(`Attempting to re-generate response for model ${modelId} on prompt ${promptId}...`);
             try {
-                const { baseId, temperature: parsedTemp } = parseEffectiveModelId(modelId);
+                const { originalModelId, temperature: parsedTemp } = parseModelIdForApiCall(modelId);
                 const temperature = parsedTemp ?? DEFAULT_TEMPERATURE;
                 
-                const newResponseText = await getModelResponse({ modelId: baseId, messages: promptConfig.messages, temperature, useCache });
+                const newResponseText = await getModelResponse({ modelId: originalModelId, messages: promptConfig.messages, temperature, useCache });
                 
                 // Update response data
                 if(resultData.allFinalAssistantResponses && resultData.allFinalAssistantResponses[promptId] && resultData.allFinalAssistantResponses[promptId][modelId]) {

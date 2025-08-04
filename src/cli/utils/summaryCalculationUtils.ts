@@ -10,7 +10,7 @@ import {
   DimensionScoreInfo,
 } from '@/app/components/home/types';
 import { PotentialDriftInfo } from '@/app/components/ModelDriftIndicator';
-import { parseEffectiveModelId, getModelDisplayLabel } from '@/app/utils/modelIdUtils';
+import { parseModelIdForDisplay, getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import {
   calculateStandardDeviation,
   IDEAL_MODEL_ID,
@@ -21,7 +21,7 @@ import { PerModelScoreStats } from '@/app/utils/homepageDataUtils';
 import { normalizeTag, normalizeTopicKey } from '@/app/utils/tagUtils';
 import { WevalResult } from '@/types/shared';
 import { CAPABILITY_BUCKETS, CapabilityBucket } from '@/lib/capabilities';
-import { CapabilityLeaderboard, CapabilityScoreInfo } from '@/app/components/home/types';
+import { CapabilityLeaderboard, CapabilityScoreInfo, CapabilityRawData } from '@/app/components/home/types';
 
 // A simplified logger type for this function to avoid circular dependencies
 type SimpleLogger = {
@@ -42,13 +42,6 @@ type GradeScoreInfo = {
   configId: string;
 };
 
-type ChampionModelInfo = {
-  modelId: string;
-  avgScore: number;
-  count: number;
-  scores: GradeScoreInfo[];
-};
-
 export interface HeadlineStats {
   bestPerformingConfig: HeadlineStatInfo | null;
   worstPerformingConfig: HeadlineStatInfo | null;
@@ -56,6 +49,7 @@ export interface HeadlineStats {
   rankedOverallModels: TopModelStatInfo[] | null;
   dimensionLeaderboards: DimensionLeaderboard[] | null;
   capabilityLeaderboards?: CapabilityLeaderboard[] | null;
+  capabilityRawData?: CapabilityRawData | null;
 }
 
 
@@ -71,6 +65,69 @@ export interface TopicChampion {
     timestamp: string;
     score: number;
   }>;
+}
+
+// Extract config scores for models, keeping only the latest score per model+config combination
+function extractConfigScoresForReferencedConfigs(
+  allModelScores: Map<string, {
+    totalHybridScore: number;
+    hybridCount: number;
+    totalSimilarityScore: number;
+    similarityCount: number;
+    totalCoverageScore: number;
+    coverageCount: number;
+    runs: Array<{
+      configId: string;
+      configTitle: string;
+      runLabel: string;
+      timestamp: string;
+      hybridScore?: number | null;
+      similarityScore?: number | null;
+      coverageScore?: number | null;
+    }>;
+  }>,
+  referencedConfigIds: Set<string>,
+  logger?: SimpleLogger
+): Map<string, Map<string, number>> {
+  const configModelScores = new Map<string, Map<string, number>>();
+  
+  if (referencedConfigIds.size === 0) {
+    return configModelScores;
+  }
+
+  // Group scores by config+model, keeping track of timestamps
+  const configModelEntries = new Map<string, Map<string, { score: number; timestamp: string }>>();
+  
+  allModelScores.forEach((modelData, modelId) => {
+    modelData.runs.forEach(run => {
+      if (referencedConfigIds.has(run.configId) && run.hybridScore !== null && run.hybridScore !== undefined) {
+        const configEntries = configModelEntries.get(run.configId) || new Map();
+        const existing = configEntries.get(modelId);
+        
+        // Keep the latest score using proper timestamp comparison
+        if (!existing || fromSafeTimestamp(run.timestamp) > fromSafeTimestamp(existing.timestamp)) {
+          configEntries.set(modelId, { score: run.hybridScore, timestamp: run.timestamp });
+        }
+        
+        configModelEntries.set(run.configId, configEntries);
+      }
+    });
+  });
+
+  // Extract final scores (without timestamps)
+  configModelEntries.forEach((modelEntries, configId) => {
+    const modelScores = new Map<string, number>();
+    modelEntries.forEach((entry, modelId) => {
+      modelScores.set(modelId, entry.score);
+    });
+    configModelScores.set(configId, modelScores);
+  });
+
+  if (logger && configModelScores.size > 0) {
+    logger.info(`Extracted latest scores for ${configModelScores.size} referenced configs`);
+  }
+
+  return configModelScores;
 }
 
 export function calculateHeadlineStats(
@@ -163,7 +220,7 @@ export function calculateHeadlineStats(
         scoresMap.forEach((scoreStats, modelId) => {
           if (modelId === IDEAL_MODEL_ID) return;
           if (scoreStats && scoreStats.hybrid.average !== null && scoreStats.hybrid.average !== undefined) {
-            const parsed = parseEffectiveModelId(modelId);
+            const parsed = parseModelIdForDisplay(modelId);
             const baseModelId = parsed.baseId; // Group by base model ID
 
             const current = modelScoresForConfig.get(baseModelId) || { totalScore: 0, count: 0 };
@@ -359,7 +416,7 @@ export function calculateHeadlineStats(
                   coverageScore = undefined;
                 }
     
-                const parsed = parseEffectiveModelId(modelId);
+                const parsed = parseModelIdForDisplay(modelId);
                 const baseModelId = parsed.baseId;
                 const current = allModelScores.get(baseModelId) || {
                     totalHybridScore: 0,
@@ -437,9 +494,41 @@ export function calculateHeadlineStats(
     })
     .sort((a, b) => b.overallAverageHybridScore - a.overallAverageHybridScore);
 
-  const capabilityLeaderboards = calculateCapabilityLeaderboards(
+  // Build config model scores ONLY for configs referenced in capability definitions
+  const referencedConfigIds = new Set<string>();
+  CAPABILITY_BUCKETS.forEach(bucket => {
+    bucket.configs?.forEach(config => {
+      referencedConfigIds.add(config.key);
+    });
+  });
+
+  if (logger && referencedConfigIds.size > 0) {
+    logger.info(`\n=== PROCESSING ONLY REFERENCED CONFIGS ===`);
+    logger.info(`Found ${referencedConfigIds.size} configs referenced in capabilities: [${Array.from(referencedConfigIds).join(', ')}]`);
+  }
+
+  const configModelScores = extractConfigScoresForReferencedConfigs(
+    allModelScores,
+    referencedConfigIds,
+    logger
+  );
+
+  // Build global model stats for qualification
+  const globalModelStats = new Map<string, { totalRuns: number; uniqueConfigs: number }>();
+  allModelScores.forEach((data, modelId) => {
+    const normalizedModelId = parseModelIdForDisplay(modelId).baseId;
+    const uniqueConfigs = new Set(data.runs.map(r => r.configId));
+    globalModelStats.set(normalizedModelId, {
+      totalRuns: data.hybridCount,
+      uniqueConfigs: uniqueConfigs.size
+    });
+  });
+
+  const capabilityResult = calculateCapabilityLeaderboards(
     modelDimensionGrades,
     topicModelScores,
+    configModelScores,
+    globalModelStats,
     logger
   );
 
@@ -449,15 +538,18 @@ export function calculateHeadlineStats(
     leastConsistentConfig,
     rankedOverallModels: rankedOverallModels.length > 0 ? rankedOverallModels : null,
     dimensionLeaderboards: dimensionLeaderboards.length > 0 ? dimensionLeaderboards : null,
-    capabilityLeaderboards,
+    capabilityLeaderboards: capabilityResult.leaderboards,
+    capabilityRawData: capabilityResult.rawData,
   };
 }
 
 export function calculateCapabilityLeaderboards(
   modelDimensionGrades: Map<string, Map<string, { totalScore: number; count: number; uniqueConfigs: Set<string> }>>,
   topicModelScores: Map<string, Map<string, { scores: Array<{ score: number; configId: string; configTitle: string; runLabel: string; timestamp: string; }>; uniqueConfigs: Set<string> }>>,
+  configModelScores: Map<string, Map<string, number>>, // configId -> modelId -> hybridScore
+  globalModelStats: Map<string, { totalRuns: number; uniqueConfigs: number }>, // NEW: Global model participation stats
   logger?: SimpleLogger,
-): CapabilityLeaderboard[] {
+): { leaderboards: CapabilityLeaderboard[]; rawData: CapabilityRawData } {
   const modelCapabilityScores = new Map<string, Map<string, { totalScore: number; totalWeight: number; contributingRuns: number; contributingDimensions: number; }>>();
 
   if (logger) {
@@ -468,8 +560,11 @@ export function calculateCapabilityLeaderboards(
 
   // 1. Process Dimension Scores
   if (logger) logger.info('\n--- Processing Dimension Scores ---');
-  modelDimensionGrades.forEach((dimensions, modelId) => {
-    if (logger) logger.info(`\nModel: ${modelId}`);
+  modelDimensionGrades.forEach((dimensions, rawModelId) => {
+    // Normalize model ID to ensure proper deduplication
+    const modelId = parseModelIdForDisplay(rawModelId).baseId;
+    
+    if (logger) logger.info(`\nModel: ${rawModelId} -> ${modelId}`);
     dimensions.forEach((data, dimensionKey) => {
       const avgDimensionScore = data.totalScore / data.count;
       const normalizedScore = (avgDimensionScore - 1) / 9; // Normalize 1-10 to 0-1
@@ -501,8 +596,27 @@ export function calculateCapabilityLeaderboards(
     });
   });
 
-  // 2. Process Topic Scores
-  if (logger) logger.info('\n--- Processing Topic Scores ---');
+  // 2. Collect Topic and Config Contributions with Deduplication
+  if (logger) logger.info('\n--- Collecting Topic and Config Contributions ---');
+
+  // Step 2a: Collect all potential topic/config contributions for deduplication
+  type RunContribution = {
+    runId: string; // configId + runLabel + timestamp for deduplication
+    configId: string;
+    runLabel: string;
+    timestamp: string;
+    source: 'topic' | 'config';
+    sourceKey: string; // topic name or config id
+    weight: number;
+    score: number;
+    bucketId: string;
+    modelId: string;
+  };
+
+  const allContributions: RunContribution[] = [];
+
+  // Collect topic contributions
+  if (logger) logger.info('\n--- Collecting Topic Contributions ---');
   topicModelScores.forEach((models, topicKey) => {
     if (logger) logger.info(`\nTopic: "${topicKey}"`);
     const normalizedTopicKey = normalizeTopicKey(topicKey);
@@ -510,42 +624,211 @@ export function calculateCapabilityLeaderboards(
       logger.info(`  Normalized "${topicKey}" -> "${normalizedTopicKey}"`);
     }
     
-    models.forEach((data, modelId) => {
-      const avgTopicScore = data.scores.reduce((sum, s) => sum + s.score, 0) / data.scores.length;
+    models.forEach((data, rawModelId) => {
+      const modelId = parseModelIdForDisplay(rawModelId).baseId;
       
       if (logger) {
-        logger.info(`  Model "${modelId}": avg=${(avgTopicScore * 100).toFixed(1)}% (from ${data.scores.length} runs across ${data.uniqueConfigs.size} configs)`);
+        logger.info(`  Model "${rawModelId}" -> "${modelId}": ${data.scores.length} runs across ${data.uniqueConfigs.size} configs`);
+      }
+
+      // For each run in this topic, check which capability buckets it could contribute to
+      data.scores.forEach(runScore => {
+        const runId = `${runScore.configId}|${runScore.runLabel}|${runScore.timestamp}`;
+        
+        CAPABILITY_BUCKETS.forEach(bucket => {
+          const matchingTopic = bucket.topics.find(t => t.key === normalizedTopicKey);
+          if (matchingTopic) {
+            allContributions.push({
+              runId,
+              configId: runScore.configId,
+              runLabel: runScore.runLabel,
+              timestamp: runScore.timestamp,
+              source: 'topic',
+              sourceKey: normalizedTopicKey,
+              weight: matchingTopic.weight,
+              score: runScore.score,
+              bucketId: bucket.id,
+              modelId,
+            });
+          }
+        });
+      });
+    });
+  });
+
+  // Collect config contributions
+  if (logger) logger.info('\n--- Collecting Config Contributions ---');
+  configModelScores.forEach((models, configId) => {
+    if (logger) logger.info(`\nConfig: "${configId}"`);
+    
+    models.forEach((configScore, rawModelId) => {
+      const modelId = parseModelIdForDisplay(rawModelId).baseId;
+      
+      if (logger) {
+        logger.info(`  Model "${rawModelId}" -> "${modelId}": score=${(configScore * 100).toFixed(1)}%`);
       }
 
       CAPABILITY_BUCKETS.forEach(bucket => {
-        const matchingTopic = bucket.topics.find(t => t.key === normalizedTopicKey);
-        if (matchingTopic) {
-          const bucketScores = modelCapabilityScores.get(bucket.id) || new Map();
-          const modelScores = bucketScores.get(modelId) || { totalScore: 0, totalWeight: 0, contributingRuns: 0, contributingDimensions: 0 };
-
-          const weightedScore = avgTopicScore * matchingTopic.weight;
-          modelScores.totalScore += weightedScore;
-          modelScores.totalWeight += matchingTopic.weight;
-          modelScores.contributingRuns += data.scores.length;
+        const matchingConfig = bucket.configs?.find(c => c.key === configId);
+        if (matchingConfig) {
+          // For config contributions, we don't have explicit run details, so we create a synthetic runId
+          // This assumes the config score represents the latest run from that config
+          const runId = `${configId}|latest|synthetic`;
           
-          if (logger) {
-            logger.info(`    -> Contributing to "${bucket.label}" with weight=${matchingTopic.weight}, weighted_score=${(weightedScore * 100).toFixed(1)}%`);
-          }
-          
-          bucketScores.set(modelId, modelScores);
-          modelCapabilityScores.set(bucket.id, bucketScores);
+          allContributions.push({
+            runId,
+            configId,
+            runLabel: 'latest',
+            timestamp: 'synthetic',
+            source: 'config',
+            sourceKey: configId,
+            weight: matchingConfig.weight,
+            score: configScore,
+            bucketId: bucket.id,
+            modelId,
+          });
         }
       });
     });
   });
 
-  // 3. Calculate final scores and build leaderboards
+  // Step 2b: Apply deduplication rules
+  if (logger) logger.info('\n--- Applying Deduplication Rules ---');
+  
+  // Group contributions by bucket + model + runId for deduplication
+  const contributionGroups = new Map<string, RunContribution[]>();
+  
+  allContributions.forEach(contribution => {
+    const groupKey = `${contribution.bucketId}|${contribution.modelId}|${contribution.configId}`;
+    const existing = contributionGroups.get(groupKey) || [];
+    existing.push(contribution);
+    contributionGroups.set(groupKey, existing);
+  });
+
+  const deduplicatedContributions: RunContribution[] = [];
+  let totalDeduplicatedRuns = 0;
+
+  contributionGroups.forEach((contributions, groupKey) => {
+    // Group by runId within this bucket+model+config
+    const runGroups = new Map<string, RunContribution[]>();
+    contributions.forEach(contrib => {
+      // For real topic runs, use actual runId. For config synthetic runs, we need to match them to topic runs
+      let effectiveRunId = contrib.runId;
+      
+      // If this is a config contribution, try to find a matching topic contribution for the same config
+      if (contrib.source === 'config') {
+        const topicMatch = contributions.find(c => 
+          c.source === 'topic' && c.configId === contrib.configId
+        );
+        if (topicMatch) {
+          effectiveRunId = topicMatch.runId; // Use the topic's runId for deduplication
+        }
+      }
+      
+      const existing = runGroups.get(effectiveRunId) || [];
+      existing.push(contrib);
+      runGroups.set(effectiveRunId, existing);
+    });
+
+    // Apply deduplication rules within each run group
+    runGroups.forEach((runContributions) => {
+      if (runContributions.length === 1) {
+        // No conflict, use as-is
+        deduplicatedContributions.push(runContributions[0]);
+      } else {
+        // Multiple contributions for same run - apply priority rules
+        totalDeduplicatedRuns++;
+        
+        // Rule 1: Config pathway wins over topic pathway
+        const configContrib = runContributions.find(c => c.source === 'config');
+        const topicContribs = runContributions.filter(c => c.source === 'topic');
+        
+        if (configContrib && topicContribs.length > 0) {
+          // Config wins - use config contribution
+          deduplicatedContributions.push(configContrib);
+          if (logger) {
+            const topicNames = topicContribs.map(t => t.sourceKey).join(', ');
+            logger.info(`  DEDUP: Config "${configContrib.sourceKey}" (weight=${configContrib.weight}) wins over topic(s) [${topicNames}] for ${configContrib.modelId} in run ${configContrib.configId}`);
+          }
+        } else if (topicContribs.length > 1) {
+          // Rule 2: Among topics, max weight wins
+          const maxWeightContrib = topicContribs.reduce((max, current) => 
+            current.weight > max.weight ? current : max
+          );
+          deduplicatedContributions.push(maxWeightContrib);
+          if (logger) {
+            const allTopics = topicContribs.map(t => `${t.sourceKey}(${t.weight})`).join(', ');
+            logger.info(`  DEDUP: Topic "${maxWeightContrib.sourceKey}" (weight=${maxWeightContrib.weight}) wins among [${allTopics}] for ${maxWeightContrib.modelId} in run ${maxWeightContrib.configId}`);
+          }
+        } else {
+          // Should not happen, but failsafe
+          deduplicatedContributions.push(runContributions[0]);
+        }
+      }
+    });
+  });
+
+  if (logger) {
+    logger.info(`  Total contributions before deduplication: ${allContributions.length}`);
+    logger.info(`  Total contributions after deduplication: ${deduplicatedContributions.length}`);
+    logger.info(`  Total deduplicated runs: ${totalDeduplicatedRuns}`);
+  }
+
+  // Step 2c: Apply deduplicated contributions to capability scores
+  if (logger) logger.info('\n--- Applying Deduplicated Topic and Config Scores ---');
+  
+  // Group deduplicated contributions by bucket + model for aggregation
+  const finalContributions = new Map<string, Map<string, {
+    weightedScoreSum: number;
+    totalWeight: number;
+    contributingRuns: number;
+  }>>();
+
+  deduplicatedContributions.forEach(contribution => {
+    const bucketContribs = finalContributions.get(contribution.bucketId) || new Map();
+    const modelContribs = bucketContribs.get(contribution.modelId) || {
+      weightedScoreSum: 0,
+      totalWeight: 0,
+      contributingRuns: 0,
+    };
+
+    const weightedScore = contribution.score * contribution.weight;
+    modelContribs.weightedScoreSum += weightedScore;
+    modelContribs.totalWeight += contribution.weight;
+    modelContribs.contributingRuns += 1;
+
+    bucketContribs.set(contribution.modelId, modelContribs);
+    finalContributions.set(contribution.bucketId, bucketContribs);
+  });
+
+  // Apply final contributions to modelCapabilityScores
+  finalContributions.forEach((modelContribs, bucketId) => {
+    const bucketScores = modelCapabilityScores.get(bucketId) || new Map();
+    
+    modelContribs.forEach((contribData, modelId) => {
+      const modelScores = bucketScores.get(modelId) || { totalScore: 0, totalWeight: 0, contributingRuns: 0, contributingDimensions: 0 };
+      
+      modelScores.totalScore += contribData.weightedScoreSum;
+      modelScores.totalWeight += contribData.totalWeight;
+      modelScores.contributingRuns += contribData.contributingRuns;
+      
+      if (logger) {
+        logger.info(`  Applied to "${bucketId}/${modelId}": weighted_score=${(contribData.weightedScoreSum * 100).toFixed(1)}%, weight=${contribData.totalWeight}, runs=${contribData.contributingRuns}`);
+      }
+      
+      bucketScores.set(modelId, modelScores);
+    });
+    
+    modelCapabilityScores.set(bucketId, bucketScores);
+  });
+
+  // 4. Calculate final scores and build leaderboards
   if (logger) logger.info('\n--- Final Capability Scores ---');
   const leaderboards: CapabilityLeaderboard[] = [];
   
-  // Minimum thresholds for capability leaderboards (similar to main leaderboard)
-  const MIN_UNIQUE_CONFIGS_FOR_CAPABILITIES = 5;
-  const MIN_TOTAL_RUNS_FOR_CAPABILITIES = 10;
+  // GLOBAL qualification thresholds - based on overall platform participation
+  const MIN_UNIQUE_CONFIGS_GLOBAL = 5;
+  const MIN_TOTAL_RUNS_GLOBAL = 10;
   
   CAPABILITY_BUCKETS.forEach(bucket => {
     if (logger) logger.info(`\nCapability: "${bucket.label}"`);
@@ -556,58 +839,137 @@ export function calculateCapabilityLeaderboards(
         if (data.totalWeight > 0) {
           const finalScore = data.totalScore / data.totalWeight;
           
-          // Apply minimum thresholds - need to check actual unique configs for this model
-          // For now, use a heuristic based on contributing runs and dimensions
-          const estimatedUniqueConfigs = Math.max(data.contributingDimensions, Math.floor(data.contributingRuns / 3));
-          const meetsThreshold = data.contributingRuns >= MIN_TOTAL_RUNS_FOR_CAPABILITIES && 
-                                estimatedUniqueConfigs >= MIN_UNIQUE_CONFIGS_FOR_CAPABILITIES;
+          // Use GLOBAL qualification thresholds, not capability-specific ones
+          const globalStats = globalModelStats.get(modelId);
+          const meetsGlobalThreshold = globalStats && 
+                                     globalStats.totalRuns >= MIN_TOTAL_RUNS_GLOBAL && 
+                                     globalStats.uniqueConfigs >= MIN_UNIQUE_CONFIGS_GLOBAL;
           
           if (logger) {
-            const status = meetsThreshold ? "✓" : "✗";
-            logger.info(`  ${status} ${modelId}: ${(finalScore * 100).toFixed(1)}% (total_weighted_score=${data.totalScore.toFixed(3)}, total_weight=${data.totalWeight.toFixed(1)}, runs=${data.contributingRuns}, dims=${data.contributingDimensions})`);
-            if (!meetsThreshold) {
-              logger.info(`    Excluded: needs ≥${MIN_TOTAL_RUNS_FOR_CAPABILITIES} runs (has ${data.contributingRuns}) and ≥${MIN_UNIQUE_CONFIGS_FOR_CAPABILITIES} configs (estimated ${estimatedUniqueConfigs})`);
+            const status = meetsGlobalThreshold ? "✓" : "✗";
+            const globalInfo = globalStats ? `global_runs=${globalStats.totalRuns}, global_configs=${globalStats.uniqueConfigs}` : 'no_global_stats';
+            logger.info(`  ${status} ${modelId}: ${(finalScore * 100).toFixed(1)}% (${globalInfo}, capability_weight=${data.totalWeight.toFixed(1)})`);
+            if (!meetsGlobalThreshold) {
+              const reason = globalStats 
+                ? `needs ≥${MIN_TOTAL_RUNS_GLOBAL} global runs (has ${globalStats.totalRuns}) and ≥${MIN_UNIQUE_CONFIGS_GLOBAL} global configs (has ${globalStats.uniqueConfigs})`
+                : 'no global participation data found';
+              logger.info(`    Excluded: ${reason}`);
             }
           }
           
-          if (meetsThreshold) {
+          if (meetsGlobalThreshold) {
             leaderboard.push({
               modelId,
               averageScore: finalScore,
-              contributingRuns: data.contributingRuns,
+              contributingRuns: globalStats!.totalRuns, // Use global runs for display
               contributingDimensions: data.contributingDimensions,
             });
           }
         }
       });
 
+      const sortedLeaderboard = leaderboard.sort((a, b) => b.averageScore - a.averageScore).slice(0, 10);
+      
       if (leaderboard.length > 0) {
-        const sortedLeaderboard = leaderboard.sort((a, b) => b.averageScore - a.averageScore).slice(0, 5);
         if (logger) {
-          logger.info(`  Top 5 for "${bucket.label}" (after applying thresholds):`);
+          logger.info(`  Top 10 for "${bucket.label}" (after applying thresholds):`);
           sortedLeaderboard.forEach((model, idx) => {
             logger.info(`    ${idx + 1}. ${model.modelId}: ${(model.averageScore * 100).toFixed(1)}%`);
           });
         }
-        
-        leaderboards.push({
-          ...bucket,
-          leaderboard: sortedLeaderboard,
-        });
       } else {
         if (logger) logger.info(`  No models meet minimum thresholds for "${bucket.label}"`);
       }
+      
+      // Always add the capability, even if empty - this allows UI to show "no qualifying models" message
+      leaderboards.push({
+        ...bucket,
+        leaderboard: sortedLeaderboard,
+      });
     } else {
       if (logger) logger.info(`  No data found for "${bucket.label}"`);
     }
   });
 
+  // Build raw data for dev mode sliders
+  const modelDimensions: Record<string, Record<string, number>> = {};
+  const modelTopics: Record<string, Record<string, number>> = {};
+  const modelConfigs: Record<string, Record<string, number>> = {};
+  const qualifyingModels: string[] = [];
+
+  // Extract qualifying models from leaderboards
+  const allQualifyingModels = new Set<string>();
+  leaderboards.forEach(bucket => {
+    bucket.leaderboard.forEach(model => {
+      allQualifyingModels.add(model.modelId);
+    });
+  });
+  qualifyingModels.push(...Array.from(allQualifyingModels));
+
+  // Extract raw dimension scores for qualifying models
+  modelDimensionGrades.forEach((dimensions, rawModelId) => {
+    const modelId = parseModelIdForDisplay(rawModelId).baseId;
+    if (qualifyingModels.includes(modelId)) {
+      if (!modelDimensions[modelId]) {
+        modelDimensions[modelId] = {};
+      }
+      dimensions.forEach((data, dimensionKey) => {
+        const avgDimensionScore = data.totalScore / data.count;
+        const normalizedScore = (avgDimensionScore - 1) / 9; // Normalize 1-10 to 0-1
+        modelDimensions[modelId][dimensionKey] = normalizedScore;
+      });
+    }
+  });
+
+  // Extract raw topic scores for qualifying models
+  topicModelScores.forEach((models, topicKey) => {
+    const normalizedTopicKey = normalizeTopicKey(topicKey);
+    models.forEach((data, rawModelId) => {
+      const modelId = parseModelIdForDisplay(rawModelId).baseId;
+      if (qualifyingModels.includes(modelId)) {
+        if (!modelTopics[modelId]) {
+          modelTopics[modelId] = {};
+        }
+        const avgTopicScore = data.scores.reduce((sum, s) => sum + s.score, 0) / data.scores.length;
+        modelTopics[modelId][normalizedTopicKey] = avgTopicScore;
+      }
+    });
+  });
+
+  // Extract raw config scores for qualifying models (only for configs used in capabilities)
+  configModelScores.forEach((models, configId) => {
+    models.forEach((score, rawModelId) => {
+      const modelId = parseModelIdForDisplay(rawModelId).baseId;
+      if (qualifyingModels.includes(modelId)) {
+        if (!modelConfigs[modelId]) {
+          modelConfigs[modelId] = {};
+        }
+        modelConfigs[modelId][configId] = score;
+      }
+    });
+  });
+
+  // Build per-capability qualifying models
+  const capabilityQualifyingModels: Record<string, string[]> = {};
+  leaderboards.forEach(bucket => {
+    capabilityQualifyingModels[bucket.id] = bucket.leaderboard.map(model => model.modelId);
+  });
+
+  const rawData: CapabilityRawData = {
+    modelDimensions,
+    modelTopics,
+    modelConfigs,
+    qualifyingModels,
+    capabilityQualifyingModels
+  };
+
   if (logger) {
     logger.info(`\n=== CAPABILITY LEADERBOARDS CALCULATION COMPLETE ===`);
     logger.info(`Generated ${leaderboards.length} capability leaderboards`);
+    logger.info(`Raw data includes ${qualifyingModels.length} qualifying models`);
   }
 
-  return leaderboards;
+  return { leaderboards, rawData };
 }
 
 
@@ -651,6 +1013,8 @@ export function calculateTopicChampions(
 
 /**
  * Shared function to process executive summary grades from result data.
+ * Uses latest-run-per-config strategy: for each model+dimension combination,
+ * tracks the latest run from each config, then averages across configs.
  * Used by both backfill-summary and run-config to maintain DRY principle.
  */
 export function processExecutiveSummaryGrades(
@@ -667,7 +1031,8 @@ export function processExecutiveSummaryGrades(
   }
 
   for (const gradeInfo of resultData.executiveSummary.structured.grades) {
-    const { baseId: modelId } = parseEffectiveModelId(gradeInfo.modelId);
+    const { baseId: modelId } = parseModelIdForDisplay(gradeInfo.modelId);
+    
     if (!modelDimensionGrades.has(modelId)) {
       modelDimensionGrades.set(modelId, new Map());
     }
@@ -675,18 +1040,54 @@ export function processExecutiveSummaryGrades(
 
     for (const [dimension, score] of Object.entries(gradeInfo.grades)) {
       if (score !== null && score > 0) { // Only count valid, non-zero grades
-        const current = modelGrades.get(dimension) || { totalScore: 0, count: 0, uniqueConfigs: new Set(), scores: [] };
-        current.totalScore += score;
-        current.count++;
-        current.uniqueConfigs.add(resultData.configId);
-        current.scores.push({
-          score,
-          configTitle: resultData.configTitle || resultData.config.title || resultData.configId,
-          runLabel: resultData.runLabel,
-          timestamp: resultData.timestamp,
-          configId: resultData.configId,
-        });
-        modelGrades.set(dimension, current);
+        // Get or initialize the dimension data with a latestPerConfig tracker
+        const current = modelGrades.get(dimension) || { 
+          totalScore: 0, 
+          count: 0, 
+          uniqueConfigs: new Set(), 
+          scores: [],
+          _latestPerConfig: new Map<string, { 
+            score: number; 
+            timestamp: string; 
+            configTitle: string; 
+            runLabel: string; 
+          }>()
+        };
+
+        // Ensure _latestPerConfig exists (for existing data that doesn't have it)
+        if (!(current as any)._latestPerConfig) {
+          (current as any)._latestPerConfig = new Map();
+        }
+
+        const latestPerConfig = (current as any)._latestPerConfig;
+        const configKey = resultData.configId;
+        const existing = latestPerConfig.get(configKey);
+        const currentTimestamp = fromSafeTimestamp(resultData.timestamp);
+        
+        // Keep only the latest run per config
+        if (!existing || fromSafeTimestamp(existing.timestamp) < currentTimestamp) {
+          latestPerConfig.set(configKey, {
+            score,
+            timestamp: resultData.timestamp,
+            configTitle: resultData.configTitle || resultData.config.title || resultData.configId,
+            runLabel: resultData.runLabel
+          });
+
+          // Recalculate aggregated values from latest-per-config data
+          const latestScores = Array.from(latestPerConfig.values()) as { score: number; timestamp: string; configTitle: string; runLabel: string; }[];
+          current.totalScore = latestScores.reduce((sum, entry) => sum + entry.score, 0);
+          current.count = latestScores.length;
+          current.uniqueConfigs = new Set(latestPerConfig.keys());
+          current.scores = latestScores.map(entry => ({
+            score: entry.score,
+            configTitle: entry.configTitle,
+            runLabel: entry.runLabel,
+            timestamp: entry.timestamp,
+            configId: Array.from(latestPerConfig.keys()).find(key => latestPerConfig.get(key) === entry)!,
+          })) as Array<{ score: number | null; configTitle: string; runLabel: string; timestamp: string; configId: string; }>;
+
+          modelGrades.set(dimension, current);
+        }
       }
     }
   }
@@ -694,6 +1095,8 @@ export function processExecutiveSummaryGrades(
 
 /**
  * Shared function to process topic data from tags and scores.
+ * Uses latest-run-per-config strategy: for each model+topic combination,
+ * tracks the latest run from each config, then averages across configs.
  * Used by both backfill-summary and run-config to maintain DRY principle.
  */
 export function processTopicData(
@@ -717,23 +1120,58 @@ export function processTopicData(
 
   perModelScores.forEach((scoreData, modelId) => {
     if (scoreData.hybrid.average !== null && scoreData.hybrid.average !== undefined) {
-      const { baseId } = parseEffectiveModelId(modelId);
+      const { baseId } = parseModelIdForDisplay(modelId);
       
       allTags.forEach((topic: string) => {
-        const currentTopicData = topicModelScores.get(topic) || new Map();
-        const currentModelData = currentTopicData.get(baseId) || { scores: [], uniqueConfigs: new Set() };
+        if (!topicModelScores.has(topic)) {
+          topicModelScores.set(topic, new Map());
+        }
+        const currentTopicData = topicModelScores.get(topic)!;
         
-        currentModelData.scores.push({
-          score: scoreData.hybrid.average,
-          configId: resultData.configId,
-          configTitle: resultData.configTitle || resultData.config.title || resultData.configId,
-          runLabel: resultData.runLabel,
-          timestamp: resultData.timestamp,
-        });
-        currentModelData.uniqueConfigs.add(resultData.configId);
+        // Get or initialize the model data with a latestPerConfig tracker
+        const currentModelData = currentTopicData.get(baseId) || { 
+          scores: [], 
+          uniqueConfigs: new Set(),
+          _latestPerConfig: new Map<string, {
+            score: number;
+            timestamp: string;
+            configTitle: string;
+            runLabel: string;
+          }>()
+        };
 
-        currentTopicData.set(baseId, currentModelData);
-        topicModelScores.set(topic, currentTopicData);
+        // Ensure _latestPerConfig exists (for existing data that doesn't have it)
+        if (!(currentModelData as any)._latestPerConfig) {
+          (currentModelData as any)._latestPerConfig = new Map();
+        }
+
+        const latestPerConfig = (currentModelData as any)._latestPerConfig;
+        const configKey = resultData.configId;
+        const existing = latestPerConfig.get(configKey);
+        const currentTimestamp = fromSafeTimestamp(resultData.timestamp);
+        
+        // Keep only the latest run per config
+        if (!existing || fromSafeTimestamp(existing.timestamp) < currentTimestamp) {
+          latestPerConfig.set(configKey, {
+            score: scoreData.hybrid.average!, // Safe to use ! since we already checked for null/undefined above
+            timestamp: resultData.timestamp,
+            configTitle: resultData.configTitle || resultData.config.title || resultData.configId,
+            runLabel: resultData.runLabel
+          });
+
+          // Recalculate aggregated values from latest-per-config data
+          const latestScores = Array.from(latestPerConfig.values()) as { score: number; timestamp: string; configTitle: string; runLabel: string; }[];
+          currentModelData.scores = latestScores.map(entry => ({
+            score: entry.score,
+            configId: Array.from(latestPerConfig.keys()).find(key => latestPerConfig.get(key) === entry)!,
+            configTitle: entry.configTitle,
+            runLabel: entry.runLabel,
+            timestamp: entry.timestamp,
+          })) as Array<{ score: number; configId: string; configTitle: string; runLabel: string; timestamp: string; }>;
+          currentModelData.uniqueConfigs = new Set(latestPerConfig.keys());
+
+          currentTopicData.set(baseId, currentModelData);
+        }
       });
     }
   });
@@ -877,7 +1315,7 @@ export function calculatePotentialModelDrift(
 
         scoresMap.forEach((scoreData, modelId) => {
           if (modelId !== IDEAL_MODEL_ID && scoreData.hybrid.average !== null && scoreData.hybrid.average !== undefined) {
-            modelsInRun.add(parseEffectiveModelId(modelId).baseId);
+            modelsInRun.add(parseModelIdForDisplay(modelId).baseId);
           }
         });
 
@@ -907,7 +1345,7 @@ export function calculatePotentialModelDrift(
           
           const scoresForThisRun: number[] = [];
           scoresMap.forEach((scoreData, fullModelId) => {
-            if (parseEffectiveModelId(fullModelId).baseId === baseModelId && scoreData.hybrid.average !== null && scoreData.hybrid.average !== undefined) {
+            if (parseModelIdForDisplay(fullModelId).baseId === baseModelId && scoreData.hybrid.average !== null && scoreData.hybrid.average !== undefined) {
               scoresForThisRun.push(scoreData.hybrid.average);
             }
           });

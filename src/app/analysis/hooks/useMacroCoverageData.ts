@@ -1,6 +1,6 @@
 import React from 'react';
 import { AllCoverageScores } from '@/app/analysis/components/CoverageHeatmapCanvas';
-import { parseEffectiveModelId, ParsedModelId } from '@/app/utils/modelIdUtils';
+import { parseModelIdForDisplay, ParsedModelId } from '@/app/utils/modelIdUtils';
 
 export type SortOption =
   | 'alpha-asc'
@@ -164,7 +164,7 @@ export const useMacroCoverageData = (
     
     const memoizedHeaderData = React.useMemo(() => {
         const parsedModelsMap: Record<string, ParsedModelId> = {};
-        models.forEach(id => { parsedModelsMap[id] = parseEffectiveModelId(id); });
+        models.forEach(id => { parsedModelsMap[id] = parseModelIdForDisplay(id); });
 
         const localSortedModels = [...models].sort((a, b) => a.localeCompare(b));
 

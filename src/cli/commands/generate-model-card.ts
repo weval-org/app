@@ -5,7 +5,7 @@ import { getConfig } from '../config';
 import { getHomepageSummary, getResultByFileName } from '../../lib/storageService';
 import { ModelSummary, ModelRunPerformance } from '../types/model_card_types';
 import { generateAnalyticalSummary } from '../services/model-summary-service';
-import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelIdUtils';
+import { getModelDisplayLabel, parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
 import { ComparisonDataV2 } from '@/app/utils/types';
 import { calculateComparativeStats } from '../utils/summaryCalculationUtils';
 import { fromSafeTimestamp } from '@/lib/timestampUtils';
@@ -59,7 +59,7 @@ async function actionGenerateModelCard(modelIdPattern: string, options: {}) {
             }
 
             const matchingEffectiveIds = result.effectiveModels.filter((em) =>
-                parseEffectiveModelId(em).baseId.includes(modelIdPattern),
+                parseModelIdForDisplay(em).baseId.includes(modelIdPattern),
             );
 
             if (matchingEffectiveIds.length === 0) {

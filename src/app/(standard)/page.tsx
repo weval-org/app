@@ -3,6 +3,7 @@ import AggregateStatsDisplay from '@/app/components/AggregateStatsDisplay';
 import { AggregateStatsData } from '@/app/components/home/types';
 import ModelDriftIndicator, { PotentialDriftInfo } from '@/app/components/ModelDriftIndicator';
 import HomePageBanner from "@/app/components/HomePageBanner";
+import CapabilityLeaderboardDisplay from '@/app/components/home/CapabilityLeaderboardDisplay';
 import {
   getComparisonRunInfo,
   EnhancedComparisonConfigInfo,
@@ -135,17 +136,54 @@ export default async function HomePage() {
         <HomePageBanner />
         
         <div className="px-4 sm:px-6 lg:px-8 sm:pb-2 md:pb-4 pt-8 md:pt-10 space-y-8 md:space-y-10">
-          {featuredConfigs.length > 0 && headlineStats && (
+          {/* {featuredConfigs.length > 0 && headlineStats && (
             <section 
               aria-labelledby="platform-summary-heading"
               className="bg-card/50 dark:bg-slate-800/50 backdrop-blur-md p-6 rounded-2xl shadow-lg ring-1 ring-border/60 dark:ring-slate-700/60"
             >
-              {/* <h2 id="platform-summary-heading" className="text-2xl sm:text-2xl font-semibold tracking-tight text-foreground dark:text-slate-100 mb-6 md:mb-8 text-center">
-                Latest Platform Stats
-              </h2> */}
               <div className="space-y-8 md:space-y-10">
-                  <AggregateStatsDisplay stats={headlineStats ? { ...headlineStats, topicChampions: homepageStats?.topicChampions, capabilityLeaderboards: homepageStats?.capabilityLeaderboards } : null} />
+                  <AggregateStatsDisplay stats={headlineStats ? { ...headlineStats, topicChampions: homepageStats?.topicChampions } : null} />
               </div>
+            </section>
+          )} */}
+          
+          <hr className="my-4 border-border/70 dark:border-slate-700/50 w-3/4 mx-auto" />
+
+          {/* Dev Mode Info */}
+          {process.env.NODE_ENV === 'development' && homepageStats && (
+            <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <div className="flex items-center gap-4 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                    Dev Mode
+                  </span>
+                </div>
+                <span className="text-xs text-blue-600 dark:text-blue-300">
+                  Data updated: {new Date(homepageStats.lastUpdated).toLocaleString()}
+                </span>
+                {homepageStats.fileSizeKB && (
+                  <span className="text-xs text-blue-600 dark:text-blue-300">
+                    File size: {homepageStats.fileSizeKB} KB
+                  </span>
+                )}
+                <span className="text-xs text-blue-600 dark:text-blue-300">
+                  Raw data available: {homepageStats.capabilityRawData ? '✓' : '✗'}
+                </span>
+                <span className="text-xs text-blue-600 dark:text-blue-300">
+                  Configs loaded: {featuredConfigs.length}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* The Leaderboards - Standalone First-Class Section */}
+          {featuredConfigs.length > 0 && homepageStats?.capabilityLeaderboards && (
+            <section aria-labelledby="the-leaderboards-heading">
+              <CapabilityLeaderboardDisplay 
+                leaderboards={homepageStats.capabilityLeaderboards} 
+                rawData={homepageStats.capabilityRawData}
+              />
             </section>
           )}
 

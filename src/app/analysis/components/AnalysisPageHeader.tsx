@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Breadcrumbs from '@/app/components/Breadcrumbs';
 import Link from 'next/link';
 import { MarkdownAccordion } from '@/app/analysis/components/MarkdownAccordion';
 import { StructuredSummary } from '@/app/analysis/components/StructuredSummary';
-import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelIdUtils';
+import { getModelDisplayLabel, parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { prettifyTag, normalizeTag } from '@/app/utils/tagUtils';
 import { Badge } from '@/components/ui/badge';
@@ -30,6 +30,7 @@ export interface AnalysisPageHeaderProps {
 // Component for overall summary stats (aggregate view) - now with leaderboard
 const SummaryStatsTable = () => {
   const { summaryStats, data, openModelPerformanceModal, openPromptDetailModal } = useUnifiedAnalysis();
+  const [showAllModels, setShowAllModels] = React.useState(false);
 
   if (!summaryStats) return null;
 
@@ -59,7 +60,7 @@ const SummaryStatsTable = () => {
       {modelLeaderboard && modelLeaderboard.length > 0 && (
         <div className="bg-card/50 dark:bg-slate-800/30 rounded-lg p-4 border border-border/50 mb-4">
           <div className="flex items-start justify-between mb-3">
-                         <h3 className="text-sm font-semibold text-foreground flex items-center">
+              <h3 className="text-sm font-semibold text-foreground flex items-center">
                <Icon name="trophy" className="w-4 h-4 mr-2 text-primary" />
                Best Models ({scoreTypeText})
              </h3>
@@ -75,19 +76,21 @@ const SummaryStatsTable = () => {
             </TooltipProvider>
           </div>
           <ul className="space-y-2">
-            {modelLeaderboard.map((model, index) => (
+            {(showAllModels ? modelLeaderboard : modelLeaderboard.slice(0, 5)).map((model, sliceIndex) => {
+              const rank = modelLeaderboard.findIndex(m => m.id === model.id) + 1;
+              return (
               <li 
                 key={model.id} 
                 className="flex items-center justify-between text-sm border-b border-border/30 dark:border-slate-700/30 pb-1.5 last:border-b-0 last:pb-0"
               >
                 <div className="flex items-center">
-                  <span className="mr-2.5 w-6 text-right text-muted-foreground font-medium">{index + 1}.</span>
-                  {index < 3 && (
+                  <span className="mr-2.5 w-6 text-right text-muted-foreground font-medium">{rank}.</span>
+                  {rank <= 3 && (
                     <Icon 
                       name="award" 
                       className={`w-3.5 h-3.5 mr-1.5 ${
-                        index === 0 ? 'text-amber-400' : 
-                        index === 1 ? 'text-slate-400' : 
+                        rank === 1 ? 'text-amber-400' : 
+                        rank === 2 ? 'text-slate-400' : 
                         'text-amber-700/80'
                       }`} 
                     />
@@ -112,8 +115,26 @@ const SummaryStatsTable = () => {
                   </span>
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
+          {modelLeaderboard.length > 5 && (
+            <div className="mt-3 pt-2 border-t border-border/30 dark:border-slate-700/30">
+              <button 
+                onClick={() => setShowAllModels(!showAllModels)}
+                className="text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
+              >
+                <Icon 
+                  name={showAllModels ? "chevron-up" : "chevron-down"} 
+                  className="w-3 h-3" 
+                />
+                {showAllModels 
+                  ? "Show top 5 only" 
+                  : `Show all ${modelLeaderboard.length} models`
+                }
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -195,7 +216,7 @@ const PromptSpecificStatsTable = () => {
 
       if (coverageScore !== null) {
         // Parse to get canonical model name
-        const { baseId } = parseEffectiveModelId(modelId);
+        const { baseId } = parseModelIdForDisplay(modelId);
         
         if (!canonicalModelScores.has(baseId)) {
           canonicalModelScores.set(baseId, { totalScore: 0, count: 0, variants: new Set() });

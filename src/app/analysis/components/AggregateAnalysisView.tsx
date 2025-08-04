@@ -14,7 +14,7 @@ import {
     TabsList,
     TabsTrigger,
 } from "@/components/ui/tabs";
-import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelIdUtils';
+import { getModelDisplayLabel, parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
 import { getHybridScoreColorClass } from '@/app/analysis/utils/colorUtils';
 import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
 import { Switch } from '@/components/ui/switch';
@@ -224,7 +224,7 @@ export const AggregateAnalysisView: React.FC = () => {
                                     {excludedModelsList.map(modelId => (
                                         <li key={modelId}>
                                             <code className="font-mono text-sm bg-muted text-foreground px-1.5 py-1 rounded">
-                                                {getModelDisplayLabel(parseEffectiveModelId(modelId))}
+                                                {getModelDisplayLabel(parseModelIdForDisplay(modelId))}
                                             </code>
                                         </li>
                                     ))}

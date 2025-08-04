@@ -2,7 +2,7 @@ import {
   getModelSummary,
 } from '@/lib/storageService';
 import { notFound } from 'next/navigation';
-import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelIdUtils';
+import { getModelDisplayLabel, parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
 import ClientDateTime from '@/app/components/ClientDateTime';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';

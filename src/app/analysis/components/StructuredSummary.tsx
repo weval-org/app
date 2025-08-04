@@ -15,11 +15,11 @@ import dynamic from 'next/dynamic';
 import { usePreloadIcons } from '@/components/ui/use-preload-icons';
 import ReactMarkdown from 'react-markdown';
 import RemarkGfmPlugin from 'remark-gfm';
-import { parseEffectiveModelId } from '../../utils/modelIdUtils';
+import { parseModelIdForDisplay } from '../../utils/modelIdUtils';
 
 // Helper function to get base model ID (maker:model without variants)
 function getBaseModelId(modelId: string): string {
-  const parsed = parseEffectiveModelId(modelId);
+  const parsed = parseModelIdForDisplay(modelId);
   return parsed.baseId;
 }
 
@@ -85,8 +85,7 @@ function getGradeLabel(score: number): string {
 const DimensionLabel: React.FC<{ 
   dimensionKey: string; 
   label: string;
-  onShowInfo: (dimension: any) => void;
-}> = ({ dimensionKey, label, onShowInfo }) => {
+}> = ({ dimensionKey, label }) => {
   const dimension = getGradingDimension(dimensionKey);
   
   if (!dimension) {
@@ -94,13 +93,10 @@ const DimensionLabel: React.FC<{
   }
 
   return (
-    <button 
-      onClick={() => onShowInfo(dimension)}
-      className="flex items-center space-x-2 hover:text-foreground transition-colors cursor-pointer min-w-0 w-full text-left py-1 px-1 rounded hover:bg-muted/50"
-    >
-      <Icon name="info" className="w-3 h-3 text-muted-foreground/60 hover:text-muted-foreground flex-shrink-0" />
+    <div className="flex items-center space-x-2 min-w-0 w-full">
+      <Icon name="info" className="w-3 h-3 text-muted-foreground/60 flex-shrink-0" />
       <span className="font-medium text-muted-foreground truncate">{label}</span>
-    </button>
+    </div>
   );
 };
 
@@ -257,17 +253,25 @@ const ModelGradesDisplay: React.FC<{ grades: ModelGrades[] }> = ({ grades }) => 
                         const percentage = (score / 10) * 100;
                         
                         return (
-                          <div key={key} className="space-y-1">
-                            <div className="flex justify-between items-center text-xs">
-                              <DimensionLabel 
-                                dimensionKey={key} 
-                                label={label} 
-                                onShowInfo={(dimension) => setSelectedDimensionInfo({
+                          <div 
+                            key={key} 
+                            className="space-y-1 p-2 rounded-md cursor-pointer hover:bg-muted/30 transition-colors"
+                            onClick={() => {
+                              const dimension = getGradingDimension(key);
+                              if (dimension) {
+                                setSelectedDimensionInfo({
                                   dimension,
                                   modelId: modelData.modelId,
                                   score,
                                   reasoning: modelData.reasoning?.[key as keyof typeof modelData.reasoning]
-                                })}
+                                });
+                              }
+                            }}
+                          >
+                            <div className="flex justify-between items-center text-xs">
+                              <DimensionLabel 
+                                dimensionKey={key} 
+                                label={label} 
                               />
                               <span className={`font-semibold ${getGradeColor(score)}`}>
                                 {score.toFixed(1)}

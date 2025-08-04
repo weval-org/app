@@ -60,7 +60,7 @@ You must provide your analysis using specific XML-like tags to structure your re
 
 === PART 1: QUALITATIVE ANALYSIS ===
 
-For this analysis section, when you refer to models, makers${hasSysVariations ? ', system prompts' : ''}${hasTempVariations ? ', or temperatures' : ''}, you MUST use the <ref /> tag format. Here are the rules:
+For this analysis section, when you refer to prompts, models, makers${hasSysVariations ? ', system prompts' : ''}${hasTempVariations ? ', or temperatures' : ''}, you MUST use the <ref /> tag format. Here are the rules:
 
 • To refer to a MAKER: <ref maker="MK_XXXX" />
 • To refer to a BASE MODEL: <ref maker="MK_XXXX" model="MD_YYYY" />
@@ -73,15 +73,19 @@ Use the following tags for your analysis:
 
 For key findings (1-4 most important takeaways):
 <key_finding>Your finding here with proper <ref /> tags</key_finding>
+<key_finding>Both models from <ref maker="MK_XXXX" />, <ref maker="MK_XXXX" model="MD_YYYY" /> and <ref maker="MK_XXXX" model="MD_ZZZZ" /> performed well with <ref prompt="prompt-id" />, showing their adeptness at dealing with ...</key_finding>
+etc.
 
 For model strengths (specific models that excelled and why):
-<strength>Model X excelled at Y because...</strength>
+<strength>In many prompts, <ref maker="MK_XXXX" model="MD_YYYY" /> excelled at answering questions related to...</strength>
 
 For model weaknesses (specific models that struggled and why):
-<weakness>Model Y struggled with Z because...</weakness>
+<weakness>It was curious to see that <ref maker="MK_XXXX" model="MD_ZZZZ" /> struggled greatly with ...</weakness>
 
-For interesting patterns (clusters, temperature sensitivity, oddities, system prompt effects):
+For interesting patterns (clusters, sensitivity, oddities, inconsistencies, common failures, other observations ${hasSysVariations ? ', system prompt effects' : ''}${hasTempVariations ? ', temperature effects' : ''}):
 <pattern>Pattern description here</pattern>
+
+(In your analysis, do not shy away from calling out deficiencies and curiosities, and do not be afraid to be critical. If you observe nothing especially interesting, then that's fine too. Don't over analyze innocuous things that aren't insightful.)
 
 === PART 2: QUANTITATIVE GRADING ===
 
@@ -109,13 +113,16 @@ ${gradingModelList}
 
 === PART 3: TOPIC CLASSIFICATION ===
 
-Finally, provide the main over-arching topics of this evaluation that will help users locate and get a quick picture of the evaluation (choose 3-8 from the provided list):
+Finally, provide the main over-arching topics of this evaluation that will help users locate and get a quick picture of the evaluation (choose 1-8 from the provided list) thusly:
+
 <topic>Chosen Topic</topic>
 
 Here are the topics you MUST choose from for the <topic> tags:
 === TOPICS ===
-${TOPICS.join(',\n')}
+${TOPICS.join(', ')}
 === /END TOPICS ===
+
+Do not choose a topic unless it is *specifically* relevant to this particular evaluation and sets of prompts and responses.
 
 === IMPORTANT ANALYSIS CONSIDERATIONS ===
 
@@ -143,5 +150,11 @@ ${GRADING_INSTRUCTIONS}
 ${hasSysVariations ? '8. Consider the system prompt strategy when interpreting performance differences—note if results might be influenced by prompting choices rather than model capabilities.' : ''}
 ${hasSysVariations ? '9.' : '8.'} For Part 1 (analysis), use <ref /> tags consistently. For Part 2 (grading), use individual grade blocks with reasoning for each applicable dimension.
 
-Please provide multiple instances of each tag type as appropriate. Each tag should contain substantive, specific content rather than generic observations.`;
+Please provide multiple instances of each tag type as appropriate. Each tag should contain substantive, specific content rather than generic observations.
+
+In regards to your output generally, you can use only the XML tags provided. Do not use others. Valid XML includes only: <key_finding/>, <strength/>, <weakness/>, <pattern/>, <topic/>, <grade/>. AND within your prose within key findings, weaknesses, patterns, strengths, you may use <ref/> inline. Example:
+
+<key_finding>
+In this evaluation, we can see that <ref maker="MK_XXXX" model="MD_YYYY" /> performs well in prompts such as <ref prompt="prompt-id" /> and <ref prompt="prompt-id" />, however, other models from <ref maker="MK_XXXX" />, such as <ref maker="MK_XXXX" model="MD_ZZZZ" />, perform poorly.
+</key_finding>`;
 } 

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef } from 'react'
 import * as d3 from 'd3'
-import { getModelDisplayLabel, parseEffectiveModelId, IDEAL_MODEL_ID_BASE } from '@/app/utils/modelIdUtils'
+import { getModelDisplayLabel, parseModelIdForDisplay, IDEAL_MODEL_ID_BASE } from '@/app/utils/modelIdUtils'
 import { SimilarityScore } from '@/types/shared'
 
 interface SimilarityGraphProps {
@@ -125,7 +125,7 @@ export default function SimilarityGraph({ similarityMatrix, models, resolvedThem
 
         const selectedVariants = new Map<string, { fullId: string; temperature?: number }>();
         models.forEach(modelId => {
-          const parsed = parseEffectiveModelId(modelId);
+          const parsed = parseModelIdForDisplay(modelId);
           const existing = selectedVariants.get(parsed.baseId);
           if (!existing ||
               (existing.temperature === undefined && parsed.temperature !== undefined) ||
@@ -139,7 +139,7 @@ export default function SimilarityGraph({ similarityMatrix, models, resolvedThem
         
         // Filter out the Ideal Response model
         graphDisplayModels = graphDisplayModels.filter(modelId => {
-          const parsed = parseEffectiveModelId(modelId);
+          const parsed = parseModelIdForDisplay(modelId);
           return parsed.baseId !== IDEAL_MODEL_ID_BASE;
         });
 

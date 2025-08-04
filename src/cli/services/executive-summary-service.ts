@@ -2,7 +2,7 @@ import { WevalResult, ExecutiveSummary, StructuredInsights, ModelGrades } from '
 import { generateMarkdownReportAnonymized } from '../../app/utils/markdownGenerator';
 import { getModelResponse } from './llm-service';
 import { getConfig } from '../config';
-import { getModelDisplayLabel, parseEffectiveModelId, extractMakerFromModelId } from '../../app/utils/modelIdUtils';
+import { getModelDisplayLabel, parseModelIdForDisplay, extractMakerFromModelId } from '../../app/utils/modelIdUtils';
 import { IDEAL_MODEL_ID } from '../../app/utils/calculationUtils';
 import { generateSystemPrompt, AnonymizedModelReference } from './executive-summary-prompt';
 import { TOPICS } from '../../lib/topics';
@@ -96,7 +96,7 @@ export function createModelAnonymizationMapping(modelIds: string[]): ModelAnonym
 
     // First pass: collect all unique components
     for (const modelId of modelIds) {
-        const parsed = parseEffectiveModelId(modelId);
+        const parsed = parseModelIdForDisplay(modelId);
         
         // Extract maker using utility function
         const maker = extractMakerFromModelId(modelId);
@@ -144,7 +144,7 @@ export function createModelAnonymizationMapping(modelIds: string[]): ModelAnonym
 
     // Second pass: create full model mappings
     for (const modelId of modelIds) {
-        const parsed = parseEffectiveModelId(modelId);
+        const parsed = parseModelIdForDisplay(modelId);
         
         // Extract maker using utility function  
         const maker = extractMakerFromModelId(modelId);
@@ -317,7 +317,7 @@ function generateVariantLink(attrs: Record<string, string>, mapping: ModelAnonym
         if (makerMatch && modelMatch && sysMatch && tempMatch) {
             
             // Generate a user-friendly display name
-            const parsed = parseEffectiveModelId(realId);
+            const parsed = parseModelIdForDisplay(realId);
             let displayName = getModelDisplayLabel(parsed.baseId, { 
                 prettifyModelName: true, 
                 hideProvider: true, 
@@ -348,7 +348,7 @@ function generateBaseModelLink(attrs: Record<string, string>, mapping: ModelAnon
     // Find any real model ID that matches maker and model (ignoring variants)
     for (const [realId, anon] of mapping.realToAnonymized.entries()) {
         if (anon.maker === attrs.maker && anon.model === attrs.model) {
-            const parsed = parseEffectiveModelId(realId);
+            const parsed = parseModelIdForDisplay(realId);
             const displayName = getModelDisplayLabel(parsed.baseId, { 
                 prettifyModelName: false, // Keep original casing
                 hideProvider: true, 
@@ -394,7 +394,7 @@ function generateModelOnlyReference(modelId: string, mapping: ModelAnonymization
     // Find any real model ID that has this model component
     for (const [realId, anon] of mapping.realToAnonymized.entries()) {
         if (anon.model === modelId) {
-            const parsed = parseEffectiveModelId(realId);
+            const parsed = parseModelIdForDisplay(realId);
             const displayName = getModelDisplayLabel(parsed.baseId, { 
                 prettifyModelName: false, // Keep original casing
                 hideProvider: true, 
@@ -564,7 +564,7 @@ export function parseStructuredSummary(
 
                 if (representativeModelId) {
                     // Use clean base model ID (remove variant suffixes)
-                    const parsed = parseEffectiveModelId(representativeModelId);
+                    const parsed = parseModelIdForDisplay(representativeModelId);
                     const cleanBaseModelId = parsed.baseId;
                     
                     const fullGrades = Object.fromEntries(
@@ -719,7 +719,7 @@ export async function generateExecutiveSummary(
                 // Create list of expected base models (deduplicated from all variants)
                 const expectedBaseModels = new Set<string>();
                 for (const modelId of evaluatedModels) {
-                    const parsed = parseEffectiveModelId(modelId);
+                    const parsed = parseModelIdForDisplay(modelId);
                     expectedBaseModels.add(parsed.baseId);
                 }
                 

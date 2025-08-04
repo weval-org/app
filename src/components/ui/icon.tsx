@@ -54,6 +54,7 @@ import {
   GitCommit,
   Quote,
   MessageSquare,
+  MessageCircle,
   Layers,
   Hash,
   LayoutGrid,
@@ -85,6 +86,10 @@ import {
   Target,
   Medal,
   GitCompareArrows,
+  Puzzle,
+  Shield,
+  Compass,
+  Globe,
   type LucideProps
 } from 'lucide-react';
 
@@ -146,6 +151,7 @@ const iconMap = {
   'git-commit': GitCommit,
   'quote': Quote,
   'message-square': MessageSquare,
+  'message-circle': MessageCircle,
   'layers': Layers,
   'hash': Hash,
   'layout-grid': LayoutGrid,
@@ -176,7 +182,11 @@ const iconMap = {
   'activity': Activity,
   'target': Target,
   'medal': Medal,
-  'git-compare-arrows': GitCompareArrows
+  'git-compare-arrows': GitCompareArrows,
+  'puzzle': Puzzle,
+  'shield': Shield,
+  'compass': Compass,
+  'globe': Globe
 };
 
 export type IconName = keyof typeof iconMap;

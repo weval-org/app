@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { parseEffectiveModelId, getCanonicalModels } from '@/app/utils/modelIdUtils';
+import { parseModelIdForDisplay, getCanonicalModels } from '@/app/utils/modelIdUtils';
 import { ComparisonDataV2 } from '@/app/utils/types';
 
 interface ModelFilteringOptions {
@@ -40,7 +40,7 @@ export const useModelFiltering = ({
 
     if (config.systems && config.systems.length > 1) {
       models = models.filter(modelId => {
-        const { systemPromptIndex } = parseEffectiveModelId(modelId);
+        const { systemPromptIndex } = parseModelIdForDisplay(modelId);
         return systemPromptIndex === activeSysPromptIndex;
       });
     }
@@ -50,7 +50,7 @@ export const useModelFiltering = ({
         return [];
       }
       models = models.filter(modelId => {
-        const { temperature } = parseEffectiveModelId(modelId);
+        const { temperature } = parseModelIdForDisplay(modelId);
         const modelTemp = temperature ?? (config.temperature ?? 0.0);
         return selectedTemperatures.includes(modelTemp);
       });

@@ -18,7 +18,7 @@ import {
     IdealScoreExtremes,
     AllModelScoreRankings,
 } from '@/app/utils/calculationUtils';
-import { parseEffectiveModelId } from '@/app/utils/modelIdUtils';
+import { parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
 
 export interface AnalysisStats {
     overallIdealExtremes: IdealScoreExtremes | null;
@@ -151,7 +151,7 @@ export const useAnalysisStats = (data: ComparisonDataV2 | null): AnalysisStats =
         if (config.systems && config.systems.length > 1 && llmCoverageScores && effectiveModels && promptIds) {
             for (let i = 0; i < config.systems.length; i++) {
                 const modelsForVariant = effectiveModels.filter(modelId => {
-                    const { systemPromptIndex } = parseEffectiveModelId(modelId);
+                    const { systemPromptIndex } = parseModelIdForDisplay(modelId);
                     return systemPromptIndex === i;
                 });
 
@@ -179,7 +179,7 @@ export const useAnalysisStats = (data: ComparisonDataV2 | null): AnalysisStats =
             const uniqueTemperatures = [...new Set(config.temperatures)];
             for (const temp of uniqueTemperatures) {
                 const modelsForTemp = effectiveModels.filter(modelId => {
-                    const { temperature } = parseEffectiveModelId(modelId);
+                    const { temperature } = parseModelIdForDisplay(modelId);
                     return temperature?.toString() === temp.toString();
                 });
 

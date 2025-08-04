@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelIdUtils';
+import { getModelDisplayLabel, parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { EvaluationView } from './SharedEvaluationComponents';
@@ -75,11 +75,11 @@ const SpecificEvaluationModal: React.FC = () => {
             return null;
         }
 
-        const clickedParsed = parseEffectiveModelId(modelId);
+        const clickedParsed = parseModelIdForDisplay(modelId);
         
         const variantModelIds = (config.systems && config.systems.length > 1) 
             ? effectiveModels.filter(m => {
-                const p = parseEffectiveModelId(m);
+                const p = parseModelIdForDisplay(m);
                 return p.baseId === clickedParsed.baseId && p.temperature === clickedParsed.temperature;
             })
             : [modelId];
@@ -87,7 +87,7 @@ const SpecificEvaluationModal: React.FC = () => {
         const variantEvaluations = new Map<number, ModelEvaluationVariant>();
 
         for (const modelIdVar of variantModelIds) {
-            const parsed = parseEffectiveModelId(modelIdVar);
+            const parsed = parseModelIdForDisplay(modelIdVar);
             const sysIndex = parsed.systemPromptIndex ?? 0;
 
             const modelResult = llmCoverageScores[promptId]?.[modelIdVar];

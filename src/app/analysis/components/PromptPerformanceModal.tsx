@@ -7,7 +7,7 @@ import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
 import KeyPointCoverageTable from '@/app/analysis/components/KeyPointCoverageTable';
 import PromptContextDisplay from '@/app/analysis/components/PromptContextDisplay';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
-import { parseEffectiveModelId } from '@/app/utils/modelIdUtils';
+import { parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
 import Icon from '@/components/ui/icon';
 import { usePreloadIcons } from '@/components/ui/use-preload-icons';
 

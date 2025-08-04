@@ -49,23 +49,6 @@ const PromptInfo: React.FC<PromptInfoProps> = ({
         </CollapsibleTrigger>
         <CollapsibleContent>
           <CardContent className="pt-0 space-y-4">
-            {/* System Prompt Section */}
-            <div className="space-y-2">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                System Prompt (Variant {variantIndex})
-              </h4>
-              {systemPrompt && systemPrompt !== '[No System Prompt]' ? (
-                <div className="p-3 rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/30">
-                  <pre className="text-xs text-blue-900 dark:text-blue-100 whitespace-pre-wrap font-mono leading-relaxed">
-                    {systemPrompt}
-                  </pre>
-                </div>
-              ) : (
-                <div className="p-3 rounded-md bg-muted/50 border border-border/50">
-                  <p className="text-xs text-muted-foreground italic">No system prompt was used for this variant</p>
-                </div>
-              )}
-            </div>
 
             {/* Description Section */}
             {description && (
@@ -91,6 +74,24 @@ const PromptInfo: React.FC<PromptInfoProps> = ({
                 </div>
               </div>
             )}
+
+            {/* System Prompt Section */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                System Prompt (Variant {variantIndex})
+              </h4>
+              {systemPrompt && systemPrompt !== '[No System Prompt]' ? (
+                <div className="p-3 rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/30">
+                  <pre className="text-xs text-blue-900 dark:text-blue-100 whitespace-pre-wrap font-mono leading-relaxed">
+                    {systemPrompt}
+                  </pre>
+                </div>
+              ) : (
+                <div className="p-3 rounded-md bg-muted/50 border border-border/50">
+                  <p className="text-xs text-muted-foreground italic">No system prompt was used for this variant</p>
+                </div>
+              )}
+            </div>
             
             {/* Prompt Context Section */}
             <div className="space-y-2">

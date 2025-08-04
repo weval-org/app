@@ -23,7 +23,7 @@ class XaiClient {
     public async makeApiCall(options: LLMApiCallOptions): Promise<LLMApiCallResult> {
         // Extract modelName from modelId (format: "xai:grok-beta")
         const modelName = options.modelId.split(':')[1] || options.modelId;
-        const { messages, systemPrompt, temperature = 0.3, maxTokens = 1500, timeout = 120000 } = options;
+        const { messages, systemPrompt, temperature = 0.3, maxTokens = 1500, timeout = 60000 } = options;
         const fetch = (await import('node-fetch')).default;
 
         const apiMessages = [...(messages || [])];
@@ -74,7 +74,7 @@ class XaiClient {
     public async *streamApiCall(options: LLMApiCallOptions): AsyncGenerator<StreamChunk> {
         // Extract modelName from modelId (format: "xai:grok-beta")
         const modelName = options.modelId.split(':')[1] || options.modelId;
-        const { messages, systemPrompt, temperature = 0.3, maxTokens = 2000, timeout = 120000 } = options;
+        const { messages, systemPrompt, temperature = 0.3, maxTokens = 2000, timeout = 60000 } = options;
         const fetch = (await import('node-fetch')).default;
 
         const apiMessages = [...(messages || [])];

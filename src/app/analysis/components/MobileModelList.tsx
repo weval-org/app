@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { SharedModelCard, ModelSummary } from './SharedModelCard';
-import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelIdUtils';
+import { getModelDisplayLabel, parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
 import { CoverageResult } from '@/app/utils/types';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -90,7 +90,7 @@ export const MobileModelList: React.FC<MobileModelListProps> = ({
         const groups: Record<string, { modelId: string; systemPromptIndex?: number }[]> = {};
 
         displayedModels.forEach(modelId => {
-            const parsed = parseEffectiveModelId(modelId);
+            const parsed = parseModelIdForDisplay(modelId);
             if (!groups[parsed.baseId]) {
                 groups[parsed.baseId] = [];
             }

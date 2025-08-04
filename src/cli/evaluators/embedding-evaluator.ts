@@ -2,7 +2,7 @@ import { getConfig } from '../config';
 import { EvaluationInput, FinalComparisonOutputV2, Evaluator, EvaluationMethod, IDEAL_MODEL_ID } from '../types/cli_types';
 import { getEmbedding } from '../services/embedding-service'; // Correct path to existing service
 import { cosineSimilarity as calculateSimilarity } from '@/lib/math';
-import { parseEffectiveModelId } from '@/app/utils/modelIdUtils';
+import { parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
 import { ProgressCallback } from '../services/comparison-pipeline-service.non-stream';
 import pLimit from '@/lib/pLimit';
 
@@ -64,7 +64,7 @@ export class EmbeddingEvaluator implements Evaluator {
         textsToEmbed.forEach((text, key) => {
             const promptId = key.split(':')[0];
             const inputForPrompt = inputs.find(i => i.promptData.promptId === promptId);
-            const embeddingModel = inputForPrompt?.embeddingModel || 'together:intfloat/multilingual-e5-large-instruct'; // Fallback for safety
+            const embeddingModel = inputForPrompt?.embeddingModel || 'openai:text-embedding-3-small'; // Fallback for safety
 
             this.logger.info(`[EmbeddingEvaluator] Queueing embedding for key: ${key} using model ${embeddingModel}`);
             embeddingTasks.push(limit(async () => {

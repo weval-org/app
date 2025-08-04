@@ -111,6 +111,7 @@ function getClient(modelId: string): any {
  * It determines the correct client from the modelId and forwards the call.
  */
 export async function dispatchMakeApiCall(options: LLMApiCallOptions): Promise<LLMApiCallResult> {
+    console.log(`[ClientDispatcher] Dispatching API call for modelId: ${options.modelId}`);
     const { modelId } = options;
     const client = getClient(modelId);
     

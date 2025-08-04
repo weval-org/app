@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelIdUtils';
+import { getModelDisplayLabel, parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
 import {
     ComparisonDataV2 as ImportedComparisonDataV2,
     CoverageResult,
@@ -136,7 +136,7 @@ const ModelView: React.FC<{
 }> = ({ displayedModels, promptCoverageScores, promptResponses, systemPrompts, promptSimilarities }) => {
 
     displayedModels = displayedModels.filter(modelId => {
-        const parsed = parseEffectiveModelId(modelId);
+        const parsed = parseModelIdForDisplay(modelId);
         // Don't show ideal model id as a distinct model in the key coverage area
         // as the inner coverage area has a tabbed interface for seeing that.
         return parsed.baseId.toLowerCase() !== 'ideal_model_id';
@@ -150,7 +150,7 @@ const ModelView: React.FC<{
         const groups: Record<string, { modelId: string; systemPromptIndex?: number }[]> = {};
 
         displayedModels.forEach(modelId => {
-            const parsed = parseEffectiveModelId(modelId);
+            const parsed = parseModelIdForDisplay(modelId);
             if (!groups[parsed.baseId]) {
                 groups[parsed.baseId] = [];
             }

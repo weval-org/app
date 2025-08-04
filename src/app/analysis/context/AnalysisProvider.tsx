@@ -10,7 +10,7 @@ import { useModelFiltering } from '@/app/analysis/hooks/useModelFiltering';
 import { ActiveHighlight } from '@/app/analysis/components/CoverageTableLegend';
 import { ComparisonDataV2, CoverageResult } from '@/app/utils/types';
 import { calculateStandardDeviation, findSimilarityExtremes } from '@/app/utils/calculationUtils';
-import { parseEffectiveModelId, getCanonicalModels } from '@/app/utils/modelIdUtils';
+import { parseModelIdForDisplay, getCanonicalModels } from '@/app/utils/modelIdUtils';
 import {  useRouter, useSearchParams } from 'next/navigation';
 import { fromSafeTimestamp, formatTimestampForDisplay } from '@/lib/timestampUtils';
 
@@ -148,7 +148,7 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
 
         const baseModelGroups = new Map<string, string[]>();
         effectiveModels.forEach(modelId => {
-            const parsed = parseEffectiveModelId(modelId);
+            const parsed = parseModelIdForDisplay(modelId);
             if (!baseModelGroups.has(parsed.baseId)) {
                 baseModelGroups.set(parsed.baseId, []);
             }
@@ -160,7 +160,7 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
         for (const [baseId, modelIdsInGroup] of baseModelGroups.entries()) {
             if (modelIdsInGroup.length < 2) continue;
 
-            const parsedModels = modelIdsInGroup.map(id => parseEffectiveModelId(id));
+            const parsedModels = modelIdsInGroup.map(id => parseModelIdForDisplay(id));
             const hasTempVariants = new Set(parsedModels.map(p => p.temperature)).size > 1;
             const hasSysVariants = new Set(parsedModels.map(p => p.systemPromptIndex)).size > 1;
 
@@ -173,7 +173,7 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
                 if (hasTempVariants) {
                     const scoresBySysPrompt = new Map<number, number[]>();
                     modelIdsInGroup.forEach(modelId => {
-                        const parsed = parseEffectiveModelId(modelId);
+                        const parsed = parseModelIdForDisplay(modelId);
                         const result = llmCoverageScores[promptId]?.[modelId];
                         if (result && !('error' in result) && typeof result.avgCoverageExtent === 'number' && !isNaN(result.avgCoverageExtent)) {
                             if (parsed.systemPromptIndex !== undefined) {
@@ -199,7 +199,7 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
                 if (hasSysVariants) {
                     const scoresByTemp = new Map<number, number[]>();
                     modelIdsInGroup.forEach(modelId => {
-                        const parsed = parseEffectiveModelId(modelId);
+                        const parsed = parseModelIdForDisplay(modelId);
                         const result = llmCoverageScores[promptId]?.[modelId];
                         if (result && !('error' in result) && typeof result.avgCoverageExtent === 'number' && !isNaN(result.avgCoverageExtent)) {
                             const temp = parsed.temperature ?? config.temperature ?? 0.0;
@@ -370,11 +370,10 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
 
         const overallPairExtremes = findSimilarityExtremes(data.evaluationResults?.similarityMatrix);
 
-        // Get model leaderboard (top 5) - always based on coverage scores
+        // Get model leaderboard (all models) - always based on coverage scores
         let modelLeaderboard = null;
         if (analysisStats.allModelCoverageRankings?.rankedModels) {
             modelLeaderboard = analysisStats.allModelCoverageRankings.rankedModels
-                .slice(0, 5)
                 .map(model => ({
                     id: model.modelId,
                     score: model.avgScore,

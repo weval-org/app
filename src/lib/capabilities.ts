@@ -23,6 +23,11 @@ export interface CapabilityTopic {
   weight: number;
 }
 
+export interface CapabilityConfig {
+  key: string; // Config ID like 'uk-clinical-scenarios'
+  weight: number;
+}
+
 export interface CapabilityBucket {
   id: string;
   label: string;
@@ -30,118 +35,139 @@ export interface CapabilityBucket {
   icon: string;
   dimensions: CapabilityDimension[];
   topics: CapabilityTopic[];
+  configs?: CapabilityConfig[];
 }
 
 export const CAPABILITY_BUCKETS: CapabilityBucket[] = [
   {
-    id: 'helpfulness-reasoning',
-    label: 'Helpfulness & Reasoning',
-    description: 'Core ability to understand and execute tasks effectively.',
-    icon: 'puzzle',
-    dimensions: [
-      { key: 'helpfulness', weight: 1.0 },
-      { key: 'adherence', weight: 1.0 },
-      { key: 'depth', weight: 0.75 },
-    ],
-    topics: [
-      { key: 'Instruction Following & Prompt Adherence', weight: 1.0 },
-      { key: 'Reasoning', weight: 1.0 },
-      { key: 'Coding', weight: 0.75 },
-      { key: 'Summarization', weight: 0.5 },
-    ],
-  },
-  {
-    id: 'safety-responsibility',
-    label: 'Safety & Responsibility',
-    description: 'Avoiding harm and acting with ethical consideration.',
+    id: 'safety-and-integrity',
+    label: 'Safety & Integrity',
+    description: 'Being truthful, avoiding harm, protecting users from dangerous content. Emphasizes proactive safety measures, system-prompt adherence, non-hallucination, non-sycophancy, and mental health support.',
     icon: 'shield',
-    dimensions: [{ key: 'safety', weight: 1.0 }],
-    topics: [
-      { key: 'AI Safety & Robustness', weight: 1.0 },
-      { key: 'Jailbreak & Evasion Resistance', weight: 1.0 },
-      { key: 'AI Bias & Fairness', weight: 1.0 },
-      { key: 'Child Safety & Protection', weight: 1.0 },
-      { key: 'Mental Health & Crisis Support', weight: 1.0 },
-      { key: 'Safety', weight: 1.0 },
-    ],
-  },
-  {
-    id: 'communication-quality',
-    label: 'Communication Quality',
-    description: 'The clarity, style, and expressiveness of the response.',
-    icon: 'message-circle',
     dimensions: [
-      { key: 'clarity', weight: 1.0 },
-      { key: 'coherence', weight: 1.0 },
-      { key: 'empathy', weight: 0.75 },
-      { key: 'tone', weight: 0.75 },
-      { key: 'creativity', weight: 0.5 },
+      { key: 'safety', weight: 1.0 }
     ],
     topics: [
-      { key: 'Creative Writing', weight: 0.75 },
-      { key: 'Humanities', weight: 0.5 },
-      { key: 'Role-playing', weight: 0.5 },
     ],
-  },
-  {
-    id: 'trustworthiness-accuracy',
-    label: 'Trustworthiness & Accuracy',
-    description: 'Providing reliable and factual information.',
-    icon: 'check-circle',
-    dimensions: [
-      { key: 'credibility', weight: 1.0 },
-      { key: 'humility', weight: 0.75 },
-      { key: 'argumentation', weight: 0.75 },
-      { key: 'depth', weight: 0.5 },
-    ],
-    topics: [
-      { key: 'Factual Accuracy & Hallucination', weight: 1.0 },
-      { key: 'Misinformation & Disinformation', weight: 1.0 },
-      { key: 'Historical Accuracy & Misinformation', weight: 0.75 },
-      { key: 'Science Communication', weight: 0.75 },
-      { key: 'Causal Reasoning', weight: 0.5 },
+    configs: [
+      { key: 'uk-clinical-scenarios', weight: 0.5 },
+      { key: 'stanford-hai-mental-health-safety-eval', weight: 2.0 },
+      { key: 'mental-health', weight: 2.0 },
+      { key: 'hallucination-probe', weight: 3.0 },
+      { key: 'system-prompt-adherence-resilience', weight: 2.0 },
+      { key: 'sycophancy-probe', weight: 3.0 }
     ],
   },
   // {
-  //   id: 'civic-legal-rights',
-  //   label: 'Civic & Legal Rights',
-  //   description:
-  //     'Understanding of governance, human rights, and legal frameworks.',
-  //   icon: 'scale',
+  //   id: 'safety',
+  //   label: 'Safety',
+  //   description: 'Avoiding harm and protecting users from dangerous or harmful content. Emphasizes proactive safety measures, non-hallucination, and mental health support.',
+  //   icon: 'shield',
   //   dimensions: [
-  //     { key: 'adherence', weight: 1.0 },
-  //     { key: 'argumentation', weight: 0.75 },
+  //     // { key: 'safety', weight: 2.0 },
+  //     // { key: 'humility', weight: 0.9 },
+  //     // { key: 'empathy', weight: 0.8 },
+  //     // { key: 'credibility', weight: 0.6 },
   //   ],
   //   topics: [
-  //     { key: 'Human Rights', weight: 1.0 },
-  //     { key: 'Legal Reasoning', weight: 1.0 },
-  //     { key: 'Constitutional Law', weight: 1.0 },
-  //     { key: 'Public Sector & Governance', weight: 0.75 },
-  //     { key: 'International Law & Regional Charters', weight: 0.75 },
-  //     { key: 'Freedom of Information', weight: 0.5 },
-  //     { key: 'Economic Justice & Inequality', weight: 0.5 },
-  //     { key: 'Racial Justice', weight: 0.5 },
+  //     // { key: 'AI Safety & Robustness', weight: 1.0 },
+  //     // { key: 'Mental Health & Crisis Support', weight: 1.0 },
+  //     // { key: 'Child Safety & Protection', weight: 1.0 },
+  //     // { key: 'Misinformation & Disinformation', weight: 0.9 },
+  //     // { key: 'AI Bias & Fairness', weight: 0.9 },
+  //     // { key: 'Factual Accuracy & Hallucination', weight: 0.8 },
+  //     // { key: 'Jailbreak & Evasion Resistance', weight: 1.2 },
+  //     // { key: 'Safety', weight: 10.0 },
+  //     // { key: 'Healthcare', weight: 1.0 },
+  //     // { key: 'Human Rights', weight: 1.0 }
+  //   ],
+  //   configs: [
+  //     { key: 'uk-clinical-scenarios', weight: 0.5 },
+  //     { key: 'stanford-hai-mental-health-safety-eval', weight: 2.0 },
+  //     { key: 'mental-health', weight: 2.0 },
+  //     { key: 'hallucination-probe', weight: 2.0 },
+  //     { key: 'system-prompt-adherence-resilience', weight: 1.0 },
+  //     { key: 'sycophancy-probe', weight: 2.0 }
+  //   ],
+  // },
+  // {
+  //   id: 'integrity',
+  //   label: 'Integrity',
+  //   description: 'Being truthful, faithful to instructions, and honest about limitations. Prioritizes factual accuracy, instruction following, and avoiding sycophancy.',
+  //   icon: 'compass',
+  //   dimensions: [
+  //     // { key: 'adherence', weight: 2.0 },
+  //     // { key: 'helpfulness', weight: 1.0 },
+  //     // { key: 'credibility', weight: 1.0 },
+  //     // { key: 'humility', weight: 1.0 },
+  //     // { key: 'argumentation', weight: 0.9 },
+  //     // { key: 'clarity', weight: 0.7 },
+  //     // { key: 'coherence', weight: 0.7 },
+  //     // { key: 'safety', weight: 0.8 },
+  //   ],
+  //   topics: [
+  //     // { key: 'Factual Accuracy & Hallucination', weight: 2.0 },
+  //     // { key: 'Instruction Following & Prompt Adherence', weight: 2.0 },
+  //     // { key: 'Sycophancy & Evasion', weight: 2.0 },
+  //     // { key: 'Reasoning', weight: 0.9 },
+  //     // { key: 'Logical & Rhetorical Fallacies', weight: 0.9 },
+  //     // { key: 'Science Communication', weight: 0.8 },
+  //     // { key: 'Coding', weight: 0.8 },
+  //     // { key: 'Misinformation & Disinformation', weight: 0.7 },
+  //     // { key: 'Summarization', weight: 0.7 },
+  //     // { key: 'Sycophancy', weight: 2.0 }
+  //   ],
+  //   configs: [
+  //     { key: 'hallucination-probe', weight: 3.0 },
+  //     { key: 'system-prompt-adherence-resilience', weight: 3.0 },
+  //     { key: 'sycophancy-probe', weight: 3.0 }
   //   ],
   // },
   {
-    id: 'global-context-equity',
-    label: 'Global Context & Equity',
-    description:
-      "Competency in non-Western, low-resource, and culturally diverse contexts.",
+    id: 'global-fluency',
+    label: 'Global Fluency',
+    description: 'Understanding and communicating effectively across diverse cultural and linguistic contexts. Focuses on cultural competency, non-western everyday perspectives, low-resource languages, and the Global South.',
     icon: 'globe',
     dimensions: [
-      { key: 'depth', weight: 1.0 },
-      { key: 'empathy', weight: 0.75 },
+      // { key: 'empathy', weight: 1.5 },
+      // { key: 'depth', weight: 1.0 },
+      // { key: 'humility', weight: 0.8 },
+      // { key: 'creativity', weight: 0.7 },
     ],
     topics: [
-      { key: 'Cultural Competency', weight: 1.0 },
-      { key: 'Low-Resource Language Proficiency', weight: 1.0 },
-      { key: 'Indigenous Peoples\' Rights', weight: 1.0 },
-      { key: 'Geographic & Local Knowledge', weight: 0.75 },
-      { key: 'Non-Western Philosophical Frameworks', weight: 0.75 },
-      { key: 'Traditional & Indigenous Medicine', weight: 0.5 },
-      { key: 'Informal Economies & Livelihoods', weight: 0.5 },
-      { key: 'Customary & Traditional Law', weight: 0.5 },
+      // { key: 'Cultural Competency', weight: 2.0 },
+      // { key: 'Low-Resource Language Proficiency', weight: 2.0 },
+      // { key: 'Indigenous Peoples\' Rights', weight: 2.0 },
+      // { key: 'Geographic & Local Knowledge', weight: 1.5 },
+      // { key: 'Non-Western Philosophical Frameworks', weight: 1.5 },
+      // { key: 'AI Bias & Fairness', weight: 1.5 },
+      // { key: 'Traditional & Indigenous Medicine', weight: 1.5 },
+      // { key: 'Informal Economies & Livelihoods', weight: 2.5 },
+      // { key: 'Customary & Traditional Law', weight: 2.0 },
+    ],
+    configs: [
+      { key: 'digigreen-qna-with-vids', weight: 2.0 },
+      { key: 'sri-lanka-citizen-compendium-factum', weight: 3.0 },
+      { key: 'indian-rti-act', weight: 1.5 },
+      { key: 'ipcc-ar6-synthesis-report-spm', weight: 1.5 },
+      { key: 'platform-workers-sea-algo-manage', weight: 1.5 },
+      { key: 'maternal-health-uttar-pradesh', weight: 2.0 }
     ],
   },
+  {
+    id: 'helpfulness-reasoning',
+    label: 'Helpfulness & Reasoning',
+    description: 'Fundamental ability to understand and reason through a problem the user is trying to solve. Includes ability to provide coherent, deep and well-argued responses, engage socratically and be open-minded.',
+    icon: 'puzzle',
+    dimensions: [
+      { key: 'helpfulness', weight: 1.0 },
+      { key: 'coherence', weight: 1.0 },
+      { key: 'depth', weight: 0.75 },
+      { key: 'argumentation', weight: 0.75 }
+    ],
+    topics: [],
+    configs: [
+      { key: 'homework-int-help-heuristics', weight: 3.0 }
+    ]
+  }
 ];

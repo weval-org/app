@@ -6,18 +6,21 @@ import * as executiveSummaryService from '../services/executive-summary-service'
 import { LLMCoverageEvaluator } from '../evaluators/llm-coverage-evaluator';
 import { getConfig } from '../config';
 import { FinalComparisonOutputV2 as FetchedComparisonData } from '../types/cli_types';
+import * as llmService from '../services/llm-service';
 
 jest.mock('@/lib/storageService');
 jest.mock('@/cli/commands/backfill-summary');
 jest.mock('@/cli/services/executive-summary-service');
 jest.mock('@/cli/evaluators/llm-coverage-evaluator');
 jest.mock('@/cli/config');
+jest.mock('@/cli/services/llm-service');
 
 const mockedStorage = storageService as jest.Mocked<typeof storageService>;
 const mockedBackfill = backfillSummary as jest.Mocked<typeof backfillSummary>;
 const mockedExecutiveSummary = executiveSummaryService as jest.Mocked<typeof executiveSummaryService>;
 const mockedLLMCoverageEvaluator = LLMCoverageEvaluator as jest.MockedClass<typeof LLMCoverageEvaluator>;
 const mockedGetConfig = getConfig as jest.MockedFunction<typeof getConfig>;
+const mockedLLMService = llmService as jest.Mocked<typeof llmService>;
 
 const mockLogger = {
   info: jest.fn(),
@@ -91,6 +94,7 @@ describe('repair-run command', () => {
         mockedStorage.getResultByFileName.mockResolvedValue(mockFailedResultData as FetchedComparisonData);
         mockedLLMCoverageEvaluator.prototype.evaluate.mockResolvedValue(mockRepairedCoverage);
         mockedExecutiveSummary.generateExecutiveSummary.mockResolvedValue({ modelId: 'test-summary-model', content: 'Repaired summary.' });
+        mockedLLMService.getModelResponse.mockResolvedValue('Repaired response from API');
     });
 
     it('should successfully repair a run with failed assessments', async () => {
@@ -163,5 +167,47 @@ describe('repair-run command', () => {
         expect(mockLogger.error).toHaveBeenCalledWith('Invalid runIdentifier format. Expected "configId/runLabel/timestamp".');
         expect(exitSpy).toHaveBeenCalledWith(1);
         exitSpy.mockRestore();
+    });
+
+    it('should preserve API routing when making repair calls with routing providers', async () => {
+        // Test the fix for the parseModelIdForDisplay routing bug
+        const mockFailedDataWithRouting: Partial<FetchedComparisonData> = {
+            ...mockFailedResultData,
+            allFinalAssistantResponses: { 
+                p1: { 'openrouter:google/gemini-pro[temp:0.7]': 'Failed response' } 
+            },
+            // Set up GENERATION failures (not evaluation failures) to trigger getModelResponse
+            errors: {
+                p1: {
+                    'openrouter:google/gemini-pro[temp:0.7]': 'Model generation failed'
+                }
+            },
+            config: { 
+                prompts: [{ 
+                    id: 'p1',
+                    messages: [{ role: 'user', content: 'Test prompt' }]
+                }] 
+            } as any,
+        };
+
+        mockedStorage.getResultByFileName.mockResolvedValue(mockFailedDataWithRouting as FetchedComparisonData);
+        mockedLLMService.getModelResponse.mockResolvedValue('Repaired response from routing provider');
+
+        await repairRunCommand.parseAsync(['node', 'test', mockRunIdentifier]);
+
+        // Verify that the API call preserves routing information
+        expect(mockedLLMService.getModelResponse).toHaveBeenCalledWith({
+            modelId: 'openrouter:google/gemini-pro', // Should preserve routing!
+            messages: expect.any(Array),
+            temperature: 0.7,
+            useCache: false
+        });
+
+        // Should NOT call with normalized form that would break routing
+        expect(mockedLLMService.getModelResponse).not.toHaveBeenCalledWith(
+            expect.objectContaining({
+                modelId: 'google:gemini-pro' // This would be the broken behavior
+            })
+        );
     });
 }); 

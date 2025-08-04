@@ -40,7 +40,7 @@ import { fetchBlueprintContentByName, resolveModelsInConfig } from '../../lib/bl
 import { SimpleLogger } from '@/lib/blueprint-service';
 import { fromSafeTimestamp } from '@/lib/timestampUtils';
 import { ModelRunPerformance, ModelSummary } from '@/types/shared';
-import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelIdUtils';
+import { getModelDisplayLabel, parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
 import { populatePairwiseQueue } from '../services/pairwise-task-queue-service';
 import { normalizeTag } from '@/app/utils/tagUtils';
 import { generateBlueprintIdFromPath } from '@/app/utils/blueprintIdUtils';
@@ -693,7 +693,7 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions, commi
 
                         for (const [effectiveModelId, hybridScore] of scoresMap.entries()) {
                             if (hybridScore.average !== null && hybridScore.average !== undefined) {
-                                const { baseId } = parseEffectiveModelId(effectiveModelId);
+                                const { baseId } = parseModelIdForDisplay(effectiveModelId);
                                 try {
                                     const existingModelSummary = await getModelSummary(baseId);
                                     

@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelIdUtils';
+import { getModelDisplayLabel, parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
 import { CoverageResult } from '@/app/utils/types';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { EvaluationView } from '@/app/analysis/components/SharedEvaluationComponents';
@@ -63,15 +63,15 @@ const ModelPerformanceModal: React.FC = () => {
     const { modelVariants, initialVariantIndex } = useMemo(() => {
         if (!isOpen || !modelId || !data) return { modelVariants: [], initialVariantIndex: 0 };
 
-        const clickedParsed = parseEffectiveModelId(modelId);
+        const clickedParsed = parseModelIdForDisplay(modelId);
         const variants = data.effectiveModels
             .filter(m => {
-                const p = parseEffectiveModelId(m);
+                const p = parseModelIdForDisplay(m);
                 return p.baseId === clickedParsed.baseId && p.temperature === clickedParsed.temperature;
             })
             .sort((a, b) => {
-                const idxA = parseEffectiveModelId(a).systemPromptIndex ?? 0;
-                const idxB = parseEffectiveModelId(b).systemPromptIndex ?? 0;
+                const idxA = parseModelIdForDisplay(a).systemPromptIndex ?? 0;
+                const idxB = parseModelIdForDisplay(b).systemPromptIndex ?? 0;
                 return idxA - idxB;
             });
         
@@ -167,7 +167,7 @@ const ModelPerformanceModal: React.FC = () => {
             if (promptConfig?.system) {
                 effectiveSystemPromptValue = promptConfig.system;
             } else {
-                const parsed = parseEffectiveModelId(currentVariantModelId);
+                const parsed = parseModelIdForDisplay(currentVariantModelId);
                 if (config.systems && typeof parsed.systemPromptIndex === 'number' && config.systems[parsed.systemPromptIndex]) {
                     effectiveSystemPromptValue = config.systems[parsed.systemPromptIndex];
                 } else if (config.systems && typeof parsed.systemPromptIndex === 'number' && config.systems[parsed.systemPromptIndex] === null) {
@@ -243,7 +243,7 @@ const ModelPerformanceModal: React.FC = () => {
                                             className="flex flex-wrap gap-4"
                                         >
                                             {modelVariants.map((variantId, index) => {
-                                                const parsedVariant = parseEffectiveModelId(variantId);
+                                                const parsedVariant = parseModelIdForDisplay(variantId);
                                                 const score = analysisStats?.perSystemVariantHybridScores?.[parsedVariant.systemPromptIndex ?? 0];
                                                 return (
                                                     <div key={variantId} className="flex items-center space-x-2">

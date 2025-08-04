@@ -21,7 +21,7 @@ import {
   EnhancedComparisonConfigInfo,
   EnhancedRunInfo,
 } from '@/app/utils/homepageDataUtils';
-import { AggregateStatsData, CapabilityLeaderboard } from '@/app/components/home/types';
+import { AggregateStatsData, CapabilityLeaderboard, CapabilityRawData } from '@/app/components/home/types';
 import { PotentialDriftInfo } from '@/app/components/ModelDriftIndicator';
 import { ComparisonDataV2 as FetchedComparisonData } from '@/app/utils/types';
 import {
@@ -56,7 +56,9 @@ export interface HomepageSummaryFileContent {
   driftDetectionResult: PotentialDriftInfo | null;
   topicChampions?: Record<string, TopicChampion[]>;
   capabilityLeaderboards?: CapabilityLeaderboard[];
+  capabilityRawData?: CapabilityRawData;
   lastUpdated: string;
+  fileSizeKB?: number; // File size in KB for debugging purposes
 }
 
 // --- New Types for Latest Runs Summary ---
@@ -203,6 +205,10 @@ export async function getHomepageSummary(): Promise<HomepageSummaryFileContent |
   try {
     const parsedContent: SerializableHomepageSummaryFileContent = JSON.parse(fileContent);
     
+    // Calculate file size in KB for debugging
+    const fileSizeBytes = Buffer.byteLength(fileContent, 'utf8');
+    const fileSizeKB = Math.round(fileSizeBytes / 1024 * 100) / 100; // Round to 2 decimal places
+    
     // Rehydrate Maps
     const configsWithMaps: EnhancedComparisonConfigInfo[] = parsedContent.configs.map(config => ({
       ...config,
@@ -220,6 +226,7 @@ export async function getHomepageSummary(): Promise<HomepageSummaryFileContent |
     return {
       ...parsedContent,
       configs: configsWithMaps,
+      fileSizeKB,
     };
   } catch (error) {
     console.error(`[StorageService] Error parsing homepage summary content for ${fileName}:`, error);

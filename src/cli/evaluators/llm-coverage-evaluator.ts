@@ -36,6 +36,7 @@ interface LLMCoverageEvaluationConfig {
 const DEFAULT_JUDGES: Judge[] = [
     { id: 'prompt-aware-openai-gpt-4-1-mini', model: 'openai:gpt-4.1-mini', approach: 'prompt-aware' },
     { id: 'prompt-aware-gemini-2-5-flash', model: 'openrouter:google/gemini-2.5-flash', approach: 'prompt-aware' },
+    { id: 'holistic-openai-gpt-4-1-mini', model: 'openai:gpt-4.1-mini', approach: 'holistic' }
 ];
 
 const DEFAULT_BACKUP_JUDGE: Judge = {
@@ -217,6 +218,7 @@ export class LLMCoverageEvaluator implements Evaluator {
         pointToEvaluate: NormalizedPoint,
         allPointsInPrompt: NormalizedPoint[],
         promptContextText: string,
+        suiteDescription: string | undefined,
         judges?: Judge[],
         judgeMode?: 'failover' | 'consensus' // Legacy
     ): Promise<JudgeResult> {
@@ -249,6 +251,7 @@ export class LLMCoverageEvaluator implements Evaluator {
                     pointToEvaluate.textToEvaluate!,
                     allKeyPointTexts,
                     promptContextText,
+                    suiteDescription,
                     judge
                 );
 
@@ -270,6 +273,7 @@ export class LLMCoverageEvaluator implements Evaluator {
             pointToEvaluate,
             allKeyPointTexts,
             promptContextText,
+            suiteDescription,
             successfulJudgements,
             totalJudgesAttempted,
             judges,
@@ -319,6 +323,7 @@ export class LLMCoverageEvaluator implements Evaluator {
         pointToEvaluate: NormalizedPoint,
         allKeyPointTexts: string[],
         promptContextText: string,
+        suiteDescription: string | undefined,
         successfulJudgements: (PointwiseCoverageLLMResult & { judgeModelId: string })[],
         totalJudgesAttempted: number,
         judges?: Judge[],
@@ -342,6 +347,7 @@ export class LLMCoverageEvaluator implements Evaluator {
             pointToEvaluate.textToEvaluate!,
             allKeyPointTexts,
             promptContextText,
+            suiteDescription,
             DEFAULT_BACKUP_JUDGE
         );
 
@@ -361,6 +367,7 @@ export class LLMCoverageEvaluator implements Evaluator {
         keyPointText: string,
         allOtherKeyPoints: string[],
         promptContextText: string,
+        suiteDescription: string | undefined,
         judge: Judge
     ): Promise<PointwiseCoverageLLMResult | { error: string }> {
         const cacheKeyPayload = {
@@ -368,6 +375,7 @@ export class LLMCoverageEvaluator implements Evaluator {
             keyPointText,
             allOtherKeyPoints,
             promptContextText,
+            suiteDescription,
             judge, // Judge object includes model and approach
         };
         const cacheKey = generateCacheKey(cacheKeyPayload);
@@ -464,6 +472,14 @@ Your output MUST strictly follow this XML format:
 You are an expert evaluator and examiner. You are incredibly precise. Your task is to assess how well a specific criterion is covered by a given text by providing a reflection and a precise classification. 
 Focus solely on the provided criterion, the text, and the classification guidelines. Adhere strictly to the XML output format specified in the user prompt. Be brief if possible.
 
+${approach === 'holistic' && suiteDescription?.trim() !== '' ? `
+For context, this evaluation is part of a broader suite with the following description (please recognize this merely as context, and not a part of the evaluation itself):
+
+<BROAD_EVALUATION_DESCRIPTION>
+${suiteDescription}
+</BROAD_EVALUATION_DESCRIPTION>
+` : ''}
+
 The criterion is an assertion being made about the <TEXT>. It might be allude to a 'response', which relates to the <TEXT>. It might be phrased in various ways. So some valid variations of a criterion given the text "The lemonade stand was open for 10 hours." might be:
 
 - "The response should have included opening times and be concise"
@@ -488,12 +504,6 @@ Input: <TEXT>Handling a situation where a colleague consistently takes credit fo
 Output: <reflection>The text mentions empathy, which means the criterion is MET precisely.</reflection><classification>${CLASSIFICATION_SCALE[CLASSIFICATION_SCALE.length - 1].name}</classification>
 -----
 `.trim();
-
-// console.log('[debug] Exact prompts used', `
-//    SYSTEM PROMPT: ${systemPrompt}
-//    --------------------------------
-//    FINAL PROMPT: ${finalPrompt}
-// `);
         
         try {
              const clientOptions: Omit<LLMApiCallOptions, 'modelName'> & { modelId: string } = {
@@ -665,6 +675,7 @@ Output: <reflection>The text mentions empathy, which means the criterion is MET 
                                     point,
                                     textPoints,
                                     promptContextString,
+                                    config.description,
                                     llmCoverageConfig?.judges,
                                     llmCoverageConfig?.judgeMode
                                 );

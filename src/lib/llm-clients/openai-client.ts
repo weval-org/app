@@ -34,7 +34,7 @@ class OpenAIClient {
         const modelName = options.modelId.split(':')[1] || options.modelId;
         console.log(`[OpenAIClient] Extracted model name: ${modelName}`);
         
-        const { messages: optionMessages, systemPrompt, temperature = 0.3, maxTokens = 1500, timeout = 120000 } = options;
+        const { messages: optionMessages, systemPrompt, temperature = 0.3, maxTokens = 1500, timeout = 60000 } = options;
         
         const fetch = (await import('node-fetch')).default;
 
@@ -90,7 +90,7 @@ class OpenAIClient {
     public async *streamApiCall(options: LLMApiCallOptions): AsyncGenerator<StreamChunk> {
         // Extract modelName from modelId (format: "openai:gpt-4")  
         const modelName = options.modelId.split(':')[1] || options.modelId;
-        const { messages, systemPrompt, temperature = 0.3, maxTokens = 2000, timeout = 120000 } = options;
+        const { messages, systemPrompt, temperature = 0.3, maxTokens = 2000, timeout = 60000 } = options;
 
         const fetch = (await import('node-fetch')).default;
 

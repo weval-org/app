@@ -11,6 +11,73 @@ export interface ParsedModelId {
   maker?: string; // e.g., "OPENAI", "ANTHROPIC", etc.
 }
 
+export interface ApiCallModelParams {
+  originalModelId: string;    // Preserves exact routing: "openrouter:google/gemini-pro"
+  temperature?: number;       // Extracted: 0.7
+  systemPromptIndex?: number; // Extracted: 1
+  systemPromptHash?: string;  // Extracted: "[sys:abc123]"
+  effectiveModelId: string;   // Original full ID with suffixes
+}
+
+// ===== SHARED UTILITIES (to eliminate DRY issues) =====
+
+interface ParsedSuffixes {
+  temperature?: number;
+  systemPromptIndex?: number;
+  systemPromptHash?: string;
+  baseWithoutSuffixes: string;
+}
+
+/**
+ * Shared utility to parse suffix parameters from model IDs.
+ * Handles [temp:X], [sp_idx:X], and [sys:X] in any order.
+ */
+function parseSuffixesFromModelId(modelId: string): ParsedSuffixes {
+  let remaining = modelId;
+  let temperature: number | undefined;
+  let systemPromptIndex: number | undefined;
+  let systemPromptHash: string | undefined;
+
+  // Temperature suffix: [temp:0.7]
+  const tempRegex = /\[temp:(\d+\.?\d*)\]/;
+  const tempMatch = remaining.match(tempRegex);
+  if (tempMatch) {
+    temperature = parseFloat(tempMatch[1]);
+    remaining = remaining.replace(tempRegex, '');
+  }
+
+  // System Prompt Index suffix: [sp_idx:2]
+  const spIdxRegex = /\[sp_idx:(\d+)\]/;
+  const spIdxMatch = remaining.match(spIdxRegex);
+  if (spIdxMatch) {
+    systemPromptIndex = parseInt(spIdxMatch[1], 10);
+    remaining = remaining.replace(spIdxRegex, '');
+  }
+
+  // System Prompt Hash suffix: [sys:abc123]
+  const sysRegex = /\[sys:([a-zA-Z0-9]+)\]/;
+  const sysMatch = remaining.match(sysRegex);
+  if (sysMatch) {
+    systemPromptHash = sysMatch[0]; // Store the full [sys:hash]
+    // Also check if it's a numeric index
+    const numericIndex = parseInt(sysMatch[1], 10);
+    if (!isNaN(numericIndex) && sysMatch[1].match(/^\d+$/)) {
+      systemPromptIndex = numericIndex;
+    }
+    remaining = remaining.replace(sysRegex, '');
+  }
+
+  return {
+    temperature,
+    systemPromptIndex,
+    systemPromptHash,
+    baseWithoutSuffixes: remaining.trim()
+  };
+}
+
+// Provider detection constants
+const ROUTING_PROVIDERS = ['openrouter', 'together', 'fireworks', 'replicate'] as const;
+
 export const IDEAL_MODEL_ID_BASE = 'IDEAL_MODEL_ID'; // Assuming this might be used or relevant
 
 // Helper function to normalize maker names
@@ -19,6 +86,239 @@ function normalizeMakerName(maker: string): string {
     // Normalize x-ai variants to XAI
     if (normalized === 'X-AI') return 'XAI';
     return normalized;
+}
+
+/**
+ * Normalizes model IDs to ensure consistent provider prefixes.
+ * This fixes issues where the same model appears with and without provider prefixes.
+ */
+/**
+ * Model name normalization mappings for leaderboard consolidation.
+ * Maps variant names to their canonical form.
+ */
+const MODEL_NAME_NORMALIZATIONS: Record<string, string> = {
+  // Grok models - normalize beta versions and dated versions to their base versions
+  'grok-3-mini-beta': 'grok-3-mini',
+  'grok-4-mini-beta': 'grok-4-mini', // Future-proofing
+  'grok-4-0709': 'grok-4',
+
+  'deepseek-chat-v3-0324': 'deepseek-chat-v3',
+  
+  // Claude models - normalize dated versions to their base versions
+  'claude-3-5-haiku-20241022': 'claude-3-5-haiku',
+  'claude-3-5-sonnet-20241022': 'claude-3-5-sonnet',
+  'claude-3-7-sonnet-20250219': 'claude-3-7-sonnet',
+  'claude-sonnet-4-20250514': 'claude-sonnet-4',
+  'claude-opus-4-20250514': 'claude-opus-4',
+  'claude-3-opus-20240229': 'claude-3-opus',
+  
+  
+  // Gemini models - normalize preview/dated versions to their base versions
+  'gemini-2.5-flash-preview-05-20': 'gemini-2.5-flash',
+  'gemini-2.5-flash-preview': 'gemini-2.5-flash',
+  'gemini-2.5-pro-preview': 'gemini-2.5-pro',
+  
+  // Add other model normalizations as needed
+  // 'model-variant-name': 'canonical-name',
+};
+
+/**
+ * Normalizes model names to consolidate variants.
+ * For example: "grok-3-mini-beta" → "grok-3-mini"
+ */
+function normalizeModelName(modelName: string): string {
+  const lowerModelName = modelName.toLowerCase();
+  
+  // Check for exact matches first
+  if (MODEL_NAME_NORMALIZATIONS[lowerModelName]) {
+    return MODEL_NAME_NORMALIZATIONS[lowerModelName];
+  }
+  
+  // Check for pattern-based normalizations
+  for (const [variant, canonical] of Object.entries(MODEL_NAME_NORMALIZATIONS)) {
+    // Handle case-insensitive matching
+    if (lowerModelName === variant.toLowerCase()) {
+      return canonical;
+    }
+  }
+  
+  return modelName; // Return original if no normalization found
+}
+
+/**
+ * Extracts the core model name from various provider formats.
+ * Examples:
+ * - "openrouter:x-ai/grok-3" → "grok-3"
+ * - "together:x-ai/grok-3-mini-beta" → "grok-3-mini-beta"
+ * - "x-ai/grok-3" → "grok-3"
+ * - "xai:grok-3" → "grok-3"
+ * - "grok-3" → "grok-3"
+ */
+function extractCoreModelName(baseId: string): string {
+  // Handle all routing provider formats: routing_provider:actual_provider/model
+  const isRoutingProvider = ROUTING_PROVIDERS.some(provider => baseId.startsWith(`${provider}:`));
+  
+  if (isRoutingProvider) {
+    const afterRoutingProvider = baseId.substring(baseId.indexOf(':') + 1);
+    if (afterRoutingProvider.includes('/')) {
+      return afterRoutingProvider.split('/')[1]; // Extract just the model name
+    }
+    return afterRoutingProvider;
+  }
+  
+  // Handle direct provider formats: provider:model or provider/model
+  if (baseId.includes(':')) {
+    return baseId.split(':')[1];
+  }
+  
+  if (baseId.includes('/')) {
+    return baseId.split('/')[1];
+  }
+  
+  // Already just the model name
+  return baseId;
+}
+
+function normalizeModelBaseId(baseId: string): string {
+  const coreModelName = extractCoreModelName(baseId);
+  // Apply model name normalization (e.g., "grok-3-mini-beta" → "grok-3-mini")
+  const normalizedModelName = normalizeModelName(coreModelName);
+  const modelNameLower = normalizedModelName.toLowerCase();
+  
+  // Apply canonical provider prefixes based on the normalized model name
+  // XAI/Grok models
+  if (modelNameLower.includes('grok')) {
+    return `xai:${normalizedModelName}`;
+  }
+  
+  // OpenAI models
+  if (modelNameLower.includes('gpt-') || modelNameLower.includes('o1-') || modelNameLower.includes('o4-')) {
+    return `openai:${normalizedModelName}`;
+  }
+  
+  // Anthropic models
+  if (modelNameLower.includes('claude')) {
+    return `anthropic:${normalizedModelName}`;
+  }
+  
+  // Google models
+  if (modelNameLower.includes('gemini') || modelNameLower.includes('palm')) {
+    return `google:${normalizedModelName}`;
+  }
+  
+  // DeepSeek models
+  if (modelNameLower.includes('deepseek')) {
+    return `deepseek:${normalizedModelName}`;
+  }
+  
+  // Meta/Llama models
+  if (modelNameLower.includes('llama')) {
+    // Normalize meta-llama/llama-xyz to just llama-xyz for canonical form
+    const normalizedLlamaName = normalizedModelName.replace(/^meta-llama\//, '');
+    return `meta:${normalizedLlamaName}`;
+  }
+  
+  // Mistral models
+  if (modelNameLower.includes('mistral') || modelNameLower.includes('mixtral')) {
+    return `mistralai:${normalizedModelName}`;
+  }
+  
+  // Cohere models
+  if (modelNameLower.includes('command')) {
+    return `cohere:${normalizedModelName}`;
+  }
+  
+  // If no known provider can be determined, return with original format if it had one,
+  // or just the core name if it was already clean
+  if (baseId.includes(':') || baseId.includes('/')) {
+    return baseId; // Keep original format for unknown models
+  }
+  
+  return normalizedModelName;
+}
+
+// ===== PURPOSE-SPECIFIC FUNCTIONS =====
+
+/**
+ * ✅ FOR API CALLS - preserves routing providers!
+ * 
+ * Extracts API parameters while preserving original routing information.
+ * USE THIS for making API calls.
+ * 
+ * Example:
+ * "openrouter:google/gemini-pro[temp:0.7]" → 
+ * { originalModelId: "openrouter:google/gemini-pro", temperature: 0.7 }
+ */
+export function parseModelIdForApiCall(effectiveModelId: string): ApiCallModelParams {
+  if (!effectiveModelId) {
+    return { 
+      originalModelId: 'unknown', 
+      effectiveModelId 
+    };
+  }
+
+  // Handle ideal model ID specifically
+  if (effectiveModelId === 'IDEAL_BENCHMARK' || effectiveModelId === IDEAL_MODEL_ID_BASE) {
+    return { 
+      originalModelId: IDEAL_MODEL_ID_BASE, 
+      effectiveModelId,
+      temperature: undefined,
+      systemPromptHash: undefined 
+    };
+  }
+
+  const suffixes = parseSuffixesFromModelId(effectiveModelId);
+
+  return {
+    originalModelId: suffixes.baseWithoutSuffixes, // NO normalization - preserves routing!
+    temperature: suffixes.temperature,
+    systemPromptIndex: suffixes.systemPromptIndex,
+    systemPromptHash: suffixes.systemPromptHash,
+    effectiveModelId
+  };
+}
+
+/**
+ * ⚠️ FOR DISPLAY/LEADERBOARDS ONLY - normalizes providers!
+ * 
+ * Parses model ID for DISPLAY and LEADERBOARD purposes only.
+ * DO NOT USE FOR API CALLS - normalizes routing providers!
+ * 
+ * Normalizes "openrouter:google/gemini-pro" → "google:gemini-pro"
+ * Use parseModelIdForApiCall() to preserve routing.
+ * 
+ * Example:
+ * "openrouter:google/gemini-pro[temp:0.7]" → 
+ * { baseId: "google:gemini-pro", temperature: 0.7 } // Lost routing info!
+ */
+export function parseModelIdForDisplay(effectiveModelId: string): ParsedModelId {
+  if (!effectiveModelId) {
+    return { baseId: 'Unknown', displayName: 'Unknown', fullId: effectiveModelId };
+  }
+  
+  // Handle ideal model ID specifically
+  if (effectiveModelId === 'IDEAL_BENCHMARK' || effectiveModelId === IDEAL_MODEL_ID_BASE) {
+      return { baseId: IDEAL_MODEL_ID_BASE, displayName: IDEAL_MODEL_ID_BASE, fullId: effectiveModelId, temperature: undefined, systemPromptHash: undefined };
+  }
+
+  const suffixes = parseSuffixesFromModelId(effectiveModelId);
+  
+  // What remains is the true base model ID
+  const baseId = normalizeModelBaseId(suffixes.baseWithoutSuffixes); // Apply normalization for display
+  const displayName = baseId; // Display name is just the base, formatting happens in getModelDisplayLabel
+
+  // Extract maker from the original model ID
+  const maker = extractMakerFromModelId(effectiveModelId);
+
+  return {
+    baseId: baseId,
+    displayName: displayName,
+    systemPromptHash: suffixes.systemPromptHash,
+    temperature: suffixes.temperature,
+    systemPromptIndex: suffixes.systemPromptIndex,
+    fullId: effectiveModelId,
+    maker: maker,
+  };
 }
 
 /**
@@ -58,75 +358,12 @@ export function extractMakerFromModelId(modelId: string): string {
     return maker;
 }
 
-export function parseEffectiveModelId(effectiveModelId: string): ParsedModelId {
-  if (!effectiveModelId) {
-    return { baseId: 'Unknown', displayName: 'Unknown', fullId: effectiveModelId };
-  }
-  // Handle ideal model ID specifically
-  if (effectiveModelId === 'IDEAL_BENCHMARK' || effectiveModelId === IDEAL_MODEL_ID_BASE) { // IDEAL_MODEL_ID is often 'IDEAL_BENCHMARK'
-      return { baseId: IDEAL_MODEL_ID_BASE, displayName: IDEAL_MODEL_ID_BASE, fullId: effectiveModelId, temperature: undefined, systemPromptHash: undefined };
-  }
-
-  let remainingId = effectiveModelId;
-  let temperature: number | undefined;
-  let systemPromptHash: string | undefined;
-  let systemPromptIndex: number | undefined;
-
-  // Match and remove suffixes regardless of their order.
-
-  // Temperature
-  const tempRegex = /\[temp:(\d+\.?\d*)\]/;
-  const tempMatch = remainingId.match(tempRegex);
-  if (tempMatch) {
-    temperature = parseFloat(tempMatch[1]);
-    remainingId = remainingId.replace(tempRegex, '');
-  }
-
-  // System Prompt Index
-  const spIdxRegex = /\[sp_idx:(\d+)\]/;
-  const spIdxMatch = remainingId.match(spIdxRegex);
-  if (spIdxMatch) {
-    systemPromptIndex = parseInt(spIdxMatch[1], 10);
-    remainingId = remainingId.replace(spIdxRegex, '');
-  }
-
-  // System Prompt Hash
-  const sysRegex = /\[sys:([a-zA-Z0-9]+)\]/;
-  const sysMatch = remainingId.match(sysRegex);
-  if (sysMatch) {
-    systemPromptHash = sysMatch[0]; // Store the full [sys:hash]
-    // Also check if it's a numeric index
-    const numericIndex = parseInt(sysMatch[1], 10);
-    if (!isNaN(numericIndex) && sysMatch[1].match(/^\d+$/)) {
-        systemPromptIndex = numericIndex;
-    }
-    remainingId = remainingId.replace(sysRegex, '');
-  }
-  
-  // What remains is the true base model ID
-  const baseId = remainingId;
-  const displayName = baseId; // Display name is just the base, formatting happens in getModelDisplayLabel
-
-  // Extract maker from the original model ID
-  const maker = extractMakerFromModelId(effectiveModelId);
-
-  return {
-    baseId: baseId,
-    displayName: displayName,
-    systemPromptHash: systemPromptHash,
-    temperature: temperature,
-    systemPromptIndex: systemPromptIndex, // This can remain if needed elsewhere
-    fullId: effectiveModelId,
-    maker: maker,
-  };
-}
-
 // Helper function to format the display name for UI
 export function getModelDisplayLabel(
     parsedIdOrFullId: ParsedModelId | string,
     options?: { hideProvider?: boolean; hideModelMaker?: boolean; prettifyModelName?: boolean, hideSystemPrompt?: boolean, hideTemperature?: boolean }
 ): string {
-    const parsed = typeof parsedIdOrFullId === 'string' ? parseEffectiveModelId(parsedIdOrFullId) : parsedIdOrFullId;
+    const parsed = typeof parsedIdOrFullId === 'string' ? parseModelIdForDisplay(parsedIdOrFullId) : parsedIdOrFullId;
     
     let baseId = parsed.baseId;
     let provider = '';
@@ -193,7 +430,7 @@ export function getCanonicalModels(
     // Group models by their base name
     for (const modelId of modelIds) {
         if (modelId === IDEAL_MODEL_ID) continue; // Don't group the ideal model
-        const { baseId } = parseEffectiveModelId(modelId);
+        const { baseId } = parseModelIdForDisplay(modelId);
         if (!modelsByBaseName.has(baseId)) {
             modelsByBaseName.set(baseId, []);
         }
@@ -206,7 +443,7 @@ export function getCanonicalModels(
 
     // If there are no variations, all models are canonical
     if (!hasTempVariations && !hasSystemVariations) {
-        return modelIds.filter(id => id === IDEAL_MODEL_ID || modelsByBaseName.has(parseEffectiveModelId(id).baseId));
+        return modelIds.filter(id => id === IDEAL_MODEL_ID || modelsByBaseName.has(parseModelIdForDisplay(id).baseId));
     }
 
     for (const variants of modelsByBaseName.values()) {
@@ -223,8 +460,8 @@ export function getCanonicalModels(
         for (const variant of variants) {
             if (variant === bestVariant) continue;
 
-            const current = parseEffectiveModelId(variant);
-            const best = parseEffectiveModelId(bestVariant);
+            const current = parseModelIdForDisplay(variant);
+            const best = parseModelIdForDisplay(bestVariant);
 
             // Normalize temperature to avoid issues with undefined
             const currentTemp = current.temperature ?? config?.temperature ?? 0;

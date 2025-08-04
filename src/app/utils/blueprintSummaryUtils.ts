@@ -1,5 +1,5 @@
 import { EnhancedComparisonConfigInfo, EnhancedRunInfo, AllCoverageScores } from './homepageDataUtils';
-import { getModelDisplayLabel, parseEffectiveModelId } from './modelIdUtils';
+import { getModelDisplayLabel, parseModelIdForDisplay } from './modelIdUtils';
 import { IDEAL_MODEL_ID } from './calculationUtils';
 import { fromSafeTimestamp } from '@/lib/timestampUtils';
 

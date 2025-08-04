@@ -15,7 +15,6 @@ import { AggregateStatsData } from './home/types';
 import OverallModelLeaderboard from './home/OverallModelLeaderboard';
 import DimensionChampionsDisplay from './home/DimensionChampionsDisplay';
 import TopicChampionsDisplay from './home/TopicChampionsDisplay';
-import CapabilityLeaderboardDisplay from './home/CapabilityLeaderboardDisplay';
 
 interface AggregateStatsDisplayProps {
   stats: AggregateStatsData | null;
@@ -54,7 +53,7 @@ const AggregateStatsDisplay: React.FC<AggregateStatsDisplayProps> = ({ stats }) 
             title="Overall Model Leaderboard"
           />
         </div>
-        <CapabilityLeaderboardDisplay leaderboards={stats.capabilityLeaderboards || null} />
+
         {/* Keeping these components available but not displayed on homepage for now */}
         {/* <DimensionChampionsDisplay leaderboards={stats.dimensionLeaderboards || null} /> */}
         {/* <TopicChampionsDisplay champions={stats.topicChampions || null} /> */}

@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { getModelDisplayLabel, parseEffectiveModelId } from '@/app/utils/modelIdUtils';
+import { getModelDisplayLabel, parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
 import { useAnalysis } from '../context/AnalysisContext';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { getHybridScoreColorClass } from '@/app/analysis/utils/colorUtils';
@@ -25,7 +25,7 @@ const ModelResponseCard: React.FC<ModelResponseCardProps> = ({ modelId }) => {
     const hybridScoreData = calculatedPerModelHybridScores?.get(modelId);
     const semanticScoreData = calculatedPerModelSemanticScores?.get(modelId);
 
-    const { baseId: modelBaseId } = parseEffectiveModelId(modelId);
+    const { baseId: modelBaseId } = parseModelIdForDisplay(modelId);
 
     const similarityToIdeal = useMemo(() => {
         if (!evaluationResults?.perPromptSimilarities?.[currentPromptId] || !evaluationResults.perPromptSimilarities[currentPromptId][modelId]) {

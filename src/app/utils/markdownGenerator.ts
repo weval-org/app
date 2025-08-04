@@ -19,7 +19,7 @@ import {
     findIdealExtremes
 } from '@/app/utils/calculationUtils';
 import { fromSafeTimestamp, formatTimestampForDisplay } from '@/lib/timestampUtils';
-import { getModelDisplayLabel, parseEffectiveModelId } from './modelIdUtils';
+import { getModelDisplayLabel, parseModelIdForDisplay } from './modelIdUtils';
 
 function escapeMarkdown(text: string): string {
     if (!text) return text;

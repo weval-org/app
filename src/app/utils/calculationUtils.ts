@@ -1,5 +1,5 @@
 import { ComparisonDataV2 as FetchedComparisonData, EvaluationResults } from '@/app/utils/types';
-import { parseEffectiveModelId } from '@/app/utils/modelIdUtils';
+import { parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
 
 export const IDEAL_MODEL_ID = 'IDEAL_BENCHMARK';
 
@@ -409,7 +409,7 @@ export const calculateAllModelCoverageRankings = (
       const scoreData = promptData[modelId];
       if (scoreData && !('error' in scoreData) && typeof scoreData.avgCoverageExtent === 'number' && !isNaN(scoreData.avgCoverageExtent)) {
         // Parse to get canonical model name
-        const { baseId } = parseEffectiveModelId(modelId);
+        const { baseId } = parseModelIdForDisplay(modelId);
         
         if (!canonicalModelScores.has(baseId)) {
           canonicalModelScores.set(baseId, { totalScore: 0, count: 0, variants: new Set() });
@@ -483,7 +483,7 @@ export const calculateAllModelHybridRankings = (
         
         if (hybridScore !== null) {
           // Parse to get canonical model name
-          const { baseId } = parseEffectiveModelId(modelId);
+          const { baseId } = parseModelIdForDisplay(modelId);
           
           if (!canonicalModelScores.has(baseId)) {
             canonicalModelScores.set(baseId, { totalScore: 0, count: 0, variants: new Set() });
