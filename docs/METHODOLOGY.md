@@ -193,6 +193,15 @@ Each capability bucket combines two distinct data sources using weighted averagi
 * Topics are matched to capability buckets using normalized topic names (kebab-case → Title Case)
 * Each topic can contribute to multiple capability buckets with different weights
 
+#### 5.5.2a. Tag Collection and Auto-Tags
+
+The topic layer draws its tag universe from two complementary sources:
+
+1. **Manual Blueprint Tags** – the `tags:` array declared in a blueprint’s YAML header.
+2. **Auto-Tags** – during executive-summary generation the analyst LLM inspects the run and injects additional topical labels (e.g., `hallucination`, `mental-health`, `instruction-following`) into the `executiveSummary.structured.autoTags` field.
+
+These two lists are merged, run through `normalizeTag()` (case-folding, kebab-case, trimming) and de-duplicated.  The resulting set of normalized tags is what drives the *topic hybrid scores* used in capability aggregation, ensuring that even un-tagged blueprints are still discoverable by capability buckets.
+
 #### 5.5.3. Aggregation Formula
 
 For each model in each capability bucket, the final score is calculated as:
@@ -257,10 +266,11 @@ To prevent artificially inflated scores from limited data, models must meet both
 
 The capability leaderboards are calculated in `calculateCapabilityLeaderboards()` within the summary calculation pipeline. Key implementation details:
 
-* **Topic Normalization**: Uses `normalizeTopicKey()` from `tagUtils` to convert kebab-case topic keys to match capability bucket definitions
-* **Calculation Timing**: Computed during `backfill-summary` and `run-config` operations
-* **Storage**: Saved in `homepage-summary.json` as `capabilityLeaderboards` array
-* **Display Thresholds**: UI applies same ≥10 runs, ≥5 configs filter as calculation logic
+*   **Topic Normalization**: Uses `normalizeTopicKey()` from `tagUtils` to convert kebab-case topic keys to match capability bucket definitions
+*   **Weight Table Location**: Capability and weight definitions live in `src/lib/capabilities.ts` (`CAPABILITY_BUCKETS` constant). Editing this file updates both the backend aggregation and the front-end labels/icons in real time.
+*   **Calculation Timing**: Computed during `backfill-summary` and `run-config` operations
+*   **Storage**: Saved in `homepage-summary.json` as `capabilityLeaderboards` array
+*   **Display Thresholds**: UI applies same ≥10 runs, ≥5 configs filter as calculation logic
 
 This multi-stage derivation process—from raw LLM outputs → dimension grades → topic scores → weighted capability aggregates—represents multiple layers of interpretation and should be understood as a **commentary on model performance patterns** rather than ground truth about model capabilities.
 

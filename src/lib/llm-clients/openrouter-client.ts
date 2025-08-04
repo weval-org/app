@@ -6,7 +6,7 @@ class OpenRouterModuleClient {
   async makeApiCall(options: LLMApiCallOptions): Promise<LLMApiCallResult> {
     // Extract modelName from modelId (format: "openrouter:meta-llama/llama-3.1-8b-instruct:free")
     const modelName = options.modelId.split(':').slice(1).join(':') || options.modelId;
-    const { messages, systemPrompt, temperature, maxTokens, timeout = 30000 } = options;
+    const { messages, systemPrompt, temperature, maxTokens, timeout = 20000 } = options;
     const apiKey = process.env.OPENROUTER_API_KEY;
 
     if (!apiKey) {
@@ -68,7 +68,7 @@ class OpenRouterModuleClient {
   async *streamApiCall(options: LLMApiCallOptions): AsyncGenerator<StreamChunk, void, undefined> {
     // Extract modelName from modelId (format: "openrouter:meta-llama/llama-3.1-8b-instruct:free")
     const modelName = options.modelId.split(':').slice(1).join(':') || options.modelId;
-    const { messages, systemPrompt, temperature, maxTokens, timeout = 30000 } = options;
+    const { messages, systemPrompt, temperature, maxTokens, timeout = 20000 } = options;
     const apiKey = process.env.OPENROUTER_API_KEY;
 
     if (!apiKey) {

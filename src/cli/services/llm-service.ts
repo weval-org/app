@@ -88,7 +88,7 @@ export async function getModelResponse(params: GetModelResponseParams): Promise<
     try {
         const pRetry = (await import('p-retry')).default;
         const responseContent = await pRetry(apiCall, {
-            retries: 3,
+            retries: 1,
             onFailedAttempt: (error: any) => {
                 logger.warn(`[LLM Service] API call failed. Attempt ${error.attemptNumber}. Retries left: ${error.retriesLeft}.`);
                 logger.warn(`[LLM Service] Error: ${error.message}`);

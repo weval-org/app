@@ -55,7 +55,8 @@ export const CAPABILITY_BUCKETS: CapabilityBucket[] = [
       { key: 'mental-health', weight: 2.0 },
       { key: 'hallucination-probe', weight: 3.0 },
       { key: 'system-prompt-adherence-resilience', weight: 2.0 },
-      { key: 'sycophancy-probe', weight: 3.0 }
+      { key: 'sycophancy-probe', weight: 3.0 },
+      { key: 'confidence-high-stakes-domains', weight: 2.0 }
     ],
   },
   // {
