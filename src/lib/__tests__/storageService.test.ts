@@ -94,6 +94,7 @@ const mockHomepageSummary: HomepageSummaryFileContent = {
     ],
     headlineStats: null,
     driftDetectionResult: null,
+    fileSizeKB: 0.7,
     lastUpdated: '2024-03-15T12-00-00-000Z',
 };
 
