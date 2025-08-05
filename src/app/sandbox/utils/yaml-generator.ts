@@ -23,9 +23,11 @@ function isDefaultPoint(p: any): boolean {
 }
 
 function isHeaderMeaningful(header: any): boolean {
+    if (header.point_defs && Object.keys(header.point_defs).length > 0) return true;
     const keys = Object.keys(header);
     if (keys.length === 0) return false;
-    // It's not meaningful if it only contains an empty 'models' array.
+    if (header.point_defs && Object.keys(header.point_defs).length > 0) return true;
+    // It's not meaningful if it only contains an empty 'models' array and no point_defs.
     if (keys.length === 1 && keys[0] === 'models' && Array.isArray(header.models) && header.models.length === 0) {
         return false;
     }

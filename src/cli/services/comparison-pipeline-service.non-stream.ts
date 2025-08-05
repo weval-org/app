@@ -8,7 +8,7 @@ import pLimit from '@/lib/pLimit';
 export type ProgressCallback = (completed: number, total: number) => Promise<void>;
 
 const DEFAULT_GENERATION_CONCURRENCY = 20;
-const FAILURE_THRESHOLD = 5; // Consecutive failures to trip circuit breaker
+const FAILURE_THRESHOLD = 10; // Consecutive failures to trip circuit breaker
 
 export async function generateAllResponses(
     config: ComparisonConfig,

@@ -8,6 +8,49 @@ import stableStringify from 'json-stable-stringify';
  * Internal interface for building normalized point objects during parsing.
  * This represents the object variant of SinglePointDefinition being constructed.
  */
+/**
+ * Recursively expand $ref points using definitions map.
+ */
+function expandRefsInPoints(points: any, defsMap: Record<string, any>, promptId: string | undefined): any {
+    if (Array.isArray(points)) {
+        return points.map(p => expandRefsInPoints(p, defsMap, promptId));
+    }
+    if (typeof points === 'object' && points !== null) {
+        const pt: any = { ...points };
+        if (pt.fn === 'ref') {
+            const refData = pt.fnArgs;
+            let refName: string | undefined;
+            if (typeof refData === 'string') {
+                refName = refData;
+            } else if (refData && typeof refData === 'object') {
+                refName = refData.name || refData;
+            }
+            if (!refName || typeof refName !== 'string') {
+                throw new Error(`Invalid $ref usage in prompt '${promptId || 'unknown'}'. Expected a string name.`);
+            }
+            const defValue = defsMap[refName];
+            if (defValue === undefined) {
+                throw new Error(`Undefined definition '${refName}' referenced in prompt '${promptId || 'unknown'}'.`);
+            }
+            if (typeof defValue === 'string') {
+                return {
+                    fn: 'js',
+                    fnArgs: defValue,
+                    multiplier: pt.multiplier ?? 1,
+                    citation: pt.citation,
+                };
+            } else if (typeof defValue === 'object' && defValue !== null) {
+                // if defValue is already a point definition-like object, shallow clone
+                return { ...defValue };
+            } else {
+                throw new Error(`Definition '${refName}' is of unsupported type.`);
+            }
+        }
+        return pt;
+    }
+    return points;
+}
+
 interface NormalizedPointObject {
     text?: string;
     fn?: string;
@@ -239,10 +282,10 @@ export function parseAndNormalizeBlueprint(content: string, fileType: 'json' | '
             typeof firstDoc === 'object' &&
             !Array.isArray(firstDoc) &&
             // Heuristic: if it has config-like keys and not prompt-like keys, it's a config.
-            (firstDoc.models || firstDoc.id || firstDoc.title || firstDoc.system || firstDoc.evaluationConfig || firstDoc.configId || firstDoc.configTitle) &&
+            (firstDoc.models || firstDoc.id || firstDoc.title || firstDoc.system || firstDoc.evaluationConfig || firstDoc.configId || firstDoc.configTitle || firstDoc.point_defs || firstDoc.defs) &&
             !(firstDoc.prompt || firstDoc.messages || firstDoc.should || firstDoc.ideal || firstDoc.points);
 
-        if (firstDocIsConfig) {
+        if (firstDocIsConfig || (typeof firstDoc === 'object' && !Array.isArray(firstDoc) && firstDoc.point_defs || firstDoc.defs)) {
             // Structure 1: Config Header + Prompts
             configHeader = firstDoc;
             rawPrompts = rawDocs.slice(1).flat();
@@ -252,8 +295,21 @@ export function parseAndNormalizeBlueprint(content: string, fileType: 'json' | '
         }
     }
 
+    // --- Collect reusable definitions (defs) ---
+    const defsMap: Record<string, any> = (configHeader && typeof configHeader === 'object' && (configHeader.point_defs || configHeader.defs)) ? { ...(configHeader.point_defs || configHeader.defs) } : {};
+
+    // Remove defs from header so it doesn't appear in final output
+    if (configHeader) {
+        // Preserve point_defs; only remove old 'defs' field for backward compatibility
+        if ((configHeader as any).defs) delete (configHeader as any).defs;
+    }
+
     // --- Unified Normalization ---
     const finalConfig: Partial<ComparisonConfig> = { ...configHeader };
+    // Ensure point_defs carried through
+    if ((configHeader as any).point_defs) {
+        (finalConfig as any).point_defs = (configHeader as any).point_defs;
+    }
     
     // Normalize header fields
     finalConfig.id = finalConfig.id || configHeader.configId;
@@ -311,12 +367,16 @@ export function parseAndNormalizeBlueprint(content: string, fileType: 'json' | '
         // Consolidate all possible point sources
         const pointsSource = p.should || p.points || p.expect || p.expects || p.expectations;
         if (pointsSource) {
+            // First normalize points
+
             finalPrompt.points = _normalizePointArray(pointsSource, p.id);
+            finalPrompt.points = expandRefsInPoints(finalPrompt.points, defsMap, p.id);
         }
 
         const shouldNotSource = p.should_not;
         if (shouldNotSource) {
             finalPrompt.should_not = _normalizePointArray(shouldNotSource, p.id);
+            finalPrompt.should_not = expandRefsInPoints(finalPrompt.should_not, defsMap, p.id);
         }
 
         // Generate ID if missing (must be done last)

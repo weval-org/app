@@ -166,16 +166,25 @@ const ModelPerformanceModal: React.FC = () => {
             const promptConfig = config.prompts.find(p => p.id === selectedPromptId);
             if (promptConfig?.system) {
                 effectiveSystemPromptValue = promptConfig.system;
-            } else {
-                const parsed = parseModelIdForDisplay(currentVariantModelId);
-                if (config.systems && typeof parsed.systemPromptIndex === 'number' && config.systems[parsed.systemPromptIndex]) {
-                    effectiveSystemPromptValue = config.systems[parsed.systemPromptIndex];
-                } else if (config.systems && typeof parsed.systemPromptIndex === 'number' && config.systems[parsed.systemPromptIndex] === null) {
-                    effectiveSystemPromptValue = '[No System Prompt]';
+                            } else {
+                    const parsed = parseModelIdForDisplay(currentVariantModelId);
+                    if (config.systems && typeof parsed.systemPromptIndex === 'number' && config.systems[parsed.systemPromptIndex]) {
+                        effectiveSystemPromptValue = config.systems[parsed.systemPromptIndex];
+                    } else if (config.systems && typeof parsed.systemPromptIndex === 'number' && config.systems[parsed.systemPromptIndex] === null) {
+                        effectiveSystemPromptValue = '[No System Prompt]';
+                    }
                 }
             }
-        }
-        return { effectiveSystemPrompt: effectiveSystemPromptValue, conversationContext: conversationContextValue };
+
+            // Fallback: try to pull from stored modelSystemPrompts in result data
+            if (!effectiveSystemPromptValue) {
+                effectiveSystemPromptValue = (data as any).modelSystemPrompts?.[currentVariantModelId] ?? null;
+                if (effectiveSystemPromptValue === undefined) {
+                    effectiveSystemPromptValue = null;
+                }
+            }
+
+            return { effectiveSystemPrompt: effectiveSystemPromptValue, conversationContext: conversationContextValue };
     }, [selectedPromptId, currentVariantModelId, config, data?.promptContexts]);
 
     const getScoreColor = (rank: 'excellent' | 'good' | 'poor' | 'error') => {

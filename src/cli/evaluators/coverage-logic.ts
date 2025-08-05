@@ -102,19 +102,40 @@ export function aggregateCoverageScores(assessments: PointAssessment[]): number 
 function createAssessmentFromResult(result: PointFunctionReturn, point: NormalizedPoint): PointAssessment {
     let score: number | undefined;
     let error: string | undefined;
+    let reflection: string | undefined;
 
     if (typeof result === 'boolean') {
         score = result ? 1.0 : 0.0;
     } else if (typeof result === 'number') {
         score = Math.max(0, Math.min(1, result));
-    } else if (typeof result === 'object' && result !== null && 'error' in result) {
-        error = result.error;
+    } else if (typeof result === 'object' && result !== null) {
+        if ('error' in result) {
+            error = (result as any).error;
+        } else if ('score' in result) {
+            const rawScore: any = (result as any).score;
+            if (typeof rawScore === 'boolean') {
+                score = rawScore ? 1.0 : 0.0;
+            } else if (typeof rawScore === 'number') {
+                score = Math.max(0, Math.min(1, rawScore));
+            } else {
+                error = `Invalid score type returned from point function: ${typeof rawScore}`;
+            }
+            if ((result as any).explain && typeof (result as any).explain === 'string') {
+                reflection = (result as any).explain;
+            }
+        } else {
+            error = `Invalid return object from point function: ${JSON.stringify(result)}`;
+        }
     } else {
         error = `Invalid return value from point function: ${JSON.stringify(result)}`;
     }
 
     if (score !== undefined && point.isInverted) {
         score = 1.0 - score;
+    }
+
+    if (!reflection && !error && score !== undefined) {
+        reflection = `Function '${point.functionName}' evaluated to ${score.toFixed(2)}.`;
     }
 
     return {
@@ -124,8 +145,8 @@ function createAssessmentFromResult(result: PointFunctionReturn, point: Normaliz
         citation: point.citation,
         isInverted: point.isInverted,
         pathId: point.pathId,
-        reflection: error ? undefined : `Function '${point.functionName}' evaluated to ${score?.toFixed(2)}.`,
-        error: error,
+        reflection,
+        error,
     };
 }
 

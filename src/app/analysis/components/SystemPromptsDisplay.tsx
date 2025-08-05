@@ -23,7 +23,7 @@ const SystemPromptsDisplay = () => {
         console.log('[SystemPromptsDisplay] promptIds:', data?.promptIds);
     }
 
-    if (!data?.config?.systems || data.config.systems.length <= 1) {
+    if (!data?.config?.systems || (data.config.systems.length <= 1 && data.config.systems[0] == null)) {
         if (process.env.NODE_ENV === 'development') {
             console.log('[SystemPromptsDisplay] Returning null - condition not met');
         }

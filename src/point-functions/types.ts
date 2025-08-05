@@ -13,7 +13,12 @@ export interface PointFunctionContext {
 export type AtLeastNOfArg = [number, string[]];
 export type PointFunctionArgs = string | number | boolean | null | (string | number | boolean)[] | AtLeastNOfArg | Record<string, unknown>;
 
-export type PointFunctionReturn = boolean | number | { error: string };
+export type PointFunctionReturn =
+    | boolean
+    | number
+    | { error: string }
+    | { score: boolean | number; explain?: string };
+
 
 export type PointFunction = (
     llmResponseText: string,

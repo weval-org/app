@@ -100,6 +100,7 @@ The following fields can be included in the header section (Structure 1) or the 
 | `temperature` | `number` | **(Optional)** A single temperature setting to run for each model. This is overridden if the `temperatures` array is present. |
 | `temperatures`| `number[]` | **(Optional)** An array of temperature settings to run for each model. This will create separate evaluations for each temperature. **Note:** Using this feature will append a suffix like `[temp:0.5]` to the model ID in the final output file, creating a unique identifier for each run variant. |
 | `evaluationConfig` | `object` | **(Optional)** Advanced configuration for evaluation methods. For example, you can specify judge models for `llm-coverage`. |
+| `point_defs` | `object` | **(Optional)** Map of reusable point-function snippets. Keys are definition names; values are either JavaScript strings (expanded as `$js`) or full point objects. Reuse them inside prompts with `$ref`. |
 
 ### Model Configuration
 
@@ -436,6 +437,8 @@ If no nesting is used, the block is parsed as a single path, preserving full bac
       # Other checks
       - $word_count_between: [50, 100]
       - $js: "r.length > 100" # Advanced JS expression
+      # $js can also return { score, explain } to customise the reflection text.
+      - $ref: scoreBand          # Reuse a point defined in point_defs
 
     should_not:
       - $contains_any_of: ["I feel", "I believe", "As an AI"]

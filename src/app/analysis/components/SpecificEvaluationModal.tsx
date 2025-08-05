@@ -113,6 +113,14 @@ const SpecificEvaluationModal: React.FC = () => {
                 }
             }
 
+            // Fallback: if still undefined, use stored systemPromptUsed from result data
+            if (!effectiveSystemPrompt) {
+                effectiveSystemPrompt = (data as any).modelSystemPrompts?.[modelIdVar] ?? null;
+                if (effectiveSystemPrompt === undefined) {
+                    effectiveSystemPrompt = null;
+                }
+            }
+
             if (!modelResult || 'error' in modelResult || !modelResult.pointAssessments || modelResponse == null) {
                 continue; 
             }

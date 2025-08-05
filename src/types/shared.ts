@@ -103,6 +103,7 @@ export interface WevalConfig {
     id?: string;
     title?: string;
     description?: string;
+    point_defs?: Record<string, string>; // Reusable point function definitions
     models: (string | CustomModelDefinition)[];
     system?: string | null;
     systemPrompt?: string | null;

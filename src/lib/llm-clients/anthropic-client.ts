@@ -25,17 +25,31 @@ class AnthropicClient {
     public async makeApiCall(options: LLMApiCallOptions): Promise<LLMApiCallResult> {
         // Extract modelName from modelId (format: "anthropic:claude-3-opus")
         const modelName = options.modelId.split(':')[1] || options.modelId;
-        const { messages, systemPrompt, temperature = 0.3, maxTokens = 1500, timeout = 20000 } = options;
+        let { messages, systemPrompt } = options;
+        const { temperature = 0.3, maxTokens = 1500, timeout = 20000 } = options;
         const fetch = (await import('node-fetch')).default;
 
-        const body = JSON.stringify({
+        // If systemPrompt was not passed explicitly, pull it from the first `system` role message (Messages API compatibility).
+        if (!systemPrompt && messages && messages.length > 0) {
+            const sysMsg = messages.find(m => m.role === 'system');
+            if (sysMsg) {
+                systemPrompt = sysMsg.content;
+            }
+        }
+
+        // Remove any system-role messages before sending.
+        const filteredMessages = messages?.filter(m => m.role !== 'system') || [];
+
+        const bodyObj = {
             model: modelName,
             system: systemPrompt,
-            messages: messages?.filter(m => m.role !== 'system') || [],
+            messages: filteredMessages,
             max_tokens: maxTokens,
             temperature,
             stream: false,
-        });
+        };
+
+        const body = JSON.stringify(bodyObj);
 
         try {
             const controller = new AbortController();

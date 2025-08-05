@@ -26,6 +26,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import Icon from '@/components/ui/icon';
+import { PointDefsEditor } from './PointDefsEditor';
 
 interface GlobalConfigCardProps {
   blueprint: ComparisonConfig;
@@ -273,6 +274,17 @@ export function GlobalConfigCard({ blueprint, onUpdate, isEditable, isAdvancedMo
                                 <p className="text-xs text-muted-foreground mt-1">A global system prompt to be used for all test cases in this blueprint.</p>
                             </div>
                         )}
+                    </div>
+
+                    {/* Reusable Point-Functions */}
+                    <div>
+                        <label className="text-sm font-semibold text-foreground">Reusable Point-Functions</label>
+                        <p className="text-xs text-muted-foreground mb-1.5">Define JavaScript snippets you can reference in prompts with <code>$ref</code>.</p>
+                        <PointDefsEditor
+                            pointDefs={blueprint.point_defs}
+                            onChange={(defs)=> onUpdate({ ...blueprint, point_defs: defs })}
+                            isEditable={isEditable}
+                        />
                     </div>
                 </>
             )}

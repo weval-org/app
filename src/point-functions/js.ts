@@ -18,7 +18,7 @@ export const js: PointFunction = (
         return { error: 'Argument for js must be a string expression.' };
     }
 
-    const sandbox = { r: response };
+    const sandbox = { r: response, response };
     const context = vm.createContext(sandbox);
 
     try {
@@ -43,7 +43,19 @@ export const js: PointFunction = (
     }
 };
 
-function processResult(result: any): boolean | number | { error: string } {
+function processResult(result: any): boolean | number | { error: string } | { score: boolean | number; explain?: string } {
+    if (typeof result === 'object' && result !== null && 'score' in result) {
+        const out: any = { ...result };
+        if (typeof out.score === 'boolean') {
+            out.score = out.score ? 1 : 0;
+        } else if (typeof out.score === 'number') {
+            out.score = Math.max(0, Math.min(1, out.score));
+        } else {
+            return { error: `Invalid score type: ${typeof out.score}` };
+        }
+        return out;
+    }
+
     if (typeof result === 'boolean') {
         return result; // Will be converted to 1.0 or 0.0 by evaluator
     }

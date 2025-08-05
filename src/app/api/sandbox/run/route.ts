@@ -83,13 +83,11 @@ export async function POST(req: NextRequest) {
             : DEFAULT_ADVANCED_MODELS;
 
       evaluationConfig = {
-        'embedding': {},
         'llm-coverage': {},
       };
     } else {
       finalModels = [QUICK_RUN_MODEL];
       evaluationConfig = {
-        'embedding': {},
         'llm-coverage': {
           judges: [{ model: QUICK_RUN_JUDGE, approach: 'standard' }]
         }
