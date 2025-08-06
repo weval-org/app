@@ -362,7 +362,7 @@ class GenericHttpClient {
     }
 
     public async makeApiCall(options: LLMApiCallOptions): Promise<LLMApiCallResult> {
-        const { timeout = 20000 } = options;
+        const { timeout = 30000 } = options;
         const fetch = (await import('node-fetch')).default;
 
         const body = this.buildRequestBody(options, false);
@@ -413,7 +413,7 @@ class GenericHttpClient {
     }
 
     public async *streamApiCall(options: LLMApiCallOptions): AsyncGenerator<StreamChunk> {
-        const { timeout = 20000 } = options;
+        const { timeout = 30000 } = options;
         const fetch = (await import('node-fetch')).default;
 
         const body = this.buildRequestBody(options, true);

@@ -26,7 +26,7 @@ class AnthropicClient {
         // Extract modelName from modelId (format: "anthropic:claude-3-opus")
         const modelName = options.modelId.split(':')[1] || options.modelId;
         let { messages, systemPrompt } = options;
-        const { temperature = 0.3, maxTokens = 1500, timeout = 20000 } = options;
+        const { temperature = 0.3, maxTokens = 1500, timeout = 30000 } = options;
         const fetch = (await import('node-fetch')).default;
 
         // If systemPrompt was not passed explicitly, pull it from the first `system` role message (Messages API compatibility).
@@ -85,7 +85,7 @@ class AnthropicClient {
     public async *streamApiCall(options: LLMApiCallOptions): AsyncGenerator<StreamChunk> {
         // Extract modelName from modelId (format: "anthropic:claude-3-opus")
         const modelName = options.modelId.split(':')[1] || options.modelId;
-        const { messages, systemPrompt, temperature = 0.3, maxTokens = 2000, timeout = 20000 } = options;
+        const { messages, systemPrompt, temperature = 0.3, maxTokens = 2000, timeout = 30000 } = options;
         const fetch = (await import('node-fetch')).default;
 
         const body = JSON.stringify({
