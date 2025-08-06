@@ -48,41 +48,45 @@ async function actionDebugConfigScores(configId: string) {
             logger.info(`     Has Similarity Scores: ${hasPerPromptSimilarities}`);
             logger.info(`     Has Coverage Scores: ${hasLlmCoverageScores}`);
 
-            if (hasPerPromptSimilarities) {
+            if (hasPerPromptSimilarities && resultData.evaluationResults.perPromptSimilarities) {
                 const simPrompts = Object.keys(resultData.evaluationResults.perPromptSimilarities);
                 logger.info(`     Similarity Prompts: [${simPrompts.join(', ')}]`);
                 
                 for (const promptId of simPrompts) {
-                    const promptSims = resultData.evaluationResults.perPromptSimilarities[promptId];
-                    const models = Object.keys(promptSims);
-                    logger.info(`       ${promptId}: models [${models.join(', ')}]`);
-                    
-                    for (const modelId of models) {
-                        const modelSims = promptSims[modelId];
-                        const targets = Object.keys(modelSims);
-                        for (const targetId of targets) {
-                            const score = modelSims[targetId];
-                            logger.info(`         ${modelId} -> ${targetId}: ${score}`);
+                    const promptSims = resultData.evaluationResults.perPromptSimilarities?.[promptId];
+                    if (promptSims) {
+                        const models = Object.keys(promptSims);
+                        logger.info(`       ${promptId}: models [${models.join(', ')}]`);
+                        
+                        for (const modelId of models) {
+                            const modelSims = promptSims[modelId];
+                            const targets = Object.keys(modelSims);
+                            for (const targetId of targets) {
+                                const score = modelSims[targetId];
+                                logger.info(`         ${modelId} -> ${targetId}: ${score}`);
+                            }
                         }
                     }
                 }
             }
 
-            if (hasLlmCoverageScores) {
+            if (hasLlmCoverageScores && resultData.evaluationResults.llmCoverageScores) {
                 const covPrompts = Object.keys(resultData.evaluationResults.llmCoverageScores);
                 logger.info(`     Coverage Prompts: [${covPrompts.join(', ')}]`);
                 
                 for (const promptId of covPrompts) {
-                    const promptCovs = resultData.evaluationResults.llmCoverageScores[promptId];
-                    const models = Object.keys(promptCovs);
-                    logger.info(`       ${promptId}: models [${models.join(', ')}]`);
-                    
-                    for (const modelId of models) {
-                        const covResult = promptCovs[modelId];
-                        if ('error' in covResult) {
-                            logger.info(`         ${modelId}: ERROR - ${covResult.error}`);
-                        } else {
-                            logger.info(`         ${modelId}: avgCoverageExtent=${covResult.avgCoverageExtent}, keyPointsCount=${covResult.keyPointsCount}`);
+                    const promptCovs = resultData.evaluationResults.llmCoverageScores?.[promptId];
+                    if (promptCovs) {
+                        const models = Object.keys(promptCovs);
+                        logger.info(`       ${promptId}: models [${models.join(', ')}]`);
+                        
+                        for (const modelId of models) {
+                            const covResult = promptCovs[modelId];
+                            if (covResult && 'error' in covResult) {
+                                logger.info(`         ${modelId}: ERROR - ${covResult.error}`);
+                            } else if (covResult) {
+                                logger.info(`         ${modelId}: avgCoverageExtent=${covResult.avgCoverageExtent}, keyPointsCount=${covResult.keyPointsCount}`);
+                            }
                         }
                     }
                 }
