@@ -24,6 +24,21 @@ export interface ModelRunPerformance {
 }
 
 /**
+ * Represents a top performing evaluation for display purposes.
+ */
+export interface TopPerformingEvaluation {
+  configId: string;
+  configTitle: string;
+  runLabel: string;
+  timestamp: string;
+  hybridScore: number;
+  rank: number | null;
+  totalModelsInRun: number;
+  relativePeerAdvantage: number | null; // How much better than peer average (hybridScore - peerAverageScore)
+  analysisUrl: string; // Direct link to the analysis page
+}
+
+/**
  * The main data structure for a "Model Card".
  * Contains both hard aggregated data and synthesized qualitative analysis.
  */
@@ -47,6 +62,18 @@ export interface ModelSummary {
     [tag: string]: {
       averageScore: number | null;
       blueprintCount: number;
+    };
+  };
+
+  // Top performing evaluations - sorted by performance
+  topPerformingEvaluations?: TopPerformingEvaluation[];
+
+  // Aggregated dimensional grades across all evaluations
+  dimensionalGrades?: {
+    [dimensionKey: string]: {
+      averageScore: number;
+      evaluationCount: number;
+      label: string;
     };
   };
 

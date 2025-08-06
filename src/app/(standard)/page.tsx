@@ -183,6 +183,7 @@ export default async function HomePage() {
               <CapabilityLeaderboardDisplay 
                 leaderboards={homepageStats.capabilityLeaderboards} 
                 rawData={homepageStats.capabilityRawData}
+                modelCardMappings={homepageStats.modelCardMappings}
               />
             </section>
           )}

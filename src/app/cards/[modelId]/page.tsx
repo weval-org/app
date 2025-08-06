@@ -1,16 +1,64 @@
 import { notFound } from 'next/navigation';
+import { Metadata } from 'next';
 import { getModelCard } from '@/lib/storageService';
-import { ModelSummary } from '@/cli/types/model_card_types';
+import { ModelSummary, TopPerformingEvaluation } from '@/cli/types/model_card_types';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import Icon from '@/components/ui/icon';
+import Icon, { type IconName } from '@/components/ui/icon';
+import ReactMarkdown from 'react-markdown';
+import RemarkGfmPlugin from 'remark-gfm';
 
 interface ModelCardPageProps {
   params: Promise<{
     modelId: string;
   }>;
+}
+
+export async function generateMetadata({ params }: ModelCardPageProps): Promise<Metadata> {
+  const { modelId } = await params;
+  const decodedModelId = decodeURIComponent(modelId);
+  
+  try {
+    const modelCard = await getModelCard(decodedModelId);
+    
+    if (!modelCard) {
+      return {
+        title: 'Model Card Not Found',
+        description: 'The requested model card could not be found.',
+      };
+    }
+
+    const overallScore = modelCard.overallStats.averageHybridScore 
+      ? `${(modelCard.overallStats.averageHybridScore * 100).toFixed(1)}%`
+      : 'N/A';
+
+    const description = modelCard.analyticalSummary?.strengths?.[0] 
+      ? `${modelCard.analyticalSummary.strengths[0].substring(0, 150)}...`
+      : `Model card for ${modelCard.displayName} with ${modelCard.overallStats.totalRuns} evaluations across ${modelCard.overallStats.totalBlueprints} blueprints.`;
+
+    return {
+      title: `${modelCard.displayName.toUpperCase()} Model Card - ${overallScore} Overall Score`,
+      description: description,
+      openGraph: {
+        title: `${modelCard.displayName} Model Card`,
+        description: description,
+        type: 'website',
+      },
+      twitter: {
+        card: 'summary',
+        title: `${modelCard.displayName} Model Card`,
+        description: description,
+      },
+    };
+  } catch (error) {
+    console.error('Error generating metadata for model card:', error);
+    return {
+      title: `${decodedModelId} Model Card`,
+      description: `Model evaluation card for ${decodedModelId}`,
+    };
+  }
 }
 
 export default async function ModelCardPage({ params }: ModelCardPageProps) {
@@ -30,7 +78,15 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
     notFound();
   }
 
-  // Get top performing tags (top 3 with scores >= 0.6)
+  // Get top performing dimensions (top 4 with scores >= 6.0/10)
+  const topPerformingDimensions = modelCard.dimensionalGrades 
+    ? Object.entries(modelCard.dimensionalGrades)
+        .filter(([, data]) => data.averageScore >= 6.0)
+        .sort(([,a], [,b]) => b.averageScore - a.averageScore)
+        .slice(0, 4)
+    : [];
+
+  // Fallback to tag performance if no dimensional grades available
   const topPerformingTags = modelCard.performanceByTag 
     ? Object.entries(modelCard.performanceByTag)
         .filter(([, data]) => data.averageScore && data.averageScore >= 0.6)
@@ -45,6 +101,34 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
     return 'text-orange-600 dark:text-orange-400';
   };
 
+  const getDimensionalColor = (score?: number | null) => {
+    if (!score) return 'text-muted-foreground';
+    if (score >= 8) return 'text-green-600 dark:text-green-400';
+    if (score >= 6) return 'text-yellow-600 dark:text-yellow-400';
+    if (score >= 4) return 'text-orange-600 dark:text-orange-400';
+    return 'text-red-600 dark:text-red-400';
+  };
+
+  const getDimensionalIcon = (dimensionKey: string): IconName => {
+    // Map dimension keys to appropriate available icons
+    const iconMap: Record<string, IconName> = {
+      'adherence': 'check-circle',
+      'clarity': 'eye',
+      'tone': 'wand-2',        // Volume not available, use wand for tone/style
+      'depth': 'layers',
+      'coherence': 'git-merge', // Flow not available, use merge for coherence
+      'helpfulness': 'award',   // Hand-helping not available, use award
+      'credibility': 'shield',
+      'empathy': 'users',       // Heart not available, use users for empathy
+      'creativity': 'sparkles', // Lightbulb not available, use sparkles
+      'safety': 'shield',
+      'argumentation': 'message-square',
+      'efficiency': 'trending-up', // Clock not available, use trending-up for efficiency  
+      'humility': 'users'
+    };
+    return iconMap[dimensionKey] || 'activity';
+  };
+
   const getPerformanceIcon = (score?: number | null) => {
     if (!score) return () => <Icon name="activity" />;
     if (score >= 0.7) return () => <Icon name="trophy" />;
@@ -55,17 +139,6 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-6xl mx-auto px-4 py-8">
-        
-        {/* Header with back navigation */}
-        <div className="mb-6">
-          <Link 
-            href="/cards" 
-            className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
-          >
-            <Icon name="arrow-left" className="h-4 w-4 mr-1" />
-            Back to Model Cards
-          </Link>
-        </div>
 
         {/* Main Card - Landscape Layout */}
         <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
@@ -104,10 +177,6 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
             
             {/* Left Column - Key Insights (Primary Focus) */}
             <div className="flex-1 p-6 lg:pr-4">
-              <div className="flex items-center mb-6">
-                <Icon name="brain" className="h-5 w-5 text-primary mr-2" />
-                <h2 className="text-lg font-semibold">Key Insights</h2>
-              </div>
               
               {modelCard.analyticalSummary ? (
                 <div className="space-y-6">
@@ -120,8 +189,10 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
                       </div>
                       <ul className="space-y-2">
                         {modelCard.analyticalSummary.strengths.slice(0, 3).map((strength, i) => (
-                          <li key={i} className="text-sm text-foreground pl-3 border-l-2 border-green-500/30 leading-relaxed">
-                            {strength}
+                          <li key={i} className="text-sm text-foreground pl-3 border-l-2 border-green-500/30 leading-relaxed prose prose-sm max-w-none">
+                            <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
+                              {strength}
+                            </ReactMarkdown>
                           </li>
                         ))}
                       </ul>
@@ -137,8 +208,10 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
                       </div>
                       <ul className="space-y-2">
                         {modelCard.analyticalSummary.weaknesses.slice(0, 3).map((weakness, i) => (
-                          <li key={i} className="text-sm text-foreground pl-3 border-l-2 border-orange-500/30 leading-relaxed">
-                            {weakness}
+                          <li key={i} className="text-sm text-foreground pl-3 border-l-2 border-orange-500/30 leading-relaxed prose prose-sm max-w-none">
+                            <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
+                              {weakness}
+                            </ReactMarkdown>
                           </li>
                         ))}
                       </ul>
@@ -154,8 +227,10 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
                       </div>
                       <ul className="space-y-2">
                         {modelCard.analyticalSummary.patterns.slice(0, 2).map((pattern, i) => (
-                          <li key={i} className="text-sm text-foreground pl-3 border-l-2 border-blue-500/30 leading-relaxed">
-                            {pattern}
+                          <li key={i} className="text-sm text-foreground pl-3 border-l-2 border-blue-500/30 leading-relaxed prose prose-sm max-w-none">
+                            <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
+                              {pattern}
+                            </ReactMarkdown>
                           </li>
                         ))}
                       </ul>
@@ -171,8 +246,10 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
                       </div>
                       <ul className="space-y-2">
                         {modelCard.analyticalSummary.risks.slice(0, 2).map((risk, i) => (
-                          <li key={i} className="text-sm text-foreground pl-3 border-l-2 border-red-500/30 leading-relaxed">
-                            {risk}
+                          <li key={i} className="text-sm text-foreground pl-3 border-l-2 border-red-500/30 leading-relaxed prose prose-sm max-w-none">
+                            <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
+                              {risk}
+                            </ReactMarkdown>
                           </li>
                         ))}
                       </ul>
@@ -211,12 +288,42 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
                 </div>
               </div>
 
-              {/* Top Performance Areas */}
-              {topPerformingTags.length > 0 && (
+              {/* Top Dimensional Performance */}
+              {topPerformingDimensions.length > 0 ? (
                 <>
                   <Separator className="my-4" />
                   <div className="mb-6">
-                    <h3 className="font-medium text-sm text-muted-foreground mb-3">Top Performance</h3>
+                    <h3 className="font-medium text-sm text-muted-foreground mb-3">Top Dimensional Strengths</h3>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Highest rated capabilities across {topPerformingDimensions.length} dimensions
+                    </p>
+                    <div className="space-y-2">
+                      {topPerformingDimensions.map(([dimensionKey, data]) => {
+                        return (
+                          <div key={dimensionKey} className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <Icon name={getDimensionalIcon(dimensionKey)} className={`h-3.5 w-3.5 ${getDimensionalColor(data.averageScore)}`} />
+                              <span className="text-sm">{data.label}</span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <Badge variant="outline" className={`text-xs ${getDimensionalColor(data.averageScore)} border-current`}>
+                                {data.averageScore.toFixed(1)}/10
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">
+                                ({data.evaluationCount})
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              ) : topPerformingTags.length > 0 ? (
+                <>
+                  <Separator className="my-4" />
+                  <div className="mb-6">
+                    <h3 className="font-medium text-sm text-muted-foreground mb-3">Top Performance Areas</h3>
                     <div className="space-y-2">
                       {topPerformingTags.map(([tag, data]) => {
                         return (
@@ -232,6 +339,62 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
                         );
                       })}
                     </div>
+                  </div>
+                </>
+              ) : null}
+
+              {/* Top Performing Evaluations */}
+              {modelCard.topPerformingEvaluations && modelCard.topPerformingEvaluations.length > 0 && (
+                <>
+                  <Separator className="my-4" />
+                  <div className="mb-6">
+                    <h3 className="font-medium text-sm text-muted-foreground mb-3">Top Evaluations</h3>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Best performances across {modelCard.topPerformingEvaluations.length} evaluations
+                    </p>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {modelCard.topPerformingEvaluations.slice(0, 5).map((evaluation, i) => (
+                        <Link
+                          key={i}
+                          href={evaluation.analysisUrl}
+                          className="block p-2 rounded-md bg-muted/30 hover:bg-muted/50 transition-colors text-xs"
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-medium text-foreground truncate pr-2">
+                              {evaluation.configTitle}
+                            </span>
+                            <div className="flex items-center space-x-1 flex-shrink-0">
+                              {evaluation.rank && (
+                                <Badge variant="outline" className="text-xs px-1 py-0">
+                                  #{evaluation.rank}
+                                </Badge>
+                              )}
+                              <Badge 
+                                variant="outline" 
+                                className={`text-xs px-1 py-0 ${getPerformanceColor(evaluation.hybridScore)} border-current`}
+                              >
+                                {(evaluation.hybridScore * 100).toFixed(1)}%
+                              </Badge>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between text-muted-foreground">
+                            <span className="text-xs">
+                              vs {evaluation.totalModelsInRun} models
+                            </span>
+                            {evaluation.relativePeerAdvantage !== null && evaluation.relativePeerAdvantage > 0 && (
+                              <span className="text-xs text-green-600 dark:text-green-400">
+                                +{(evaluation.relativePeerAdvantage * 100).toFixed(1)}% vs peers
+                              </span>
+                            )}
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                    {modelCard.topPerformingEvaluations.length > 5 && (
+                      <p className="text-xs text-muted-foreground mt-2 text-center">
+                        +{modelCard.topPerformingEvaluations.length - 5} more evaluations
+                      </p>
+                    )}
                   </div>
                 </>
               )}

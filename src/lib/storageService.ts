@@ -57,6 +57,7 @@ export interface HomepageSummaryFileContent {
   topicChampions?: Record<string, TopicChampion[]>;
   capabilityLeaderboards?: CapabilityLeaderboard[];
   capabilityRawData?: CapabilityRawData;
+  modelCardMappings?: Record<string, string>; // Maps model IDs to their card patterns (e.g. "openai:gpt-4o-2024-11-20" -> "gpt-4o")
   lastUpdated: string;
   fileSizeKB?: number; // File size in KB for debugging purposes
 }
@@ -1384,6 +1385,60 @@ export async function listModelCards(): Promise<string[]> {
 
   console.warn('[StorageService] No valid storage provider configured. Cannot list model cards.');
   return [];
+}
+
+/**
+ * Builds a mapping from individual model IDs to their corresponding model card patterns.
+ * This enables linking from leaderboard entries to model cards even when the naming doesn't exactly match.
+ * Maps base model IDs (without temp/sp_idx suffixes) to card patterns.
+ * When multiple cards contain the same model variant, prefers the most recently generated card.
+ */
+export async function buildModelCardMappings(): Promise<Record<string, string>> {
+  const mappings: Record<string, string> = {};
+  const cardTimestamps: Record<string, string> = {}; // Track lastUpdated for each mapping
+  
+  try {
+    const cardPatterns = await listModelCards();
+    
+    for (const cardPattern of cardPatterns) {
+      try {
+        const modelCard = await getModelCard(cardPattern);
+        if (modelCard?.discoveredModelIds && modelCard?.lastUpdated) {
+          // Map each discovered model variant to this card pattern
+          for (const modelId of modelCard.discoveredModelIds) {
+            // Strip temperature and system prompt suffixes to get base model ID
+            // This handles patterns like: "[temp:0.5]", "[sp_idx:1]", "[temp:0.0][sp_idx:2]"
+            const baseModelId = modelId
+              .replace(/\[temp:[^\]]+\]/g, '')
+              .replace(/\[sp_idx:\d+\]/g, '')
+              .trim();
+            
+            // Check if we already have a mapping for this base model ID
+            if (mappings[baseModelId]) {
+              const existingTimestamp = cardTimestamps[baseModelId];
+              const currentTimestamp = modelCard.lastUpdated;
+              
+              // Only override if this card is newer
+              if (new Date(currentTimestamp) > new Date(existingTimestamp)) {
+                mappings[baseModelId] = cardPattern;
+                cardTimestamps[baseModelId] = currentTimestamp;
+              }
+            } else {
+              // First mapping for this base model ID
+              mappings[baseModelId] = cardPattern;
+              cardTimestamps[baseModelId] = modelCard.lastUpdated;
+            }
+          }
+        }
+      } catch (error) {
+        console.warn(`Failed to load model card for pattern "${cardPattern}": ${error}`);
+      }
+    }
+  } catch (error) {
+    console.warn(`Failed to build model card mappings: ${error}`);
+  }
+  
+  return mappings;
 }
 
 export async function saveSearchIndex(index: SearchableBlueprintSummary[]): Promise<number> {

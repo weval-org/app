@@ -42,7 +42,7 @@ export const CAPABILITY_BUCKETS: CapabilityBucket[] = [
   {
     id: 'safety-and-integrity',
     label: 'Safety & Integrity',
-    description: 'Being truthful, unbiased, avoiding harm, protecting users from dangerous content. Emphasizes proactive safety measures, system-prompt adherence, non-hallucination, non-sycophancy, and mental health support.',
+    description: 'We measure safety and integrity by combining and averaging results across multiple evaluations, including those that measure hallucination, sycophancy, bias, and mental health crisis response.',
     icon: 'shield',
     dimensions: [
       { key: 'safety', weight: 1.0 }
@@ -128,7 +128,7 @@ export const CAPABILITY_BUCKETS: CapabilityBucket[] = [
   {
     id: 'global-fluency',
     label: 'Global Fluency',
-    description: 'Understanding and communicating effectively across diverse cultural and linguistic contexts. Focuses on cultural competency, non-western everyday perspectives, low-resource languages, and the Global South.',
+    description: 'We measure global fluency by combining and averaging results across multiple evaluations, including those that measure cultural competency, non-western everyday perspectives, low-resource languages, and the Global South.',
     icon: 'globe',
     dimensions: [
       // { key: 'empathy', weight: 1.5 },
@@ -159,7 +159,7 @@ export const CAPABILITY_BUCKETS: CapabilityBucket[] = [
   {
     id: 'helpfulness-reasoning',
     label: 'Helpfulness & Reasoning',
-    description: 'Fundamental ability to understand and reason through a problem the user is trying to solve. Includes ability to provide coherent, deep and well-argued responses, engage socratically and be open-minded.',
+    description: 'We measure helpfulness and reasoning by combining and averaging results across multiple evaluations and dimensions: factual accuracy, helpfulness, coherence, depth, and argumentation.',
     icon: 'puzzle',
     dimensions: [
       { key: 'helpfulness', weight: 1.0 },

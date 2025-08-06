@@ -14,6 +14,7 @@ import {
     LatestRunSummaryItem,
     saveModelSummary,
     saveAllBlueprintsSummary,
+    buildModelCardMappings,
 } from '../../lib/storageService';
 import { EnhancedComparisonConfigInfo, EnhancedRunInfo } from '../../app/utils/homepageDataUtils';
 import { ComparisonDataV2 as FetchedComparisonData } from '../../app/utils/types';
@@ -313,6 +314,11 @@ async function actionBackfillSummary(options: { verbose?: boolean; configId?: st
             const driftDetectionResult = calculatePotentialModelDrift(allConfigsForHomepage);
             const topicChampions = calculateTopicChampions(topicModelScores);
 
+            // Build model card mappings for linking leaderboard entries to model cards
+            logger.info('Building model card mappings for leaderboard links...');
+            const modelCardMappings = await buildModelCardMappings();
+            logger.info(`Built mappings for ${Object.keys(modelCardMappings).length} model variants to ${new Set(Object.values(modelCardMappings)).size} model cards.`);
+
             const finalHomepageSummaryObject: HomepageSummaryFileContent = {
                 configs: homepageConfigs, // The hybrid array
                 headlineStats: headlineStats,
@@ -320,6 +326,7 @@ async function actionBackfillSummary(options: { verbose?: boolean; configId?: st
                 topicChampions: topicChampions,
                 capabilityLeaderboards: headlineStats.capabilityLeaderboards || undefined,
                 capabilityRawData: headlineStats.capabilityRawData || undefined,
+                modelCardMappings: Object.keys(modelCardMappings).length > 0 ? modelCardMappings : undefined,
                 lastUpdated: new Date().toISOString(),
             };
 

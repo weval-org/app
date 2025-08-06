@@ -26,7 +26,7 @@ import { backfillExecutiveSummaryCommand } from './commands/backfill-executive-s
 import { repairRunCommand } from './commands/repair-run';
 import { addToPairsCommand } from './commands/add-to-pairs';
 import { deleteFromPairsCommand } from './commands/delete-from-pairs';
-import { generateModelCardCommand } from './commands/generate-model-card';
+import { generateModelCardCommand, deleteModelCardCommand } from './commands/generate-model-card';
 import { generateSearchIndexCommand } from './commands/generate-search-index';
 import { backupDataCommand } from './commands/backup-data';
 import { restoreDataCommand } from './commands/restore-data';
@@ -97,6 +97,7 @@ cli.addCommand(repairRunCommand);
 cli.addCommand(addToPairsCommand);
 cli.addCommand(deleteFromPairsCommand);
 cli.addCommand(generateModelCardCommand);
+cli.addCommand(deleteModelCardCommand);
 cli.addCommand(generateSearchIndexCommand);
 cli.addCommand(backupDataCommand);
 cli.addCommand(restoreDataCommand);

@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
+import Link from 'next/link';
+import { getModelDisplayLabel, parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
 import Icon from '@/components/ui/icon';
 import { CapabilityLeaderboard, CapabilityRawData } from './types';
 import {
@@ -14,7 +15,8 @@ import DevModeCapabilitySliders from './DevModeCapabilitySliders';
 const CapabilityLeaderboardDisplay: React.FC<{ 
   leaderboards: CapabilityLeaderboard[] | null;
   rawData?: CapabilityRawData | null;
-}> = ({ leaderboards, rawData }) => {
+  modelCardMappings?: Record<string, string>;
+}> = ({ leaderboards, rawData, modelCardMappings }) => {
   const [showDetails, setShowDetails] = useState(false);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
 
@@ -85,25 +87,76 @@ const CapabilityLeaderboardDisplay: React.FC<{
               </div>
               
               <ul className="space-y-2">
-                {displayedModels.map((model: any, index: number) => (
-                  <li key={model.modelId} className="flex justify-between items-center text-sm">
-                    <div className="flex items-center min-w-0 flex-1">
-                      <span className="font-mono text-sm text-muted-foreground mr-2 w-4 flex-shrink-0">
-                        {index + 1}.
+                {displayedModels.map((model: any, index: number) => {
+                  // Try to find a matching card with flexible matching using modelIdUtils
+                  const findMatchingCard = (modelId: string, mappings?: Record<string, string>) => {
+                    if (!mappings) return null;
+                    
+                    // First try exact match
+                    if (mappings[modelId]) return mappings[modelId];
+                    
+                    // Parse the target model ID to get its core components
+                    const targetParsed = parseModelIdForDisplay(modelId);
+                    const targetDisplayName = getModelDisplayLabel(targetParsed, {
+                      hideProvider: true,
+                      hideModelMaker: true,
+                      prettifyModelName: false,
+                    }).toLowerCase();
+                    
+                    // Look for mappings where the display names match closely
+                    for (const [mappedId, cardPattern] of Object.entries(mappings)) {
+                      const mappedParsed = parseModelIdForDisplay(mappedId);
+                      const mappedDisplayName = getModelDisplayLabel(mappedParsed, {
+                        hideProvider: true,
+                        hideModelMaker: true,
+                        prettifyModelName: false,
+                      }).toLowerCase();
+                      
+                      // Check if display names match closely (bidirectional substring matching)
+                      if (mappedDisplayName === targetDisplayName || 
+                          mappedDisplayName.includes(targetDisplayName) ||
+                          targetDisplayName.includes(mappedDisplayName)) {
+                        return cardPattern;
+                      }
+                    }
+                    
+                    return null;
+                  };
+                  
+                  const cardPattern = findMatchingCard(model.modelId, modelCardMappings);
+                  const hasCard = !!cardPattern;
+                  
+                  const modelDisplayName = getModelDisplayLabel(model.modelId, {
+                    hideProvider: true,
+                    hideModelMaker: true,
+                    prettifyModelName: true,
+                  });
+
+                  return (
+                    <li key={model.modelId} className="flex justify-between items-center text-sm">
+                      <div className="flex items-center min-w-0 flex-1">
+                        <span className="font-mono text-sm text-muted-foreground mr-2 w-4 flex-shrink-0">
+                          {index + 1}.
+                        </span>
+                        {hasCard ? (
+                          <Link 
+                            href={`/cards/${encodeURIComponent(cardPattern)}`}
+                            className="font-medium truncate text-primary hover:text-primary/80 hover:underline transition-colors"
+                          >
+                            {modelDisplayName}
+                          </Link>
+                        ) : (
+                          <span className="font-medium truncate">
+                            {modelDisplayName}
+                          </span>
+                        )}
+                      </div>
+                      <span className="font-semibold text-sm flex-shrink-0">
+                        {(model.averageScore * 100).toFixed(0)}%
                       </span>
-                      <span className="font-medium truncate">
-                        {getModelDisplayLabel(model.modelId, {
-                          hideProvider: true,
-                          hideModelMaker: true,
-                          prettifyModelName: true,
-                        })}
-                      </span>
-                    </div>
-                    <span className="font-semibold text-sm flex-shrink-0">
-                      {(model.averageScore * 100).toFixed(0)}%
-                    </span>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
               
               {hasMoreModels && (

@@ -7,15 +7,59 @@ type Logger = ReturnType<typeof getConfig>['logger'];
 const ANALYST_MODEL_ID = 'openrouter:google/gemini-2.5-flash';
 const MAX_CONTEXT_TOKENS = 750_000;
 
-function parseAnalystResponse(responseText: string): Omit<Required<ModelSummary>['analyticalSummary'], 'lastUpdated'> {
-    const strengths = [...responseText.matchAll(/<strength>(.*?)<\/strength>/gs)].map(match => match[1].trim());
-    const weaknesses = [...responseText.matchAll(/<weakness>(.*?)<\/weakness>/gs)].map(match => match[1].trim());
-    const risks = [...responseText.matchAll(/<risk>(.*?)<\/risk>/gs)].map(match => match[1].trim());
-    const patterns = [...responseText.matchAll(/<pattern>(.*?)<\/pattern>/gs)].map(match => match[1].trim());
+/**
+ * Parses <ref /> tags and converts them to markdown links for model card display.
+ * Supports config references like <ref config="config-id" title="Config Title" />
+ */
+export function parseConfigReferences(text: string): string {
+    let result = text;
 
-    // Extract the narrative from the "Analyst's Narrative" section.
+    // Handle <ref /> tags for configs
+    const refTagRegex = /<ref\s+([^>]+)\s*\/>/g;
+    
+    result = result.replace(refTagRegex, (match, attributes) => {
+        const attrs: Record<string, string> = {};
+        
+        // Parse attributes
+        const attrRegex = /(\w+)="([^"]+)"/g;
+        let attrMatch;
+        while ((attrMatch = attrRegex.exec(attributes)) !== null) {
+            attrs[attrMatch[1]] = attrMatch[2];
+        }
+
+        // Handle config references
+        if (attrs.config) {
+            const title = attrs.title || attrs.config;
+            const analysisUrl = `/analysis/${attrs.config}`;
+            return `[${title}](${analysisUrl})`;
+        }
+
+        // If we can't parse it, return the title or the original match
+        return attrs.title || match;
+    });
+
+    return result;
+}
+
+function parseAnalystResponse(responseText: string): Omit<Required<ModelSummary>['analyticalSummary'], 'lastUpdated'> {
+    // Parse the raw content first
+    const rawStrengths = [...responseText.matchAll(/<strength>(.*?)<\/strength>/gs)].map(match => match[1].trim());
+    const rawWeaknesses = [...responseText.matchAll(/<weakness>(.*?)<\/weakness>/gs)].map(match => match[1].trim());
+    const rawRisks = [...responseText.matchAll(/<risk>(.*?)<\/risk>/gs)].map(match => match[1].trim());
+    const rawPatterns = [...responseText.matchAll(/<pattern>(.*?)<\/pattern>/gs)].map(match => match[1].trim());
+
+    // Parse config references in each section
+    const strengths = rawStrengths.map(parseConfigReferences);
+    const weaknesses = rawWeaknesses.map(parseConfigReferences);
+    const risks = rawRisks.map(parseConfigReferences);
+    const patterns = rawPatterns.map(parseConfigReferences);
+
+    // Extract and parse the narrative from the "Analyst's Narrative" section.
     const narrativeMatch = responseText.match(/\*\*Analyst's Narrative\*\*\s*([\s\S]*)/);
-    const narrative = narrativeMatch ? narrativeMatch[1].trim() : '';
+    let narrative = narrativeMatch ? narrativeMatch[1].trim() : '';
+    if (narrative) {
+        narrative = parseConfigReferences(narrative);
+    }
 
     return { narrative, strengths, weaknesses, risks, patterns };
 }
@@ -203,6 +247,17 @@ Your analysis should synthesize this data into insights about the model's compet
 - Patterns in its competitive ranking across different types of evaluations
 - Evidence from executive summaries about qualitative performance traits
 
+IMPORTANT REFERENCE SYSTEM:
+When you refer to specific evaluation blueprints/configurations in your analysis, you MUST use the <ref /> tag format to create clickable links:
+
+- To reference a blueprint: <ref config="config-id" title="Blueprint Title" />
+
+For example:
+- "The model excels in <ref config="dmv-registration-renewal" title="DMV Registration Renewal" /> tasks"
+- "Poor performance was observed in <ref config="legal-document-analysis" title="Legal Document Analysis" />"
+
+The config IDs are provided in the dossier as "ID: config-id" and the titles are the blueprint names.
+
 Your output MUST be a structured analysis with the following sections in this exact order:
 
 1. **Behavioral Patterns**: A bulleted list of observations tagged with <pattern>.
@@ -219,32 +274,34 @@ Within the lists, you MUST identify and wrap specific, evidence-backed observati
 Guidelines:
 - Each bullet point in the lists should contain exactly one tagged observation.
 - Reference specific rankings, percentiles, and competitive comparisons from the dossier
-- Cite blueprint names and performance categories when relevant
+- Cite blueprint names using <ref /> tags when relevant
 - Be specific about competitive positioning (e.g., "consistently ranks in top quartile" vs "generally outperforms peers")
 
 EXAMPLE OUTPUT (this is an example, only!):
 =====
 
-<pattern>Exhibits a clear specialization in structured, analytical tasks, often at the expense of more creative or nuanced generation. [include citation, example, etc. from the source data]</pattern>
+<pattern>Exhibits a clear specialization in structured, analytical tasks, often at the expense of more creative or nuanced generation, as demonstrated in <ref config="structured-analysis-benchmark" title="Structured Analysis Benchmark" />.</pattern>
 
 <pattern>...</pattern>
 etc.
 
-<strength>Excels in complex reasoning, exemplified by its #1 rank in the "Advanced Math Problem Solving" blueprint where it outperformed peers by over 20%.</strength>
+<strength>Excels in complex reasoning, exemplified by its #1 rank in <ref config="advanced-math-solving" title="Advanced Math Problem Solving" /> where it outperformed peers by over 20%.</strength>
+
+<strength>Demonstrates exceptional performance in administrative task completion, achieving top rankings in <ref config="dmv-registration-renewal" title="DMV Registration Renewal" /> and <ref config="sos-llc-formation" title="SOS LLC Formation" />.</strength>
 
 <strength>...</strength>
 etc.
 
-<weakness>Underperforms in creative writing and stylistically sensitive tasks. For example, ....</weakness>
+<weakness>Underperforms in creative writing and stylistically sensitive tasks, ranking in the bottom quartile on <ref config="poetry-generation" title="Poetry Generation" /> and <ref config="marketing-copy" title="Marketing Copy" /> evaluations.</weakness>
 
-<weakness>It ranked in the bottom quartile on the "Poetry Generation" and "Marketing Copy" evaluations.</weakness>
+<weakness>Shows inconsistent performance in cultural contexts, struggling particularly with <ref config="global-south-cultural-nuance" title="Global South Cultural Nuance" />.</weakness>
 
 <weakness>...</weakness>
 etc.
 
-<risk>Deploying this model for customer-facing communications or content creation could result in generic, unengaging, or off-brand outputs, potentially harming user perception.</risk>
+<risk>Deploying this model for customer-facing communications or content creation could result in generic, unengaging, or off-brand outputs, particularly given its poor performance in <ref config="brand-voice-adaptation" title="Brand Voice Adaptation" />.</risk>
 
-<risk>Due to its struggles with Global South and non-anglophone contexts, it is not recommended for use in these domains.</risk>
+<risk>Due to its struggles with global and non-anglophone contexts evidenced in <ref config="cultural-sensitivity-eval" title="Cultural Sensitivity Evaluation" />, it is not recommended for international deployments.</risk>
 
 <risk>...</risk>
 
