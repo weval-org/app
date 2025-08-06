@@ -45,7 +45,7 @@ const CoverageTableLegend: React.FC<CoverageTableLegendProps> = ({ activeHighlig
   const activeItems = Array.from(activeHighlights);
   
   const legendOrder: ActiveHighlight[] = ['critical_failure', 'temp_sensitivity', 'sys_sensitivity', 'outlier', 'disagreement'];
-  const sortedActiveItems = legendOrder.filter(item => activeItems.includes(item));
+  const sortedActiveItems = legendOrder;//.filter(item => activeItems.includes(item));
 
   return (
     <div className={cn("space-y-4", className)}>
@@ -89,7 +89,7 @@ const CoverageTableLegend: React.FC<CoverageTableLegendProps> = ({ activeHighlig
 
 
         {/* Highlight Key Section (conditional) */}
-        {!simplifiedView && sortedActiveItems.length > 0 && (
+        {!simplifiedView && (
             <div>
                 <h4 className="text-xs font-semibold text-muted-foreground tracking-wider uppercase mb-2">Highlight Key</h4>
                 <div className="flex flex-wrap gap-x-4 gap-y-2">

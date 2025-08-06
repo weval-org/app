@@ -10,49 +10,102 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
-import { EvaluationView } from './SharedEvaluationComponents';
+import TemperatureTabbedEvaluation, { TempVariantBundle } from './TemperatureTabbedEvaluation';
 import { SharedModelCard, ModelSummary } from './SharedModelCard';
 import { MobileKeyPointAnalysis } from './MobileKeyPointAnalysis';
 import Icon from '@/components/ui/icon';
 
 // --- Components adapted from SharedEvaluationComponents ---
 
-const ModelCard: React.FC<{
+interface ModelCardProps {
     modelId: string;
-    coverageResult: CoverageResult | undefined;
-    response: string;
+    promptCoverageScores: Record<string, CoverageResult>;
+    promptResponses: Record<string, string>;
     idealResponse?: string;
-}> = ({ modelId, coverageResult, response, idealResponse }) => {
+}
+
+const ModelCard: React.FC<ModelCardProps> = ({ modelId, promptCoverageScores, promptResponses, idealResponse }) => {
     const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
-    
+
     const toggleLogExpansion = (index: number) => {
         setExpandedLogs(prev => ({ ...prev, [index]: !prev[index] }));
     };
 
-    if (!coverageResult || 'error' in coverageResult) {
+    const tempVariants: TempVariantBundle[] = useMemo(() => {
+        const parsed = parseModelIdForDisplay(modelId);
+        const relatedIds = Object.keys(promptCoverageScores).filter(mId => {
+            const p = parseModelIdForDisplay(mId);
+            return p.baseId === parsed.baseId && (p.systemPromptIndex ?? 0) === (parsed.systemPromptIndex ?? 0);
+        });
+
+        const bundles: TempVariantBundle[] = [];
+        relatedIds.forEach(mId => {
+            const p = parseModelIdForDisplay(mId);
+            const cov = promptCoverageScores[mId];
+            const resp = promptResponses[mId];
+            if (!cov || 'error' in cov || resp === undefined) return;
+            bundles.push({
+                temperature: p.temperature ?? 0,
+                assessments: cov.pointAssessments || [],
+                modelResponse: resp,
+            });
+        });
+
+        if (bundles.length === 0) return [];
+        bundles.sort((a, b) => (a.temperature ?? 0) - (b.temperature ?? 0));
+
+        const first = bundles[0];
+        const pointCount = first.assessments.length;
+        const aggregated = first.assessments.map(a => ({ ...a }));
+        for (let i = 0; i < pointCount; i++) {
+            const vals: number[] = [];
+            bundles.forEach(b => {
+                const v = b.assessments[i].coverageExtent;
+                if (typeof v === 'number' && !isNaN(v)) vals.push(v);
+            });
+            if (vals.length) {
+                const mean = vals.reduce((s, v) => s + v, 0) / vals.length;
+                let sd: number | null = null;
+                if (vals.length >= 2) {
+                    const variance = vals.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / vals.length;
+                    sd = Math.sqrt(variance);
+                }
+                aggregated[i].coverageExtent = mean;
+                (aggregated[i] as any).stdev = sd ?? undefined;
+                (aggregated[i] as any).sampleCount = vals.length;
+            }
+        }
+
+        const aggregateBundle: TempVariantBundle = {
+            temperature: null,
+            assessments: aggregated,
+            modelResponse: bundles.map(b => `\n[T ${b.temperature}]\n${b.modelResponse}`).join('\n\n'),
+        };
+
+        return [aggregateBundle, ...bundles];
+    }, [modelId, promptCoverageScores, promptResponses]);
+
+    if (tempVariants.length === 0) {
         return (
             <Card className="h-full w-full border-dashed border-destructive/50">
                 <CardHeader>
                     <CardTitle>{getModelDisplayLabel(modelId)}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <p className="text-destructive">Error loading evaluation data for this model: {coverageResult?.error || 'Unknown error'}</p>
+                    <p className="text-destructive">Error loading evaluation data for this model.</p>
                 </CardContent>
             </Card>
-        )
+        );
     }
 
-    const assessments = coverageResult.pointAssessments || [];
-    
     return (
         <Card className="w-full flex flex-col flex-1 min-h-0">
             <CardHeader>
                 <CardTitle className="text-lg">{getModelDisplayLabel(modelId)}</CardTitle>
             </CardHeader>
             <CardContent className="flex-grow flex flex-col min-h-0">
-                <EvaluationView 
-                    assessments={assessments}
-                    modelResponse={response}
+                <TemperatureTabbedEvaluation
+                    variants={tempVariants}
                     idealResponse={idealResponse}
                     expandedLogs={expandedLogs}
                     toggleLogExpansion={toggleLogExpansion}
@@ -172,9 +225,7 @@ const ModelView: React.FC<{
     const allBaseIds = groupedModels.map(([baseId]) => baseId);
     const displayStrategy = getModelDisplayStrategy(allBaseIds);
 
-    const selectedModelCoverage = selectedModelId ? promptCoverageScores[selectedModelId] : undefined;
-    const selectedModelResponse = selectedModelId ? promptResponses[selectedModelId] : '';
-
+    
     return (
         <div className="flex flex-col md:flex-row gap-6 h-full min-h-0">
             <div className="md:w-1/3 lg:w-1/4 flex-shrink-0 flex flex-col min-h-0">
@@ -257,11 +308,11 @@ const ModelView: React.FC<{
             <div className="flex-grow min-w-0 flex flex-col min-h-0">
                  {selectedModelId ? (
                                     <ModelCard
-                    modelId={selectedModelId}
-                    coverageResult={selectedModelCoverage}
-                    response={selectedModelResponse}
-                    idealResponse={promptResponses[IDEAL_MODEL_ID]}
-                />
+    modelId={selectedModelId}
+    promptCoverageScores={promptCoverageScores}
+    promptResponses={promptResponses}
+    idealResponse={promptResponses[IDEAL_MODEL_ID]}
+/>
                 ) : (
                     <div className="flex items-center justify-center h-full p-8 bg-muted/30 rounded-lg">
                         <p className="text-muted-foreground italic">Select a model to view its detailed evaluation.</p>

@@ -155,7 +155,7 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
             baseModelGroups.get(parsed.baseId)!.push(modelId);
         });
 
-        const PERM_SENSITIVITY_THRESHOLD = 0.2;
+        const PERM_SENSITIVITY_THRESHOLD = 0.1; // Lowered from 0.2 to 0.1 (10%)
 
         for (const [baseId, modelIdsInGroup] of baseModelGroups.entries()) {
             if (modelIdsInGroup.length < 2) continue;
@@ -163,6 +163,15 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
             const parsedModels = modelIdsInGroup.map(id => parseModelIdForDisplay(id));
             const hasTempVariants = new Set(parsedModels.map(p => p.temperature)).size > 1;
             const hasSysVariants = new Set(parsedModels.map(p => p.systemPromptIndex)).size > 1;
+
+            // Debug logging
+            console.log(`[SENSITIVITY DEBUG] BaseId: ${baseId}`, {
+                modelIdsInGroup,
+                hasTempVariants,
+                hasSysVariants,
+                temperatures: [...new Set(parsedModels.map(p => p.temperature))],
+                systemPromptIndices: [...new Set(parsedModels.map(p => p.systemPromptIndex))]
+            });
 
             if (!hasTempVariants && !hasSysVariants) continue;
 
@@ -176,18 +185,23 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
                         const parsed = parseModelIdForDisplay(modelId);
                         const result = llmCoverageScores[promptId]?.[modelId];
                         if (result && !('error' in result) && typeof result.avgCoverageExtent === 'number' && !isNaN(result.avgCoverageExtent)) {
-                            if (parsed.systemPromptIndex !== undefined) {
-                                if (!scoresBySysPrompt.has(parsed.systemPromptIndex)) {
-                                    scoresBySysPrompt.set(parsed.systemPromptIndex, []);
-                                }
-                                scoresBySysPrompt.get(parsed.systemPromptIndex)!.push(result.avgCoverageExtent);
+                            const sysIdx = parsed.systemPromptIndex ?? 0; // Default to 0 if undefined
+                            if (!scoresBySysPrompt.has(sysIdx)) {
+                                scoresBySysPrompt.set(sysIdx, []);
                             }
+                            scoresBySysPrompt.get(sysIdx)!.push(result.avgCoverageExtent);
                         }
                     });
 
                     for (const scores of scoresBySysPrompt.values()) {
                         if (scores.length > 1) {
                             const stdDev = calculateStandardDeviation(scores);
+                            console.log(`[SENSITIVITY DEBUG] Temp check for ${baseId}:${promptId}`, {
+                                scores,
+                                stdDev,
+                                threshold: PERM_SENSITIVITY_THRESHOLD,
+                                exceeds: stdDev !== null && stdDev > PERM_SENSITIVITY_THRESHOLD
+                            });
                             if (stdDev !== null && stdDev > PERM_SENSITIVITY_THRESHOLD) {
                                 sensitiveToTemp = true;
                                 break;
@@ -228,6 +242,15 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
                     sensitivityMap.set(key, 'temp');
                 } else if (sensitiveToSys) {
                     sensitivityMap.set(key, 'sys');
+                }
+
+                // Debug final result
+                if (sensitiveToTemp || sensitiveToSys) {
+                    console.log(`[SENSITIVITY DEBUG] Added sensitivity for ${key}:`, {
+                        sensitiveToTemp,
+                        sensitiveToSys,
+                        finalValue: sensitivityMap.get(key)
+                    });
                 }
             });
         }

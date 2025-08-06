@@ -7,7 +7,7 @@ import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
 import KeyPointCoverageTable from '@/app/analysis/components/KeyPointCoverageTable';
 import PromptContextDisplay from '@/app/analysis/components/PromptContextDisplay';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
-import { parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
+import { parseModelIdForDisplay, getCanonicalModels } from '@/app/utils/modelIdUtils';
 import Icon from '@/components/ui/icon';
 import { usePreloadIcons } from '@/components/ui/use-preload-icons';
 
@@ -22,6 +22,12 @@ const PromptPerformanceModal: React.FC = () => {
         displayedModels,
         configId
     } = useAnalysis();
+
+    // Collapse temperature variants: keep only one entry per {baseId, systemPromptIndex}
+    const canonicalModels = useMemo(() => {
+        const base = displayedModels.filter(m => m !== IDEAL_MODEL_ID);
+        return getCanonicalModels(base, data?.config);
+    }, [displayedModels, data]);
     
     // Preload icons used in this modal and child components
     usePreloadIcons(['quote', 'chevrons-up-down']);
@@ -105,7 +111,7 @@ const PromptPerformanceModal: React.FC = () => {
                         <KeyPointCoverageTable
                             data={data}
                             promptId={promptId}
-                            displayedModels={displayedModels.filter(m => m !== IDEAL_MODEL_ID)}
+                            displayedModels={canonicalModels}
                             hideHeader={true}
                         />
                     </div>

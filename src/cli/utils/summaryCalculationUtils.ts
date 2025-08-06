@@ -1230,11 +1230,10 @@ export function calculateAverageHybridScoreForRun(resultData: WevalResult): { av
             const sim = resultData.evaluationResults.perPromptSimilarities?.[promptId]?.[modelId]?.[IDEAL_MODEL_ID];
             const covResult = resultData.evaluationResults.llmCoverageScores?.[promptId]?.[modelId];
 
-            if (sim !== undefined && sim !== null && covResult && !('error' in covResult) && covResult.avgCoverageExtent !== undefined && covResult.avgCoverageExtent !== null) {
-                const hybridScore = calculateHybridScore(sim, covResult.avgCoverageExtent);
-                if (hybridScore !== null) {
-                  scores.push(hybridScore);
-                }
+            // Calculate hybrid score if we have valid coverage data (similarity can be null since weight is 0)
+            const hybridScore = calculateHybridScore(sim, covResult && !('error' in covResult) ? covResult.avgCoverageExtent : undefined);
+            if (hybridScore !== null) {
+                scores.push(hybridScore);
             }
         });
     });

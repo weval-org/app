@@ -429,7 +429,7 @@ async function loadAndValidateConfig(options: {
 }
 
 function parseEvalMethods(evalMethodString: string | undefined): EvaluationMethod[] {
-    if (!evalMethodString) return ['embedding'];
+    if (!evalMethodString) return ['llm-coverage'];
 
     const methods = evalMethodString.split(',').map(m => m.trim().toLowerCase()).filter(m => m);
     const validMethods: EvaluationMethod[] = ['embedding', 'llm-coverage'];

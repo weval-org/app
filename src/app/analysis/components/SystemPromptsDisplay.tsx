@@ -8,21 +8,6 @@ import { useAnalysis } from '../context/AnalysisContext';
 const SystemPromptsDisplay = () => {
     const { analysisStats, data } = useAnalysis();
 
-    // Development debugging
-    if (process.env.NODE_ENV === 'development') {
-        console.log('[SystemPromptsDisplay] Debug info:');
-        console.log('[SystemPromptsDisplay] data?.config?.systems:', data?.config?.systems);
-        console.log('[SystemPromptsDisplay] systems length:', data?.config?.systems?.length);
-        console.log('[SystemPromptsDisplay] analysisStats:', analysisStats);
-        console.log('[SystemPromptsDisplay] perSystemVariantHybridScores:', analysisStats?.perSystemVariantHybridScores);
-        console.log('[SystemPromptsDisplay] effectiveModels:', data?.effectiveModels);
-        console.log('[SystemPromptsDisplay] Sample effectiveModels:', data?.effectiveModels?.slice(0, 5));
-        console.log('[SystemPromptsDisplay] evaluationResults keys:', Object.keys(data?.evaluationResults || {}));
-        console.log('[SystemPromptsDisplay] llmCoverageScores:', !!data?.evaluationResults?.llmCoverageScores);
-        console.log('[SystemPromptsDisplay] perPromptSimilarities:', !!data?.evaluationResults?.perPromptSimilarities);
-        console.log('[SystemPromptsDisplay] promptIds:', data?.promptIds);
-    }
-
     if (!data?.config?.systems || (data.config.systems.length <= 1 && data.config.systems[0] == null)) {
         if (process.env.NODE_ENV === 'development') {
             console.log('[SystemPromptsDisplay] Returning null - condition not met');

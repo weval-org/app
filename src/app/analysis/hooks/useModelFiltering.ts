@@ -8,7 +8,7 @@ interface ModelFilteringOptions {
   forceIncludeExcludedModels: boolean;
   excludedModelsList: string[];
   activeSysPromptIndex: number;
-  selectedTemperatures: number[];
+  selectedTemperatures?: number[];
 }
 
 export const useModelFiltering = ({
@@ -44,20 +44,10 @@ export const useModelFiltering = ({
         return systemPromptIndex === activeSysPromptIndex;
       });
     }
-    
-    if (config.temperatures && config.temperatures.length > 0) {
-      if (selectedTemperatures.length === 0) {
-        return [];
-      }
-      models = models.filter(modelId => {
-        const { temperature } = parseModelIdForDisplay(modelId);
-        const modelTemp = temperature ?? (config.temperature ?? 0.0);
-        return selectedTemperatures.includes(modelTemp);
-      });
-    }
+
 
     return models;
-  }, [displayedModels, activeSysPromptIndex, selectedTemperatures, config]);
+  }, [displayedModels, activeSysPromptIndex, config]);
 
   const modelsForAggregateView = useMemo(() => {
     if (!config) return [];

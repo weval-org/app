@@ -65,7 +65,11 @@ export const AssessmentItem: React.FC<{
                             )}
                             {typeof assessment.coverageExtent === 'number' && !isNaN(assessment.coverageExtent) ? (
                                 <Badge className={`text-xs text-white ${scoreColor}`}>
-                                    {assessment.coverageExtent.toFixed(2)}
+                                    {assessment.coverageExtent.toFixed(2)}{
+                                        (assessment as any).stdev !== undefined && !isNaN((assessment as any).stdev) ? (
+                                            <span className="ml-0.5 opacity-70">±{(assessment as any).stdev.toFixed(2)}</span>
+                                        ) : null
+                                    }
                                 </Badge>
                             ) : (
                                 <Badge variant="outline" className="text-xs text-muted-foreground">N/A</Badge>

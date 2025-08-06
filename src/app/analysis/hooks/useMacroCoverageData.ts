@@ -1,4 +1,5 @@
 import React from 'react';
+import { aggregateCoverageByTemperature } from '@/app/utils/temperatureAggregation';
 import { AllCoverageScores } from '@/app/analysis/components/CoverageHeatmapCanvas';
 import { parseModelIdForDisplay, ParsedModelId } from '@/app/utils/modelIdUtils';
 
@@ -25,14 +26,21 @@ export const useMacroCoverageData = (
     models: string[],
     sortOption: SortOption = 'alpha-asc'
 ) => {
+    const aggregatedScores = React.useMemo(() => {
+        if (!allCoverageScores) return undefined;
+        return aggregateCoverageByTemperature(allCoverageScores);
+    }, [allCoverageScores]);
+
+    const scores = aggregatedScores || allCoverageScores;
+
     const promptStats = React.useMemo(() => {
         const newPromptStats = new Map<string, PromptStats>();
-        if (!allCoverageScores) return newPromptStats;
+        if (!scores) return newPromptStats;
 
         promptIds.forEach(promptId => {
             const scoresForPrompt: number[] = [];
             models.forEach(modelId => {
-                const result = allCoverageScores[promptId]?.[modelId];
+                const result = scores[promptId]?.[modelId];
                 if (result && !('error' in result) && typeof result.avgCoverageExtent === 'number' && !isNaN(result.avgCoverageExtent)) {
                     scoresForPrompt.push(result.avgCoverageExtent);
                 }
@@ -90,12 +98,12 @@ export const useMacroCoverageData = (
     
     const promptModelRanks = React.useMemo(() => {
         const ranks = new Map<string, Map<string, number>>();
-        if (!allCoverageScores) return ranks;
+        if (!scores) return ranks;
 
         promptIds.forEach(promptId => {
             const modelScores: { modelId: string, score: number | null }[] = [];
             models.forEach(modelId => {
-                const result = allCoverageScores[promptId]?.[modelId];
+                const result = scores[promptId]?.[modelId];
                 let score: number | null = null;
                 if (result && !('error' in result) && typeof result.avgCoverageExtent === 'number' && !isNaN(result.avgCoverageExtent)) {
                     score = result.avgCoverageExtent;
@@ -134,11 +142,11 @@ export const useMacroCoverageData = (
     }, [allCoverageScores, promptIds, models]);
 
     const calculateModelAverageCoverage = React.useCallback((modelId: string): number | null => {
-        if (!allCoverageScores) return null;
+        if (!scores) return null;
         let totalAvgExtent = 0;
         let validPromptsCount = 0;
         promptIds.forEach(promptId => {
-            const result = allCoverageScores[promptId]?.[modelId];
+            const result = scores[promptId]?.[modelId];
             if (result && !('error' in result) && typeof result.avgCoverageExtent === 'number' && !isNaN(result.avgCoverageExtent)) {
                 totalAvgExtent += result.avgCoverageExtent;
                 validPromptsCount++;
@@ -148,7 +156,7 @@ export const useMacroCoverageData = (
     }, [allCoverageScores, promptIds]);
 
     const calculatePromptAverage = React.useCallback((promptId: string): number | null => {
-        const promptScores = allCoverageScores?.[promptId];
+        const promptScores = scores?.[promptId];
         if (!promptScores) return null;
         let totalAvgExtent = 0;
         let validModelsCount = 0;
@@ -243,6 +251,7 @@ export const useMacroCoverageData = (
 
     return {
         ...memoizedHeaderData,
+        aggregatedScores: scores,
         sortedPromptIds,
         promptStats,
         calculateModelAverageCoverage,

@@ -20,6 +20,14 @@ export interface IndividualJudgement {
 export interface PointAssessment {
     keyPointText: string;
     coverageExtent?: number;
+    /**
+     * Standard deviation of coverageExtent across temperature permutations (if aggregated).
+     */
+    stdev?: number;
+    /**
+     * Number of temperature samples aggregated into coverageExtent.
+     */
+    sampleCount?: number;
     reflection?: string;
     error?: string;
     multiplier?: number;

@@ -1,7 +1,11 @@
 'use client';
 
+// Added for canonical model handling
+import { getCanonicalModels } from '@/app/utils/modelIdUtils';
+
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
+import { parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
 import Link from 'next/link';
 import { getGradedCoverageColor } from '@/app/analysis/utils/colorUtils';
 import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
@@ -26,13 +30,14 @@ import Icon from '@/components/ui/icon';
 
 // Component for rendering model header cells (both diagonal name and rank/score)
 interface ModelHeaderCellProps {
-    modelId: string;
+    modelId: string; // display ID used in table
     parsedModelsMap: Record<string, any>;
     equalWidthPercent: string;
     modelIdToRank: Record<string, number> | undefined;
     calculateModelAverageCoverage: (modelId: string) => number | null;
     baseIdToVisualGroupStyleMap: Record<string, string>;
     openModelPerformanceModal: (modelId: string) => void;
+    resolveEffectiveId: (displayId: string) => string; // new mapping fn
     isNameHeader?: boolean; // true for diagonal name header, false for rank/score header
     totalModelCount: number; // total number of models to determine if we should use diagonal layout
 }
@@ -45,6 +50,7 @@ const ModelHeaderCell: React.FC<ModelHeaderCellProps> = ({
     calculateModelAverageCoverage,
     baseIdToVisualGroupStyleMap,
     openModelPerformanceModal,
+    resolveEffectiveId,
     isNameHeader = false,
     totalModelCount
 }) => {
@@ -169,7 +175,7 @@ const ModelHeaderCell: React.FC<ModelHeaderCellProps> = ({
                 className="mt-1 px-1.5 py-0.5 bg-primary/10 hover:bg-primary/20 dark:bg-primary/20 dark:hover:bg-primary/30 rounded text-primary hover:text-primary/80 transition-colors border border-primary/20 hover:border-primary/40"
                 onClick={(e) => {
                     e.stopPropagation();
-                    openModelPerformanceModal(modelId);
+                    openModelPerformanceModal(resolveEffectiveId(modelId));
                 }}
                 title={`View detailed analysis for ${getModelDisplayLabel(parsedModelsMap[modelId])}`}
             >
@@ -293,7 +299,19 @@ const MacroCoverageTable: React.FC = () => {
         config,
     } = data;
 
-    const models = modelsForMacroTable.filter(m => m !== IDEAL_MODEL_ID);
+    // Canonicalize models (collapse temperature variants)
+    const canonicalModels = getCanonicalModels(modelsForMacroTable, config);
+
+    // Map display ID -> effective ID (first canonical variant)
+    const displayMap = new Map<string,string>();
+    canonicalModels.filter(m => m.toUpperCase() !== IDEAL_MODEL_ID.toUpperCase()).forEach(eff => {
+        const p = parseModelIdForDisplay(eff);
+        const display = p.systemPromptIndex !== undefined ? `${p.baseId}[sp_idx:${p.systemPromptIndex}]` : p.baseId;
+        if (!displayMap.has(display)) displayMap.set(display, eff);
+    });
+    const displayToEffectiveId = (d:string)=> displayMap.get(d) || d;
+
+    const models = [...displayMap.keys()];
 
     const {
         localSortedModels,
@@ -308,6 +326,7 @@ const MacroCoverageTable: React.FC = () => {
         HIGH_DISAGREEMENT_THRESHOLD_STD_DEV,
         modelIdToRank,
         promptModelRanks,
+        aggregatedScores,
     } = useMacroCoverageData(allCoverageScores, promptIds, models, sortOption);
 
     // useEffect(() => {
@@ -326,7 +345,7 @@ const MacroCoverageTable: React.FC = () => {
         }
     }, [activeHighlights, handleActiveHighlightsChange]);
 
-    if (!allCoverageScores) {
+    if (!aggregatedScores) {
         return <p className="p-4 text-muted-foreground italic">Macro coverage data not available at all.</p>;
     }
     if (sortedPromptIds.length === 0) {
@@ -362,8 +381,56 @@ const MacroCoverageTable: React.FC = () => {
         return promptTexts?.[promptId] || promptId;
     };
 
+    const renderSingleRowSegments = (assessments: PointAssessment[], tempResult: any, promptId: string, modelId: string, temp: number) => {
+        const nKeyPoints = assessments.length;
+        const totalMultiplier = assessments.reduce((sum, assessment) => sum + (assessment.multiplier ?? 1), 0);
+
+        // Simplified segment rendering for temperature rows
+        return (
+            <div className="flex h-full w-full">
+                {assessments.map((assessment, index) => {
+                    let isConsideredPresent: boolean;
+                    if ((assessment as any).isInverted) {
+                        isConsideredPresent = assessment.coverageExtent !== undefined && assessment.coverageExtent >= 0.7;
+                    } else {
+                        isConsideredPresent = assessment.coverageExtent !== undefined && assessment.coverageExtent > 0.3;
+                    }
+                    
+                    const bgColorClass = getGradedCoverageColor(isConsideredPresent, assessment.coverageExtent);
+                    const pointMultiplier = assessment.multiplier ?? 1;
+                    const segmentWidthPercent = totalMultiplier > 0 ? (pointMultiplier / totalMultiplier) * 100 : (1 / nKeyPoints) * 100;
+                    
+                    let pointTooltip = `T ${temp} - Criterion ${index + 1}: "${assessment.keyPointText}"`;
+                    
+                    if ((assessment as any).isInverted) {
+                        pointTooltip += `\nType: Should NOT be present`;
+                        pointTooltip += `\nStatus: ${isConsideredPresent ? 'Passed (Not Present)' : 'VIOLATION (Present)'}`;
+                    } else {
+                        pointTooltip += `\nType: Should be present`;
+                        pointTooltip += `\nStatus: ${isConsideredPresent ? 'Present' : 'Not Present'}`;
+                    }
+
+                    if (assessment.coverageExtent !== undefined) pointTooltip += `\nExtent: ${(assessment.coverageExtent * 100).toFixed(1)}%`;
+                    if (assessment.multiplier && assessment.multiplier !== 1) pointTooltip += `\nMultiplier: x${assessment.multiplier}`;
+                    
+                    return (
+                        <div
+                            key={index}
+                            title={pointTooltip}
+                            className={`h-full ${bgColorClass} bg-opacity-90 dark:bg-opacity-95`}
+                            style={{ 
+                                width: `${segmentWidthPercent}%`,
+                                borderRight: index < assessments.length - 1 ? '1px solid #00000020' : 'none'
+                            }}
+                        />
+                    );
+                })}
+            </div>
+        );
+    };
+
     const renderSegments = (promptId: string, modelId: string) => {
-        const result = allCoverageScores[promptId]?.[modelId];
+        const result = aggregatedScores[promptId]?.[modelId];
         if (!result) return (
             <div title="Result missing" className="w-full h-full flex items-center justify-center">
                 <span className="px-2 py-1 rounded-md text-white font-semibold text-sm bg-coverage-unmet w-full text-center">?</span>
@@ -401,7 +468,15 @@ const MacroCoverageTable: React.FC = () => {
             // For normal, a score > 0.3 is considered present
             return pa.coverageExtent !== undefined && pa.coverageExtent > 0.3;
         }).length;
-        const tooltipText = `Avg. Extent: ${result.avgCoverageExtent !== undefined ? (result.avgCoverageExtent * 100).toFixed(1) + '%' : 'N/A'}\n(${pointsConsideredPresentCount}/${nKeyPoints} criteria passed)`;
+        
+        let tooltipText = `Avg. Extent: ${result.avgCoverageExtent !== undefined ? (result.avgCoverageExtent * 100).toFixed(1) + '%' : 'N/A'}\n(${pointsConsideredPresentCount}/${nKeyPoints} criteria passed)`;
+        
+        // Add standard deviation to tooltip if available
+        const sd = (result as any).stdDev;
+        const sampleCount = (result as any).sampleCount;
+        if (sampleCount && sampleCount > 1 && sd !== undefined) {
+            tooltipText += `\nStd Dev: ${(sd * 100).toFixed(1)}% (${sampleCount} samples)`;
+        }
 
         // Simplified view: show single solid bar based on average coverage
         if (simplifiedView) {
@@ -419,6 +494,64 @@ const MacroCoverageTable: React.FC = () => {
                     </div>
                 </div>
             );
+        }
+
+        // Advanced view: check if we should show per-temperature rows
+        const parsedModel = parseModelIdForDisplay(modelId);
+        const uniqueTemps = config?.temperatures ? [...new Set(config.temperatures)].sort((a, b) => a - b) : [];
+        const shouldShowTempRows = uniqueTemps.length > 1;
+
+        if (shouldShowTempRows) {
+            // Collect per-temperature results
+            const tempBundles: { temp: number; result: any; assessments: any[] }[] = [];
+            
+            uniqueTemps.forEach(temp => {
+                // Find the effective model ID for this temperature
+                const effectiveId = data?.effectiveModels?.find(m => {
+                    const p = parseModelIdForDisplay(m);
+                    return p.baseId === parsedModel.baseId &&
+                           (p.systemPromptIndex ?? 0) === (parsedModel.systemPromptIndex ?? 0) &&
+                           (p.temperature ?? 0) === temp;
+                });
+                
+                if (effectiveId) {
+                    const tempResult = allCoverageScores?.[promptId]?.[effectiveId];
+                    if (tempResult && !('error' in tempResult) && tempResult.pointAssessments) {
+                        tempBundles.push({
+                            temp,
+                            result: tempResult,
+                            assessments: tempResult.pointAssessments
+                        });
+                    }
+                }
+            });
+
+            if (tempBundles.length > 1) {
+                const rowHeight = 6; // px per temperature row
+                const totalHeight = tempBundles.length * rowHeight;
+
+                return (
+                    <div className="relative w-full" 
+                         style={{ height: `${totalHeight}px` }}
+                         title={tooltipText}>
+                        {tempBundles.map(({ temp, result: tempResult, assessments: tempAssessments }, rowIdx) => {
+                            const tempTooltip = `T ${temp}: ${tempResult.avgCoverageExtent !== undefined ? (tempResult.avgCoverageExtent * 100).toFixed(1) + '%' : 'N/A'}`;
+                            
+                            return (
+                                <div key={temp}
+                                     className="absolute left-0 right-0"
+                                     style={{ 
+                                         top: `${rowIdx * rowHeight}px`, 
+                                         height: `${rowHeight}px` 
+                                     }}
+                                     title={tempTooltip}>
+                                    {renderSingleRowSegments(tempAssessments, tempResult, promptId, modelId, temp)}
+                                </div>
+                            );
+                        })}
+                    </div>
+                );
+            }
         }
 
         // Group assessments by path for detailed view
@@ -762,6 +895,7 @@ const MacroCoverageTable: React.FC = () => {
                     </div>
                 </div>
             </div>
+            
 
             <CoverageTableLegend
                 simplifiedView={simplifiedView}
@@ -786,6 +920,7 @@ const MacroCoverageTable: React.FC = () => {
                                     calculateModelAverageCoverage={calculateModelAverageCoverage}
                                     baseIdToVisualGroupStyleMap={baseIdToVisualGroupStyleMap}
                                     openModelPerformanceModal={openModelPerformanceModal}
+                                    resolveEffectiveId={displayToEffectiveId}
                                     isNameHeader={true}
                                     totalModelCount={localSortedModels.length}
                                 />
@@ -804,6 +939,7 @@ const MacroCoverageTable: React.FC = () => {
                                     calculateModelAverageCoverage={calculateModelAverageCoverage}
                                     baseIdToVisualGroupStyleMap={baseIdToVisualGroupStyleMap}
                                     openModelPerformanceModal={openModelPerformanceModal}
+                                    resolveEffectiveId={displayToEffectiveId}
                                     isNameHeader={false}
                                     totalModelCount={localSortedModels.length}
                                 />
@@ -867,7 +1003,7 @@ const MacroCoverageTable: React.FC = () => {
                                     </td>
                                     {localSortedModels.map(modelId => {
                                         const parsedModel = parsedModelsMap[modelId];
-                                        const result = allCoverageScores[promptId]?.[modelId];
+                                        const result = aggregatedScores[promptId]?.[modelId];
                                         let cellScoreNum: number | null = null;
                                         if (result && !('error' in result) && typeof result.avgCoverageExtent === 'number' && !isNaN(result.avgCoverageExtent)) {
                                             cellScoreNum = result.avgCoverageExtent;

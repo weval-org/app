@@ -11,6 +11,7 @@ import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { EvaluationView } from '@/app/analysis/components/SharedEvaluationComponents';
 import { MobileModelPerformanceAnalysis, PromptPerformance as MobilePromptPerformance } from '@/app/analysis/components/MobileModelPerformanceAnalysis';
 import PromptContextDisplay from '@/app/analysis/components/PromptContextDisplay';
+import TemperatureTabbedEvaluation, { TempVariantBundle } from './TemperatureTabbedEvaluation';
 import { ConversationMessage } from '@/types/shared';
 import { useAnalysis } from '../context/AnalysisContext';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -151,6 +152,104 @@ const ModelPerformanceModal: React.FC = () => {
     }, [selectedPromptId, allCoverageScores, allFinalAssistantResponses, currentVariantModelId]);
 
     const idealResponse = selectedPromptId && allFinalAssistantResponses ? allFinalAssistantResponses[selectedPromptId]?.[IDEAL_MODEL_ID] : null;
+
+    // Build temperature bundles for the selected system variant
+    const tempVariants: TempVariantBundle[] = useMemo(() => {
+        if (
+            !selectedPromptId ||
+            !data ||
+            !allCoverageScores ||
+            !allFinalAssistantResponses ||
+            !currentVariantModelId
+        ) {
+            return [];
+        }
+
+        const clickedParsed = parseModelIdForDisplay(currentVariantModelId);
+
+        // Gather all models that share the same baseId and systemPromptIndex but vary in temperature
+        const matchingModelIds = data.effectiveModels.filter((m) => {
+            const p = parseModelIdForDisplay(m);
+            return (
+                p.baseId === clickedParsed.baseId &&
+                (p.systemPromptIndex ?? 0) === (clickedParsed.systemPromptIndex ?? 0)
+            );
+        });
+
+        const perTempBundles: TempVariantBundle[] = [];
+
+        matchingModelIds.forEach((mId) => {
+            const p = parseModelIdForDisplay(mId);
+            const temp = p.temperature ?? 0;
+            const cov = allCoverageScores[selectedPromptId]?.[mId];
+            const resp = allFinalAssistantResponses[selectedPromptId]?.[mId];
+            if (
+                cov &&
+                !('error' in cov) &&
+                resp !== undefined &&
+                typeof temp === 'number'
+            ) {
+                perTempBundles.push({
+                    temperature: temp,
+                    assessments: cov.pointAssessments || [],
+                    modelResponse: resp,
+                });
+            }
+        });
+
+        if (perTempBundles.length === 0) {
+            // Fallback to whatever current variant we have
+            if (
+                currentVariantPerformance &&
+                !('error' in currentVariantPerformance) &&
+                currentVariantPerformance.coverageResult &&
+                !('error' in currentVariantPerformance.coverageResult) &&
+                currentVariantPerformance.response
+            ) {
+                return [
+                    {
+                        temperature: null,
+                        assessments: currentVariantPerformance.coverageResult.pointAssessments || [],
+                        modelResponse: currentVariantPerformance.response,
+                    },
+                ];
+            }
+            return [];
+        }
+
+        // Sort by temperature ascending
+        perTempBundles.sort((a, b) => (a.temperature ?? 0) - (b.temperature ?? 0));
+
+        // Build aggregate assessments by averaging across temps
+        const first = perTempBundles[0];
+        const pointCount = first.assessments.length;
+        const aggregatedAssessments = first.assessments.map((a) => ({ ...a }));
+        for (let i = 0; i < pointCount; i++) {
+            const vals: number[] = [];
+            perTempBundles.forEach((v) => {
+                const val = v.assessments[i].coverageExtent;
+                if (typeof val === 'number' && !isNaN(val)) vals.push(val);
+            });
+            if (vals.length) {
+                const mean = vals.reduce((s, v) => s + v, 0) / vals.length;
+                let sd: number | null = null;
+                if (vals.length >= 2) {
+                    const variance = vals.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / vals.length;
+                    sd = Math.sqrt(variance);
+                }
+                aggregatedAssessments[i].coverageExtent = mean;
+                (aggregatedAssessments[i] as any).stdev = sd ?? undefined;
+                (aggregatedAssessments[i] as any).sampleCount = vals.length;
+            }
+        }
+        const aggregateBundle: TempVariantBundle = {
+            temperature: null,
+            assessments: aggregatedAssessments,
+            modelResponse: perTempBundles.map(b => `\n[T ${b.temperature}]\n${b.modelResponse}`).join('\n\n')
+        };
+
+        return [aggregateBundle, ...perTempBundles];
+    }, [selectedPromptId, data, allCoverageScores, allFinalAssistantResponses, currentVariantModelId, currentVariantPerformance]);
 
     const { effectiveSystemPrompt, conversationContext } = useMemo(() => {
         if (!selectedPromptId || !config || !data?.promptContexts || !currentVariantModelId) return { effectiveSystemPrompt: null, conversationContext: null };
@@ -297,7 +396,12 @@ const ModelPerformanceModal: React.FC = () => {
                                     </div>
                                 </div>
                                 {currentVariantPerformance.coverageResult && !('error' in currentVariantPerformance.coverageResult) && currentVariantPerformance.response ? (
-                                    <EvaluationView assessments={currentVariantPerformance.coverageResult.pointAssessments || []} modelResponse={currentVariantPerformance.response} idealResponse={idealResponse ?? undefined} expandedLogs={expandedLogs} toggleLogExpansion={toggleLogExpansion}/>
+                                    <TemperatureTabbedEvaluation
+                                        variants={tempVariants}
+                                        idealResponse={idealResponse ?? undefined}
+                                        expandedLogs={expandedLogs}
+                                        toggleLogExpansion={toggleLogExpansion}
+                                    />
                                 ) : (
                                     <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-muted/50 rounded-lg">
                                         <Icon name="alert-triangle" className="w-12 h-12 text-destructive/80 mb-4" />

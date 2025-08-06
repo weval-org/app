@@ -5,7 +5,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { getModelDisplayLabel, parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { EvaluationView } from './SharedEvaluationComponents';
+import TemperatureTabbedEvaluation, { TempVariantBundle } from './TemperatureTabbedEvaluation';
+
 import { getHybridScoreColorClass } from '@/app/analysis/utils/colorUtils';
 import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
@@ -18,6 +19,8 @@ interface ModelEvaluationVariant {
     assessments: any[];
     modelResponse: string;
     systemPrompt: string | null;
+    temps?: number[];
+    perTempMap?: Map<number, ModelEvaluationVariant>; // for aggregate variant only
 }
 
 const SpecificEvaluationModal: React.FC = () => {
@@ -77,14 +80,17 @@ const SpecificEvaluationModal: React.FC = () => {
 
         const clickedParsed = parseModelIdForDisplay(modelId);
         
-        const variantModelIds = (config.systems && config.systems.length > 1) 
+        const variantModelIds = (config.systems && config.systems.length > 1)
             ? effectiveModels.filter(m => {
                 const p = parseModelIdForDisplay(m);
-                return p.baseId === clickedParsed.baseId && p.temperature === clickedParsed.temperature;
+                return p.baseId === clickedParsed.baseId && p.systemPromptIndex === clickedParsed.systemPromptIndex;
             })
-            : [modelId];
+            : effectiveModels.filter(m => {
+                const p = parseModelIdForDisplay(m);
+                return p.baseId === clickedParsed.baseId;
+            });
 
-        const variantEvaluations = new Map<number, ModelEvaluationVariant>();
+        const tempBuckets = new Map<number, ModelEvaluationVariant[]>();
 
         for (const modelIdVar of variantModelIds) {
             const parsed = parseModelIdForDisplay(modelIdVar);
@@ -92,46 +98,77 @@ const SpecificEvaluationModal: React.FC = () => {
 
             const modelResult = llmCoverageScores[promptId]?.[modelIdVar];
             const modelResponse = allFinalAssistantResponses?.[promptId]?.[modelIdVar];
-            
+            if (!modelResult || 'error' in modelResult || !modelResult.pointAssessments || modelResponse == null) {
+                continue;
+            }
+
             let effectiveSystemPrompt: string | null = null;
             const promptContext = promptContexts[promptId];
-
             if (Array.isArray(promptContext) && promptContext.length > 0 && promptContext[0].role === 'system') {
                 effectiveSystemPrompt = promptContext[0].content;
             } else {
                 const promptConfig = config.prompts.find(p => p.id === promptId);
-                if (promptConfig?.system) {
-                    effectiveSystemPrompt = promptConfig.system;
-                } else {
-                    if (config.systems && typeof parsed.systemPromptIndex === 'number' && config.systems[parsed.systemPromptIndex]) {
-                        effectiveSystemPrompt = config.systems[parsed.systemPromptIndex];
-                    } else if (config.systems && typeof parsed.systemPromptIndex === 'number' && config.systems[parsed.systemPromptIndex] === null) {
-                        effectiveSystemPrompt = '[No System Prompt]';
-                    } else if (config.system) {
-                        effectiveSystemPrompt = config.system;
-                    }
-                }
+                effectiveSystemPrompt = promptConfig?.system ?? config.systems?.[sysIndex] ?? config.system ?? null;
             }
-
-            // Fallback: if still undefined, use stored systemPromptUsed from result data
             if (!effectiveSystemPrompt) {
                 effectiveSystemPrompt = (data as any).modelSystemPrompts?.[modelIdVar] ?? null;
-                if (effectiveSystemPrompt === undefined) {
-                    effectiveSystemPrompt = null;
-                }
             }
 
-            if (!modelResult || 'error' in modelResult || !modelResult.pointAssessments || modelResponse == null) {
-                continue; 
-            }
-
-            variantEvaluations.set(sysIndex, {
+            const entry: ModelEvaluationVariant = {
                 modelId: modelIdVar,
                 assessments: modelResult.pointAssessments,
                 modelResponse: modelResponse,
-                systemPrompt: effectiveSystemPrompt
-            });
+                systemPrompt: effectiveSystemPrompt,
+            };
+            if (!tempBuckets.has(sysIndex)) tempBuckets.set(sysIndex, []);
+            tempBuckets.get(sysIndex)!.push(entry);
         }
+
+        const variantEvaluations = new Map<number, ModelEvaluationVariant>();
+        tempBuckets.forEach((list, sysIdx) => {
+            if (list.length === 0) return;
+            if (list.length === 1) {
+                variantEvaluations.set(sysIdx, list[0]);
+                return;
+            }
+            // aggregate assessments
+            const first = list[0];
+            const pointCount = first.assessments.length;
+            const aggregatedAssessments = first.assessments.map(a => ({ ...a }));
+            for (let i = 0; i < pointCount; i++) {
+                const vals: number[] = [];
+                list.forEach(v => {
+                    const val = v.assessments[i].coverageExtent;
+                    if (typeof val === 'number' && !isNaN(val)) vals.push(val);
+                });
+                if (vals.length) {
+                    const mean = vals.reduce((s, v) => s + v, 0) / vals.length;
+                    let sd: number | null = null;
+                    if (vals.length >= 2) {
+                        const variance = vals.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / vals.length;
+                        sd = Math.sqrt(variance);
+                    }
+                    aggregatedAssessments[i].coverageExtent = mean;
+                    (aggregatedAssessments[i] as any).stdev = sd ?? undefined;
+                    (aggregatedAssessments[i] as any).sampleCount = vals.length;
+                }
+            }
+            const tempMap = new Map<number, ModelEvaluationVariant>();
+            list.forEach(v => {
+                const tempVal = parseModelIdForDisplay(v.modelId).temperature ?? (config.temperature ?? 0);
+                tempMap.set(tempVal, v);
+            });
+
+            variantEvaluations.set(sysIdx, {
+                modelId: list.map(v=>v.modelId).join(','),
+                assessments: aggregatedAssessments,
+                modelResponse: Array.from(tempMap.entries()).sort((a,b)=>a[0]-b[0]).map(([t,v])=>`\n[T ${t}]\n${v.modelResponse}`).join('\n\n'),
+                systemPrompt: first.systemPrompt,
+                temps: Array.from(tempMap.keys()).sort((a,b)=>a-b),
+                perTempMap: tempMap,
+            } as any);
+
+        });
         
         if (variantEvaluations.size === 0) {
             console.warn(`Could not gather any valid evaluation data for base model ${clickedParsed.baseId} on prompt ${promptId}.`);
@@ -171,14 +208,40 @@ const SpecificEvaluationModal: React.FC = () => {
         }
     }, [modalData]);
 
+    // Temperature tab state ("agg" or number)
+    const [activeTemp, setActiveTemp] = useState<'agg' | number>('agg');
+
+    // Build variant bundle and temperature groupings before any early returns to keep hook order stable
+    const variantBundle: ModelEvaluationVariant | null = React.useMemo(() => {
+        if (!modalData) return null;
+        return modalData.variantEvaluations.get(selectedVariantIndex) || null;
+    }, [modalData, selectedVariantIndex]);
+
+    const tempsList = variantBundle?.temps ?? [];
+
+    const tempVariants: TempVariantBundle[] = React.useMemo(() => {
+        if (!variantBundle) return [];
+        const arr: TempVariantBundle[] = [
+            { temperature: null, assessments: variantBundle.assessments, modelResponse: variantBundle.modelResponse }
+        ];
+        tempsList.forEach((t) => {
+            const v = variantBundle.perTempMap?.get(t);
+            if (v) arr.push({ temperature: t, assessments: v.assessments, modelResponse: v.modelResponse });
+        });
+        return arr;
+    }, [variantBundle, tempsList]);
+
     if (!isOpen || !modalData) return null;
 
     const displayModelName = getModelDisplayLabel(modalData.baseModelId);
     const variantKeys = Array.from(modalData.variantEvaluations.keys()).sort((a,b) => a-b);
     const hasMultipleVariants = variantKeys.length > 1;
-    const currentVariant = modalData.variantEvaluations.get(selectedVariantIndex);
 
-    if (!currentVariant) {
+    const displayedVariant: ModelEvaluationVariant | null = (activeTemp === 'agg' || !variantBundle)
+        ? variantBundle
+        : variantBundle.perTempMap?.get(activeTemp) || null;
+
+    if (!displayedVariant) {
         return (
             <Dialog open={isOpen} onOpenChange={closeModelEvaluationDetailModal}>
                 <DialogContent>
@@ -244,17 +307,16 @@ const SpecificEvaluationModal: React.FC = () => {
                                 description={modalData.promptDescription}
                                 citation={modalData.promptCitation}
                                 promptContext={modalData.promptContext}
-                                systemPrompt={currentVariant.systemPrompt}
+                                systemPrompt={displayedVariant.systemPrompt}
                                 variantIndex={selectedVariantIndex}
                             />
-                            
-                            <EvaluationView 
-                                assessments={currentVariant.assessments}
-                                modelResponse={currentVariant.modelResponse}
+
+                            <TemperatureTabbedEvaluation
+                                variants={tempVariants}
                                 idealResponse={modalData.idealResponse}
                                 expandedLogs={expandedLogs}
                                 toggleLogExpansion={toggleLogExpansion}
-                                isMobile={true}
+                                isMobile={isMobileView}
                             />
                         </div>
                     </div>
@@ -313,13 +375,12 @@ const SpecificEvaluationModal: React.FC = () => {
                                 description={modalData.promptDescription}
                                 citation={modalData.promptCitation}
                                 promptContext={modalData.promptContext}
-                                systemPrompt={currentVariant.systemPrompt}
+                                systemPrompt={displayedVariant.systemPrompt}
                                 variantIndex={selectedVariantIndex}
                             />
-                            
-                            <EvaluationView 
-                                assessments={currentVariant.assessments}
-                                modelResponse={currentVariant.modelResponse}
+
+                            <TemperatureTabbedEvaluation
+                                variants={tempVariants}
                                 idealResponse={modalData.idealResponse}
                                 expandedLogs={expandedLogs}
                                 toggleLogExpansion={toggleLogExpansion}

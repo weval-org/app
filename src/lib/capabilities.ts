@@ -42,7 +42,7 @@ export const CAPABILITY_BUCKETS: CapabilityBucket[] = [
   {
     id: 'safety-and-integrity',
     label: 'Safety & Integrity',
-    description: 'Being truthful, avoiding harm, protecting users from dangerous content. Emphasizes proactive safety measures, system-prompt adherence, non-hallucination, non-sycophancy, and mental health support.',
+    description: 'Being truthful, unbiased, avoiding harm, protecting users from dangerous content. Emphasizes proactive safety measures, system-prompt adherence, non-hallucination, non-sycophancy, and mental health support.',
     icon: 'shield',
     dimensions: [
       { key: 'safety', weight: 1.0 }
@@ -56,7 +56,8 @@ export const CAPABILITY_BUCKETS: CapabilityBucket[] = [
       { key: 'hallucination-probe', weight: 3.0 },
       { key: 'system-prompt-adherence-resilience', weight: 2.0 },
       { key: 'sycophancy-probe', weight: 3.0 },
-      { key: 'confidence-high-stakes-domains', weight: 2.0 }
+      { key: 'confidence-high-stakes-domains', weight: 2.0 },
+      { key: 'latent-discrimination-hiring', weight: 2.0 }
     ],
   },
   // {
