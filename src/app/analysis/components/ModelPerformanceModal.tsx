@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { getModelDisplayLabel, parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
+import { getModelDisplayLabel, parseModelIdForDisplay, resolveModelId, findModelVariants } from '@/app/utils/modelIdUtils';
 import { CoverageResult } from '@/app/utils/types';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { EvaluationView } from '@/app/analysis/components/SharedEvaluationComponents';
@@ -41,6 +41,10 @@ const ModelPerformanceModal: React.FC = () => {
         openModelEvaluationDetailModal,
         promptTextsForMacroTable,
         analysisStats,
+        configId,
+        runLabel,
+        timestamp,
+        fetchModelResponses,
     } = useAnalysis();
 
     const [expandedResponse, setExpandedResponse] = useState<Record<string, boolean>>({});
@@ -53,6 +57,9 @@ const ModelPerformanceModal: React.FC = () => {
 
     const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
     const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
+    const [modelResponseCache, setModelResponseCache] = useState<Record<string, Record<string, string>>>({});
+    const [evaluationDetailsCache, setEvaluationDetailsCache] = useState<Map<string, any>>(new Map());
+    const [isLoadingModalData, setIsLoadingModalData] = useState(false);
 
     useEffect(() => {
         const checkMobile = () => setIsMobileView(window.innerWidth < 768);
@@ -60,6 +67,113 @@ const ModelPerformanceModal: React.FC = () => {
         window.addEventListener('resize', checkMobile);
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
+
+    // Fetch model response data when modal opens
+    useEffect(() => {
+        if (!isOpen || !modelId || !data) return;
+
+        const fetchData = async () => {
+            console.log('🔵 ModelPerformanceModal: Starting data fetch', { 
+                modelId, 
+                effectiveModelsCount: data.effectiveModels?.length 
+            });
+
+            setIsLoadingModalData(true);
+            try {
+                // Resolve baseId to full model ID using utility function
+                const targetModelId = resolveModelId(modelId, data.effectiveModels);
+                const clickedParsed = parseModelIdForDisplay(targetModelId);
+
+                console.log('🟢 ModelPerformanceModal: Model ID resolution', {
+                    originalModelId: modelId,
+                    resolvedTargetModelId: targetModelId,
+                    parsedInfo: clickedParsed
+                });
+
+                // Find all system-prompt variants that share the same baseId AND systemPromptIndex (ignore temperature)
+                const allVariants = data.effectiveModels.filter(m => {
+                    const p = parseModelIdForDisplay(m);
+                    return p.baseId === clickedParsed.baseId && (p.systemPromptIndex ?? 0) === (clickedParsed.systemPromptIndex ?? 0);
+                });
+
+                console.log('🟡 ModelPerformanceModal: Found variants', {
+                    variantCount: allVariants.length,
+                    variants: allVariants
+                });
+
+                // Fetch responses for all variants
+                const responsePromises = allVariants.map(async (variantModelId) => {
+                    const responses = await fetchModelResponses(variantModelId);
+                    return { modelId: variantModelId, responses };
+                });
+                
+                const responseResults = await Promise.all(responsePromises);
+                
+                console.log('🟠 ModelPerformanceModal: Fetch results', {
+                    responseResults: responseResults.map(r => ({
+                        modelId: r.modelId,
+                        hasResponses: !!r.responses,
+                        responseCount: r.responses ? Object.keys(r.responses).length : 0,
+                        responseData: r.responses ? Object.keys(r.responses).slice(0, 2) : []
+                    }))
+                });
+                
+                // Convert the fetched results into the nested format expected by `allFinalAssistantResponses`
+                const responsesByPromptAndModel: Record<string, Record<string, string>> = {};
+                responseResults.forEach(({ modelId: variantId, responses }) => {
+                    if (!responses) return;
+                    Object.entries(responses).forEach(([promptId, resp]) => {
+                        if (!responsesByPromptAndModel[promptId]) {
+                            responsesByPromptAndModel[promptId] = {};
+                        }
+                        responsesByPromptAndModel[promptId][variantId] = resp;
+                    });
+                });
+                
+                console.log('🔴 ModelPerformanceModal: Final response cache structure', {
+                    cacheKeys: Object.keys(responsesByPromptAndModel),
+                    cacheStructure: Object.fromEntries(
+                        Object.keys(responsesByPromptAndModel).slice(0, 2).map(promptId => [
+                            promptId, 
+                            Object.keys(responsesByPromptAndModel[promptId])
+                        ])
+                    )
+                });
+                
+                setModelResponseCache(responsesByPromptAndModel);
+
+                // Fetch detailed evaluation data in batches (one request per variant model)
+                const evaluationPromises = allVariants.map(async (variantModelId) => {
+                    try {
+                        const baseUrl = `/api/comparison/${configId}/${runLabel}/${timestamp}`;
+                        const resp = await fetch(`${baseUrl}/evaluation-details-model-batch/${encodeURIComponent(variantModelId)}`);
+                        if (resp.ok) {
+                            const batchData = await resp.json();
+                            const evaluations = batchData.evaluations as Record<string, any>;
+                            if (evaluations) {
+                                setEvaluationDetailsCache(prev => {
+                                    const newMap = new Map(prev);
+                                    Object.entries(evaluations).forEach(([pId, details]) => {
+                                        newMap.set(`${pId}:${variantModelId}`, details);
+                                    });
+                                    return newMap;
+                                });
+                            }
+                        } else {
+                            console.error('Failed to fetch evaluation-details-model-batch', resp.statusText);
+                        }
+                    } catch (err) {
+                        console.error('Error fetching evaluation-details-model-batch', err);
+                    }
+                });
+                await Promise.all(evaluationPromises);
+            } finally {
+                setIsLoadingModalData(false);
+            }
+        };
+
+        fetchData();
+    }, [isOpen, modelId, data, fetchModelResponses, configId, runLabel, timestamp]);
 
     const { modelVariants, initialVariantIndex } = useMemo(() => {
         if (!isOpen || !modelId || !data) return { modelVariants: [], initialVariantIndex: 0 };
@@ -88,10 +202,92 @@ const ModelPerformanceModal: React.FC = () => {
         setSelectedVariantIndex(initialVariantIndex);
     }, [initialVariantIndex]);
 
-    const currentVariantModelId = modelVariants.length > 0 ? modelVariants[selectedVariantIndex] : modelId;
+    // Resolve the model ID for baseId values (from leaderboard) using utility function
+    const resolvedModelId = useMemo(() => {
+        if (!modelId || !data?.effectiveModels) {
+            console.log('🔸 ModelPerformanceModal: resolvedModelId - missing data', { hasModelId: !!modelId, hasEffectiveModels: !!data?.effectiveModels });
+            return modelId;
+        }
+        const resolved = resolveModelId(modelId, data.effectiveModels);
+        console.log('🔸 ModelPerformanceModal: resolvedModelId', { originalModelId: modelId, resolvedModelId: resolved });
+        return resolved;
+    }, [modelId, data?.effectiveModels]);
 
-    const allCoverageScores = data?.evaluationResults?.llmCoverageScores;
-    const allFinalAssistantResponses = data?.allFinalAssistantResponses;
+    const currentVariantModelId = modelVariants.length > 0 ? modelVariants[selectedVariantIndex] : resolvedModelId;
+    
+    console.log('🔶 ModelPerformanceModal: currentVariantModelId calculation', {
+        modelVariantsLength: modelVariants.length,
+        selectedVariantIndex,
+        resolvedModelId,
+        currentVariantModelId,
+        modelVariants: modelVariants.slice(0, 3)
+    });
+
+    // Use enhanced coverage scores with detailed evaluation data
+    const allCoverageScores = useMemo(() => {
+        if (!data?.evaluationResults?.llmCoverageScores) return null;
+        
+        // If we have cached detailed evaluation data, enhance the coverage scores
+        if (evaluationDetailsCache.size > 0) {
+            const enhanced = { ...data.evaluationResults.llmCoverageScores };
+            
+            // Find the target model ID using utility function
+            const targetModelId = resolveModelId(modelId || '', data.effectiveModels || []);
+            
+            evaluationDetailsCache.forEach((details, cacheKey) => {
+                // Check for any variant that matches our base model
+                const firstColon = cacheKey.indexOf(':');
+                const promptId = cacheKey.substring(0, firstColon);
+                const cachedModelId = cacheKey.substring(firstColon + 1);
+                const cachedParsed = parseModelIdForDisplay(cachedModelId);
+                const targetParsed = parseModelIdForDisplay(targetModelId);
+                
+                if (cachedParsed.baseId === targetParsed.baseId && enhanced[promptId] && enhanced[promptId][cachedModelId]) {
+                    enhanced[promptId][cachedModelId] = details;
+                }
+            });
+            
+            return enhanced;
+        }
+        
+        return data.evaluationResults.llmCoverageScores;
+    }, [data?.evaluationResults?.llmCoverageScores, data?.effectiveModels, evaluationDetailsCache, modelId]);
+    
+    // Use cached model responses instead of stripped core data
+    const allFinalAssistantResponses = useMemo(() => {
+        console.log('💙 ModelPerformanceModal: Computing allFinalAssistantResponses', {
+            hasBaseData: !!data?.allFinalAssistantResponses,
+            baseDataKeys: data?.allFinalAssistantResponses ? Object.keys(data.allFinalAssistantResponses).slice(0, 3) : [],
+            hasCachedResponses: Object.keys(modelResponseCache).length > 0,
+            cachedResponseKeys: Object.keys(modelResponseCache).slice(0, 3)
+        });
+
+        if (!data?.allFinalAssistantResponses) return null;
+        
+        // If we have cached responses, enhance the data with all variant responses
+        if (Object.keys(modelResponseCache).length > 0) {
+            const enhanced = { ...data.allFinalAssistantResponses };
+            
+            // Merge all cached responses into the enhanced structure
+            Object.keys(modelResponseCache).forEach(promptId => {
+                if (!enhanced[promptId]) enhanced[promptId] = {};
+                // Merge all model responses for this prompt
+                Object.assign(enhanced[promptId], modelResponseCache[promptId]);
+            });
+            
+            console.log('💙 ModelPerformanceModal: Enhanced allFinalAssistantResponses', {
+                enhancedKeys: Object.keys(enhanced).slice(0, 3),
+                sampleEnhancedStructure: Object.keys(enhanced).slice(0, 1).map(promptId => ({
+                    promptId,
+                    modelIds: Object.keys(enhanced[promptId])
+                }))
+            });
+            
+            return enhanced;
+        }
+        
+        return data.allFinalAssistantResponses;
+    }, [data?.allFinalAssistantResponses, data?.effectiveModels, modelResponseCache, modelId]);
     const promptIds = data?.promptIds;
     const promptTexts = data ? Object.fromEntries(data.promptIds.map(id => [id, data.promptContexts?.[id] ? (typeof data.promptContexts[id] === 'string' ? data.promptContexts[id] as string : (data.promptContexts[id] as ConversationMessage[]).map(m => m.content).join('\n')) : id])) : {};
     const config = data?.config;
@@ -103,22 +299,50 @@ const ModelPerformanceModal: React.FC = () => {
     const modelDisplayName = modelId ? getModelDisplayLabel(modelId, { hideSystemPrompt: true, hideTemperature: true }) : 'N/A';
 
     const promptPerformances = useMemo<PromptPerformance[]>(() => {
-        if (!promptIds || !allCoverageScores || !allFinalAssistantResponses || !modelId) return [];
-        return promptIds.map(promptId => {
-            const coverageResult = allCoverageScores[promptId]?.[modelId];
-            const response = allFinalAssistantResponses[promptId]?.[modelId];
+        console.log('🟣 ModelPerformanceModal: Computing promptPerformances', {
+            hasPromptIds: !!promptIds,
+            promptIdsCount: promptIds?.length,
+            hasAllCoverageScores: !!allCoverageScores,
+            hasAllFinalAssistantResponses: !!allFinalAssistantResponses,
+            modelId,
+            resolvedModelId,
+            allCoverageScoresKeys: allCoverageScores ? Object.keys(allCoverageScores).slice(0, 3) : [],
+            allFinalAssistantResponsesKeys: allFinalAssistantResponses ? Object.keys(allFinalAssistantResponses).slice(0, 3) : []
+        });
+
+        if (!promptIds || !allCoverageScores || !allFinalAssistantResponses || !modelId || !resolvedModelId) return [];
+        
+        const performances = promptIds.map(promptId => {
+            // Use resolvedModelId to get data for the actual model variant
+            const coverageResult = allCoverageScores[promptId]?.[resolvedModelId];
+            const response = allFinalAssistantResponses[promptId]?.[resolvedModelId];
             const promptText = promptTexts[promptId] || promptId;
+            
+            console.log(`⚡ ModelPerformanceModal: Processing prompt ${promptId}`, {
+                hasCoverageResult: !!coverageResult,
+                hasResponse: !!response,
+                coverageResultType: coverageResult && 'error' in coverageResult ? 'error' : 'data',
+                avgCoverageExtent: coverageResult && !('error' in coverageResult) ? coverageResult.avgCoverageExtent : null
+            });
+            
             let score: number | null = null;
             let rank: 'excellent' | 'good' | 'poor' | 'error' = 'error';
             if (coverageResult && !('error' in coverageResult) && typeof coverageResult.avgCoverageExtent === 'number') {
                 score = coverageResult.avgCoverageExtent;
-                if (score >= 0.8) rank = 'excellent';
-                else if (score >= 0.6) rank = 'good';
-                else rank = 'poor';
+                if (score !== null && score >= 0.8) rank = 'excellent';
+                else if (score !== null && score >= 0.6) rank = 'good';
+                else if (score !== null) rank = 'poor';
             }
             return { promptId, promptText, coverageResult, response, score, rank };
         });
-    }, [promptIds, allCoverageScores, allFinalAssistantResponses, promptTexts, modelId]);
+        
+        console.log('🟣 ModelPerformanceModal: Final promptPerformances', {
+            count: performances.length,
+            ranks: performances.map(p => ({ promptId: p.promptId, rank: p.rank, score: p.score }))
+        });
+        
+        return performances;
+    }, [promptIds, allCoverageScores, allFinalAssistantResponses, promptTexts, modelId, resolvedModelId]);
 
     const sortedPrompts = useMemo(() => {
         return [...promptPerformances].sort((a, b) => {
@@ -141,13 +365,35 @@ const ModelPerformanceModal: React.FC = () => {
     }, [sortedPrompts, selectedPromptId]);
 
     const currentVariantPerformance = useMemo(() => {
+        console.log('🎯 ModelPerformanceModal: Computing currentVariantPerformance', {
+            selectedPromptId,
+            hasAllCoverageScores: !!allCoverageScores,
+            hasAllFinalAssistantResponses: !!allFinalAssistantResponses,
+            currentVariantModelId,
+            coverageScoresForPrompt: selectedPromptId && allCoverageScores ? Object.keys(allCoverageScores[selectedPromptId] || {}) : [],
+            responsesForPrompt: selectedPromptId && allFinalAssistantResponses ? Object.keys(allFinalAssistantResponses[selectedPromptId] || {}) : []
+        });
+
         if (!selectedPromptId || !allCoverageScores || !allFinalAssistantResponses || !currentVariantModelId) return null;
     
         const coverageResult = allCoverageScores[selectedPromptId]?.[currentVariantModelId];
         const response = allFinalAssistantResponses[selectedPromptId]?.[currentVariantModelId];
         
-        if (!coverageResult || response === undefined) return { error: 'Data not found for this variant.' };
+        console.log('🎯 ModelPerformanceModal: Data lookup results', {
+            selectedPromptId,
+            currentVariantModelId,
+            hasCoverageResult: !!coverageResult,
+            hasResponse: response !== undefined,
+            coverageResultType: coverageResult && 'error' in coverageResult ? 'error' : 'data',
+            responseLength: typeof response === 'string' ? response.length : 'not-string'
+        });
         
+        if (!coverageResult || response === undefined) {
+            console.log('🎯 ModelPerformanceModal: Returning error - missing data');
+            return { error: 'Data not found for this variant.' };
+        }
+        
+        console.log('🎯 ModelPerformanceModal: Returning valid performance data');
         return { coverageResult, response };
     }, [selectedPromptId, allCoverageScores, allFinalAssistantResponses, currentVariantModelId]);
 
@@ -340,7 +586,14 @@ const ModelPerformanceModal: React.FC = () => {
                     </div>
 
                     <div className="flex-1 flex flex-col min-h-0">
-                        {currentVariantPerformance && config ? (
+                        {isLoadingModalData ? (
+                            <div className="flex items-center justify-center py-8">
+                                <div className="text-center">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                                    <p className="text-muted-foreground">Loading model responses and evaluations...</p>
+                                </div>
+                            </div>
+                        ) : currentVariantPerformance && config ? (
                             <div className="flex-1 flex flex-col min-h-0 p-4 md:p-6 overflow-y-auto custom-scrollbar">
                                 {modelVariants.length > 0 && (
                                     <div className="mb-4 pb-4 border-b">

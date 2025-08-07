@@ -87,7 +87,13 @@ export interface AnalysisContextType {
     openPromptDetailModal: (promptId: string) => void;
     closePromptDetailModal: () => void;
 
-
+    // Lazy loading functions for response data
+    fetchModalResponse: (promptId: string, modelId: string) => Promise<string | null>;
+    fetchModelResponses: (modelId: string) => Promise<Record<string, string> | null>;
+    fetchPromptResponses: (promptId: string) => Promise<Record<string, string> | null>;
+    fetchEvaluationDetails: (promptId: string, modelId: string) => Promise<any | null>;
+    getCachedResponse: (promptId: string, modelId: string) => string | null;
+    isLoadingResponse: (promptId: string, modelId: string) => boolean;
 }
 
 export const AnalysisContext = createContext<AnalysisContextType | null>(null);

@@ -322,6 +322,53 @@ export function parseModelIdForDisplay(effectiveModelId: string): ParsedModelId 
 }
 
 /**
+ * Resolves a baseId to the first matching full model ID from a list of effective models.
+ * Used when leaderboard provides baseId values but we need to find the actual model variants.
+ * 
+ * @param baseIdOrFullId - Either a baseId (e.g., "openai:gpt-4o") or already a full ID
+ * @param effectiveModels - List of full model IDs from data.effectiveModels
+ * @returns The first matching full model ID, or the original if it's already full/no match found
+ */
+export function resolveModelId(baseIdOrFullId: string, effectiveModels: string[]): string {
+  if (!baseIdOrFullId || !effectiveModels) return baseIdOrFullId;
+  
+  // If it already looks like a full model ID (has variant suffixes like [sys:0] or [temp:0.0]), return as-is
+  if (baseIdOrFullId.includes('[')) {
+    return baseIdOrFullId;
+  }
+  
+  // Otherwise, treat it as a baseId and find the first matching full model ID
+  const matchingModel = effectiveModels.find(fullModelId => {
+    const parsed = parseModelIdForDisplay(fullModelId);
+    return parsed.baseId === baseIdOrFullId;
+  });
+  
+  return matchingModel || baseIdOrFullId;
+}
+
+/**
+ * Finds all model variants (different system prompts/temperatures) that share the same baseId.
+ * Useful for finding all variants when given either a baseId or one specific variant.
+ * 
+ * @param baseIdOrFullId - Either a baseId or a full model ID
+ * @param effectiveModels - List of full model IDs from data.effectiveModels
+ * @returns Array of all matching full model IDs that share the same baseId
+ */
+export function findModelVariants(baseIdOrFullId: string, effectiveModels: string[]): string[] {
+  if (!baseIdOrFullId || !effectiveModels) return [];
+  
+  // First resolve to get the baseId
+  const resolvedId = resolveModelId(baseIdOrFullId, effectiveModels);
+  const targetBaseId = parseModelIdForDisplay(resolvedId).baseId;
+  
+  // Find all models that share this baseId
+  return effectiveModels.filter(fullModelId => {
+    const parsed = parseModelIdForDisplay(fullModelId);
+    return parsed.baseId === targetBaseId;
+  });
+}
+
+/**
  * Extracts the maker (company) from a model ID
  */
 export function extractMakerFromModelId(modelId: string): string {

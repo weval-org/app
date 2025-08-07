@@ -44,6 +44,23 @@ const getComparisonData = cache(async (params: ThisPageProps['params']): Promise
   const { configId, runLabel, timestamp } = await params;
 
   try {
+    // Try to fetch core data first (optimized for faster initial load)
+    try {
+      const coreResponse = await fetch(
+        `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/comparison/${encodeURIComponent(configId)}/${encodeURIComponent(runLabel)}/${encodeURIComponent(timestamp)}/core`,
+        { cache: 'force-cache' }
+      );
+      
+      if (coreResponse.ok) {
+        const coreData = await coreResponse.json();
+        console.log(`[Page Fetch] Using optimized core data for ${configId}/${runLabel}/${timestamp}`);
+        return coreData as ComparisonDataV2;
+      }
+    } catch (coreError) {
+      console.warn(`[Page Fetch] Core API failed, falling back to full data:`, coreError);
+    }
+
+    // Fallback to full data from storage (backward compatibility)
     const fileName = `${runLabel}_${timestamp}_comparison.json`;
     const jsonData = await getResultByFileName(configId, fileName);
     
@@ -52,6 +69,7 @@ const getComparisonData = cache(async (params: ThisPageProps['params']): Promise
       notFound();
     }
 
+    console.log(`[Page Fetch] Using full data from storage for ${configId}/${runLabel}/${timestamp}`);
     return jsonData as ComparisonDataV2;
 
   } catch (error) {

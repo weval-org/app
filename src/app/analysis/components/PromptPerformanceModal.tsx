@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
@@ -20,8 +20,15 @@ const PromptPerformanceModal: React.FC = () => {
         promptDetailModal,
         closePromptDetailModal,
         displayedModels,
-        configId
+        configId,
+        runLabel,
+        timestamp,
+        fetchPromptResponses
     } = useAnalysis();
+
+    const [responseCache, setResponseCache] = useState<Record<string, string>>({});
+    const [evaluationCache, setEvaluationCache] = useState<Map<string, any>>(new Map());
+    const [isLoading, setIsLoading] = useState(false);
 
     // Collapse temperature variants: keep only one entry per {baseId, systemPromptIndex}
     const canonicalModels = useMemo(() => {
@@ -33,6 +40,49 @@ const PromptPerformanceModal: React.FC = () => {
     usePreloadIcons(['quote', 'chevrons-up-down']);
     
     const { isOpen, promptId } = promptDetailModal;
+
+    // Fetch data when modal opens
+    useEffect(() => {
+        if (!isOpen || !promptId || !data) return;
+
+        const fetchData = async () => {
+            setIsLoading(true);
+            try {
+                // Fetch prompt responses for all models
+                const responses = await fetchPromptResponses(promptId);
+                if (responses) {
+                    setResponseCache(responses);
+                }
+
+                // Fetch detailed evaluations in a single batch call
+                try {
+                    const baseUrl = `/api/comparison/${configId}/${runLabel}/${timestamp}`;
+                    const resp = await fetch(`${baseUrl}/evaluation-details-batch/${encodeURIComponent(promptId)}`);
+                    if (resp.ok) {
+                        const batchData = await resp.json();
+                        const evaluations = batchData.evaluations as Record<string, any>;
+                        if (evaluations) {
+                            setEvaluationCache(prev => {
+                                const newMap = new Map(prev);
+                                Object.entries(evaluations).forEach(([modelId, details]) => {
+                                    newMap.set(`${promptId}:${modelId}`, details);
+                                });
+                                return newMap;
+                            });
+                        }
+                    } else {
+                        console.error('Failed to fetch batch evaluation details', resp.statusText);
+                    }
+                } catch (err) {
+                    console.error('Error fetching batch evaluation details', err);
+                }
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchData();
+    }, [isOpen, promptId, data, canonicalModels, fetchPromptResponses, configId, runLabel, timestamp]);
 
     const promptContext = useMemo(() => {
         if (!data || !promptId) return null;
@@ -62,6 +112,46 @@ const PromptPerformanceModal: React.FC = () => {
         
         return { effectiveSystemPrompt: effectiveSystemPromptValue, conversationContext: conversationContextValue };
     }, [promptId, data]);
+
+    // Create enhanced data object with lazy-loaded responses and detailed evaluations
+    const enhancedData = useMemo(() => {
+        if (!data || !promptId) return data;
+
+        // Create a copy of data with enhanced response and evaluation data
+        const enhanced = { ...data };
+
+        // Replace allFinalAssistantResponses for this prompt with cached responses
+        if (Object.keys(responseCache).length > 0) {
+            enhanced.allFinalAssistantResponses = {
+                ...data.allFinalAssistantResponses,
+                [promptId]: responseCache
+            };
+        }
+
+        // Replace llmCoverageScores with detailed evaluation data that includes keyPointText
+        if (evaluationCache.size > 0 && enhanced.evaluationResults?.llmCoverageScores?.[promptId]) {
+            const enhancedScores = { ...enhanced.evaluationResults.llmCoverageScores[promptId] };
+            
+            evaluationCache.forEach((details, cacheKey) => {
+                if (cacheKey.startsWith(`${promptId}:`)) {
+                    const modelId = cacheKey.substring(promptId.length + 1);
+                    if (enhancedScores[modelId]) {
+                        enhancedScores[modelId] = details;
+                    }
+                }
+            });
+
+            enhanced.evaluationResults = {
+                ...enhanced.evaluationResults,
+                llmCoverageScores: {
+                    ...enhanced.evaluationResults.llmCoverageScores,
+                    [promptId]: enhancedScores
+                }
+            };
+        }
+
+        return enhanced;
+    }, [data, promptId, responseCache, evaluationCache]);
 
     if (!isOpen || !promptId || !data) {
         return null;
@@ -108,12 +198,21 @@ const PromptPerformanceModal: React.FC = () => {
                         <PromptContextDisplay promptContext={conversationContext || undefined} />
                     </div>
                     <div className="p-4 md:p-6 flex-1 min-h-0">
-                        <KeyPointCoverageTable
-                            data={data}
-                            promptId={promptId}
-                            displayedModels={canonicalModels}
-                            hideHeader={true}
-                        />
+                        {isLoading ? (
+                            <div className="flex items-center justify-center py-8">
+                                <div className="text-center">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                                    <p className="text-muted-foreground">Loading prompt evaluation details...</p>
+                                </div>
+                            </div>
+                        ) : (
+                            <KeyPointCoverageTable
+                                data={enhancedData!}
+                                promptId={promptId}
+                                displayedModels={canonicalModels}
+                                hideHeader={true}
+                            />
+                        )}
                     </div>
                 </div>
             </DialogContent>

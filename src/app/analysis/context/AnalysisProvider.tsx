@@ -6,6 +6,7 @@ import { AnalysisContext, AnalysisContextType } from './AnalysisContext';
 import { useComparisonData, useComparisonDataV2 } from '@/app/analysis/hooks/useComparisonData';
 import { useAnalysisStats } from '@/app/analysis/hooks/useAnalysisStats';
 import { useModelFiltering } from '@/app/analysis/hooks/useModelFiltering';
+import { useLazyResponseData } from '@/app/analysis/hooks/useLazyResponseData';
 
 import { ActiveHighlight } from '@/app/analysis/components/CoverageTableLegend';
 import { ComparisonDataV2, CoverageResult } from '@/app/utils/types';
@@ -124,6 +125,13 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
 
     // Only compute analysis stats for full mode
     const analysisStats = useAnalysisStats(isFullMode ? data : null);
+
+    // Lazy loading for response data (only in full mode)
+    const lazyResponseData = useLazyResponseData(
+        isFullMode ? configId : '',
+        isFullMode ? runLabel : '',
+        isFullMode ? timestamp : ''
+    );
 
     const { displayedModels, modelsForMacroTable, modelsForAggregateView } = useModelFiltering({
         data: isFullMode ? data : null,
@@ -507,7 +515,13 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
         closeModelPerformanceModal,
         promptDetailModal,
         openPromptDetailModal,
-        closePromptDetailModal
+        closePromptDetailModal,
+        fetchModalResponse: lazyResponseData.fetchModalResponse,
+        fetchModelResponses: lazyResponseData.fetchModelResponses,
+        fetchPromptResponses: lazyResponseData.fetchPromptResponses,
+        fetchEvaluationDetails: lazyResponseData.fetchEvaluationDetails,
+        getCachedResponse: lazyResponseData.getCachedResponse,
+        isLoadingResponse: lazyResponseData.isLoading
     }), [
         configId, runLabel, timestamp, contextData, isFullMode, loading, error, promptNotFound, excludedModelsList,
         forceIncludeExcludedModels, setForceIncludeExcludedModels, 
@@ -520,7 +534,7 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
         promptTextsForMacroTable, currentPromptId, pageTitle, breadcrumbItems, summaryStats,
         isSandbox, sandboxIdFromProps, normalizedExecutiveSummary, modelPerformanceModal,
         openModelPerformanceModal, closeModelPerformanceModal, promptDetailModal,
-        openPromptDetailModal, closePromptDetailModal
+        openPromptDetailModal, closePromptDetailModal, lazyResponseData
     ]);
 
     return (

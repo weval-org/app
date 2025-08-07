@@ -20,11 +20,14 @@ export interface PromptStats {
     stdDev: number | null;
 }
 
+export type ModelSortOption = 'alpha' | 'coverage-desc';
+
 export const useMacroCoverageData = (
     allCoverageScores: AllCoverageScores | undefined | null,
     promptIds: string[],
     models: string[],
-    sortOption: SortOption = 'alpha-asc'
+    sortOption: SortOption = 'alpha-asc',
+    modelSortOption: ModelSortOption = 'alpha'
 ) => {
     const aggregatedScores = React.useMemo(() => {
         if (!allCoverageScores) return undefined;
@@ -174,7 +177,18 @@ export const useMacroCoverageData = (
         const parsedModelsMap: Record<string, ParsedModelId> = {};
         models.forEach(id => { parsedModelsMap[id] = parseModelIdForDisplay(id); });
 
-        const localSortedModels = [...models].sort((a, b) => a.localeCompare(b));
+        let localSortedModels: string[] = [];
+        if (modelSortOption === 'coverage-desc') {
+            localSortedModels = [...models].sort((a, b) => {
+                const avgA = calculateModelAverageCoverage(a);
+                const avgB = calculateModelAverageCoverage(b);
+                if (avgA === null) return 1;
+                if (avgB === null) return -1;
+                return avgB - avgA; // descending
+            });
+        } else {
+            localSortedModels = [...models].sort((a, b) => a.localeCompare(b));
+        }
 
         const modelScores = models.map(modelId => ({
             modelId,
@@ -247,7 +261,7 @@ export const useMacroCoverageData = (
             baseIdToVisualGroupStyleMap,
             modelIdToRank,
         };
-    }, [models, calculateModelAverageCoverage]);
+    }, [models, calculateModelAverageCoverage, modelSortOption]);
 
     return {
         ...memoizedHeaderData,

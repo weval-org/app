@@ -93,7 +93,12 @@ export const useComparisonDataV2 = ({ initialData, currentPromptId, disabled = f
                     if (data.allFinalAssistantResponses) {
                         for (const promptId in data.allFinalAssistantResponses) {
                             const responseText = data.allFinalAssistantResponses[promptId]?.[modelId];
-                            if (responseText === undefined || responseText.trim() === '') {
+                            // Skip exclusion check if responseText is null (lazy loading core data)
+                            // In core data, all responses are null by design
+                            if (responseText === null) {
+                                continue;
+                            }
+                            if (responseText === undefined || (typeof responseText === 'string' && responseText.trim() === '')) {
                                 excludedFromData.add(modelId);
                                 break;
                             }

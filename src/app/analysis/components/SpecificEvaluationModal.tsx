@@ -29,11 +29,17 @@ const SpecificEvaluationModal: React.FC = () => {
         modelEvaluationModal,
         closeModelEvaluationDetailModal,
         analysisStats,
+        fetchModalResponse,
+        fetchEvaluationDetails,
+        getCachedResponse,
+        isLoadingResponse,
     } = useAnalysis();
 
     const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
     const [isMobileView, setIsMobileView] = useState(false);
     const [selectedVariantIndex, setSelectedVariantIndex] = useState(0);
+    const [loadingResponses, setLoadingResponses] = useState<Set<string>>(new Set());
+    const [evaluationDetailsCache, setEvaluationDetailsCache] = useState<Map<string, any>>(new Map());
 
     // Preload icons used in this modal and child components
     // usePreloadIcons([
@@ -44,8 +50,6 @@ const SpecificEvaluationModal: React.FC = () => {
 
     // Extract modal data from context
     const { isOpen, promptId, modelId } = modelEvaluationModal;
-
-    console.log('[DEBUG] SpecificEvaluationModal render:', { isOpen, promptId, modelId });
 
     // Mobile detection
     useEffect(() => {
@@ -58,17 +62,72 @@ const SpecificEvaluationModal: React.FC = () => {
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
+    // Fetch response data when modal opens
+    useEffect(() => {
+        if (!isOpen || !promptId || !modelId || !data) return;
+
+        const { effectiveModels, config } = data;
+        const clickedParsed = parseModelIdForDisplay(modelId);
+        
+        // Determine which model variants we need responses for
+        const variantModelIds = (config.systems && config.systems.length > 1)
+            ? effectiveModels.filter(m => {
+                const p = parseModelIdForDisplay(m);
+                return p.baseId === clickedParsed.baseId && p.systemPromptIndex === clickedParsed.systemPromptIndex;
+            })
+            : effectiveModels.filter(m => {
+                const p = parseModelIdForDisplay(m);
+                return p.baseId === clickedParsed.baseId;
+            });
+
+        // Fetch responses and evaluation details for all variant models AND ideal response
+        const allModelIds = [...variantModelIds, IDEAL_MODEL_ID];
+        
+        allModelIds.forEach(async (modelIdVar) => {
+            const cacheKey = `${promptId}:${modelIdVar}`;
+            const cachedResponse = getCachedResponse(promptId, modelIdVar);
+            const cachedEvaluation = evaluationDetailsCache.get(cacheKey);
+            
+            // For IDEAL_MODEL_ID, we only need the response, not evaluation details
+            const needsEvaluation = modelIdVar !== IDEAL_MODEL_ID;
+            
+            if ((cachedResponse === null || (needsEvaluation && !cachedEvaluation)) && !isLoadingResponse(promptId, modelIdVar)) {
+                setLoadingResponses(prev => new Set([...prev, modelIdVar]));
+                try {
+                    // Fetch response text for all models, evaluation details only for non-ideal models
+                    const fetchPromises = [
+                        cachedResponse === null ? fetchModalResponse(promptId, modelIdVar) : Promise.resolve(cachedResponse)
+                    ];
+                    
+                    if (needsEvaluation && !cachedEvaluation) {
+                        fetchPromises.push(fetchEvaluationDetails(promptId, modelIdVar));
+                    }
+                    
+                    const results = await Promise.all(fetchPromises);
+                    const [responseResult, evaluationResult] = results;
+                    
+                    // Cache the evaluation details (only for non-ideal models)
+                    if (needsEvaluation && evaluationResult && !cachedEvaluation) {
+                        setEvaluationDetailsCache(prev => new Map(prev).set(cacheKey, evaluationResult));
+                    }
+                } finally {
+                    setLoadingResponses(prev => {
+                        const newSet = new Set(prev);
+                        newSet.delete(modelIdVar);
+                        return newSet;
+                    });
+                }
+            }
+        });
+    }, [isOpen, promptId, modelId, data, fetchModalResponse, fetchEvaluationDetails, getCachedResponse, isLoadingResponse]);
+
     const toggleLogExpansion = (index: number) => {
         setExpandedLogs(prev => ({ ...prev, [index]: !prev[index] }));
     };
 
     // Prepare modal data when modal opens
-    const modalData = React.useMemo(() => {
-        console.log('[DEBUG] modalData useMemo running:', { isOpen, promptId, modelId, hasData: !!data });
-        
+    const modalData = React.useMemo(() => {        
         if (!isOpen || !promptId || !modelId || !data) return null;
-
-        console.log('[DEBUG] Starting modalData computation...');
         
         const { evaluationResults, config, allFinalAssistantResponses, promptContexts, effectiveModels } = data;
         const llmCoverageScores = evaluationResults?.llmCoverageScores as Record<string, Record<string, CoverageResult>> | undefined;
@@ -97,8 +156,18 @@ const SpecificEvaluationModal: React.FC = () => {
             const sysIndex = parsed.systemPromptIndex ?? 0;
 
             const modelResult = llmCoverageScores[promptId]?.[modelIdVar];
-            const modelResponse = allFinalAssistantResponses?.[promptId]?.[modelIdVar];
-            if (!modelResult || 'error' in modelResult || !modelResult.pointAssessments || modelResponse == null) {
+            // Get response from cache (lazy loaded) instead of data.allFinalAssistantResponses
+            const modelResponse = getCachedResponse(promptId, modelIdVar);
+            
+            // Get detailed evaluation data from cache (includes full keyPointText and reflection)
+            const cacheKey = `${promptId}:${modelIdVar}`;
+            const detailedEvaluation = evaluationDetailsCache.get(cacheKey);
+            
+            if (!modelResult || 'error' in modelResult) {
+                continue;
+            }
+            // Skip if response or detailed evaluation not loaded yet - we'll re-render when available
+            if (modelResponse === null || !detailedEvaluation || !detailedEvaluation.pointAssessments) {
                 continue;
             }
 
@@ -116,7 +185,7 @@ const SpecificEvaluationModal: React.FC = () => {
 
             const entry: ModelEvaluationVariant = {
                 modelId: modelIdVar,
-                assessments: modelResult.pointAssessments,
+                assessments: detailedEvaluation.pointAssessments, // Use detailed data with full keyPointText and reflections
                 modelResponse: modelResponse,
                 systemPrompt: effectiveSystemPrompt,
             };
@@ -170,9 +239,10 @@ const SpecificEvaluationModal: React.FC = () => {
 
         });
         
+        // Always return result object so modal can open - even if responses aren't loaded yet
         if (variantEvaluations.size === 0) {
-            console.warn(`Could not gather any valid evaluation data for base model ${clickedParsed.baseId} on prompt ${promptId}.`);
-            return null;
+            console.warn(`Could not gather any valid evaluation data for base model ${clickedParsed.baseId} on prompt ${promptId} - may still be loading responses.`);
+            // Return minimal data so modal can open and show loading state
         }
 
         const promptConfig = config.prompts.find(p => p.id === promptId);
@@ -184,7 +254,8 @@ const SpecificEvaluationModal: React.FC = () => {
         }
 
         const baseModelId = clickedParsed.temperature !== undefined ? `${clickedParsed.baseId}[temp:${clickedParsed.temperature}]` : clickedParsed.baseId;
-        const idealResponse = allFinalAssistantResponses?.[promptId]?.[IDEAL_MODEL_ID];
+        // Get ideal response from cache (lazy loaded) instead of stripped data
+        const idealResponse = getCachedResponse(promptId, IDEAL_MODEL_ID) || undefined;
 
         const result = {
             baseModelId: baseModelId,
@@ -197,9 +268,8 @@ const SpecificEvaluationModal: React.FC = () => {
             variantScores: analysisStats?.perSystemVariantHybridScores,
         };
         
-        console.log('[DEBUG] modalData computation completed successfully:', result);
         return result;
-    }, [isOpen, promptId, modelId, data, analysisStats]);
+    }, [isOpen, promptId, modelId, data, analysisStats, getCachedResponse, evaluationDetailsCache]);
 
     // Set initial variant index when modal data changes
     useEffect(() => {
@@ -233,6 +303,31 @@ const SpecificEvaluationModal: React.FC = () => {
 
     if (!isOpen || !modalData) return null;
 
+    // Show loading state if we have no variant data (still fetching responses)
+    const hasVariantData = modalData.variantEvaluations.size > 0;
+    const isStillLoading = !hasVariantData && (loadingResponses.size > 0 || modalData.variantEvaluations.size === 0);
+    if (isStillLoading) {
+        return (
+            <Dialog open={isOpen} onOpenChange={closeModelEvaluationDetailModal}>
+                <DialogContent className={isMobileView ? "w-[100vw] h-[100vh] max-w-none p-0 m-0 rounded-none border-0 bg-background flex items-center justify-center" : "w-[95vw] max-w-[95vw] h-[95vh] flex flex-col p-0"}>
+                    <DialogHeader>
+                        <DialogTitle></DialogTitle>
+                    </DialogHeader>
+                    <div className="flex items-center justify-center flex-1 py-8">
+                        <div className="text-center">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                            <p className="text-muted-foreground">
+                                {loadingResponses.size > 0
+                                    ? `Fetching model responses (${loadingResponses.size} remaining)...`
+                                    : 'Loading evaluation details...'}
+                            </p>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+        );
+    }
+
     const displayModelName = getModelDisplayLabel(modalData.baseModelId);
     const variantKeys = Array.from(modalData.variantEvaluations.keys()).sort((a,b) => a-b);
     const hasMultipleVariants = variantKeys.length > 1;
@@ -241,7 +336,7 @@ const SpecificEvaluationModal: React.FC = () => {
         ? variantBundle
         : variantBundle.perTempMap?.get(activeTemp) || null;
 
-    if (!displayedVariant) {
+    if (!displayedVariant && !isStillLoading) {
         return (
             <Dialog open={isOpen} onOpenChange={closeModelEvaluationDetailModal}>
                 <DialogContent>
@@ -307,7 +402,7 @@ const SpecificEvaluationModal: React.FC = () => {
                                 description={modalData.promptDescription}
                                 citation={modalData.promptCitation}
                                 promptContext={modalData.promptContext}
-                                systemPrompt={displayedVariant.systemPrompt}
+                                systemPrompt={displayedVariant!.systemPrompt}
                                 variantIndex={selectedVariantIndex}
                             />
 
@@ -375,7 +470,7 @@ const SpecificEvaluationModal: React.FC = () => {
                                 description={modalData.promptDescription}
                                 citation={modalData.promptCitation}
                                 promptContext={modalData.promptContext}
-                                systemPrompt={displayedVariant.systemPrompt}
+                                systemPrompt={displayedVariant!.systemPrompt}
                                 variantIndex={selectedVariantIndex}
                             />
 

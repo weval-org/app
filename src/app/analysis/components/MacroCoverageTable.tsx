@@ -12,7 +12,7 @@ import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 
 // Define AllFinalAssistantResponses type inline
 type AllFinalAssistantResponses = Record<string, Record<string, string>>; // promptId -> modelId -> response text
-import { useMacroCoverageData, SortOption } from '@/app/analysis/hooks/useMacroCoverageData';
+import { useMacroCoverageData, SortOption, ModelSortOption } from '@/app/analysis/hooks/useMacroCoverageData';
 import { cn } from '@/lib/utils';
 import CoverageTableLegend, { ActiveHighlight } from '@/app/analysis/components/CoverageTableLegend';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -270,18 +270,16 @@ const MacroCoverageTable: React.FC = () => {
     // Preload markdown dependencies to prevent loading states when modals open
     // usePreloadMarkdown();
 
-    const [markdownModule, setMarkdownModule] = useState<{ ReactMarkdown: any, RemarkGfm: any } | null>(null);
     const [sortOption, setSortOption] = useState<SortOption>('alpha-asc');
+    // Model column sorting: 'alpha' (default) or 'coverage-desc' (best to worst)
+    const [modelSortOption, setModelSortOption] = useState<ModelSortOption>('alpha');
     const [highlightBestInClass, setHighlightBestInClass] = useState<boolean>(false);
     const [simplifiedView, setSimplifiedView] = useState<boolean>(true);
     const [errorModalOpen, setErrorModalOpen] = useState<boolean>(false);
     const [errorModalContent, setErrorModalContent] = useState<string>('');
 
     const onCellClick = (promptId: string, modelId: string) => {
-        console.log('[DEBUG] Cell clicked:', { promptId, modelId });
-        console.log('[DEBUG] About to open modal...');
         openModelEvaluationDetailModal({ promptId, modelId, variantScores: analysisStats?.perSystemVariantHybridScores });
-        console.log('[DEBUG] Modal open call completed');
     };
 
     const onPromptClick = (promptId: string) => {
@@ -316,7 +314,6 @@ const MacroCoverageTable: React.FC = () => {
     const {
         localSortedModels,
         parsedModelsMap,
-        baseModelGlobalIndexMap,
         baseIdToVisualGroupStyleMap,
         sortedPromptIds,
         promptStats,
@@ -327,16 +324,7 @@ const MacroCoverageTable: React.FC = () => {
         modelIdToRank,
         promptModelRanks,
         aggregatedScores,
-    } = useMacroCoverageData(allCoverageScores, promptIds, models, sortOption);
-
-    // useEffect(() => {
-    //     Promise.all([
-    //         import('react-markdown'),
-    //         import('remark-gfm')
-    //     ]).then(([md, gfm]) => {
-    //         setMarkdownModule({ ReactMarkdown: md.default, RemarkGfm: gfm.default });
-    //     });
-    // }, []);
+    } = useMacroCoverageData(allCoverageScores, promptIds, models, sortOption, modelSortOption);
 
     useEffect(() => {
         // Notify parent component when highlights change
@@ -890,6 +878,18 @@ const MacroCoverageTable: React.FC = () => {
                                 <SelectItem value="coverage-asc">Lowest Avg. Coverage</SelectItem>
                                 <SelectItem value="disagreement-desc">Highest Performance Variance</SelectItem>
                                 <SelectItem value="disagreement-asc">Lowest Performance Variance</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <Label htmlFor="sort-models" className="text-sm font-medium">Sort models by</Label>
+                        <Select value={modelSortOption} onValueChange={(value) => setModelSortOption(value as ModelSortOption)}>
+                            <SelectTrigger id="sort-models" className="w-full sm:w-[200px]">
+                                <SelectValue placeholder="Select model order..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="alpha">Default Order</SelectItem>
+                                <SelectItem value="coverage-desc">Best to Worst</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>

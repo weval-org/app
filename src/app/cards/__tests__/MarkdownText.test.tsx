@@ -108,8 +108,8 @@ describe('MarkdownText', () => {
     expect(fullText).toBe('The model excels in legal information retrieval, achieving top rank in African Charter and outperforming peers in EU AI Act.');
     
     // Count occurrences to ensure no duplication
-    const charterCount = (fullText.match(/African Charter/g) || []).length;
-    const aiActCount = (fullText.match(/EU AI Act/g) || []).length;
+    const charterCount = (fullText ? fullText.match(/African Charter/g) || [] : []).length;
+    const aiActCount = (fullText ? fullText.match(/EU AI Act/g) || [] : []).length;
     expect(charterCount).toBe(1);
     expect(aiActCount).toBe(1);
   });
