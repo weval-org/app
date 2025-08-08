@@ -144,6 +144,10 @@ export const useAnalysisStats = (data: ComparisonDataV2 | null): AnalysisStats =
             console.log('[useAnalysisStats] config.systems.length:', config.systems?.length);
             console.log('[useAnalysisStats] perPromptSimilarities exists:', !!evaluationResults?.perPromptSimilarities);
             console.log('[useAnalysisStats] llmCoverageScores exists:', !!llmCoverageScores);
+            console.log('[useAnalysisStats] llmCoverageScores keys and sample:', {
+                keys: llmCoverageScores ? Object.keys(llmCoverageScores) : [],
+                sample: llmCoverageScores ? llmCoverageScores[Object.keys(llmCoverageScores)[0]] : null
+            });
             console.log('[useAnalysisStats] effectiveModels:', effectiveModels);
             console.log('[useAnalysisStats] promptIds:', promptIds);
         }

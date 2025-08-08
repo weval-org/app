@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getResultByFileName } from '@/lib/storageService';
-import { ComparisonDataV2 } from '@/app/utils/types';
+import { getCoreResult, getCoverageResult } from '@/lib/storageService';
 
 /**
  * Batch endpoint: returns evaluation details for ALL models for a given prompt.
@@ -22,25 +21,31 @@ export async function GET(
 
     const decodedPromptId = decodeURIComponent(promptId);
 
-    // Filename convention matches single-detail route
-    const fileName = `${runLabel}_${timestamp}_comparison.json`;
-    const fullData = (await getResultByFileName(configId, fileName)) as ComparisonDataV2 | null;
-
-    if (!fullData) {
-      return NextResponse.json({ error: 'Comparison data not found' }, { status: 404 });
+    // Load core to identify models
+    const coreData = await getCoreResult(configId, runLabel, timestamp);
+    if (!coreData || !Array.isArray(coreData.effectiveModels)) {
+      return NextResponse.json({ error: 'Core data not found' }, { status: 404 });
     }
 
-    const evaluationsForPrompt =
-      fullData.evaluationResults?.llmCoverageScores?.[decodedPromptId] ?? null;
+    const pLimit = (await import('@/lib/pLimit')).default;
+    const limit = pLimit(8);
+    const evaluations: Record<string, any> = {};
+    await Promise.all(
+      coreData.effectiveModels.map((modelId: string) =>
+        limit(async () => {
+          const cov = await getCoverageResult(configId, runLabel, timestamp, decodedPromptId, modelId);
+          if (cov) evaluations[modelId] = cov;
+        })
+      )
+    );
 
-    if (!evaluationsForPrompt) {
-      return NextResponse.json(
-        { error: 'No evaluation results for the specified prompt' },
-        { status: 404 }
-      );
+    if (Object.keys(evaluations).length === 0) {
+      return NextResponse.json({ error: 'No evaluation results for the specified prompt' }, { status: 404 });
     }
 
-    return NextResponse.json({ promptId: decodedPromptId, evaluations: evaluationsForPrompt });
+    const res = NextResponse.json({ promptId: decodedPromptId, evaluations });
+    res.headers.set('Cache-Control', 'public, max-age=0, s-maxage=3600, stale-while-revalidate=600');
+    return res;
   } catch (error) {
     console.error('[Evaluation Details Batch API] Error:', error);
     return NextResponse.json({ error: 'Failed to fetch batch evaluation details' }, { status: 500 });

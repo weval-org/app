@@ -54,7 +54,9 @@ export async function generateAllResponses(
     
     // Create per-model limiters upfront (see detailed explanation above)
     modelIds.forEach(modelId => {
-        perModelLimits.set(modelId, pLimit(1)); // Each model gets its own "one-at-a-time" execution queue
+        perModelLimits.set(modelId, pLimit(
+            process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test' ? 10 : 1
+        )); // Each model gets its own "one-at-a-time" execution queue
     });
 
     const totalResponsesToGenerate = config.prompts.length * modelIds.length * temperaturesToRun.length * systemPromptsToRun.length;

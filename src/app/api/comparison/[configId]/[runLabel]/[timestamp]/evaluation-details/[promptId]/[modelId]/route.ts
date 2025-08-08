@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getResultByFileName } from '@/lib/storageService';
-import { ComparisonDataV2 } from '@/app/utils/types';
+import { getCoverageResult } from '@/lib/storageService';
 
 /**
  * API endpoint that returns full evaluation details for a specific prompt+model combination.
@@ -26,19 +25,8 @@ export async function GET(
     const decodedPromptId = decodeURIComponent(promptId);
     const decodedModelId = decodeURIComponent(modelId);
 
-    // Fetch the full comparison data
-    const fileName = `${runLabel}_${timestamp}_comparison.json`;
-    const fullData = await getResultByFileName(configId, fileName) as ComparisonDataV2;
-
-    if (!fullData) {
-      return NextResponse.json(
-        { error: 'Comparison data not found' },
-        { status: 404 }
-      );
-    }
-
-    // Extract the specific evaluation result with full detail
-    const evaluationResult = fullData.evaluationResults?.llmCoverageScores?.[decodedPromptId]?.[decodedModelId];
+    // Fetch coverage artefact
+    const evaluationResult = await getCoverageResult(configId, runLabel, timestamp, decodedPromptId, decodedModelId);
 
     if (!evaluationResult) {
       return NextResponse.json(
@@ -50,11 +38,13 @@ export async function GET(
     // Return the complete evaluation result including:
     // - pointAssessments with keyPointText, reflection, individualJudgements with full reflection text
     // - All detailed evaluation data needed by the modal
-    return NextResponse.json({
+    const res = NextResponse.json({
       promptId: decodedPromptId,
       modelId: decodedModelId,
-      evaluationResult: evaluationResult
+      evaluationResult
     });
+    res.headers.set('Cache-Control', 'public, max-age=0, s-maxage=3600, stale-while-revalidate=600');
+    return res;
 
   } catch (error) {
     console.error('[Evaluation Details API] Error fetching evaluation details:', error);

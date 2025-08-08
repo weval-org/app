@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getResultByFileName } from '@/lib/storageService';
-import { ComparisonDataV2 } from '@/app/utils/types';
+import { getPromptResponses, getCoreResult } from '@/lib/storageService';
 
 /**
  * API endpoint that returns all response data for a specific model across all prompts.
@@ -23,24 +22,17 @@ export async function GET(
     // Decode URL-encoded parameter
     const decodedModelId = decodeURIComponent(modelId);
 
-    // Fetch the full comparison data
-    const fileName = `${runLabel}_${timestamp}_comparison.json`;
-    const fullData = await getResultByFileName(configId, fileName) as ComparisonDataV2;
-
-    if (!fullData) {
-      return NextResponse.json(
-        { error: 'Comparison data not found' },
-        { status: 404 }
-      );
+    // Load core data to know available promptIds
+    const coreData = await getCoreResult(configId, runLabel, timestamp);
+    if (!coreData || !Array.isArray(coreData.promptIds)) {
+      return NextResponse.json({ error: 'Core data not found' }, { status: 404 });
     }
 
-    // Extract all responses for this model across all prompts
     const modelResponses: Record<string, string> = {};
-
-    for (const promptId in fullData.allFinalAssistantResponses) {
-      const response = fullData.allFinalAssistantResponses[promptId][decodedModelId];
-      if (response !== undefined) {
-        modelResponses[promptId] = response;
+    for (const promptId of coreData.promptIds) {
+      const promptResponses = await getPromptResponses(configId, runLabel, timestamp, promptId);
+      if (promptResponses && promptResponses[decodedModelId] !== undefined) {
+        modelResponses[promptId] = promptResponses[decodedModelId];
       }
     }
 
@@ -51,10 +43,12 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       modelId: decodedModelId,
       responses: modelResponses
     });
+    res.headers.set('Cache-Control', 'public, max-age=0, s-maxage=3600, stale-while-revalidate=600');
+    return res;
 
   } catch (error) {
     console.error('[Model Responses API] Error fetching model responses:', error);

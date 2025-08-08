@@ -439,6 +439,7 @@ const MacroCoverageTable: React.FC = () => {
                 </span>
             </div>
         );
+
         if (!result.pointAssessments || result.pointAssessments.length === 0) return (
             <div title="No key points/assessments" className="w-full h-full flex items-center justify-center">
                 <span className="px-2 py-1 rounded-md text-white font-semibold text-sm bg-coverage-grade-0 w-full text-center">!</span>

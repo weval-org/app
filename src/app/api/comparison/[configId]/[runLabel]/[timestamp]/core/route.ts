@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getResultByFileName } from '@/lib/storageService';
+import { getCoreResult } from '@/lib/storageService';
 import { ComparisonDataV2 } from '@/app/utils/types';
 
 // Lightweight version of IndividualJudgement (no bulky reflection text)
@@ -14,7 +14,8 @@ interface CorePointAssessment {
   coverageExtent: number;
   multiplier?: number;
   isInverted?: boolean;
-  individualJudgements?: CoreIndividualJudgement[]; // For disagreement detection
+  judgeStdDev?: number; // pre-computed disagreement metric
+  pathId?: string; // For grouping alternative paths
   // keyPointText removed - bulky and not needed for segments
 }
 
@@ -22,6 +23,8 @@ interface CorePointAssessment {
 interface CoreCoverageResult {
   avgCoverageExtent: number;
   keyPointsCount?: number;
+  sampleCount?: number;
+  stdDev?: number;
   judgeModelId: string;
   error?: string;
   pointAssessments?: CorePointAssessment[]; // Lightweight version for segments
@@ -49,9 +52,8 @@ export async function GET(
   try {
     const { configId, runLabel, timestamp } = await context.params;
 
-    // Fetch the full comparison data
-    const fileName = `${runLabel}_${timestamp}_comparison.json`;
-    const fullData = await getResultByFileName(configId, fileName) as ComparisonDataV2;
+    // Fetch lightweight core data (artefact aware)
+    const fullData = await getCoreResult(configId, runLabel, timestamp) as ComparisonDataV2;
 
     if (!fullData) {
       return NextResponse.json(
@@ -72,7 +74,9 @@ export async function GET(
       }
     };
 
-    return NextResponse.json(coreData);
+    const res = NextResponse.json(coreData);
+    res.headers.set('Cache-Control', 'public, max-age=0, s-maxage=3600, stale-while-revalidate=600');
+    return res;
 
   } catch (error) {
     console.error('[Core API] Error fetching core comparison data:', error);
@@ -135,16 +139,19 @@ function extractCoreCoverageScores(
             coverageExtent: assessment.coverageExtent,
             multiplier: assessment.multiplier,
             isInverted: assessment.isInverted,
-            individualJudgements: coreIndividualJudgements
+            judgeStdDev: assessment.judgeStdDev,
+            pathId: assessment.pathId
             // keyPointText intentionally omitted - bulky and not needed for segments
           };
         });
       }
       
-      // Extract only the essential fields needed for table rendering
+      // Extract only the essential fields needed for table rendering (include light stats)
       coreScores[promptId][modelId] = {
         avgCoverageExtent: fullResult.avgCoverageExtent,
         keyPointsCount: fullResult.keyPointsCount,
+        sampleCount: (fullResult as any).sampleCount,
+        stdDev: (fullResult as any).stdDev,
         judgeModelId: fullResult.judgeModelId,
         error: fullResult.error,
         pointAssessments: corePointAssessments

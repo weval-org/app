@@ -32,6 +32,7 @@ import { backupDataCommand } from './commands/backup-data';
 import { restoreDataCommand } from './commands/restore-data';
 import { listBackupsCommand } from './commands/list-backups';
 import { migrateStorageLayoutCommand } from './commands/migrate-storage-layout';
+import { migrateResultFilesCommand } from './commands/migrate-result-files';
 import { debugConfigScoresCommand } from './commands/debug-config-scores';
 
 let isTerminating = false
@@ -103,6 +104,7 @@ cli.addCommand(backupDataCommand);
 cli.addCommand(restoreDataCommand);
 cli.addCommand(listBackupsCommand);
 cli.addCommand(migrateStorageLayoutCommand);
+cli.addCommand(migrateResultFilesCommand);
 cli.addCommand(debugConfigScoresCommand);
 
 cli.parseAsync(process.argv).catch(err => {

@@ -92,8 +92,12 @@ export interface AnalysisContextType {
     fetchModelResponses: (modelId: string) => Promise<Record<string, string> | null>;
     fetchPromptResponses: (promptId: string) => Promise<Record<string, string> | null>;
     fetchEvaluationDetails: (promptId: string, modelId: string) => Promise<any | null>;
+    fetchEvaluationDetailsBatchForPrompt: (promptId: string) => Promise<Record<string, any> | null>;
+    fetchEvaluationDetailsBatchForModel: (modelId: string) => Promise<Record<string, any> | null>;
     getCachedResponse: (promptId: string, modelId: string) => string | null;
+    getCachedEvaluation: (promptId: string, modelId: string) => any | null;
     isLoadingResponse: (promptId: string, modelId: string) => boolean;
+    isLoadingEvaluation?: (key: string) => boolean;
 }
 
 export const AnalysisContext = createContext<AnalysisContextType | null>(null);

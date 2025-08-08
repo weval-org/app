@@ -520,8 +520,12 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
         fetchModelResponses: lazyResponseData.fetchModelResponses,
         fetchPromptResponses: lazyResponseData.fetchPromptResponses,
         fetchEvaluationDetails: lazyResponseData.fetchEvaluationDetails,
+        fetchEvaluationDetailsBatchForPrompt: lazyResponseData.fetchEvaluationDetailsBatchForPrompt,
+        fetchEvaluationDetailsBatchForModel: lazyResponseData.fetchEvaluationDetailsBatchForModel,
         getCachedResponse: lazyResponseData.getCachedResponse,
-        isLoadingResponse: lazyResponseData.isLoading
+        getCachedEvaluation: lazyResponseData.getCachedEvaluation,
+        isLoadingResponse: lazyResponseData.isLoading,
+        isLoadingEvaluation: lazyResponseData.isLoadingEvaluation
     }), [
         configId, runLabel, timestamp, contextData, isFullMode, loading, error, promptNotFound, excludedModelsList,
         forceIncludeExcludedModels, setForceIncludeExcludedModels, 

@@ -47,7 +47,8 @@ export const useComparisonData = ({ initialData, currentPromptId, disabled = fal
                         if (initialData.allFinalAssistantResponses) {
                             for (const promptId in initialData.allFinalAssistantResponses) {
                                 const responseText = initialData.allFinalAssistantResponses[promptId]?.[modelId];
-                                if (responseText === undefined || responseText.trim() === '') {
+                                if (responseText === undefined || (typeof responseText === 'string' && responseText.trim() === '')) {
+                                console.debug('[exclude-debug] Missing response', { modelId, promptId, value: responseText });
                                     excludedFromData.add(modelId);
                                     break;
                                 }
@@ -93,12 +94,8 @@ export const useComparisonDataV2 = ({ initialData, currentPromptId, disabled = f
                     if (data.allFinalAssistantResponses) {
                         for (const promptId in data.allFinalAssistantResponses) {
                             const responseText = data.allFinalAssistantResponses[promptId]?.[modelId];
-                            // Skip exclusion check if responseText is null (lazy loading core data)
-                            // In core data, all responses are null by design
-                            if (responseText === null) {
-                                continue;
-                            }
                             if (responseText === undefined || (typeof responseText === 'string' && responseText.trim() === '')) {
+                                console.debug('[exclude-debug] Missing response', { modelId, promptId, value: responseText });
                                 excludedFromData.add(modelId);
                                 break;
                             }

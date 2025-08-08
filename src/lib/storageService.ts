@@ -47,7 +47,7 @@ import { getConfig } from '@/cli/config';
 import { WevalResult } from '../types/shared';
 import pLimit from '@/lib/pLimit';
 
-const storageProvider = process.env.STORAGE_PROVIDER || (process.env.NODE_ENV === 'development' ? 'local' : 's3');
+const storageProvider = process.env.STORAGE_PROVIDER || (['development', 'test'].includes(process.env.NODE_ENV || '') ? 'local' : 's3');
 
 // Define and export the new summary structure type
 export interface HomepageSummaryFileContent {
@@ -439,6 +439,133 @@ export async function saveConfigSummary(configId: string, summaryData: EnhancedC
   }
 }
 
+// ----------------------
+// Companion artefact READ HELPERS (core.json, responses, etc.)
+// ----------------------
+
+/** Build artefact paths */
+function artefactPaths(configId: string, runBase: string, relative: string) {
+  const s3Key = path.join(LIVE_DIR, 'blueprints', configId, runBase, relative);
+  const localPath = path.join(RESULTS_DIR, s3Key);
+  const cachePath = path.join(CACHE_DIR, configId, runBase, relative);
+  return { s3Key, localPath, cachePath };
+}
+
+async function readJsonFromStorage(configId: string, runBase: string, relative: string): Promise<any | null> {
+  const { s3Key, localPath, cachePath } = artefactPaths(configId, runBase, relative);
+
+  // 1. cache
+  try {
+    if (fsSync.existsSync(cachePath)) {
+      const cached = await fs.readFile(cachePath, 'utf-8');
+      return JSON.parse(cached);
+    }
+  } catch {}
+
+  const loadAndCache = async (content: string) => {
+    try {
+      await fs.mkdir(path.dirname(cachePath), { recursive: true });
+      await fs.writeFile(cachePath, content, 'utf-8');
+    } catch {}
+    return JSON.parse(content);
+  };
+
+  if (storageProvider === 's3' && s3Client && s3BucketName) {
+    try {
+      const obj = await s3Client.send(new GetObjectCommand({ Bucket: s3BucketName, Key: s3Key }));
+      if (obj.Body) {
+        const lastMod = obj.LastModified ? obj.LastModified.toISOString() : 'unknown';
+        console.log(`[StorageService] S3 GET ${s3Key} (LastModified: ${lastMod})`);
+        const content = await streamToString(obj.Body as Readable);
+        return await loadAndCache(content);
+      }
+    } catch (err: any) {
+      if (err.name !== 'NoSuchKey') console.warn('[StorageService] readJsonFromStorage error:', err.message);
+    }
+  } else if (storageProvider === 'local') {
+    try {
+      const stats = await fs.stat(localPath);
+      console.log(`[StorageService] Local read ${localPath} (mtime: ${stats.mtime.toISOString()})`);
+      const content = await fs.readFile(localPath, 'utf-8');
+      return await loadAndCache(content);
+    } catch {}
+  }
+  return null;
+}
+
+/**
+ * Fetch the lightweight core.json artefact if present; otherwise fall back to legacy _comparison.json.
+ */
+export async function getCoreResult(configId: string, runLabel: string, timestamp: string): Promise<any | null> {
+  const runBase = `${runLabel}_${timestamp}`;
+  // Try artefact first
+  const coreData = await readJsonFromStorage(configId, runBase, 'core.json');
+
+  if (coreData) {
+    console.log(`[StorageService] getCoreResult → using core.json artefact for ${configId}/${runBase} (promptIds: ${coreData.promptIds?.length || 0}, models: ${coreData.effectiveModels?.length || 0})`);
+    return coreData;
+  }
+
+  console.log(`[StorageService] getCoreResult → core.json missing, falling back to legacy _comparison.json for ${configId}/${runBase}`);
+  // Fallback legacy
+  const legacyFile = `${runBase}_comparison.json`;
+  return await getResultByFileName(configId, legacyFile);
+}
+
+/**
+ * Fetch detailed coverage result for a prompt+model
+ */
+export async function getCoverageResult(configId: string, runLabel: string, timestamp: string, promptId: string, modelId: string): Promise<any | null> {
+  const runBase = `${runLabel}_${timestamp}`;
+  const artefact = await readJsonFromStorage(configId, runBase, path.join('coverage', promptId, `${getSafeModelId(modelId)}.json`));
+  if (artefact) return artefact;
+  // legacy fallback
+  const legacyFile = `${runBase}_comparison.json`;
+  const legacy = await getResultByFileName(configId, legacyFile);
+  return legacy?.evaluationResults?.llmCoverageScores?.[promptId]?.[modelId] || null;
+}
+
+/**
+ * Fetch responses for a specific promptId. Falls back to legacy file if artefact missing.
+ */
+export async function getPromptResponses(configId: string, runLabel: string, timestamp: string, promptId: string): Promise<Record<string,string> | null> {
+  const runBase = `${runLabel}_${timestamp}`;
+  const artefact = await readJsonFromStorage(configId, runBase, path.join('responses', `${promptId}.json`));
+  if (artefact) return artefact;
+
+  // legacy fallback
+  const legacyFile = `${runBase}_comparison.json`;
+  const legacy = await getResultByFileName(configId, legacyFile);
+  if (legacy?.allFinalAssistantResponses) {
+    const decodedPromptId = decodeURIComponent(promptId);
+    return legacy.allFinalAssistantResponses[decodedPromptId] || null;
+  }
+  return null;
+}
+
+// ----------------------
+// Existence checker (used by migration tool)
+// ----------------------
+export async function artefactExists(configId: string, runBase: string, relativePath: string): Promise<boolean> {
+  const { s3Key, localPath } = artefactPaths(configId, runBase, relativePath);
+
+  if (storageProvider === 's3' && s3Client && s3BucketName) {
+    try {
+      await s3Client.send(new HeadObjectCommand({ Bucket: s3BucketName, Key: s3Key }));
+      return true;
+    } catch (err: any) {
+      if (err.name === 'NotFound' || err.name === 'NoSuchKey') return false;
+      // Some providers throw 404 differently
+      if (err.$metadata?.httpStatusCode === 404) return false;
+      console.warn('[StorageService] artefactExists HeadObject error:', err.message);
+      return false;
+    }
+  } else if (storageProvider === 'local') {
+    return fsSync.existsSync(localPath);
+  }
+  return false;
+}
+
 // Helper to ensure fs-sync is only imported where used if it's a conditional dependency.
 // For simplicity, assuming it's available. If not, adjust local file checks.
 
@@ -450,6 +577,7 @@ export async function saveConfigSummary(configId: string, summaryData: EnhancedC
  * @returns The path/key where the data was saved or null on error.
  */
 export async function saveResult(configId: string, fileNameWithTimestamp: string, data: any): Promise<string | null> {
+  // 1. Save legacy monolithic file (back-compat during migration)
   const jsonData = JSON.stringify(data, null, 2);
   const s3Key = path.join(LIVE_DIR, 'blueprints', configId, fileNameWithTimestamp);
   const localPath = path.join(RESULTS_DIR, s3Key);
@@ -485,7 +613,153 @@ export async function saveResult(configId: string, fileNameWithTimestamp: string
     return null;
   }
 
-  // Clear cache after successful save to ensure fresh reads
+  // 2. Write companion artefacts (core.json + prompt responses)
+  try {
+    const runBase = fileNameWithTimestamp.replace(/_comparison\.json$/i, '');
+
+    // helper to write a JSON artefact to the same provider we just used
+    const writeJsonArtefact = async (relativePath: string, obj: any) => {
+      const artefactJson = JSON.stringify(obj);
+      const artefactS3Key = path.join(LIVE_DIR, 'blueprints', configId, runBase, relativePath);
+      const artefactLocalPath = path.join(RESULTS_DIR, artefactS3Key);
+
+      if (storageProvider === 's3' && s3Client && s3BucketName) {
+        await s3Client.send(new PutObjectCommand({
+          Bucket: s3BucketName,
+          Key: artefactS3Key,
+          Body: artefactJson,
+          ContentType: 'application/json',
+        }));
+      } else if (storageProvider === 'local') {
+        await fs.mkdir(path.dirname(artefactLocalPath), { recursive: true });
+        await fs.writeFile(artefactLocalPath, artefactJson, 'utf-8');
+      }
+
+      // Invalidate any cached copy of this artefact
+      try {
+        const { cachePath } = artefactPaths(configId, runBase, relativePath);
+        if (fsSync.existsSync(cachePath)) {
+          await fs.unlink(cachePath);
+          console.log(`[StorageService] Cache invalidated for ${cachePath}`);
+        }
+      } catch {}
+
+    };
+
+    // Build core.json (lightweight slice)
+    const buildCoreData = (full: any) => {
+      const clone = { ...full } as any;
+
+      // ---- Trim config.prompts (remove heavy text, keep IDs only) ----
+      if (clone.config?.prompts) {
+        clone.config.prompts = clone.config.prompts.map((p: any) => ({ id: p.id }));
+      }
+
+      // ---- Prompt contexts: keep as-is for quick display (single string or msgs array) ----
+      // ---- Remove heavy response-side fields ----
+      delete clone.allFinalAssistantResponses;
+      delete clone.fullConversationHistories;
+
+      // Replace heavy fields with placeholder matrices
+      const buildPlaceholderMatrix = () => {
+        const out: Record<string, Record<string, null>> = {};
+        const prompts = full.promptIds || Object.keys(full.allFinalAssistantResponses || {});
+        const models  = full.effectiveModels || [];
+        for (const p of prompts) {
+          out[p] = {};
+          for (const m of models) {
+            out[p][m] = null;
+          }
+        }
+        return out;
+      };
+      clone.allFinalAssistantResponses = buildPlaceholderMatrix();
+      // Reset excludedModels; will be recalculated client-side based on artefacts
+      if (clone.excludedModels) delete clone.excludedModels;
+      clone.fullConversationHistories = buildPlaceholderMatrix();
+      // Trim coverage scores (retain essential fields & lightweight point assessments)
+      const llmCoverage = full.evaluationResults?.llmCoverageScores || {};
+      const strippedCoverage: Record<string, any> = {};
+      for (const pid in llmCoverage) {
+        strippedCoverage[pid] = {};
+        for (const mid in llmCoverage[pid]) {
+          const r = llmCoverage[pid][mid] || {};
+
+          // Build lightweight point assessments (omit bulky reflection text)
+          let lightPointAssessments: any[] | undefined;
+          if (Array.isArray(r.pointAssessments)) {
+            lightPointAssessments = r.pointAssessments.map((pa: any) => {
+              // Pre-compute judge score standard deviation for disagreement indicator
+              let judgeStdDev: number | undefined;
+              if (Array.isArray(pa.individualJudgements) && pa.individualJudgements.length > 1) {
+                const scores = pa.individualJudgements.map((j: any) => j.coverageExtent);
+                const mean = scores.reduce((a: number, b: number) => a + b, 0) / scores.length;
+                const variance = scores.reduce((a: number, b: number) => a + Math.pow(b - mean, 2), 0) / scores.length;
+                judgeStdDev = Math.sqrt(variance);
+              }
+
+              return {
+                coverageExtent: pa.coverageExtent,
+                multiplier: pa.multiplier,
+                isInverted: pa.isInverted,
+                judgeStdDev,
+                pathId: pa.pathId,
+              };
+            });
+          }
+
+          strippedCoverage[pid][mid] = {
+            avgCoverageExtent: r.avgCoverageExtent,
+            keyPointsCount: r.keyPointsCount,
+            sampleCount: r.sampleCount,
+            stdDev: r.stdDev,
+            judgeModelId: r.judgeModelId,
+            error: r.error,
+            pointAssessments: lightPointAssessments,
+          };
+        }
+      }
+      clone.evaluationResults = {
+        similarityMatrix: full.evaluationResults?.similarityMatrix || {},
+        llmCoverageScores: strippedCoverage,
+      };
+      return clone;
+    };
+
+    await writeJsonArtefact('core.json', buildCoreData(data));
+
+    // Concurrency limiter: lower for S3, higher for local FS
+    const limit = pLimit(storageProvider === 's3' ? 8 : 32);
+    const artefactWrites: Promise<void>[] = [];
+
+    // Prompt-level responses
+    if (data.allFinalAssistantResponses) {
+      for (const promptId of Object.keys(data.allFinalAssistantResponses)) {
+        artefactWrites.push(
+          limit(() => writeJsonArtefact(path.join('responses', `${promptId}.json`), data.allFinalAssistantResponses[promptId]))
+        );
+      }
+    }
+
+    // Coverage artefacts per prompt/model
+    const coverage = data.evaluationResults?.llmCoverageScores || {};
+    for (const pid of Object.keys(coverage)) {
+      for (const mid of Object.keys(coverage[pid])) {
+        artefactWrites.push(
+          limit(() => writeJsonArtefact(path.join('coverage', pid, `${getSafeModelId(mid)}.json`), coverage[pid][mid]))
+        );
+      }
+    }
+
+    // Wait for all artefacts to finish writing
+    if (artefactWrites.length > 0) {
+      await Promise.all(artefactWrites);
+    }
+  } catch (artefactErr: any) {
+    console.warn(`[StorageService] Companion artefact write failed (non-fatal): ${artefactErr.message}`);
+  }
+
+  // 3. Clear cache after successful save to ensure fresh reads
   if (savedPath) {
     await clearResultCache(configId, fileNameWithTimestamp);
   }
@@ -633,11 +907,12 @@ export async function getResultByFileName(configId: string, fileName: string): P
 
   // --- Check Local Cache First ---
   try {
-    if (fsSync.existsSync(cachePath)) {
-        console.log(`[StorageService] Cache HIT for ${fileName}. Reading from ${cachePath}`);
-        const cachedContent = await fs.readFile(cachePath, 'utf-8');
-        return JSON.parse(cachedContent);
-    }
+          if (fsSync.existsSync(cachePath)) {
+          const stats = await fs.stat(cachePath);
+          console.log(`[StorageService] Cache HIT for ${fileName}. mtime: ${stats.mtime.toISOString()}`);
+          const cachedContent = await fs.readFile(cachePath, 'utf-8');
+          return JSON.parse(cachedContent);
+      }
   } catch (err) {
       console.warn(`[StorageService] Error reading from cache file ${cachePath}. Will fetch from source.`, err);
   }
@@ -665,7 +940,6 @@ export async function getResultByFileName(configId: string, fileName: string): P
         // --- End Cache Population ---
 
         const parsedData = JSON.parse(content);
-        console.log(`[StorageService getResultByFileName DEBUG] Parsed data keys: ${Object.keys(parsedData).join(', ')}`);
         return parsedData;
       }
       return null;
@@ -683,7 +957,7 @@ export async function getResultByFileName(configId: string, fileName: string): P
       const fileContents = await fs.readFile(localPath, 'utf-8');
       console.log(`[StorageService] Result retrieved locally by fileName: ${localPath}`);
       const parsedData = JSON.parse(fileContents);
-      console.log(`[StorageService getResultByFileName DEBUG] Parsed data keys: ${Object.keys(parsedData).join(', ')}`);
+
       return parsedData;
     } catch (error: any) {
       if (error.code === 'ENOENT') {

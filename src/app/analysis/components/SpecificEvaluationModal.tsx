@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { getModelDisplayLabel, parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -29,17 +29,18 @@ const SpecificEvaluationModal: React.FC = () => {
         modelEvaluationModal,
         closeModelEvaluationDetailModal,
         analysisStats,
-        fetchModalResponse,
-        fetchEvaluationDetails,
+        fetchPromptResponses,
+        fetchEvaluationDetailsBatchForPrompt,
         getCachedResponse,
+        getCachedEvaluation,
         isLoadingResponse,
     } = useAnalysis();
 
     const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
     const [isMobileView, setIsMobileView] = useState(false);
     const [selectedVariantIndex, setSelectedVariantIndex] = useState(0);
-    const [loadingResponses, setLoadingResponses] = useState<Set<string>>(new Set());
-    const [evaluationDetailsCache, setEvaluationDetailsCache] = useState<Map<string, any>>(new Map());
+    // Track whether we've kicked off batch loads for this open cycle (ref to avoid re-render loops)
+    const hasRequestedBatchesRef = useRef(false);
 
     // Preload icons used in this modal and child components
     // usePreloadIcons([
@@ -62,64 +63,19 @@ const SpecificEvaluationModal: React.FC = () => {
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
-    // Fetch response data when modal opens
+    // Kick off batch loads when modal opens
     useEffect(() => {
-        if (!isOpen || !promptId || !modelId || !data) return;
-
-        const { effectiveModels, config } = data;
-        const clickedParsed = parseModelIdForDisplay(modelId);
-        
-        // Determine which model variants we need responses for
-        const variantModelIds = (config.systems && config.systems.length > 1)
-            ? effectiveModels.filter(m => {
-                const p = parseModelIdForDisplay(m);
-                return p.baseId === clickedParsed.baseId && p.systemPromptIndex === clickedParsed.systemPromptIndex;
-            })
-            : effectiveModels.filter(m => {
-                const p = parseModelIdForDisplay(m);
-                return p.baseId === clickedParsed.baseId;
-            });
-
-        // Fetch responses and evaluation details for all variant models AND ideal response
-        const allModelIds = [...variantModelIds, IDEAL_MODEL_ID];
-        
-        allModelIds.forEach(async (modelIdVar) => {
-            const cacheKey = `${promptId}:${modelIdVar}`;
-            const cachedResponse = getCachedResponse(promptId, modelIdVar);
-            const cachedEvaluation = evaluationDetailsCache.get(cacheKey);
-            
-            // For IDEAL_MODEL_ID, we only need the response, not evaluation details
-            const needsEvaluation = modelIdVar !== IDEAL_MODEL_ID;
-            
-            if ((cachedResponse === null || (needsEvaluation && !cachedEvaluation)) && !isLoadingResponse(promptId, modelIdVar)) {
-                setLoadingResponses(prev => new Set([...prev, modelIdVar]));
-                try {
-                    // Fetch response text for all models, evaluation details only for non-ideal models
-                    const fetchPromises = [
-                        cachedResponse === null ? fetchModalResponse(promptId, modelIdVar) : Promise.resolve(cachedResponse)
-                    ];
-                    
-                    if (needsEvaluation && !cachedEvaluation) {
-                        fetchPromises.push(fetchEvaluationDetails(promptId, modelIdVar));
-                    }
-                    
-                    const results = await Promise.all(fetchPromises);
-                    const [responseResult, evaluationResult] = results;
-                    
-                    // Cache the evaluation details (only for non-ideal models)
-                    if (needsEvaluation && evaluationResult && !cachedEvaluation) {
-                        setEvaluationDetailsCache(prev => new Map(prev).set(cacheKey, evaluationResult));
-                    }
-                } finally {
-                    setLoadingResponses(prev => {
-                        const newSet = new Set(prev);
-                        newSet.delete(modelIdVar);
-                        return newSet;
-                    });
-                }
-            }
-        });
-    }, [isOpen, promptId, modelId, data, fetchModalResponse, fetchEvaluationDetails, getCachedResponse, isLoadingResponse]);
+        if (!isOpen || !promptId || !modelId || !data) {
+            // Reset when modal closes or identifiers are missing
+            hasRequestedBatchesRef.current = false;
+            return;
+        }
+        if (hasRequestedBatchesRef.current) return;
+        hasRequestedBatchesRef.current = true;
+        // Batch load: all responses for this prompt, and all detailed evaluations for this prompt
+        fetchPromptResponses(promptId).catch(() => {});
+        fetchEvaluationDetailsBatchForPrompt(promptId).catch(() => {});
+    }, [isOpen, promptId, modelId, data, fetchPromptResponses, fetchEvaluationDetailsBatchForPrompt]);
 
     const toggleLogExpansion = (index: number) => {
         setExpandedLogs(prev => ({ ...prev, [index]: !prev[index] }));
@@ -159,9 +115,8 @@ const SpecificEvaluationModal: React.FC = () => {
             // Get response from cache (lazy loaded) instead of data.allFinalAssistantResponses
             const modelResponse = getCachedResponse(promptId, modelIdVar);
             
-            // Get detailed evaluation data from cache (includes full keyPointText and reflection)
-            const cacheKey = `${promptId}:${modelIdVar}`;
-            const detailedEvaluation = evaluationDetailsCache.get(cacheKey);
+            // Get detailed evaluation data from shared cache (includes full keyPointText and reflection)
+            const detailedEvaluation = getCachedEvaluation(promptId, modelIdVar);
             
             if (!modelResult || 'error' in modelResult) {
                 continue;
@@ -269,7 +224,7 @@ const SpecificEvaluationModal: React.FC = () => {
         };
         
         return result;
-    }, [isOpen, promptId, modelId, data, analysisStats, getCachedResponse, evaluationDetailsCache]);
+    }, [isOpen, promptId, modelId, data, analysisStats, getCachedResponse, getCachedEvaluation]);
 
     // Set initial variant index when modal data changes
     useEffect(() => {
@@ -305,7 +260,21 @@ const SpecificEvaluationModal: React.FC = () => {
 
     // Show loading state if we have no variant data (still fetching responses)
     const hasVariantData = modalData.variantEvaluations.size > 0;
-    const isStillLoading = !hasVariantData && (loadingResponses.size > 0 || modalData.variantEvaluations.size === 0);
+    // Compute a rough remaining count from cache for UX (responses only)
+    let remainingCount = 0;
+    if (data && promptId && modelId) {
+        const clickedParsed = parseModelIdForDisplay(modelId);
+        const { effectiveModels, config } = data;
+        const variantModelIds = (config.systems && config.systems.length > 1)
+            ? effectiveModels.filter(m => {
+                const p = parseModelIdForDisplay(m);
+                return p.baseId === clickedParsed.baseId && p.systemPromptIndex === clickedParsed.systemPromptIndex;
+            })
+            : effectiveModels.filter(m => parseModelIdForDisplay(m).baseId === clickedParsed.baseId);
+        const allModelIds = [...variantModelIds, IDEAL_MODEL_ID];
+        remainingCount = allModelIds.reduce((acc, mId) => acc + (getCachedResponse(promptId, mId) === null ? 1 : 0), 0);
+    }
+    const isStillLoading = !hasVariantData && (remainingCount > 0 || modalData.variantEvaluations.size === 0);
     if (isStillLoading) {
         return (
             <Dialog open={isOpen} onOpenChange={closeModelEvaluationDetailModal}>
@@ -317,8 +286,8 @@ const SpecificEvaluationModal: React.FC = () => {
                         <div className="text-center">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
                             <p className="text-muted-foreground">
-                                {loadingResponses.size > 0
-                                    ? `Fetching model responses (${loadingResponses.size} remaining)...`
+                                {remainingCount > 0
+                                    ? `Fetching model responses (${remainingCount} remaining)...`
                                     : 'Loading evaluation details...'}
                             </p>
                         </div>

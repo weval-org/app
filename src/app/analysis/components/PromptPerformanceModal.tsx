@@ -20,26 +20,47 @@ const PromptPerformanceModal: React.FC = () => {
         promptDetailModal,
         closePromptDetailModal,
         displayedModels,
-        configId,
-        runLabel,
-        timestamp,
-        fetchPromptResponses
+        fetchPromptResponses,
+        fetchEvaluationDetailsBatchForPrompt,
+        getCachedEvaluation,
     } = useAnalysis();
 
     const [responseCache, setResponseCache] = useState<Record<string, string>>({});
-    const [evaluationCache, setEvaluationCache] = useState<Map<string, any>>(new Map());
     const [isLoading, setIsLoading] = useState(false);
+    const [isPromptDetailsExpanded, setIsPromptDetailsExpanded] = useState<boolean>(false);
 
     // Collapse temperature variants: keep only one entry per {baseId, systemPromptIndex}
+    // For PromptPerformanceModal we want to show each system-prompt variant
+    // so we *do not* collapse variants by system prompt. We still exclude the IDEAL model.
     const canonicalModels = useMemo(() => {
-        const base = displayedModels.filter(m => m !== IDEAL_MODEL_ID);
-        return getCanonicalModels(base, data?.config);
-    }, [displayedModels, data]);
+        return displayedModels.filter(m => m !== IDEAL_MODEL_ID);
+    }, [displayedModels]);
     
     // Preload icons used in this modal and child components
     usePreloadIcons(['quote', 'chevrons-up-down']);
     
     const { isOpen, promptId } = promptDetailModal;
+
+    // Persist expanded/collapsed state per prompt in localStorage
+    useEffect(() => {
+        if (!promptId) return;
+        try {
+            const key = `weval_prompt_performance_expanded_${promptId}`;
+            const stored = localStorage.getItem(key);
+            setIsPromptDetailsExpanded(stored ? stored === '1' : false);
+        } catch {}
+    }, [promptId]);
+
+    const togglePromptDetails = () => {
+        const next = !isPromptDetailsExpanded;
+        setIsPromptDetailsExpanded(next);
+        try {
+            if (promptId) {
+                const key = `weval_prompt_performance_expanded_${promptId}`;
+                localStorage.setItem(key, next ? '1' : '0');
+            }
+        } catch {}
+    };
 
     // Fetch data when modal opens
     useEffect(() => {
@@ -55,34 +76,14 @@ const PromptPerformanceModal: React.FC = () => {
                 }
 
                 // Fetch detailed evaluations in a single batch call
-                try {
-                    const baseUrl = `/api/comparison/${configId}/${runLabel}/${timestamp}`;
-                    const resp = await fetch(`${baseUrl}/evaluation-details-batch/${encodeURIComponent(promptId)}`);
-                    if (resp.ok) {
-                        const batchData = await resp.json();
-                        const evaluations = batchData.evaluations as Record<string, any>;
-                        if (evaluations) {
-                            setEvaluationCache(prev => {
-                                const newMap = new Map(prev);
-                                Object.entries(evaluations).forEach(([modelId, details]) => {
-                                    newMap.set(`${promptId}:${modelId}`, details);
-                                });
-                                return newMap;
-                            });
-                        }
-                    } else {
-                        console.error('Failed to fetch batch evaluation details', resp.statusText);
-                    }
-                } catch (err) {
-                    console.error('Error fetching batch evaluation details', err);
-                }
+                await fetchEvaluationDetailsBatchForPrompt(promptId);
             } finally {
                 setIsLoading(false);
             }
         };
 
         fetchData();
-    }, [isOpen, promptId, data, canonicalModels, fetchPromptResponses, configId, runLabel, timestamp]);
+    }, [isOpen, promptId, data, fetchPromptResponses, fetchEvaluationDetailsBatchForPrompt]);
 
     const promptContext = useMemo(() => {
         if (!data || !promptId) return null;
@@ -129,16 +130,12 @@ const PromptPerformanceModal: React.FC = () => {
         }
 
         // Replace llmCoverageScores with detailed evaluation data that includes keyPointText
-        if (evaluationCache.size > 0 && enhanced.evaluationResults?.llmCoverageScores?.[promptId]) {
+        if (enhanced.evaluationResults?.llmCoverageScores?.[promptId]) {
             const enhancedScores = { ...enhanced.evaluationResults.llmCoverageScores[promptId] };
             
-            evaluationCache.forEach((details, cacheKey) => {
-                if (cacheKey.startsWith(`${promptId}:`)) {
-                    const modelId = cacheKey.substring(promptId.length + 1);
-                    if (enhancedScores[modelId]) {
-                        enhancedScores[modelId] = details;
-                    }
-                }
+            Object.keys(enhancedScores).forEach((modelId) => {
+                const details = getCachedEvaluation(promptId, modelId);
+                if (details) enhancedScores[modelId] = details;
             });
 
             enhanced.evaluationResults = {
@@ -151,13 +148,14 @@ const PromptPerformanceModal: React.FC = () => {
         }
 
         return enhanced;
-    }, [data, promptId, responseCache, evaluationCache]);
+    }, [data, promptId, responseCache, getCachedEvaluation]);
 
     if (!isOpen || !promptId || !data) {
         return null;
     }
     
-    const promptConfig = data.config.prompts.find(p => p.id === promptId);
+    const config = data.config;
+    const promptConfig = config.prompts.find(p => p.id === promptId);
     const hasSystemVariants = Array.isArray(data.config.systems) && data.config.systems.length > 1;
 
     return (
@@ -170,32 +168,66 @@ const PromptPerformanceModal: React.FC = () => {
                 </DialogHeader>
 
                 <div className="flex-1 flex flex-col min-h-0">
-                    <div className='p-4 md:p-6 border-b flex-shrink-0'>
-                        <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">The Prompt</h3>
-                        {promptConfig?.description && (
-                            <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground border-l-4 border-primary/20 pl-4 py-1 mb-4">
-                                <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{promptConfig.description}</ReactMarkdown>
+                    <div className='p-4 md:p-6 border-b'>
+                        <div className="flex items-center justify-between gap-3 mb-2">
+                            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">The Prompt</h3>
+                            <button
+                                type="button"
+                                onClick={togglePromptDetails}
+                                className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-border hover:bg-muted/50 text-foreground"
+                                title={isPromptDetailsExpanded ? 'Hide details' : 'Show details'}
+                            >
+                                <Icon name="chevrons-up-down" className={`w-3.5 h-3.5 transition-transform ${isPromptDetailsExpanded ? 'rotate-180' : ''}`} />
+                                {isPromptDetailsExpanded ? 'Hide details' : 'Show details'}
+                            </button>
+                        </div>
+
+                        {!isPromptDetailsExpanded && (
+                            <div className="text-xs text-muted-foreground">
+                                <span className="mr-1">Prompt ID:</span>
+                                <code className="bg-muted px-1 py-0.5 rounded">{promptId}</code>
                             </div>
                         )}
-                        
-                        {promptConfig?.citation && (
-                            <div className="flex items-start space-x-1.5 text-xs text-muted-foreground/90 italic border-l-2 border-border pl-3 py-2 mb-4">
-                                <Icon name="quote" className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                                <span>Source: {promptConfig.citation}</span>
+
+                        {isPromptDetailsExpanded && (
+                            <div className="mt-2 max-h-[28vh] md:max-h-[26vh] lg:max-h-[22vh] overflow-y-auto custom-scrollbar pr-1">
+                                {promptConfig?.description && (
+                                    <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground border-l-4 border-primary/20 pl-4 py-1 mb-4">
+                                        <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{promptConfig.description}</ReactMarkdown>
+                                    </div>
+                                )}
+                                {promptConfig?.citation && (
+                                    <div className="flex items-start space-x-1.5 text-xs text-muted-foreground/90 italic border-l-2 border-border pl-3 py-2 mb-4">
+                                        <Icon name="quote" className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                                        <span>Source: {promptConfig.citation}</span>
+                                    </div>
+                                )}
+                                {effectiveSystemPrompt && (
+                                    <div className="mb-4">
+                                        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                                            {hasSystemVariants ? 'Base System Prompt' : 'System Prompt'}
+                                        </h4>
+                                        <div className="p-3 rounded-md bg-green-50 dark:bg-green-900/40 ring-1 ring-green-200 dark:ring-green-800 text-sm text-green-900 dark:text-green-200 whitespace-pre-wrap">
+                                            {effectiveSystemPrompt}
+                                        </div>
+                                    </div>
+                                )}
+                                {hasSystemVariants && config?.systems && (
+                                    <div className="mb-4">
+                                        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">All System Prompt Variants</h4>
+                                        <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar pr-1">
+                                            {config.systems.map((sp: string | null, idx: number) => (
+                                                <div key={idx} className="p-2 rounded-md bg-muted/30 dark:bg-muted/20 ring-1 ring-border text-xs whitespace-pre-wrap">
+                                                    <span className="font-semibold mr-1">Variant {idx}:</span>
+                                                    {sp === null ? '[No System Prompt]' : sp}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                <PromptContextDisplay promptContext={conversationContext || undefined} />
                             </div>
                         )}
-                        
-                        {effectiveSystemPrompt && (
-                            <div className="mb-4">
-                                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                                    {hasSystemVariants ? 'Base System Prompt' : 'System Prompt'}
-                                </h4>
-                                <div className="p-3 rounded-md bg-green-50 dark:bg-green-900/40 ring-1 ring-green-200 dark:ring-green-800 text-sm text-green-900 dark:text-green-200 whitespace-pre-wrap">
-                                    {effectiveSystemPrompt}
-                                </div>
-                            </div>
-                        )}
-                        <PromptContextDisplay promptContext={conversationContext || undefined} />
                     </div>
                     <div className="p-4 md:p-6 flex-1 min-h-0">
                         {isLoading ? (

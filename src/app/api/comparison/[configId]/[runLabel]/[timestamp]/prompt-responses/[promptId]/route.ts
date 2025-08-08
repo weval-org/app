@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getResultByFileName } from '@/lib/storageService';
-import { ComparisonDataV2 } from '@/app/utils/types';
+import { getPromptResponses } from '@/lib/storageService';
+
 
 /**
  * API endpoint that returns all response data for a specific prompt across all models.
@@ -23,31 +23,22 @@ export async function GET(
     // Decode URL-encoded parameter
     const decodedPromptId = decodeURIComponent(promptId);
 
-    // Fetch the full comparison data
-    const fileName = `${runLabel}_${timestamp}_comparison.json`;
-    const fullData = await getResultByFileName(configId, fileName) as ComparisonDataV2;
+    // Fetch responses via artefact helper
+    const responses = await getPromptResponses(configId, runLabel, timestamp, decodedPromptId);
 
-    if (!fullData) {
+    if (!responses) {
       return NextResponse.json(
         { error: 'Comparison data not found' },
         { status: 404 }
       );
     }
 
-    // Extract all responses for this prompt across all models
-    const promptResponses = fullData.allFinalAssistantResponses?.[decodedPromptId];
-
-    if (!promptResponses) {
-      return NextResponse.json(
-        { error: 'No responses found for the specified prompt' },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({
+    const res = NextResponse.json({
       promptId: decodedPromptId,
-      responses: promptResponses
+      responses
     });
+    res.headers.set('Cache-Control', 'public, max-age=0, s-maxage=3600, stale-while-revalidate=600');
+    return res;
 
   } catch (error) {
     console.error('[Prompt Responses API] Error fetching prompt responses:', error);
