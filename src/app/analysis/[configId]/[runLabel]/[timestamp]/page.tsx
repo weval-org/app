@@ -3,7 +3,7 @@ import { cache } from 'react';
 import { generateAnalysisPageMetadata } from '@/app/utils/metadataUtils';
 import { notFound } from 'next/navigation';
 import { ComparisonDataV2 } from '@/app/utils/types';
-import { getResultByFileName } from '@/lib/storageService';
+import { getResultByFileName, getCoreResult } from '@/lib/storageService';
 import { ClientPage } from './ClientPage';
 import { AnalysisProvider } from '@/app/analysis/context/AnalysisProvider';
 
@@ -44,26 +44,16 @@ const getComparisonData = cache(async (params: ThisPageProps['params']): Promise
   const { configId, runLabel, timestamp } = await params;
 
   try {
-    // Try to fetch core data first (optimized for faster initial load)
-    try {
-      const coreResponse = await fetch(
-        `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/comparison/${encodeURIComponent(configId)}/${encodeURIComponent(runLabel)}/${encodeURIComponent(timestamp)}/core`,
-        { cache: 'force-cache' }
-      );
-      
-      if (coreResponse.ok) {
-        const coreData = await coreResponse.json();
-        console.log(`[Page Fetch] Using optimized core data for ${configId}/${runLabel}/${timestamp}`);
-        return coreData as ComparisonDataV2;
-      }
-    } catch (coreError) {
-      console.warn(`[Page Fetch] Core API failed, falling back to full data:`, coreError);
+    // Prefer direct core artefact read (works in SSR/Netlify without localhost fetch)
+    const core = await getCoreResult(configId, runLabel, timestamp);
+    if (core) {
+      console.log(`[Page Fetch] Using core artefact for ${configId}/${runLabel}/${timestamp}`);
+      return core as ComparisonDataV2;
     }
 
-    // Fallback to full data from storage (backward compatibility)
+    // Fallback to legacy monolith for backward compatibility
     const fileName = `${runLabel}_${timestamp}_comparison.json`;
     const jsonData = await getResultByFileName(configId, fileName);
-    
     if (!jsonData) {
       console.log(`[Page Fetch] Data not found for file: ${fileName}`);
       notFound();

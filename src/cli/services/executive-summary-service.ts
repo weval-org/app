@@ -261,6 +261,16 @@ export function deanonymizeModelNamesInText(
 
     let result = text;
 
+    // Handle HTML-escaped ref tags like &lt;ref ... /&gt;
+    if (result.includes('&lt;ref')) {
+        result = result
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/&amp;/g, '&');
+    }
+
     // Handle <ref /> tags with various attribute combinations
     const refTagRegex = /<ref\s+([^>]+)\s*\/>/g;
     
@@ -268,10 +278,12 @@ export function deanonymizeModelNamesInText(
         const attrs: Record<string, string> = {};
         
         // Parse attributes
-        const attrRegex = /(\w+)="([^"]+)"/g;
+        const attrRegex = /(\w+)=("([^"]*)"|'([^']*)')/g;
         let attrMatch;
         while ((attrMatch = attrRegex.exec(attributes)) !== null) {
-            attrs[attrMatch[1]] = attrMatch[2];
+            const key = attrMatch[1];
+            const value = attrMatch[3] !== undefined ? attrMatch[3] : (attrMatch[4] !== undefined ? attrMatch[4] : '');
+            attrs[key] = value;
         }
 
         // Handle different reference types
@@ -325,12 +337,12 @@ function generateVariantLink(attrs: Record<string, string>, mapping: ModelAnonym
                 hideModelMaker: true 
             });
             
-            // Add variant info WITHOUT revealing actual system prompt indices
+            // Add variant info only for attributes explicitly specified in the ref
             const variantParts: string[] = [];
-            if (parsed.systemPromptIndex !== undefined) {
+            if (attrs.sys && parsed.systemPromptIndex !== undefined) {
                 variantParts.push(`System ${parsed.systemPromptIndex}`);
             }
-            if (parsed.temperature !== undefined && parsed.temperature !== 0) {
+            if (attrs.temp && parsed.temperature !== undefined && parsed.temperature !== 0) {
                 variantParts.push(`Temperature ${parsed.temperature}`);
             }
             
