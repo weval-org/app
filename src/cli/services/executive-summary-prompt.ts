@@ -93,8 +93,8 @@ For this grading section, you MUST provide individual grade blocks for EVERY app
 
 ${exampleGradeBlocks}
 
-Available dimensions (use these exact keys for the dimension attribute):
-${dimensionKeys.map(key => `• ${key}: ${GRADING_DIMENSIONS.find(d => d.key === key)?.label}`).join('\n')}
+    Available dimensions (use these exact keys for the dimension attribute):
+    ${dimensionKeys.map(key => `• ${key}: ${GRADING_DIMENSIONS.find(d => d.key === key)?.label}`).join('\n')}
 
 CRITICAL GRADING INSTRUCTIONS:
 • You MUST provide a separate <grade> block for each dimension that is applicable to this evaluation

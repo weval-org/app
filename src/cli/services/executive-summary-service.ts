@@ -311,8 +311,9 @@ function generateVariantLink(attrs: Record<string, string>, mapping: ModelAnonym
     for (const [realId, anon] of mapping.realToAnonymized.entries()) {
         const makerMatch = anon.maker === attrs.maker;
         const modelMatch = anon.model === attrs.model; 
-        const sysMatch = anon.sys === attrs.sys;
-        const tempMatch = anon.temp === attrs.temp;
+        // Treat unspecified attributes as wildcards so we still match variants
+        const sysMatch = attrs.sys ? (anon.sys === attrs.sys) : true;
+        const tempMatch = attrs.temp ? (anon.temp === attrs.temp) : true;
         
         if (makerMatch && modelMatch && sysMatch && tempMatch) {
             
@@ -341,6 +342,11 @@ function generateVariantLink(attrs: Record<string, string>, mapping: ModelAnonym
         }
     }
     
+    // Fallback to base model link if we can at least match maker+model
+    if (attrs.maker && attrs.model) {
+        return generateBaseModelLink(attrs, mapping);
+    }
+
     return `<ref ${Object.entries(attrs).map(([k, v]) => `${k}="${v}"`).join(' ')} />`;
 }
 

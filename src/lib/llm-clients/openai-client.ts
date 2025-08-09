@@ -2,6 +2,46 @@ import { LLMApiCallOptions, LLMApiCallResult, StreamChunk } from './types';
 
 const OPENAI_API_BASE_URL = 'https://api.openai.com/v1';
 
+// Capability hints for models known to require special parameter handling.
+// Keys are treated as prefixes; the first matching prefix applies.
+// We intentionally keep this small and conservative; dynamic adaptation handles everything else.
+type ModelCapabilityOverrides = { useMaxCompletionTokens?: boolean; omitTemperature?: boolean };
+const KNOWN_MODEL_HINTS: Record<string, ModelCapabilityOverrides> = {
+    // OpenAI o-series reasoning models: typically require max_completion_tokens and omit temperature
+    'o1': { useMaxCompletionTokens: true, omitTemperature: true },
+    'o1-mini': { useMaxCompletionTokens: true, omitTemperature: true },
+    'o1-preview': { useMaxCompletionTokens: true, omitTemperature: true },
+    'o3': { useMaxCompletionTokens: true, omitTemperature: true },
+    'o3-mini': { useMaxCompletionTokens: true, omitTemperature: true },
+    // gpt-5 base family often enforces similar constraints (observed in logs)
+    'gpt-5': { useMaxCompletionTokens: true, omitTemperature: true },
+};
+
+// Cache per process: once we learn a model's constraints from errors, remember them
+const modelCapabilityCache: Record<string, ModelCapabilityOverrides> = {};
+
+function getCapabilityOverridesForModel(modelName: string): ModelCapabilityOverrides | undefined {
+    if (modelCapabilityCache[modelName]) {
+        return modelCapabilityCache[modelName];
+    }
+    // Find a matching known prefix (longest match wins)
+    let bestMatch: string | undefined;
+    for (const prefix of Object.keys(KNOWN_MODEL_HINTS)) {
+        if (modelName === prefix || modelName.startsWith(prefix + '-') || modelName.startsWith(prefix + ':') || modelName.startsWith(prefix)) {
+            if (!bestMatch || prefix.length > bestMatch.length) bestMatch = prefix;
+        }
+    }
+    return bestMatch ? KNOWN_MODEL_HINTS[bestMatch] : undefined;
+}
+
+function mergeOverrides(base: ModelCapabilityOverrides | undefined, add: ModelCapabilityOverrides | undefined): ModelCapabilityOverrides | undefined {
+    if (!base && !add) return undefined;
+    return {
+        useMaxCompletionTokens: Boolean(base?.useMaxCompletionTokens || add?.useMaxCompletionTokens),
+        omitTemperature: Boolean(base?.omitTemperature || add?.omitTemperature),
+    };
+}
+
 class OpenAIClient {
     private apiKey: string;
 
@@ -48,26 +88,73 @@ class OpenAIClient {
             }
         }
 
-        const body = JSON.stringify({
-            model: modelName,
-            messages,
-            max_tokens: maxTokens,
-            temperature,
-            stream: false,
-        });
+        // Get any known capability hints for this model, and merge with runtime overrides
+        const hinted = getCapabilityOverridesForModel(modelName);
+
+        // Build request body and adapt dynamically on 400 errors (e.g., max_tokens unsupported, temperature unsupported)
+        const buildBody = (overrides?: { useMaxCompletionTokens?: boolean; omitTemperature?: boolean }) => {
+            const effective = mergeOverrides(hinted, overrides);
+            const payload: any = {
+                model: modelName,
+                messages,
+                stream: false,
+            };
+            if (!effective?.omitTemperature && typeof temperature === 'number') {
+                payload.temperature = temperature;
+            }
+            if (typeof maxTokens === 'number') {
+                if (effective?.useMaxCompletionTokens) {
+                    payload.max_completion_tokens = maxTokens;
+                } else {
+                    payload.max_tokens = maxTokens;
+                }
+            }
+            return JSON.stringify(payload);
+        };
 
         try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), timeout);
+            const doRequest = async (bodyStr: string) => {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), timeout);
+                try {
+                    const resp = await fetch(`${OPENAI_API_BASE_URL}/chat/completions`, {
+                        method: 'POST',
+                        headers: this.getHeaders(),
+                        body: bodyStr,
+                        signal: controller.signal,
+                    });
+                    return resp;
+                } finally {
+                    clearTimeout(timeoutId);
+                }
+            };
 
-            const response = await fetch(`${OPENAI_API_BASE_URL}/chat/completions`, {
-                method: 'POST',
-                headers: this.getHeaders(),
-                body,
-                signal: controller.signal,
-            });
+            // First attempt with standard parameters
+            let response = await doRequest(buildBody());
 
-            clearTimeout(timeoutId);
+            // If bad request, inspect error and try one adaptive retry
+            if (!response.ok && response.status === 400) {
+                const errorBody = await response.text();
+                let parsed: any;
+                try { parsed = JSON.parse(errorBody); } catch (_) {}
+                const message: string = parsed?.error?.message || errorBody || '';
+                const param: string | undefined = parsed?.error?.param;
+
+                const maxTokensUnsupported = param === 'max_tokens' || /max_tokens[^]*not supported|use 'max_completion_tokens'/i.test(message);
+                const temperatureUnsupported = param === 'temperature' || /temperature[^]*not supported|does not support|Only the default \(1\) value is supported/i.test(message);
+
+                if (maxTokensUnsupported || temperatureUnsupported) {
+                    const adaptive: ModelCapabilityOverrides = {
+                        useMaxCompletionTokens: maxTokensUnsupported,
+                        omitTemperature: temperatureUnsupported,
+                    };
+                    // Cache what we learned for this model
+                    modelCapabilityCache[modelName] = mergeOverrides(modelCapabilityCache[modelName], adaptive) || adaptive;
+                    response = await doRequest(buildBody(adaptive));
+                } else {
+                    return { responseText: '', error: `OpenAI API Error: ${response.status} ${response.statusText} - ${errorBody}` };
+                }
+            }
 
             if (!response.ok) {
                 const errorBody = await response.text();
@@ -99,26 +186,71 @@ class OpenAIClient {
             apiMessages.unshift({ role: 'system', content: systemPrompt });
         }
 
-        const body = JSON.stringify({
-            model: modelName,
-            messages: apiMessages,
-            max_tokens: maxTokens,
-            temperature,
-            stream: true,
-        });
+        const hinted = getCapabilityOverridesForModel(modelName);
+        const buildStreamBody = (overrides?: { useMaxCompletionTokens?: boolean; omitTemperature?: boolean }) => {
+            const effective = mergeOverrides(hinted, overrides);
+            const payload: any = {
+                model: modelName,
+                messages: apiMessages,
+                stream: true,
+            };
+            if (!effective?.omitTemperature && typeof temperature === 'number') {
+                payload.temperature = temperature;
+            }
+            if (typeof maxTokens === 'number') {
+                if (effective?.useMaxCompletionTokens) {
+                    payload.max_completion_tokens = maxTokens;
+                } else {
+                    payload.max_tokens = maxTokens;
+                }
+            }
+            return JSON.stringify(payload);
+        };
 
         try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), timeout);
+            const doRequest = async (bodyStr: string) => {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), timeout);
+                try {
+                    const resp = await fetch(`${OPENAI_API_BASE_URL}/chat/completions`, {
+                        method: 'POST',
+                        headers: this.getHeaders(),
+                        body: bodyStr,
+                        signal: controller.signal,
+                    });
+                    return resp;
+                } finally {
+                    clearTimeout(timeoutId);
+                }
+            };
 
-            const response = await fetch(`${OPENAI_API_BASE_URL}/chat/completions`, {
-                method: 'POST',
-                headers: this.getHeaders(),
-                body,
-                signal: controller.signal,
-            });
-
-            clearTimeout(timeoutId);
+            // First attempt
+            let response = await doRequest(buildStreamBody());
+            if (!response.ok) {
+                const errorBody = await response.text();
+                if (response.status === 400) {
+                    let parsed: any;
+                    try { parsed = JSON.parse(errorBody); } catch (_) {}
+                    const message: string = parsed?.error?.message || errorBody || '';
+                    const param: string | undefined = parsed?.error?.param;
+                    const maxTokensUnsupported = param === 'max_tokens' || /max_tokens[^]*not supported|use 'max_completion_tokens'/i.test(message);
+                    const temperatureUnsupported = param === 'temperature' || /temperature[^]*not supported|does not support|Only the default \(1\) value is supported/i.test(message);
+                    if (maxTokensUnsupported || temperatureUnsupported) {
+                        const adaptive: ModelCapabilityOverrides = {
+                            useMaxCompletionTokens: maxTokensUnsupported,
+                            omitTemperature: temperatureUnsupported,
+                        };
+                        modelCapabilityCache[modelName] = mergeOverrides(modelCapabilityCache[modelName], adaptive) || adaptive;
+                        response = await doRequest(buildStreamBody(adaptive));
+                    } else {
+                        yield { type: 'error', error: `OpenAI stream Error: ${response.status} ${response.statusText} - ${errorBody}` };
+                        return;
+                    }
+                } else {
+                    yield { type: 'error', error: `OpenAI stream Error: ${response.status} ${response.statusText} - ${errorBody}` };
+                    return;
+                }
+            }
 
             if (!response.ok || !response.body) {
                 const errorBody = await response.text();
