@@ -1,3 +1,5 @@
+// Neutral shared summary types for both CLI and UI
+
 export interface HeadlineStatInfo {
   configId: string;
   configTitle: string;
@@ -41,34 +43,6 @@ export interface DimensionLeaderboard {
   leaderboard: DimensionScoreInfo[];
 }
 
-export interface TopicChampionInfo {
-  modelId: string;
-  averageScore: number;
-  uniqueConfigsCount: number;
-  contributingRuns: ContributingRunInfo[];
-}
-
-export interface ContributingRunInfo {
-  configId: string;
-  configTitle: string;
-  runLabel: string;
-  timestamp: string;
-  score: number;
-}
-
-export interface AggregateStatsData {
-  bestPerformingConfig: HeadlineStatInfo | null;
-  worstPerformingConfig: HeadlineStatInfo | null;
-  leastConsistentConfig: HeadlineStatInfo | null;
-  rankedOverallModels: TopModelStatInfo[] | null;
-  dimensionLeaderboards?: DimensionLeaderboard[] | null;
-  topicChampions?: Record<string, TopicChampionInfo[]> | null;
-  capabilityLeaderboards?: CapabilityLeaderboard[] | null;
-  capabilityRawData?: CapabilityRawData | null;
-}
-
-// NOTE: These are duplicated in src/types/summary.ts for CLI consumption.
-// Consider importing from that shared module in the future to avoid duplication.
 export interface CapabilityScoreInfo {
   modelId: string;
   averageScore: number;
@@ -84,11 +58,27 @@ export interface CapabilityLeaderboard {
   leaderboard: CapabilityScoreInfo[];
 }
 
-// Raw data for dev mode capability weight adjustment
 export interface CapabilityRawData {
   modelDimensions: Record<string, Record<string, number>>; // modelId -> dimension -> normalized_score (0-1)
   modelTopics: Record<string, Record<string, number>>;     // modelId -> topic -> score (0-1)
   modelConfigs: Record<string, Record<string, number>>;    // modelId -> configId -> score (0-1)
   qualifyingModels: string[]; // Models that meet the minimum thresholds globally
   capabilityQualifyingModels?: Record<string, string[]>; // capabilityId -> qualifying models for that capability
-} 
+}
+
+export interface PotentialDriftInfo {
+  configId: string;
+  configTitle: string;
+  runLabel: string;
+  modelId: string;
+  minScore: number;
+  maxScore: number;
+  scoreRange: number;
+  runsCount: number;
+  oldestTimestamp: string;
+  newestTimestamp: string;
+  minScoreTimestamp: string;
+  maxScoreTimestamp: string;
+}
+
+

@@ -7,7 +7,7 @@ import {
   getConfigSummary,
 } from '@/lib/storageService'; 
 import { AggregateStatsData } from '@/app/components/home/types';
-import { PotentialDriftInfo } from '@/app/components/ModelDriftIndicator';
+import { PotentialDriftInfo } from '@/types/summary';
 
 // Re-exporting this from the original source for use in the API route.
 export type { AllCoverageScores } from '@/app/analysis/components/CoverageHeatmapCanvas'; 

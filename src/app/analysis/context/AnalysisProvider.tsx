@@ -84,12 +84,7 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
     });
 
     const [forceIncludeExcludedModels, setForceIncludeExcludedModels] = useState<boolean>(false);
-    const [selectedTemperatures, setSelectedTemperatures] = useState<number[]>(() => {
-        if (isFullMode && latchedInitialData?.config?.temperatures) {
-            return latchedInitialData.config.temperatures;
-        }
-        return [];
-    });
+    // Removed global selectedTemperatures filter: temperatures are visualized per cell and within modals
     const [activeSysPromptIndex, setActiveSysPromptIndex] = useState(0);
     const [activeHighlights, setActiveHighlights] = useState<Set<ActiveHighlight>>(new Set());
     const { resolvedTheme } = useTheme();
@@ -139,7 +134,6 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
         forceIncludeExcludedModels,
         excludedModelsList,
         activeSysPromptIndex,
-        selectedTemperatures,
     });
     
     const canonicalModels = useMemo(() => {
@@ -486,8 +480,6 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
         excludedModelsList: isFullMode ? excludedModelsList : [],
         forceIncludeExcludedModels,
         setForceIncludeExcludedModels,
-        selectedTemperatures,
-        setSelectedTemperatures,
         activeSysPromptIndex,
         setActiveSysPromptIndex,
         activeHighlights,
@@ -529,7 +521,6 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
     }), [
         configId, runLabel, timestamp, contextData, isFullMode, loading, error, promptNotFound, excludedModelsList,
         forceIncludeExcludedModels, setForceIncludeExcludedModels, 
-        selectedTemperatures, setSelectedTemperatures, 
         activeSysPromptIndex, setActiveSysPromptIndex, 
         activeHighlights, handleActiveHighlightsChange, 
         displayedModels, modelsForMacroTable, modelsForAggregateView,

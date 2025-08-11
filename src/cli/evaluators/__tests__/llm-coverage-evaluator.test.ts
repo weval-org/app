@@ -9,9 +9,8 @@ import {
     PromptConfig,
     ComparisonConfig,
     PromptResponseData,
-    ModelResponseDetail,
-    Judge,
 } from '../../types/cli_types';
+import { ModelResponseDetail, Judge } from '@/types/shared';
 
 import {
     CoverageResult,

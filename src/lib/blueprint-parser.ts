@@ -363,6 +363,15 @@ export function parseAndNormalizeBlueprint(content: string, fileType: 'json' | '
         finalPrompt.idealResponse = p.ideal || p.idealResponse;
         finalPrompt.system = p.system;
         finalPrompt.citation = p.citation;
+        // Normalize prompt-level weight (importance). Accept aliases: weight, importance, multiplier
+        const rawWeight = p.weight ?? p.importance ?? p.multiplier;
+        if (rawWeight !== undefined) {
+            if (typeof rawWeight !== 'number' || rawWeight < 0.1 || rawWeight > 10) {
+                throw new Error(`Prompt weight must be a number between 0.1 and 10. Found ${rawWeight}. Prompt ID: '${p.id || 'unknown'}'`);
+            }
+            (finalPrompt as any).weight = rawWeight;
+            console.log(`🏋️  [BLUEPRINT PARSER] Prompt "${p.id || 'unknown'}" has weight: ${rawWeight}`);
+        }
         
         // Consolidate all possible point sources
         const pointsSource = p.should || p.points || p.expect || p.expects || p.expectations;

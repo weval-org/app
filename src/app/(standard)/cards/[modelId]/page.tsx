@@ -1,14 +1,25 @@
 import { notFound } from 'next/navigation';
 import { Metadata } from 'next';
 import { getModelCard } from '@/lib/storageService';
-import { ModelSummary, TopPerformingEvaluation } from '@/cli/types/model_card_types';
+import { ModelSummary } from '@/cli/types/model_card_types';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
-import dynamic from 'next/dynamic';
 import Icon, { type IconName } from '@/components/ui/icon';
 import ReactMarkdown from 'react-markdown';
 import RemarkGfmPlugin from 'remark-gfm';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
+
+// Shared formatters
+const formatPercent = (value?: number | null, fractionDigits = 1): string => {
+  if (value === null || value === undefined) return 'N/A';
+  return `${(value * 100).toFixed(fractionDigits)}%`;
+};
+
+const formatDimScore10 = (value?: number | null, fractionDigits = 1): string => {
+  if (value === null || value === undefined) return 'N/A';
+  return `${value.toFixed(fractionDigits)}/10`;
+};
 
 interface ModelCardPageProps {
   params: Promise<{
@@ -30,13 +41,11 @@ export async function generateMetadata({ params }: ModelCardPageProps): Promise<
       };
     }
 
-    const overallScore = modelCard.overallStats.averageHybridScore 
-      ? `${(modelCard.overallStats.averageHybridScore * 100).toFixed(1)}%`
-      : 'N/A';
+    const overallScore = formatPercent(modelCard.overallStats.averageHybridScore);
 
     const description = modelCard.analyticalSummary?.strengths?.[0] 
       ? `${modelCard.analyticalSummary.strengths[0].substring(0, 150)}...`
-      : `Model card for ${modelCard.displayName} with ${modelCard.overallStats.totalRuns} evaluations across ${modelCard.overallStats.totalBlueprints} blueprints.`;
+      : `Model card for ${modelCard.displayName} with ${modelCard.overallStats.totalRuns} runs across ${modelCard.overallStats.totalBlueprints} blueprints.`;
 
     return {
       title: `${modelCard.displayName.toUpperCase()} Model Card - ${overallScore} Overall Score`,
@@ -129,15 +138,19 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
     return iconMap[dimensionKey] || 'activity';
   };
 
-  const getPerformanceIcon = (score?: number | null) => {
-    if (!score) return () => <Icon name="activity" />;
-    if (score >= 0.7) return () => <Icon name="trophy" />;
-    if (score >= 0.5) return () => <Icon name="target" />;
-    return () => <Icon name="trending-up" />;
+  const getTagIconName = (tag: string): IconName => {
+    const iconMap: Record<string, IconName> = {
+      safety: 'shield',
+      reasoning: 'brain',
+      code: 'file-code-2',
+    };
+    return iconMap[tag] || 'activity';
   };
 
+  // duplicate-safe: helper functions defined once at top of file
+
   return (
-    <div className="min-h-screen bg-background">
+    <div>
       <div className="max-w-6xl mx-auto px-4 py-8">
 
         {/* Main Card - Landscape Layout */}
@@ -165,7 +178,7 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
               {/* Quick Score Display */}
               <div className="text-right">
                 <div className="text-2xl font-bold text-primary">
-                  {modelCard.overallStats.averageHybridScore ? `${(modelCard.overallStats.averageHybridScore * 100).toFixed(1)}%` : 'N/A'}
+                  {formatPercent(modelCard.overallStats.averageHybridScore)}
                 </div>
                 <div className="text-xs text-muted-foreground">Overall Score</div>
               </div>
@@ -265,7 +278,8 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
             </div>
 
             {/* Right Column - Stats & Metadata (Secondary) */}
-            <div className="lg:w-80 bg-muted/10 border-t lg:border-t-0 lg:border-l border-border p-6">
+            <div className="lg:w-80 bg-muted/10 border-t lg:border-t-0 lg:border-l border-border p-6 lg:sticky lg:top-4 self-start">
+              <TooltipProvider>
               
               {/* Quick Stats */}
               <div className="mb-6">
@@ -274,14 +288,28 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
                         <Icon name="activity" className="h-3.5 w-3.5 text-muted-foreground mr-2" />
-                      <span className="text-sm">Evaluations</span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="text-sm cursor-help">Runs</span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          Number of times this model was evaluated across all blueprints
+                        </TooltipContent>
+                      </Tooltip>
                     </div>
                     <span className="font-medium">{modelCard.overallStats.totalRuns}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
                       <Icon name="users" className="h-3.5 w-3.5 text-muted-foreground mr-2" />
-                      <span className="text-sm">Blueprints</span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="text-sm cursor-help">Blueprints</span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          Distinct evaluation blueprints/configs this model was tested on
+                        </TooltipContent>
+                      </Tooltip>
                     </div>
                     <span className="font-medium">{modelCard.overallStats.totalBlueprints}</span>
                   </div>
@@ -307,7 +335,7 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
                             </div>
                             <div className="flex items-center space-x-1">
                               <Badge variant="outline" className={`text-xs ${getDimensionalColor(data.averageScore)} border-current`}>
-                                {data.averageScore.toFixed(1)}/10
+                                {formatDimScore10(data.averageScore)}
                               </Badge>
                               <span className="text-xs text-muted-foreground">
                                 ({data.evaluationCount})
@@ -329,11 +357,11 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
                         return (
                           <div key={tag} className="flex items-center justify-between">
                             <div className="flex items-center space-x-2">
-                              <Icon name={tag as any} className={`h-3.5 w-3.5 ${getPerformanceColor(data.averageScore)}`} />
+                              <Icon name={getTagIconName(tag)} className={`h-3.5 w-3.5 ${getPerformanceColor(data.averageScore)}`} />
                               <span className="text-sm capitalize">{tag.replace(/-/g, ' ')}</span>
                             </div>
                             <Badge variant="outline" className={`text-xs ${getPerformanceColor(data.averageScore)} border-current`}>
-                              {data.averageScore ? `${(data.averageScore * 100).toFixed(1)}%` : 'N/A'}
+                              {formatPercent(data.averageScore)}
                             </Badge>
                           </div>
                         );
@@ -373,7 +401,7 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
                                 variant="outline" 
                                 className={`text-xs px-1 py-0 ${getPerformanceColor(evaluation.hybridScore)} border-current`}
                               >
-                                {(evaluation.hybridScore * 100).toFixed(1)}%
+                                {formatPercent(evaluation.hybridScore)}
                               </Badge>
                             </div>
                           </div>
@@ -441,6 +469,7 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
                   Updated {new Date(modelCard.lastUpdated).toLocaleDateString()}
                 </div>
               </div>
+              </TooltipProvider>
             </div>
           </div>
         </div>

@@ -9,7 +9,7 @@ import {
   DimensionLeaderboard,
   DimensionScoreInfo,
 } from '@/app/components/home/types';
-import { PotentialDriftInfo } from '@/app/components/ModelDriftIndicator';
+import type { PotentialDriftInfo, CapabilityLeaderboard, CapabilityScoreInfo, CapabilityRawData } from '../../types/summary';
 import { parseModelIdForDisplay, getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import {
   calculateStandardDeviation,
@@ -21,7 +21,6 @@ import { PerModelScoreStats } from '@/app/utils/homepageDataUtils';
 import { normalizeTag, normalizeTopicKey } from '@/app/utils/tagUtils';
 import { WevalResult } from '@/types/shared';
 import { CAPABILITY_BUCKETS, CapabilityBucket } from '@/lib/capabilities';
-import { CapabilityLeaderboard, CapabilityScoreInfo, CapabilityRawData } from '@/app/components/home/types';
 
 // A simplified logger type for this function to avoid circular dependencies
 type SimpleLogger = {
@@ -899,8 +898,8 @@ export function calculateCapabilityLeaderboards(
 
   // Extract qualifying models from leaderboards
   const allQualifyingModels = new Set<string>();
-  leaderboards.forEach(bucket => {
-    bucket.leaderboard.forEach(model => {
+  leaderboards.forEach((bucket) => {
+    bucket.leaderboard.forEach((model: CapabilityScoreInfo) => {
       allQualifyingModels.add(model.modelId);
     });
   });
@@ -951,8 +950,8 @@ export function calculateCapabilityLeaderboards(
 
   // Build per-capability qualifying models
   const capabilityQualifyingModels: Record<string, string[]> = {};
-  leaderboards.forEach(bucket => {
-    capabilityQualifyingModels[bucket.id] = bucket.leaderboard.map(model => model.modelId);
+  leaderboards.forEach((bucket) => {
+    capabilityQualifyingModels[bucket.id] = bucket.leaderboard.map((model: CapabilityScoreInfo) => model.modelId);
   });
 
   const rawData: CapabilityRawData = {
@@ -1181,10 +1180,28 @@ export function calculatePerModelScoreStatsForRun(resultData: WevalResult): Map<
   const perModelStats = new Map<string, PerModelScoreStats>();
   const models = resultData.effectiveModels.filter(m => m !== IDEAL_MODEL_ID);
 
+  // Build prompt-weight map from config; default 1
+  const promptWeightMap: Record<string, number> = {};
+  try {
+    resultData.config?.prompts?.forEach((p) => {
+      const w = (p as any)?.weight;
+      if (typeof w === 'number' && !isNaN(w) && w > 0) {
+        promptWeightMap[p.id] = w;
+      }
+    });
+  } catch {}
+  const hasAnyWeights = Object.keys(promptWeightMap).length > 0;
+  if (hasAnyWeights) {
+    console.log(`[SummaryCalc] ✅ Found prompt weights for ${Object.keys(promptWeightMap).length} prompts: ${JSON.stringify(promptWeightMap)}`);
+  } else {
+    console.log(`[SummaryCalc] ⚖️  NO prompt weights detected in this run - using equal weight (1.0) for all prompts in aggregation`);
+  }
+
   models.forEach(modelId => {
     const similarityScores: number[] = [];
     const coverageScores: number[] = [];
     const hybridScores: number[] = [];
+    const hybridWeights: number[] = [];
 
     resultData.promptIds.forEach(promptId => {
       const sim = resultData.evaluationResults.perPromptSimilarities?.[promptId]?.[modelId]?.[IDEAL_MODEL_ID];
@@ -1199,6 +1216,8 @@ export function calculatePerModelScoreStatsForRun(resultData: WevalResult): Map<
       const hybridScore = calculateHybridScore(sim, covResult?.avgCoverageExtent);
       if (hybridScore !== null) {
         hybridScores.push(hybridScore);
+        const w = promptWeightMap[promptId] ?? 1;
+        hybridWeights.push(typeof w === 'number' && !isNaN(w) ? w : 1);
       }
     });
 
@@ -1208,7 +1227,15 @@ export function calculatePerModelScoreStatsForRun(resultData: WevalResult): Map<
     const avgCoverage = coverageScores.length > 0 ? coverageScores.reduce((a, b) => a + b, 0) / coverageScores.length : null;
     const stdDevCoverage = calculateStandardDeviation(coverageScores);
 
-    const avgHybridScore = hybridScores.length > 0 ? hybridScores.reduce((a, b) => a + b, 0) / hybridScores.length : null;
+    let avgHybridScore: number | null = null;
+    if (hybridScores.length > 0) {
+      if (hasAnyWeights) {
+        const totalW = hybridWeights.reduce((s, w) => s + w, 0);
+        avgHybridScore = totalW > 0 ? hybridScores.reduce((s, v, i) => s + v * (hybridWeights[i] ?? 1), 0) / totalW : hybridScores.reduce((a, b) => a + b, 0) / hybridScores.length;
+      } else {
+        avgHybridScore = hybridScores.reduce((a, b) => a + b, 0) / hybridScores.length;
+      }
+    }
     const stdDevHybridScore = calculateStandardDeviation(hybridScores);
 
     perModelStats.set(modelId, {

@@ -120,6 +120,15 @@ describe('calculationUtils', () => {
             // expect(result.has(idealModelId)).toBe(false);
         });
 
+        it('should respect prompt weights when provided via __promptWeights', () => {
+            const llmWithWeights: any = JSON.parse(JSON.stringify(llmCoverageScores_base));
+            llmWithWeights.__promptWeights = { prompt1: 2, prompt2: 1 };
+            const result = calculatePerModelHybridScoresForRun(perPromptSimilarities_base, llmWithWeights, effectiveModels_base, promptIds_base, idealModelId);
+            // For modelA: unweighted avg = (0.7 + 0.8)/2 = 0.75
+            // Weighted avg (w1=2, w2=1) => (0.7*2 + 0.8*1) / 3 = 2.2/3 ≈ 0.7333
+            expect(result.get('modelA')?.average).toBeCloseTo(0.7333, 3);
+        });
+
         it('should use only similarity score if coverage scores are missing', () => {
             const result = calculatePerModelHybridScoresForRun(perPromptSimilarities_base, undefined, effectiveModels_base, promptIds_base, idealModelId);
             // modelA: 0.8, 0.9. Avg = 0.85

@@ -3,7 +3,6 @@
 import React, { useState, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import MacroCoverageTable from './MacroCoverageTable';
 import DatasetStatistics from './DatasetStatistics';
@@ -92,8 +91,6 @@ export const AggregateAnalysisView: React.FC = () => {
         modelsForMacroTable,
         modelsForAggregateView,
         forceIncludeExcludedModels,
-        selectedTemperatures,
-        setSelectedTemperatures,
         activeSysPromptIndex,
         setActiveSysPromptIndex,
         handleActiveHighlightsChange,
@@ -111,13 +108,7 @@ export const AggregateAnalysisView: React.FC = () => {
     if (!data || !analysisStats) return null;
 
     const {
-        overallIdealExtremes,
-        overallAvgCoverageStats,
-        overallCoverageExtremes,
-        overallHybridExtremes,
-        overallRunHybridStats,
-        perSystemVariantHybridScores,
-        perTemperatureVariantHybridScores
+        perSystemVariantHybridScores
     } = analysisStats;
     
     const hasValidSimilarityData = useMemo(() => {
@@ -301,50 +292,6 @@ export const AggregateAnalysisView: React.FC = () => {
                                         </TabsList>
                                     </div>
                                     <div className="pt-6">
-                                        {data.config.temperatures && data.config.temperatures.length > 1 && (
-                                            <div className="py-4 border-t border-b mb-4">
-                                                <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-                                                    <div>
-                                                        <label className="text-xs font-semibold text-muted-foreground tracking-wider uppercase">Filter Temperatures</label>
-                                                        <div className="flex flex-wrap gap-2 mt-2">
-                                                            {[...new Set(data.config.temperatures)].map(temp => (
-                                                                <Button
-                                                                    key={temp}
-                                                                    size="sm"
-                                                                    variant={selectedTemperatures.includes(temp) ? "default" : "outline"}
-                                                                    className="flex items-center gap-2"
-                                                                    onClick={() => {
-                                                                        setSelectedTemperatures(prev =>
-                                                                            prev.includes(temp) ? prev.filter(t => t !== temp) : [...prev, temp]
-                                                                        );
-                                                                    }}
-                                                                >
-                                                                    {(() => {
-                                                                        const score = (perTemperatureVariantHybridScores as Record<string, number | null>)[temp.toString()];
-                                                                        if (score !== null && score !== undefined) {
-                                                                            return (
-                                                                                <>
-                                                                                    <span className={`px-1.5 py-0.5 rounded-sm text-xs font-semibold ${getHybridScoreColorClass(score)}`}>
-                                                                                        {score.toFixed(2)}
-                                                                                    </span>
-                                                                                    <span>{temp}</span>
-                                                                                </>
-                                                                            );
-                                                                        }
-                                                                        return temp;
-                                                                    })()}
-                                                                </Button>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                    {(selectedTemperatures.length > 0 && data.config?.temperatures && selectedTemperatures.length < [...new Set(data.config.temperatures)].length) && (
-                                                        <Button variant="link" size="sm" className="p-0 h-auto text-xs self-end" onClick={() => setSelectedTemperatures(data.config?.temperatures || [])}>
-                                                            Reset
-                                                        </Button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        )}
                                         <MacroCoverageTable />
                                     </div>
                                 </Tabs>

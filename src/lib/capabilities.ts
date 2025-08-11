@@ -51,13 +51,14 @@ export const CAPABILITY_BUCKETS: CapabilityBucket[] = [
     ],
     configs: [
       { key: 'uk-clinical-scenarios', weight: 0.5 },
-      { key: 'stanford-hai-mental-health-safety-eval', weight: 2.0 },
+      { key: 'stanford-hai-mental-health-safety-eval', weight: 4.0 },
       { key: 'mental-health', weight: 2.0 },
       { key: 'hallucination-probe', weight: 3.0 },
       { key: 'system-prompt-adherence-resilience', weight: 2.0 },
       { key: 'sycophancy-probe', weight: 3.0 },
       { key: 'confidence-high-stakes-domains', weight: 2.0 },
-      { key: 'latent-discrimination-hiring', weight: 2.0 }
+      { key: 'latent-discrimination-hiring', weight: 2.0 },
+      { key: 'jailbreak-safety-probes', weight: 3.0 }
     ],
   },
   // {
@@ -128,7 +129,7 @@ export const CAPABILITY_BUCKETS: CapabilityBucket[] = [
   {
     id: 'global-fluency',
     label: 'Global Fluency',
-    description: 'We measure global fluency by combining and averaging results across multiple evaluations, including those that measure cultural competency, non-western everyday perspectives, low-resource languages, and the Global South.',
+    description: 'Global fluency is the combination of results across multiple evaluations measuring cultural competency, non-western everyday perspectives, low-resource languages, and the Global South.',
     icon: 'globe',
     dimensions: [
       // { key: 'empathy', weight: 1.5 },

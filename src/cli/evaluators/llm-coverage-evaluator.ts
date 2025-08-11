@@ -6,11 +6,11 @@ import {
     EvaluationMethod,
     NormalizedPoint,
     PointDefinition,
-    Judge
 } from '../types/cli_types';
 import {
     IndividualJudgement,
-    PointAssessment
+    PointAssessment,
+    Judge
 } from '@/types/shared';
 import { extractKeyPoints } from '../services/llm-evaluation-service';
 import { dispatchMakeApiCall } from '../../lib/llm-clients/client-dispatcher';

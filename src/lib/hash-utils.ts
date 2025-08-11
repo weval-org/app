@@ -19,6 +19,7 @@ export function generateConfigContentHash(config: ComparisonConfig): string {
                 idealResponse: p.idealResponse,
                 system: p.system,
                 points: p.points,
+                weight: (p as any)?.weight,
             }))
             .sort((a, b) => (a.id || '').localeCompare(b.id || '')), // Sort prompts by ID
         temperatureSettings: 

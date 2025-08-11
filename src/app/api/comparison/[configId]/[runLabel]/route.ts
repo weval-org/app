@@ -57,6 +57,25 @@ export async function GET(
 
         // Calculate per-model hybrid scores and add them to jsonData
         if (jsonData.evaluationResults && jsonData.effectiveModels && jsonData.promptIds) {
+            // Inject prompt weights into coverage map for weighted averaging support
+            try {
+                const weightMap: Record<string, number> = {};
+                jsonData.config?.prompts?.forEach((p: any) => {
+                    if (p && typeof p.id === 'string') {
+                        const w = p.weight;
+                        if (typeof w === 'number' && !isNaN(w) && w > 0) {
+                            weightMap[p.id] = w;
+                        }
+                    }
+                });
+                if (Object.keys(weightMap).length > 0 && jsonData.evaluationResults.llmCoverageScores) {
+                    (jsonData.evaluationResults.llmCoverageScores as any).__promptWeights = weightMap;
+                    console.log(`[API Comparison] ✅ Prompt weights attached for ${Object.keys(weightMap).length} prompts: ${JSON.stringify(weightMap)}`);
+                } else {
+                    console.log(`[API Comparison] ⚖️  NO prompt weights found in this run's config - all prompts will use default weight of 1.0`);
+                }
+            } catch {}
+
             const perModelScores = calculatePerModelHybridScoresForRun(
                 jsonData.evaluationResults.perPromptSimilarities,
                 jsonData.evaluationResults.llmCoverageScores,

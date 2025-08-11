@@ -139,6 +139,7 @@ export function calculatePerModelHybridScoresForRun(
     if (modelId === idealModelId) continue;
 
     const modelPromptHybridScores: number[] = [];
+    const modelPromptWeights: number[] = [];
     for (const promptId of promptIds) {
         const simDataEntry = perPromptSimilarities?.[promptId]?.[modelId]?.[idealModelId] ??
                                perPromptSimilarities?.[promptId]?.[idealModelId]?.[modelId];
@@ -152,11 +153,20 @@ export function calculatePerModelHybridScoresForRun(
         const hybridScore = calculateHybridScore(simScore, covScore);
         if (hybridScore !== null) {
             modelPromptHybridScores.push(hybridScore);
+            // Weight will be injected into resultData.evaluationResults.promptStatistics later; fallback = 1
+            // For now, try to read from a known location on the frontend data shape if present
+            const weight = (llmCoverageScores as any)?.__promptWeights?.[promptId] ?? 1;
+            modelPromptWeights.push(typeof weight === 'number' && !isNaN(weight) ? weight : 1);
         }
     }
 
     if (modelPromptHybridScores.length > 0) {
-      const average = modelPromptHybridScores.reduce((sum, score) => sum + score, 0) / modelPromptHybridScores.length;
+      // Weighted average by prompt weights when available; fall back to unweighted
+      const totalWeight = modelPromptWeights.reduce((sum, w) => sum + (w ?? 1), 0);
+      const average = totalWeight > 0
+        ? modelPromptHybridScores.reduce((sum, score, idx) => sum + score * (modelPromptWeights[idx] ?? 1), 0) / totalWeight
+        : modelPromptHybridScores.reduce((sum, score) => sum + score, 0) / modelPromptHybridScores.length;
+      // For stddev, use unweighted sample to keep interpretation consistent
       const stddev = calculateStandardDeviation(modelPromptHybridScores);
       perModelScores.set(modelId, { average, stddev });
     } else {
@@ -396,14 +406,34 @@ export const calculateAllModelCoverageRankings = (
     return { rankedModels: [] };
   }
 
-  // Group models by canonical base ID to handle variants
-  const canonicalModelScores = new Map<string, { totalScore: number; count: number; variants: Set<string> }>();
+  // Extract prompt weights from the coverage scores metadata
+  const promptWeights: Record<string, number> = {};
+  try {
+    const weightMap = (coverageScores as any)?.__promptWeights;
+    if (weightMap && typeof weightMap === 'object') {
+      Object.keys(weightMap).forEach(promptId => {
+        const w = weightMap[promptId];
+        if (typeof w === 'number' && !isNaN(w) && w > 0) {
+          promptWeights[promptId] = w;
+        }
+      });
+    }
+  } catch {}
+  const hasWeights = Object.keys(promptWeights).length > 0;
+
+  // Group models by canonical base ID to handle variants with weighted aggregation
+  const canonicalModelScores = new Map<string, { weightedSum: number; totalWeight: number; variants: Set<string> }>();
   const nonIdealModels = models.filter(m => m !== IDEAL_MODEL_ID);
 
-  // Accumulate scores across prompts, grouping by canonical model
+  // Accumulate scores across prompts with weights, grouping by canonical model
   Object.keys(coverageScores).forEach(promptId => {
+    // Skip metadata fields
+    if (promptId.startsWith('__')) return;
+    
     const promptData = coverageScores[promptId];
     if (!promptData) return;
+
+    const promptWeight = hasWeights ? (promptWeights[promptId] ?? 1) : 1;
 
     nonIdealModels.forEach(modelId => {
       const scoreData = promptData[modelId];
@@ -412,25 +442,25 @@ export const calculateAllModelCoverageRankings = (
         const { baseId } = parseModelIdForDisplay(modelId);
         
         if (!canonicalModelScores.has(baseId)) {
-          canonicalModelScores.set(baseId, { totalScore: 0, count: 0, variants: new Set() });
+          canonicalModelScores.set(baseId, { weightedSum: 0, totalWeight: 0, variants: new Set() });
         }
         
         const current = canonicalModelScores.get(baseId)!;
-        current.totalScore += scoreData.avgCoverageExtent;
-        current.count++;
+        current.weightedSum += scoreData.avgCoverageExtent * promptWeight;
+        current.totalWeight += promptWeight;
         current.variants.add(modelId);
         canonicalModelScores.set(baseId, current);
       }
     });
   });
 
-  // Calculate averages and sort by score (descending)
+  // Calculate weighted averages and sort by score (descending)
   const rankedModels: ModelScoreRanking[] = [];
   canonicalModelScores.forEach((data, baseId) => {
-    if (data.count > 0) {
-      const avgScore = data.totalScore / data.count;
+    if (data.totalWeight > 0) {
+      const avgScore = data.weightedSum / data.totalWeight;
       // Use the baseId as the modelId for display purposes
-      rankedModels.push({ modelId: baseId, avgScore, count: data.count });
+      rankedModels.push({ modelId: baseId, avgScore, count: Math.round(data.totalWeight) });
     }
   });
 

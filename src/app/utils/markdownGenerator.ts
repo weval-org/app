@@ -324,7 +324,10 @@ export async function generateRunMarkdown(data: ComparisonDataV2, options: Markd
         md += "> _No detailed prompt data available._\n";
     } else {
         for (const promptId of promptIds) {
-            md += `### Prompt: \`${promptId}\`\n\n`;
+            const promptConfig = data.config?.prompts?.find(p => p.id === promptId);
+            const promptWeight = (promptConfig as any)?.weight;
+            const weightSuffix = typeof promptWeight === 'number' && promptWeight !== 1 ? ` _(weight x${promptWeight})_` : '';
+            md += `### Prompt: \`${promptId}\`${weightSuffix}\n\n`;
             
             md += "#### Context\n\n";
             // The fullConversationHistories contains the definitive record of messages sent to the model,

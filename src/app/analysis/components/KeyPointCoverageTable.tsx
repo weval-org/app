@@ -71,7 +71,7 @@ const ModelCard: React.FC<ModelCardProps> = ({ modelId, promptCoverageScores, pr
                     sd = Math.sqrt(variance);
                 }
                 aggregated[i].coverageExtent = mean;
-                (aggregated[i] as any).stdev = sd ?? undefined;
+                (aggregated[i] as any).stdDev = sd ?? undefined;
                 (aggregated[i] as any).sampleCount = vals.length;
             }
         }

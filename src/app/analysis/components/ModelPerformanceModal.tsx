@@ -334,7 +334,7 @@ const ModelPerformanceModal: React.FC = () => {
                     sd = Math.sqrt(variance);
                 }
                 aggregatedAssessments[i].coverageExtent = mean;
-                (aggregatedAssessments[i] as any).stdev = sd ?? undefined;
+                (aggregatedAssessments[i] as any).stdDev = sd ?? undefined;
                 (aggregatedAssessments[i] as any).sampleCount = vals.length;
             }
         }

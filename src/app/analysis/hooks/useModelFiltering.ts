@@ -8,7 +8,6 @@ interface ModelFilteringOptions {
   forceIncludeExcludedModels: boolean;
   excludedModelsList: string[];
   activeSysPromptIndex: number;
-  selectedTemperatures?: number[];
 }
 
 export const useModelFiltering = ({
@@ -17,7 +16,6 @@ export const useModelFiltering = ({
   forceIncludeExcludedModels,
   excludedModelsList,
   activeSysPromptIndex,
-  selectedTemperatures,
 }: ModelFilteringOptions) => {
   const effectiveModels = data?.effectiveModels;
   const config = data?.config;

@@ -579,6 +579,25 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions, commi
         await loggerInstance.info(`Run Label: ${finalRunLabel}`);
         await loggerInstance.info(`Evaluation Methods: ${chosenMethods.join(', ')}`);
         await loggerInstance.info(`Models to run: [${modelIdsToRun.join(', ')}] (Count: ${modelIdsToRun.length})`);
+        
+        // 🏋️ VERY VISIBLE PROMPT WEIGHT SUMMARY
+        const promptWeights: { promptId: string, weight: number }[] = [];
+        config.prompts?.forEach(p => {
+            const w = (p as any)?.weight;
+            if (typeof w === 'number' && !isNaN(w) && w > 0) {
+                promptWeights.push({ promptId: p.id, weight: w });
+            }
+        });
+        
+        if (promptWeights.length > 0) {
+            await loggerInstance.info('🏋️  PROMPT WEIGHTS DETECTED:');
+            for (const { promptId, weight } of promptWeights) {
+                await loggerInstance.info(`   📌 "${promptId}" → weight: ${weight}x`);
+            }
+            await loggerInstance.info(`   ✅ Total: ${promptWeights.length} weighted prompts (will affect aggregated model scores)`);
+        } else {
+            await loggerInstance.info('⚖️  NO PROMPT WEIGHTS detected - all prompts will use default weight of 1.0');
+        }
         await loggerInstance.info('-----------------------------');
 
         const ora = (await import('ora')).default;

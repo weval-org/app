@@ -3,7 +3,7 @@ import { parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
 
 export interface AggregatedScore {
   mean: number | null;
-  stdev: number | null;
+  stdDev: number | null;
   n: number;
 }
 
@@ -14,7 +14,7 @@ export interface AggregatedScore {
  *   baseId[sp_idx:X]  (temperature suffix removed).
  *
  * PointAssessment arrays are also averaged: coverageExtent → mean,
- * stdev stored, sampleCount stored. All other metadata (reflection, etc.)
+ * stdDev stored, sampleCount stored. All other metadata (reflection, etc.)
  * is copied from the first sample.
  */
 export function aggregateCoverageByTemperature(raw: LLMCoverageScores): LLMCoverageScores {
@@ -28,6 +28,8 @@ export function aggregateCoverageByTemperature(raw: LLMCoverageScores): LLMCover
     const bucketMap: Record<string, CoverageResult[]> = {};
 
     Object.entries(promptData).forEach(([modelId, result]) => {
+      // Skip metadata fields like __promptWeights
+      if (modelId.startsWith('__')) return;
       if (!result) return;
       const parsed = parseModelIdForDisplay(modelId);
       // Canonical id without temperature
@@ -40,7 +42,7 @@ export function aggregateCoverageByTemperature(raw: LLMCoverageScores): LLMCover
     Object.entries(bucketMap).forEach(([bucketId, list]) => {
       const numbers: number[] = [];
       list.forEach(r => {
-        if (r && !('error' in r) && typeof r.avgCoverageExtent === 'number' && !isNaN(r.avgCoverageExtent)) {
+        if (r && typeof r === 'object' && !('error' in r) && typeof r.avgCoverageExtent === 'number' && !isNaN(r.avgCoverageExtent)) {
           numbers.push(r.avgCoverageExtent);
         }
       });
@@ -58,7 +60,7 @@ export function aggregateCoverageByTemperature(raw: LLMCoverageScores): LLMCover
       }
 
       // Merge PointAssessments if present
-      const firstValid = list.find(r => r && !('error' in r) && r.pointAssessments?.length);
+      const firstValid = list.find(r => r && typeof r === 'object' && !('error' in r) && r.pointAssessments?.length);
       let mergedAssessments = firstValid?.pointAssessments;
 
       if (mergedAssessments) {
@@ -67,7 +69,7 @@ export function aggregateCoverageByTemperature(raw: LLMCoverageScores): LLMCover
         mergedAssessments.forEach((pa, idx) => {
           const vals: number[] = [];
           list.forEach(r => {
-            if (r && !('error' in r) && r.pointAssessments && r.pointAssessments[idx] && typeof r.pointAssessments[idx].coverageExtent === 'number') {
+            if (r && typeof r === 'object' && !('error' in r) && r.pointAssessments && r.pointAssessments[idx] && typeof r.pointAssessments[idx].coverageExtent === 'number') {
               vals.push(r.pointAssessments[idx].coverageExtent as number);
             }
           });
@@ -79,7 +81,7 @@ export function aggregateCoverageByTemperature(raw: LLMCoverageScores): LLMCover
               sd = Math.sqrt(v);
             }
             pa.coverageExtent = m;
-            (pa as any).stdev = sd ?? undefined;
+            (pa as any).stdDev = sd ?? undefined;
             (pa as any).sampleCount = vals.length;
           }
         });
@@ -90,7 +92,7 @@ export function aggregateCoverageByTemperature(raw: LLMCoverageScores): LLMCover
         avgCoverageExtent: mean,
         pointAssessments: mergedAssessments,
         // attach meta
-        ...(stdev !== null ? { stdev } : {}),
+        ...(stdev !== null ? { stdDev: stdev } : {}),
         sampleCount: numbers.length,
       } as any;
     });

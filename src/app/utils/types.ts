@@ -59,10 +59,8 @@ export interface PerPromptSimilaritiesFE {
   };
 }
 
-export type AtLeastNOfArg = [number, string[]];
-export type PointFunctionArgs = string | number | boolean | null | (string | number | boolean)[] | AtLeastNOfArg | Record<string, unknown>;
-// PointFunctionDefinition is now just an alias for a tuple in the shared PointDefinition type
-export type PointFunctionDefinition = [string, PointFunctionArgs];
+// Point function arg shapes are defined in shared types; re-export convenient alias here if needed
+export type PointFunctionDefinition = [string, unknown];
 // PointDefinition is now imported from shared.ts
 
 // The frontend-specific, enriched evaluation results, which includes calculated stats.

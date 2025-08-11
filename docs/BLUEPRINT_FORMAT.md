@@ -296,6 +296,7 @@ Each item in the list of prompts is an object that can contain the following fie
 | `citation` | `string` | **(Optional)** A citation or reference for the prompt, such as a URL, paper reference, or source documentation. This provides context about where the prompt or expected response comes from. |
 | `should` | `(string \| object)[] \| (string \| object)[][]` | **(Optional)** A list of rubric points for the `llm-coverage` evaluation method. Defines the criteria for a successful response. To define alternative valid paths ("OR" logic), this can be a list of lists. Aliased as `points`, `expect`, `expects`, or `expectations`. See details below. |
 | `should_not` | `(string \| object)[] \| (string \| object)[][]` | **(Optional)** A list of rubric points defining criteria that a response **should not** meet. It follows the exact same syntax as the `should` block, including support for a list of lists to create alternative "should not" paths. |
+| `weight` | `number` | **(Optional)** Prompt-level importance multiplier used when averaging scores across prompts. Defaults to `1.0`. Valid range: `0.1`–`10`. Aliases: `importance`, `multiplier`. |
 
 #### Message Formats (`messages` array)
 

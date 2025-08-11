@@ -35,6 +35,7 @@ interface ModelHeaderCellProps {
     equalWidthPercent: string;
     modelIdToRank: Record<string, number> | undefined;
     calculateModelAverageCoverage: (modelId: string) => number | null;
+    calculateModelAverageCoverageUnweighted: (modelId: string) => number | null;
     baseIdToVisualGroupStyleMap: Record<string, string>;
     openModelPerformanceModal: (modelId: string) => void;
     resolveEffectiveId: (displayId: string) => string; // new mapping fn
@@ -48,6 +49,7 @@ const ModelHeaderCell: React.FC<ModelHeaderCellProps> = ({
     equalWidthPercent,
     modelIdToRank,
     calculateModelAverageCoverage,
+    calculateModelAverageCoverageUnweighted,
     baseIdToVisualGroupStyleMap,
     openModelPerformanceModal,
     resolveEffectiveId,
@@ -57,6 +59,7 @@ const ModelHeaderCell: React.FC<ModelHeaderCellProps> = ({
     const parsed = parsedModelsMap[modelId];
     const rank = modelIdToRank?.[modelId];
     const modelAvgCoverage = calculateModelAverageCoverage(modelId);
+    const modelAvgCoverageUnweighted = calculateModelAverageCoverageUnweighted(modelId);
     const visualGroupStyle = baseIdToVisualGroupStyleMap[parsed.baseId] || 'border-t-border dark:border-t-slate-700';
     
     const getOrdinalSuffix = (n: number) => {
@@ -229,7 +232,21 @@ const ModelHeaderCell: React.FC<ModelHeaderCellProps> = ({
             key={`m-rank-score-header-${modelId}`}
             className={cn(mIndexHeaderStyle, visualGroupStyle, 'border-t-0')}
             style={{width: `${equalWidthPercent}%`}}
-            title={`Ranked ${rank ? `${rank}${getOrdinalSuffix(rank)}` : 'unranked'} overall${modelAvgCoverage ? ` with ${(modelAvgCoverage * 100).toFixed(1)}% average coverage` : ''}`}
+            title={(() => {
+                const baseTitle = `Ranked ${rank ? `${rank}${getOrdinalSuffix(rank)}` : 'unranked'} overall`;
+                if (modelAvgCoverage && modelAvgCoverageUnweighted) {
+                    const weightedScore = (modelAvgCoverage * 100).toFixed(1);
+                    const unweightedScore = (modelAvgCoverageUnweighted * 100).toFixed(1);
+                    if (weightedScore !== unweightedScore) {
+                        return `${baseTitle}\nWeighted: ${weightedScore}% (with prompt importance)\nUnweighted: ${unweightedScore}% (raw average)`;
+                    } else {
+                        return `${baseTitle} with ${weightedScore}% average coverage`;
+                    }
+                } else if (modelAvgCoverage) {
+                    return `${baseTitle} with ${(modelAvgCoverage * 100).toFixed(1)}% average coverage`;
+                }
+                return baseTitle;
+            })()}
         >
             {renderCombinedContent()}
         </th>
@@ -297,6 +314,23 @@ const MacroCoverageTable: React.FC = () => {
         config,
     } = data;
 
+    // Build prompt weight map from config.prompts and attach for downstream weighted calcs
+    const promptWeights: Record<string, number> = {};
+    config?.prompts?.forEach(p => {
+        const w = (p as any).weight;
+        if (typeof w === 'number' && !isNaN(w) && w > 0) {
+            promptWeights[p.id] = w;
+        }
+    });
+
+    console.log('PROMPT WEIGHTS>>>>>', promptWeights);
+    if (Object.keys(promptWeights).length === 0) {
+        console.log('[MacroCoverageTable] No weights found on config.prompts for this run. If you added weight recently, ensure you reran the evaluation and are viewing the latest run.');
+    }
+    if (allCoverageScores && Object.keys(promptWeights).length > 0) {
+        (allCoverageScores as any).__promptWeights = promptWeights;
+    }
+
     // Canonicalize models (collapse temperature variants)
     const canonicalModels = getCanonicalModels(modelsForMacroTable, config);
 
@@ -318,6 +352,7 @@ const MacroCoverageTable: React.FC = () => {
         sortedPromptIds,
         promptStats,
         calculateModelAverageCoverage,
+        calculateModelAverageCoverageUnweighted,
         calculatePromptAverage,
         OUTLIER_THRESHOLD_STD_DEV,
         HIGH_DISAGREEMENT_THRESHOLD_STD_DEV,
@@ -919,6 +954,7 @@ const MacroCoverageTable: React.FC = () => {
                                     equalWidthPercent={equalWidthPercent}
                                     modelIdToRank={modelIdToRank}
                                     calculateModelAverageCoverage={calculateModelAverageCoverage}
+                                    calculateModelAverageCoverageUnweighted={calculateModelAverageCoverageUnweighted}
                                     baseIdToVisualGroupStyleMap={baseIdToVisualGroupStyleMap}
                                     openModelPerformanceModal={openModelPerformanceModal}
                                     resolveEffectiveId={displayToEffectiveId}
@@ -938,6 +974,7 @@ const MacroCoverageTable: React.FC = () => {
                                     equalWidthPercent={equalWidthPercent}
                                     modelIdToRank={modelIdToRank}
                                     calculateModelAverageCoverage={calculateModelAverageCoverage}
+                                    calculateModelAverageCoverageUnweighted={calculateModelAverageCoverageUnweighted}
                                     baseIdToVisualGroupStyleMap={baseIdToVisualGroupStyleMap}
                                     openModelPerformanceModal={openModelPerformanceModal}
                                     resolveEffectiveId={displayToEffectiveId}
@@ -967,10 +1004,13 @@ const MacroCoverageTable: React.FC = () => {
                                 >
                                     <td className="border-x border-border dark:border-slate-700 px-1 py-2 text-center align-middle font-medium bg-card/90 hover:bg-muted/60 dark:hover:bg-slate-700/50 overflow-hidden" style={{width: "50px"}}>
                                         {avgScore !== null ? (
-                                            <span className={cn(
-                                                "inline-block px-1.5 py-0.5 rounded-md text-[10px] font-semibold font-mono",
-                                                colorClasses
-                                            )}>
+                                            <span 
+                                                className={cn(
+                                                    "inline-block px-1.5 py-0.5 rounded-md text-[10px] font-semibold font-mono",
+                                                    colorClasses
+                                                )}
+                                                title={`${avgScore.toFixed(1)}% of models scored well on this prompt. This is an unweighted average (raw performance only).`}
+                                            >
                                                 {avgScore.toFixed(1)}%
                                             </span>
                                         ) : (
@@ -987,6 +1027,11 @@ const MacroCoverageTable: React.FC = () => {
                                                 <span className={promptTextContainerClasses} style={promptTextContainerStyle}>
                                                     <small style={{fontSize: "0.8em", fontFamily: "monospace", color: "hsl(var(--muted-foreground))"}}>{promptId}</small><br/>
                                                     {getPromptText(promptId)}
+                                                    {promptWeights[promptId] && promptWeights[promptId] !== 1 && (
+                                                        <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 text-[10px] font-mono" title={`Prompt weight x${promptWeights[promptId]}`}>
+                                                            w×{promptWeights[promptId]}
+                                                        </span>
+                                                    )}
                                                 </span>
                                             </button>
                                         ) : (
@@ -998,6 +1043,11 @@ const MacroCoverageTable: React.FC = () => {
                                                 <span className={promptTextContainerClasses} style={promptTextContainerStyle}>
                                                     <small style={{fontSize: "0.8em", fontFamily: "monospace", color: "hsl(var(--muted-foreground))"}}>{promptId}</small><br/>
                                                     {getPromptText(promptId)}
+                                                    {promptWeights[promptId] && promptWeights[promptId] !== 1 && (
+                                                        <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 text-[10px] font-mono" title={`Prompt weight x${promptWeights[promptId]}`}>
+                                                            w×{promptWeights[promptId]}
+                                                        </span>
+                                                    )}
                                                 </span>
                                             </Link>
                                         )}

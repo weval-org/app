@@ -146,16 +146,32 @@ export const useMacroCoverageData = (
 
     const calculateModelAverageCoverage = React.useCallback((modelId: string): number | null => {
         if (!scores) return null;
-        let totalAvgExtent = 0;
-        let validPromptsCount = 0;
+        let weightedSum = 0;
+        let totalWeight = 0;
         promptIds.forEach(promptId => {
             const result = scores[promptId]?.[modelId];
             if (result && !('error' in result) && typeof result.avgCoverageExtent === 'number' && !isNaN(result.avgCoverageExtent)) {
-                totalAvgExtent += result.avgCoverageExtent;
-                validPromptsCount++;
+                const promptWeight = (scores as any).__promptWeights?.[promptId] ?? 1;
+                const w = typeof promptWeight === 'number' && !isNaN(promptWeight) ? promptWeight : 1;
+                weightedSum += result.avgCoverageExtent * w;
+                totalWeight += w;
             }
         });
-        return validPromptsCount > 0 ? (totalAvgExtent / validPromptsCount) : null;
+        return totalWeight > 0 ? (weightedSum / totalWeight) : null;
+    }, [allCoverageScores, promptIds]);
+
+    const calculateModelAverageCoverageUnweighted = React.useCallback((modelId: string): number | null => {
+        if (!scores) return null;
+        let sum = 0;
+        let count = 0;
+        promptIds.forEach(promptId => {
+            const result = scores[promptId]?.[modelId];
+            if (result && !('error' in result) && typeof result.avgCoverageExtent === 'number' && !isNaN(result.avgCoverageExtent)) {
+                sum += result.avgCoverageExtent;
+                count++;
+            }
+        });
+        return count > 0 ? (sum / count) : null;
     }, [allCoverageScores, promptIds]);
 
     const calculatePromptAverage = React.useCallback((promptId: string): number | null => {
@@ -269,6 +285,7 @@ export const useMacroCoverageData = (
         sortedPromptIds,
         promptStats,
         calculateModelAverageCoverage,
+        calculateModelAverageCoverageUnweighted,
         calculatePromptAverage,
         promptModelRanks,
         OUTLIER_THRESHOLD_STD_DEV,

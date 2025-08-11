@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Metadata } from 'next';
 import { getTags } from '@/lib/tag-service';
-import { prettifyTag } from '@/app/utils/tagUtils';
+import { prettifyTag, normalizeTag } from '@/app/utils/tagUtils';
 import { SiteHeader } from '@/app/components/SiteHeader';
 
 export const metadata: Metadata = {
@@ -22,7 +22,7 @@ export default async function TagsPage() {
       {tags.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {tags.map(tag => (
-            <Link href={`/tags/${encodeURIComponent(tag.name)}`} key={tag.name} passHref>
+            <Link href={`/tags/${normalizeTag(tag.name)}`} key={tag.name} passHref>
               <Card className="p-6 h-full flex flex-col justify-between hover:bg-muted/50 dark:hover:bg-slate-800/60 transition-colors duration-200 ring-1 ring-border/60 hover:ring-primary/40 dark:ring-slate-700/80">
                 <h2 className="text-lg font-semibold text-primary">{prettifyTag(tag.name)}</h2>
                 <p className="text-sm text-muted-foreground mt-2">

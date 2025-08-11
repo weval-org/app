@@ -17,6 +17,7 @@ export const useComparisonData = ({ initialData, currentPromptId, disabled = fal
     const [error, setError] = useState<string | null>(null);
     const [promptNotFound, setPromptNotFound] = useState<boolean>(false);
     const [excludedModelsList, setExcludedModelsList] = useState<string[]>([]);
+    // Deprecated global temperature filter; keep local for backward compatibility but unused
     const [selectedTemperatures, setSelectedTemperatures] = useState<number[]>([]);
 
     useEffect(() => {
@@ -65,9 +66,7 @@ export const useComparisonData = ({ initialData, currentPromptId, disabled = fal
                 setPromptNotFound(false);
             }
 
-            if (initialData.config?.temperatures) {
-                setSelectedTemperatures(initialData.config.temperatures);
-            }
+            // no-op: selectedTemperatures no longer used globally
         }
     }, [initialData, currentPromptId, disabled]);
 

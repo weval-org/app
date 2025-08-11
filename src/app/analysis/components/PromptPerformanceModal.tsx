@@ -7,7 +7,6 @@ import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
 import KeyPointCoverageTable from '@/app/analysis/components/KeyPointCoverageTable';
 import PromptContextDisplay from '@/app/analysis/components/PromptContextDisplay';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
-import { parseModelIdForDisplay, getCanonicalModels } from '@/app/utils/modelIdUtils';
 import Icon from '@/components/ui/icon';
 import { usePreloadIcons } from '@/components/ui/use-preload-icons';
 
@@ -163,7 +162,7 @@ const PromptPerformanceModal: React.FC = () => {
             <DialogContent className="w-[95vw] max-w-[95vw] h-[95vh] flex flex-col p-0">
                 <DialogHeader className="p-4 md:p-6 border-b flex-shrink-0">
                     <DialogTitle className="text-xl font-semibold text-foreground">
-                        Prompt Performance Analysis
+                        Prompt: <code>{promptId}</code>
                     </DialogTitle>
                 </DialogHeader>
 

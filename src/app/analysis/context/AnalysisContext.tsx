@@ -25,8 +25,6 @@ export interface AnalysisContextType {
     // State from BetaComparisonClientPage
     forceIncludeExcludedModels: boolean;
     setForceIncludeExcludedModels: (value: boolean) => void;
-    selectedTemperatures: number[];
-    setSelectedTemperatures: React.Dispatch<React.SetStateAction<number[]>>;
     activeSysPromptIndex: number;
     setActiveSysPromptIndex: (value: number) => void;
     activeHighlights: Set<ActiveHighlight>;

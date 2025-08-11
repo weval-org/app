@@ -1,4 +1,4 @@
-import { ComparisonConfig, PromptConfig } from '@/cli/types/cli_types';
+import { WevalConfig as ComparisonConfig, WevalPromptConfig as PromptConfig } from '@/types/shared';
 import { getConfig } from '@/cli/config';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
@@ -10,6 +10,7 @@ export interface PointFunctionContext {
     logger?: Logger;
 }
 
+import type { SinglePointDefinition } from '@/types/shared';
 export type AtLeastNOfArg = [number, string[]];
 export type PointFunctionArgs = string | number | boolean | null | (string | number | boolean)[] | AtLeastNOfArg | Record<string, unknown>;
 

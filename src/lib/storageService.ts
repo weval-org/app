@@ -21,8 +21,9 @@ import {
   EnhancedComparisonConfigInfo,
   EnhancedRunInfo,
 } from '@/app/utils/homepageDataUtils';
-import { AggregateStatsData, CapabilityLeaderboard, CapabilityRawData } from '@/app/components/home/types';
-import { PotentialDriftInfo } from '@/app/components/ModelDriftIndicator';
+import type { CapabilityLeaderboard, CapabilityRawData } from '../types/summary';
+import type { AggregateStatsData } from '@/app/components/home/types';
+import type { PotentialDriftInfo } from '../types/summary';
 import { ComparisonDataV2 as FetchedComparisonData } from '@/app/utils/types';
 import {
     calculateHeadlineStats,
@@ -650,9 +651,12 @@ export async function saveResult(configId: string, fileNameWithTimestamp: string
     const buildCoreData = (full: any) => {
       const clone = { ...full } as any;
 
-      // ---- Trim config.prompts (remove heavy text, keep IDs only) ----
+      // ---- Trim config.prompts (remove heavy text, keep IDs and weights only) ----
       if (clone.config?.prompts) {
-        clone.config.prompts = clone.config.prompts.map((p: any) => ({ id: p.id }));
+        clone.config.prompts = clone.config.prompts.map((p: any) => ({ 
+          id: p.id,
+          ...(typeof p.weight === 'number' ? { weight: p.weight } : {})
+        }));
       }
 
       // ---- Prompt contexts: keep as-is for quick display (single string or msgs array) ----
@@ -839,23 +843,34 @@ export async function listRunsForConfig(configId: string): Promise<Array<{ runLa
 
   if (storageProvider === 's3' && s3Client && s3BucketName) {
     try {
-      const command = new ListObjectsV2Command({
-        Bucket: s3BucketName,
-        Prefix: s3Prefix,
-      });
-      const response = await s3Client.send(command);
-      response.Contents?.forEach(item => {
-        if (item.Key) {
-          const fileName = path.basename(item.Key);
-          if (fileName.endsWith('_comparison.json')) {
-            const parsed = parseFileName(fileName);
-            if (parsed) {
-              runs.push(parsed);
+      // Use pagination and a delimiter so we only list objects directly under the config folder.
+      // This avoids drowning in artefact files living under run subdirectories, and prevents
+      // missing _comparison.json files when there are >1000 keys.
+      let continuationToken: string | undefined = undefined;
+      let totalObjectsScanned = 0;
+      do {
+        const command: ListObjectsV2Command = new ListObjectsV2Command({
+          Bucket: s3BucketName,
+          Prefix: s3Prefix,
+          Delimiter: '/',
+          ContinuationToken: continuationToken,
+        });
+        const response: ListObjectsV2CommandOutput = await s3Client.send(command);
+        response.Contents?.forEach((item) => {
+          if (item.Key) {
+            totalObjectsScanned++;
+            const fileName = path.basename(item.Key);
+            if (fileName.endsWith('_comparison.json')) {
+              const parsed = parseFileName(fileName);
+              if (parsed) {
+                runs.push(parsed);
+              }
             }
           }
-        }
-      });
-      console.log(`[StorageService] Listed ${runs.length} runs for config '${configId}' from S3.`);
+        });
+        continuationToken = response.NextContinuationToken;
+      } while (continuationToken);
+      console.log(`[StorageService] Listed ${runs.length} runs for config '${configId}' from S3 (scanned ${totalObjectsScanned} top-level objects).`);
     } catch (error) {
       console.error(`[StorageService] Error listing runs for config '${configId}' from S3:`, error);
     }
@@ -1033,6 +1048,25 @@ export function updateSummaryDataWithNewRun(
     configSummary.tags = unifiedTags;
   }
   
+  // Inject prompt weights into coverage map for weighted per-model averages
+  try {
+    const weightMap: Record<string, number> = {};
+    newResultData.config?.prompts?.forEach((p: any) => {
+      if (p && typeof p.id === 'string') {
+        const w = p.weight;
+        if (typeof w === 'number' && !isNaN(w) && w > 0) {
+          weightMap[p.id] = w;
+        }
+      }
+    });
+    if (Object.keys(weightMap).length > 0 && newResultData.evaluationResults?.llmCoverageScores) {
+      (newResultData.evaluationResults.llmCoverageScores as any).__promptWeights = weightMap;
+      console.log(`[StorageService] ✅ Attached prompt weights for ${Object.keys(weightMap).length} prompts to llmCoverageScores`);
+    } else {
+      console.log(`[StorageService] ⚖️  NO prompt weights found in config - using default weight of 1.0 for all prompts`);
+    }
+  } catch {}
+
   const perModelScores = calculatePerModelScoreStatsForRun(newResultData);
   const hybridScoreStats = calculateAverageHybridScoreForRun(newResultData);
 

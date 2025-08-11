@@ -23,7 +23,7 @@ export interface PointAssessment {
     /**
      * Standard deviation of coverageExtent across temperature permutations (if aggregated).
      */
-    stdev?: number;
+    stdDev?: number;
     /**
      * Number of temperature samples aggregated into coverageExtent.
      */
@@ -45,6 +45,9 @@ export type CoverageResult = {
     keyPointsCount?: number;
     avgCoverageExtent?: number;
     pointAssessments?: PointAssessment[];
+    // Optional aggregate stats across temperatures or judges
+    sampleCount?: number;
+    stdDev?: number;
     error?: string;
 } | null;
 
@@ -103,6 +106,11 @@ export interface WevalPromptConfig {
     system?: string | null;
     temperature?: number;
     citation?: string;
+    /**
+     * Relative importance of this prompt when aggregating scores across prompts.
+     * Defaults to 1.0. Valid range: [0.1, 10].
+     */
+    weight?: number;
 }
 
 export interface WevalConfig {
@@ -126,6 +134,7 @@ export interface WevalConfig {
         'llm-coverage'?: {
             judgeModels?: string[];
             judgeMode?: 'failover' | 'consensus';
+            judges?: Judge[];
         }
     }
 }
@@ -202,6 +211,20 @@ export interface ExecutiveSummary {
     content: string;
     structured?: StructuredInsights; // New: parsed structured data
     isStructured?: boolean; // Flag to indicate if this uses structured format
+}
+
+// Judge configuration for llm-coverage evaluation
+export interface Judge {
+    id?: string; // Optional identifier for a specific judge configuration
+    model: string;
+    approach: 'standard' | 'prompt-aware' | 'holistic';
+}
+
+// Public config type for llm-coverage evaluation (shared)
+export interface LLMCoverageEvaluationConfig {
+    judgeModels?: string[]; // Backwards compatibility
+    judgeMode?: 'failover' | 'consensus'; // Backwards compatibility
+    judges?: Judge[];
 }
 
 // --- New Types for Model-Specific Summaries ---

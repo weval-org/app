@@ -14,6 +14,9 @@ import {
     SimilarityScore,
     LLMCoverageScores,
     WevalEvaluationResults,
+    Judge,
+    LLMCoverageEvaluationConfig,
+    ModelResponseDetail,
 } from '@/types/shared';
 import { BlueprintSummaryInfo } from '@/app/utils/blueprintSummaryUtils';
 
@@ -50,13 +53,7 @@ export interface NormalizedPoint {
     functionArgs?: any;
 }
 
-export interface ModelResponseDetail {
-    finalAssistantResponseText: string;
-    fullConversationHistory?: ConversationMessage[];
-    hasError: boolean;
-    errorMessage?: string;
-    systemPromptUsed: string | null;
-}
+// ModelResponseDetail now imported from shared
 
 export interface PromptResponseData {
     promptId: string;
@@ -89,17 +86,7 @@ export interface Evaluator {
     evaluate(inputs: EvaluationInput[]): Promise<Partial<WevalEvaluationResults & Pick<FinalComparisonOutputV2, 'extractedKeyPoints'>>>;
 }
 
-export interface Judge {
-    id?: string; // Optional identifier for a specific judge configuration
-    model: string;
-    approach: 'standard' | 'prompt-aware' | 'holistic';
-}
-
-export interface LLMCoverageEvaluationConfig {
-    judgeModels?: string[]; // Kept for backwards compatibility, but 'judges' is preferred
-    judgeMode?: 'failover' | 'consensus'; // Kept for backwards compatibility
-    judges?: Judge[];
-}
+// Judge and LLMCoverageEvaluationConfig now imported from shared
 
 export { IDEAL_MODEL_ID };
 
