@@ -924,7 +924,7 @@ export async function getResultByFileName(configId: string, fileName: string): P
   try {
           if (fsSync.existsSync(cachePath)) {
           const stats = await fs.stat(cachePath);
-          console.log(`[StorageService] Cache HIT for ${fileName}. mtime: ${stats.mtime.toISOString()}`);
+          // console.log(`[StorageService] Cache HIT for ${fileName}. mtime: ${stats.mtime.toISOString()}`);
           const cachedContent = await fs.readFile(cachePath, 'utf-8');
           return JSON.parse(cachedContent);
       }
@@ -934,7 +934,7 @@ export async function getResultByFileName(configId: string, fileName: string): P
   // --- End Cache Check ---
 
   if (storageProvider === 's3' && s3Client && s3BucketName) {
-    console.log(`[StorageService] Attempting to load result by fileName from S3: s3://${s3BucketName}/${s3Key}`);
+    // console.log(`[StorageService] Attempting to load result by fileName from S3: s3://${s3BucketName}/${s3Key}`);
     try {
       const { Body } = await s3Client.send(new GetObjectCommand({
         Bucket: s3BucketName,
@@ -1542,7 +1542,7 @@ export async function listModelSummaries(): Promise<string[]> {
       const modelFiles = response.Contents?.map(obj => path.basename(obj.Key || ''))
         .filter(name => name.endsWith('.json'))
         .map(name => name.replace(/\.json$/, '')) || [];
-      console.log(`[StorageService] Listed ${modelFiles.length} model summaries from S3.`);
+      // console.log(`[StorageService] Listed ${modelFiles.length} model summaries from S3.`);
       return modelFiles;
     } catch (error) {
       console.error('[StorageService] Error listing model summaries from S3:', error);
@@ -1567,6 +1567,225 @@ export async function listModelSummaries(): Promise<string[]> {
 
   console.warn('[StorageService] No valid storage provider configured. Cannot list model summaries.');
   return [];
+}
+
+// ----------------------
+// Model N-Delta Storage (negative deltas vs peers)
+// ----------------------
+
+export interface ModelPromptDeltaEntry {
+  configId: string;
+  configTitle: string;
+  runLabel: string;
+  timestamp: string;
+  promptId: string;
+  modelId: string;
+  modelCoverage: number; // 0..1
+  peerAverageCoverage: number; // 0..1
+  delta: number; // modelCoverage - peerAverageCoverage (negative = worse than peers)
+  keyPointsCount?: number | null;
+  // Optional ranking context among base models for this prompt in this run
+  totalBases?: number;
+  rankAmongBases?: number; // 1 = best
+  percentileFromTop?: number; // 0 best ... 100 worst (approx)
+  quartileFromTop?: 1 | 2 | 3 | 4; // 1 best quartile ... 4 worst quartile
+  topBases?: Array<{ base: string; coverage: number }>; // e.g., top 3 bases
+  // Optional prompt/response context for UI display
+  selectedVariantId?: string; // representative variant used to display response
+  systemPromptUsed?: string | null;
+  temperatureUsed?: number | null;
+  promptContext?: any; // string | ConversationMessage[]
+  finalResponse?: string | null;
+  fullConversationHistory?: any; // ConversationMessage[] | undefined
+}
+
+export interface ModelNDeltasFileContent {
+  modelId: string; // exact effective model id
+  totalEntries: number;
+  generatedAt: string;
+  entries: ModelPromptDeltaEntry[]; // typically sorted ascending by delta (most negative first)
+}
+
+export interface NDeltasIndexEntry {
+  modelId: string; // base core name, e.g., "gpt-4o"
+  totalEntries: number;
+  generatedAt: string;
+  worstDelta: number | null; // most negative delta
+  medianDelta?: number | null;
+}
+
+export interface NDeltasIndexContent {
+  models: NDeltasIndexEntry[];
+  lastUpdated: string;
+}
+
+export async function saveModelNDeltas(modelId: string, data: ModelNDeltasFileContent): Promise<void> {
+  const safeModelId = getSafeModelId(modelId);
+  const fileName = `${safeModelId}.json`;
+  const s3Key = path.join(LIVE_DIR, 'models', 'ndeltas', fileName);
+  const localPath = path.join(RESULTS_DIR, s3Key);
+  const fileContent = JSON.stringify(data, null, 2);
+
+  if (storageProvider === 's3' && s3Client && s3BucketName) {
+    try {
+      const command = new PutObjectCommand({
+        Bucket: s3BucketName,
+        Key: s3Key,
+        Body: fileContent,
+        ContentType: 'application/json',
+      });
+      await s3Client.send(command);
+      console.log(`[StorageService] Model NDeltas saved to S3: ${s3Key}`);
+    } catch (error) {
+      console.error(`[StorageService] Error saving model NDeltas to S3: ${s3Key}`, error);
+      throw error;
+    }
+  } else if (storageProvider === 'local') {
+    try {
+      await fs.mkdir(path.dirname(localPath), { recursive: true });
+      await fs.writeFile(localPath, fileContent, 'utf-8');
+      console.log(`[StorageService] Model NDeltas saved to local disk: ${localPath}`);
+    } catch (error) {
+      console.error(`[StorageService] Error saving model NDeltas to local disk: ${localPath}`, error);
+      throw error;
+    }
+  } else {
+    console.warn(`[StorageService] No valid storage provider configured for saveModelNDeltas. Data not saved.`);
+  }
+}
+
+export async function getModelNDeltas(modelId: string): Promise<ModelNDeltasFileContent | null> {
+  const safeModelId = getSafeModelId(modelId);
+  const fileName = `${safeModelId}.json`;
+  const s3Key = path.join(LIVE_DIR, 'models', 'ndeltas', fileName);
+  const localPath = path.join(RESULTS_DIR, s3Key);
+  let fileContent: string | null = null;
+
+  if (storageProvider === 's3' && s3Client && s3BucketName) {
+    try {
+      const command = new GetObjectCommand({ Bucket: s3BucketName, Key: s3Key });
+      const { Body } = await s3Client.send(command);
+      if (Body) {
+        fileContent = await streamToString(Body as Readable);
+      }
+    } catch (error: any) {
+      if (error.name === 'NoSuchKey') {
+        return null;
+      }
+      console.error(`[StorageService] Error fetching model NDeltas from S3: ${s3Key}`, error);
+      return null;
+    }
+  } else if (storageProvider === 'local') {
+    try {
+      if (fsSync.existsSync(localPath)) {
+        fileContent = await fs.readFile(localPath, 'utf-8');
+      } else {
+        return null;
+      }
+    } catch (error) {
+      console.error(`[StorageService] Error fetching model NDeltas from local disk: ${localPath}`, error);
+      return null;
+    }
+  }
+
+  if (!fileContent) return null;
+  try {
+    return JSON.parse(fileContent) as ModelNDeltasFileContent;
+  } catch (error) {
+    console.error(`[StorageService] Error parsing model NDeltas for ${modelId}:`, error);
+    return null;
+  }
+}
+
+export async function listModelNDeltas(): Promise<string[]> {
+  const s3Prefix = path.join(LIVE_DIR, 'models', 'ndeltas', '');
+  const localPath = path.join(RESULTS_DIR, s3Prefix);
+
+  if (storageProvider === 's3' && s3Client && s3BucketName) {
+    try {
+      const command = new ListObjectsV2Command({
+        Bucket: s3BucketName,
+        Prefix: s3Prefix,
+      });
+      const response = await s3Client.send(command);
+      const files = response.Contents?.map(obj => path.basename(obj.Key || ''))
+        .filter(name => name.endsWith('.json'))
+        .map(name => name.replace(/\.json$/, '')) || [];
+      console.log(`[StorageService] Listed ${files.length} NDeltas files from S3.`);
+      return files;
+    } catch (error) {
+      console.error('[StorageService] Error listing NDeltas from S3:', error);
+      return [];
+    }
+  } else if (storageProvider === 'local') {
+    try {
+      const entries = await fs.readdir(localPath, { withFileTypes: true });
+      const files = entries
+        .filter(entry => entry.isFile() && entry.name.endsWith('.json'))
+        .map(entry => entry.name.replace(/\.json$/, ''));
+      console.log(`[StorageService] Listed ${files.length} NDeltas locally.`);
+      return files;
+    } catch (error: any) {
+      if (error.code === 'ENOENT') {
+        return [];
+      }
+      console.error('[StorageService] Error listing NDeltas locally:', error);
+      return [];
+    }
+  }
+  console.warn('[StorageService] No valid storage provider configured. Cannot list model NDeltas.');
+  return [];
+}
+
+const NDELTAS_INDEX_KEY = path.join(LIVE_DIR, 'models', 'ndeltas', 'manifest.json');
+
+export async function saveNDeltasIndex(index: NDeltasIndexContent): Promise<void> {
+  const localPath = path.join(RESULTS_DIR, NDELTAS_INDEX_KEY);
+  const fileContent = JSON.stringify(index, null, 2);
+  if (storageProvider === 's3' && s3Client && s3BucketName) {
+    await s3Client.send(new PutObjectCommand({
+      Bucket: s3BucketName,
+      Key: NDELTAS_INDEX_KEY,
+      Body: fileContent,
+      ContentType: 'application/json',
+    }));
+    console.log(`[StorageService] NDeltas index saved to S3: ${NDELTAS_INDEX_KEY}`);
+  } else if (storageProvider === 'local') {
+    await fs.mkdir(path.dirname(localPath), { recursive: true });
+    await fs.writeFile(localPath, fileContent, 'utf-8');
+    console.log(`[StorageService] NDeltas index saved locally: ${localPath}`);
+  } else {
+    console.warn('[StorageService] No valid storage provider for saveNDeltasIndex.');
+  }
+}
+
+export async function getNDeltasIndex(): Promise<NDeltasIndexContent | null> {
+  const localPath = path.join(RESULTS_DIR, NDELTAS_INDEX_KEY);
+  let fileContent: string | null = null;
+  if (storageProvider === 's3' && s3Client && s3BucketName) {
+    try {
+      const { Body } = await s3Client.send(new GetObjectCommand({ Bucket: s3BucketName, Key: NDELTAS_INDEX_KEY }));
+      if (Body) fileContent = await streamToString(Body as Readable);
+    } catch (err: any) {
+      if (err.name === 'NoSuchKey') return null;
+      console.error('[StorageService] Error fetching NDeltas index from S3:', err);
+      return null;
+    }
+  } else if (storageProvider === 'local') {
+    try {
+      if (fsSync.existsSync(localPath)) fileContent = await fs.readFile(localPath, 'utf-8'); else return null;
+    } catch (err) {
+      console.error('[StorageService] Error fetching NDeltas index locally:', err);
+      return null;
+    }
+  }
+  if (!fileContent) return null;
+  try {
+    return JSON.parse(fileContent) as NDeltasIndexContent;
+  } catch (err) {
+    console.error('[StorageService] Error parsing NDeltas index:', err);
+    return null;
+  }
 }
 
 // --- Model Card Storage Functions ---

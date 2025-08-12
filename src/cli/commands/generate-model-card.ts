@@ -2,8 +2,8 @@ import { Command } from 'commander';
 import fs from 'fs/promises';
 import path from 'path';
 import { getConfig } from '../config';
-import { getHomepageSummary, getResultByFileName } from '../../lib/storageService';
-import { ModelSummary, ModelRunPerformance, TopPerformingEvaluation } from '../types/model_card_types';
+import { getHomepageSummary, getResultByFileName, getModelNDeltas } from '../../lib/storageService';
+import { ModelSummary, ModelRunPerformance, TopPerformingEvaluation, WorstPerformingEvaluation } from '../types/model_card_types';
 import { generateAnalyticalSummary } from '../services/model-summary-service';
 import { getModelDisplayLabel, parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
 import { ComparisonDataV2 } from '@/app/utils/types';
@@ -384,6 +384,30 @@ async function actionGenerateModelCard(modelIdPattern: string, options: {}) {
         logger.info('No dimensional grades found or aggregated');
     }
 
+    // Pull in worst performers via NDeltas for each discovered variant (merge by base pattern)
+    let worstPerformingEvaluations: WorstPerformingEvaluation[] | undefined = undefined;
+    try {
+        const basePattern = modelIdPattern.includes(':') ? modelIdPattern.split(':')[1] : modelIdPattern;
+        const ndeltas = await getModelNDeltas(basePattern.toLowerCase());
+        if (ndeltas && ndeltas.entries && ndeltas.entries.length > 0) {
+            // Take worst 3 (most negative deltas)
+            const worst = ndeltas.entries.slice(0, Math.min(3, ndeltas.entries.length)).map(e => ({
+                configId: e.configId,
+                configTitle: e.configTitle,
+                runLabel: e.runLabel,
+                timestamp: e.timestamp,
+                promptId: e.promptId,
+                delta: e.delta,
+                modelCoverage: e.modelCoverage,
+                peerAverageCoverage: e.peerAverageCoverage,
+                analysisUrl: `/analysis/${e.configId}/${encodeURIComponent(e.runLabel)}/${e.timestamp}`,
+            }));
+            worstPerformingEvaluations = worst;
+        }
+    } catch (err: any) {
+        logger.warn(`NDeltas lookup failed or not present for pattern '${modelIdPattern}': ${err?.message || err}`);
+    }
+
     const modelSummary: ModelSummary = {
         modelId: modelIdPattern,
         displayName: modelIdPattern, // Use the pattern as the name for the card
@@ -403,6 +427,7 @@ async function actionGenerateModelCard(modelIdPattern: string, options: {}) {
         },
         performanceByTag: performanceByTag,
         topPerformingEvaluations: topPerformingEvaluations,
+        worstPerformingEvaluations,
         dimensionalGrades: dimensionalGrades,
         lastUpdated: new Date().toISOString(),
     };

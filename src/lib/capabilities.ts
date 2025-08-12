@@ -170,7 +170,13 @@ export const CAPABILITY_BUCKETS: CapabilityBucket[] = [
     ],
     topics: [],
     configs: [
-      { key: 'homework-int-help-heuristics', weight: 3.0 }
+      { key: 'homework-int-help-heuristics', weight: 3.0 },
+      { key: 'adversarial-legal-reasoning-ca', weight: 2.0 },
+      { key: 'system-prompt-adherence-resilience', weight: 2.0 },
+      { key: 'geneva-conventions-full-evaluation', weight: 1.0 },
+      { key: 'hmt-empire-windrush-comprehensive-eval', weight: 1.0 },
+      { key: 'udhr-misattribution-absurd-framing', weight: 1.0 },
+      { key: 'adversarial-legal-reasoning-ca', weight: 1.0 },
     ]
   }
 ];

@@ -34,6 +34,7 @@ import { listBackupsCommand } from './commands/list-backups';
 import { migrateStorageLayoutCommand } from './commands/migrate-storage-layout';
 import { migrateResultFilesCommand } from './commands/migrate-result-files';
 import { debugConfigScoresCommand } from './commands/debug-config-scores';
+import { generateNDeltasCommand } from './commands/generate-ndeltas';
 
 let isTerminating = false
 const cleanup = () => {
@@ -106,6 +107,7 @@ cli.addCommand(listBackupsCommand);
 cli.addCommand(migrateStorageLayoutCommand);
 cli.addCommand(migrateResultFilesCommand);
 cli.addCommand(debugConfigScoresCommand);
+cli.addCommand(generateNDeltasCommand);
 
 cli.parseAsync(process.argv).catch(err => {
   console.error('CLI Error:', err); 

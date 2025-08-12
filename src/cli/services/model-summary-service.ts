@@ -1,6 +1,8 @@
 import { getConfig } from '../config';
 import { ModelSummary } from '../types/model_card_types';
 import { getModelResponse } from './llm-service';
+import { getResultByFileName } from '../../lib/storageService';
+import { ComparisonDataV2 } from '@/app/utils/types';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
@@ -43,12 +45,15 @@ export function parseConfigReferences(text: string): string {
 
 function parseAnalystResponse(responseText: string): Omit<Required<ModelSummary>['analyticalSummary'], 'lastUpdated'> {
     // Parse the raw content first
+    const rawTldrMatch = responseText.match(/<tldr>(.*?)<\/tldr>/s);
+    const rawTldr = rawTldrMatch ? rawTldrMatch[1].trim() : '';
     const rawStrengths = [...responseText.matchAll(/<strength>(.*?)<\/strength>/gs)].map(match => match[1].trim());
     const rawWeaknesses = [...responseText.matchAll(/<weakness>(.*?)<\/weakness>/gs)].map(match => match[1].trim());
     const rawRisks = [...responseText.matchAll(/<risk>(.*?)<\/risk>/gs)].map(match => match[1].trim());
     const rawPatterns = [...responseText.matchAll(/<pattern>(.*?)<\/pattern>/gs)].map(match => match[1].trim());
 
     // Parse config references in each section
+    const tldr = rawTldr ? parseConfigReferences(rawTldr) : '';
     const strengths = rawStrengths.map(parseConfigReferences);
     const weaknesses = rawWeaknesses.map(parseConfigReferences);
     const risks = rawRisks.map(parseConfigReferences);
@@ -61,7 +66,7 @@ function parseAnalystResponse(responseText: string): Omit<Required<ModelSummary>
         narrative = parseConfigReferences(narrative);
     }
 
-    return { narrative, strengths, weaknesses, risks, patterns };
+    return { tldr, narrative, strengths, weaknesses, risks, patterns };
 }
 
 
@@ -98,8 +103,18 @@ export async function generateAnalyticalSummary(
         const avgPercentile = percentiles.reduce((a, b) => a + b, 0) / percentiles.length;
         const topTierRuns = percentiles.filter(p => p >= 80).length; // Top 20%
         const competitiveRuns = percentiles.filter(p => p >= 50).length; // Above median
+        const q1 = percentiles.filter(p => p >= 75).length; // Top quartile
+        const q2 = percentiles.filter(p => p >= 50 && p < 75).length; // Second quartile
+        const q3 = percentiles.filter(p => p >= 25 && p < 50).length; // Third quartile
+        const q4 = percentiles.filter(p => p < 25).length; // Bottom quartile
+
+        const avgCohort = runsWithModelCounts.reduce((a, r) => a + (r.totalModelsInRun || 0), 0) / runsWithModelCounts.length;
+        const avgBetter = runsWithModelCounts.reduce((a, r) => a + ((r.rank || 1) - 1), 0) / runsWithModelCounts.length;
+        const avgWorse = runsWithModelCounts.reduce((a, r) => a + ((r.totalModelsInRun || 0) - (r.rank || 0)), 0) / runsWithModelCounts.length;
         
         aggregateStats += `COMPETITIVE POSITIONING: ${avgPercentile.toFixed(1)}th percentile average across ${runsWithModelCounts.length} runs\n`;
+        aggregateStats += `QUARTILE DISTRIBUTION: Q1 ${q1}, Q2 ${q2}, Q3 ${q3}, Q4 ${q4} (out of ${runsWithModelCounts.length})\n`;
+        aggregateStats += `AVERAGE RELATIVE POSITION: ${(avgBetter).toFixed(1)} models ahead, ${(avgWorse).toFixed(1)} behind (avg cohort size ${(avgCohort).toFixed(1)})\n`;
         aggregateStats += `TIER ANALYSIS: Top-tier (80th+ percentile) in ${topTierRuns}/${runsWithModelCounts.length} runs, Above-median in ${competitiveRuns}/${runsWithModelCounts.length} runs\n`;
     }
     
@@ -167,6 +182,11 @@ export async function generateAnalyticalSummary(
             }
             
             runRecord += `  - Rank in Run: #${run.rank} out of ${totalModels} models${percentileText}\n`;
+            if (typeof totalModels === 'number') {
+                const better = Math.max(0, (run.rank || 1) - 1);
+                const worse = Math.max(0, totalModels - (run.rank || 0));
+                runRecord += `  - Relative Position: ${better} ranked above, ${worse} ranked below\n`;
+            }
         }
         
         // Add performance characterization
@@ -224,6 +244,131 @@ export async function generateAnalyticalSummary(
         dossier += `\n`;
     }
     
+    // Include worst runs vs peers (most negative outperformance)
+    if (modelSummary.overallStats.runs.length > 0) {
+        const runsWithPeer = modelSummary.overallStats.runs
+            .filter(r => r.peerAverageScore !== null)
+            .map(r => ({
+                ...r,
+                outperformance: (r.hybridScore - (r.peerAverageScore as number)),
+            }))
+            .sort((a, b) => a.outperformance - b.outperformance);
+        if (runsWithPeer.length > 0) {
+            const worstRuns = runsWithPeer.slice(0, Math.min(5, runsWithPeer.length));
+            dossier += `------------------------------------\n`;
+            dossier += `WORST RUNS VS PEER AVERAGE:\n`;
+            dossier += `------------------------------------\n`;
+            for (const wr of worstRuns) {
+                const percentile = (wr.totalModelsInRun && wr.rank)
+                    ? (((wr.totalModelsInRun - wr.rank + 1) / wr.totalModelsInRun) * 100).toFixed(0) + 'th pct'
+                    : 'n/a';
+                dossier += `- ${wr.configTitle} (ID: ${wr.configId}): Δ ${wr.outperformance.toFixed(3)} vs peers; Rank #${wr.rank ?? 'n/a'} (${percentile})\n`;
+            }
+            dossier += `\n`;
+        }
+    }
+
+    // Include worst-offending prompts from NDeltas if present
+    if (modelSummary.worstPerformingEvaluations && modelSummary.worstPerformingEvaluations.length > 0) {
+        dossier += `------------------------------------\n`;
+        dossier += `WORST-OFFENDING PROMPTS (COVERAGE DELTAS):\n`;
+        dossier += `------------------------------------\n`;
+        for (const w of modelSummary.worstPerformingEvaluations) {
+            const ref = `<ref config="${w.configId}" title="${w.configTitle}" />`;
+            dossier += `- ${ref} | prompt: ${w.promptId} | Δ ${w.delta.toFixed(3)} (model ${w.modelCoverage.toFixed(2)} vs peers ${w.peerAverageCoverage.toFixed(2)})\n`;
+        }
+        dossier += `\n`;
+    }
+
+    // Deep context for bottom-3 worst prompts: prompt text, key point failures, judge reflections
+    if (modelSummary.worstPerformingEvaluations && modelSummary.worstPerformingEvaluations.length > 0) {
+        const worstThree = modelSummary.worstPerformingEvaluations.slice(0, 3);
+        dossier += `------------------------------------\n`;
+        dossier += `DETAILED CONTEXT: BOTTOM 3 PROMPTS\n`;
+        dossier += `------------------------------------\n`;
+        const truncate = (text: string, maxLen = 220) => (text.length > maxLen ? text.slice(0, maxLen) + '…' : text);
+        for (const w of worstThree) {
+            try {
+                const fileName = `${w.runLabel}_${w.timestamp}_comparison.json`;
+                const data = await getResultByFileName(w.configId, fileName) as ComparisonDataV2 | null;
+                if (!data) {
+                    continue;
+                }
+                const ref = `<ref config=\"${w.configId}\" title=\"${data.configTitle || w.configTitle}\" />`;
+                // Prompt text extraction
+                let promptText = '';
+                const targetPrompt = data.config?.prompts?.find(p => p.id === w.promptId);
+                if (targetPrompt?.promptText) {
+                    promptText = targetPrompt.promptText;
+                } else if (Array.isArray(targetPrompt?.messages)) {
+                    const firstUser = targetPrompt!.messages!.find(m => m.role === 'user');
+                    promptText = firstUser?.content || '';
+                } else if (data.promptContexts && data.promptContexts[w.promptId]) {
+                    const ctx = data.promptContexts[w.promptId];
+                    if (typeof ctx === 'string') promptText = ctx;
+                    else if (Array.isArray(ctx)) {
+                        const firstUser = ctx.find(m => m.role === 'user');
+                        promptText = firstUser?.content || '';
+                    }
+                }
+
+                // Choose a representative variant among discovered IDs present in this run
+                const candidates = (data.effectiveModels || []).filter(m =>
+                    (modelSummary.discoveredModelIds?.includes(m)) || m.includes(modelSummary.modelId)
+                );
+                let chosenModel: string | null = null;
+                let chosenCoverage: any = null;
+                if (candidates.length > 0 && data.evaluationResults?.llmCoverageScores?.[w.promptId]) {
+                    let bestScore = Infinity;
+                    for (const m of candidates) {
+                        const cov = data.evaluationResults.llmCoverageScores[w.promptId][m];
+                        const score = cov?.avgCoverageExtent ?? Number.POSITIVE_INFINITY;
+                        if (score < bestScore) {
+                            bestScore = score;
+                            chosenModel = m;
+                            chosenCoverage = cov;
+                        }
+                    }
+                }
+
+                dossier += `• ${ref} | prompt: \"${truncate(promptText || w.promptId)}\" (id: ${w.promptId})\n`;
+                if (chosenModel && chosenCoverage) {
+                    const avg = typeof chosenCoverage.avgCoverageExtent === 'number' ? chosenCoverage.avgCoverageExtent.toFixed(3) : 'n/a';
+                    dossier += `  - Variant analyzed: ${chosenModel}\n`;
+                    dossier += `  - Coverage (avg): ${avg}\n`;
+                    // Key assessments: take bottom 3 points by coverageExtent
+                    const points = Array.isArray(chosenCoverage.pointAssessments) ? chosenCoverage.pointAssessments : [];
+                    if (points.length > 0) {
+                        const sorted = [...points].sort((a, b) => (a.coverageExtent ?? 1) - (b.coverageExtent ?? 1));
+                        const bottom = sorted.slice(0, Math.min(3, sorted.length));
+                        dossier += `  - Weakest criteria (judge reflections excerpted):\n`;
+                        for (const p of bottom) {
+                            const scoreText = typeof p.coverageExtent === 'number' ? p.coverageExtent.toFixed(2) : 'n/a';
+                            // pick the most critical judge reflection (lowest coverageExtent)
+                            let reflection = '';
+                            if (Array.isArray(p.individualJudgements) && p.individualJudgements.length > 0) {
+                                const minJ = [...p.individualJudgements].sort((a, b) => a.coverageExtent - b.coverageExtent)[0];
+                                reflection = minJ?.reflection || '';
+                            } else if (p.reflection) {
+                                reflection = p.reflection;
+                            }
+                            dossier += `    - [${scoreText}] ${truncate(p.keyPointText || 'criterion')}\n`;
+                            if (reflection) {
+                                dossier += `      ↳ judge: \"${truncate(reflection, 240)}\"\n`;
+                            }
+                        }
+                    }
+                } else {
+                    dossier += `  - Detailed coverage not available for this prompt/model variant in the selected run.\n`;
+                }
+                dossier += `\n`;
+            } catch (err) {
+                // Continue on errors, keep dossier robust
+                continue;
+            }
+        }
+    }
+
     // Rough token estimation and truncation if necessary
     const estimatedTokens = dossier.length / 4;
     if (estimatedTokens > MAX_CONTEXT_TOKENS) {
@@ -258,7 +403,9 @@ For example:
 
 The config IDs are provided in the dossier as "ID: config-id" and the titles are the blueprint names.
 
-Your output MUST be a structured analysis with the following sections in this exact order:
+Your output MUST _end_ with a single-paragraph TL;DR wrapped in <tldr>...</tldr> that succinctly characterizes the model's overall behavior, strengths, and weaknesses in plain language (no more than 2 sentences). Don't be afraid to be OPINIONATED and CRITICAL. This paragraph is the most likely to be read, and could affect whether someone uses the model in a potentiall high-stakes situation, so we need to warn people if necessary. This TLDR must be at the end, after all other reflections.
+
+Prior the TL;DR, provide a structured analysis with the following sections in this exact order:
 
 1. **Behavioral Patterns**: A bulleted list of observations tagged with <pattern>.
 2. **Key Strengths**: A bulleted list of observations tagged with <strength>.
@@ -305,8 +452,9 @@ etc.
 
 <risk>...</risk>
 
-
 etc.
+
+<tldr>A great model to use in ..., but avoid it in .... Overall: ___... etc.</tldr>
 
 `;
 

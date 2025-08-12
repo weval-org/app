@@ -43,7 +43,9 @@ export async function generateMetadata({ params }: ModelCardPageProps): Promise<
 
     const overallScore = formatPercent(modelCard.overallStats.averageHybridScore);
 
-    const description = modelCard.analyticalSummary?.strengths?.[0] 
+    const description = modelCard.analyticalSummary?.tldr
+      ? modelCard.analyticalSummary.tldr
+      : modelCard.analyticalSummary?.strengths?.[0] 
       ? `${modelCard.analyticalSummary.strengths[0].substring(0, 150)}...`
       : `Model card for ${modelCard.displayName} with ${modelCard.overallStats.totalRuns} runs across ${modelCard.overallStats.totalBlueprints} blueprints.`;
 
@@ -193,6 +195,18 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
               
               {modelCard.analyticalSummary ? (
                 <div className="space-y-6">
+                  {/* TL;DR Overview */}
+                  {modelCard.analyticalSummary.tldr && (
+                    <div>
+                      <div className="flex items-center mb-3">
+                        <Icon name="info" className="h-4 w-4 text-primary mr-2" />
+                        <h3 className="font-semibold text-primary">TL;DR</h3>
+                      </div>
+                      <p className="text-sm text-foreground leading-relaxed">
+                        {modelCard.analyticalSummary.tldr}
+                      </p>
+                    </div>
+                  )}
                   {/* Strengths */}
                   {modelCard.analyticalSummary.strengths?.length > 0 && (
                     <div>
@@ -464,10 +478,31 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
 
               {/* Footer */}
               <Separator className="my-4" />
-              <div className="text-center">
-                <div className="text-xs text-muted-foreground">
-                  Updated {new Date(modelCard.lastUpdated).toLocaleDateString()}
+
+              {/* Worst Performing Evaluations (from NDeltas) */}
+              {modelCard.worstPerformingEvaluations && modelCard.worstPerformingEvaluations.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="font-medium text-sm text-muted-foreground mb-3">Worst Evaluations</h3>
+                  <p className="text-xs text-muted-foreground mb-3">Prompts where this model underperformed peers the most (most negative delta).</p>
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {modelCard.worstPerformingEvaluations.map((w, i) => (
+                      <Link key={i} href={w.analysisUrl} className="block p-2 rounded-md bg-muted/30 hover:bg-muted/50 transition-colors text-xs">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-medium text-foreground truncate pr-2">{w.configTitle}</span>
+                          <span className="font-mono text-red-600 dark:text-red-400">Δ {w.delta.toFixed(3)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-muted-foreground">
+                          <span className="text-xs">prompt: {w.promptId}</span>
+                          <span className="text-xs">model {w.modelCoverage.toFixed(2)} vs peers {w.peerAverageCoverage.toFixed(2)}</span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
                 </div>
+              )}
+
+              <div className="text-center">
+                <div className="text-xs text-muted-foreground">Updated {new Date(modelCard.lastUpdated).toLocaleDateString()}</div>
               </div>
               </TooltipProvider>
             </div>

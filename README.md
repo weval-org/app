@@ -238,6 +238,45 @@ pnpm cli generate-model-card --model-pattern <pattern> --run-label <card_run_lab
 -   `--model-pattern <pattern>`: **(Required)** A substring to match against model IDs (e.g., `"gpt-4o-mini"`, `"haiku"`). The command will find all model variants containing this pattern.
 -   `--run-label <label>`: **(Required)** A unique label for this model card generation.
 
+### `generate-ndeltas`
+
+Computes a “weak points” index for a model by comparing its coverage scores against the peer average per prompt (latest run of each config). Results are coverage-only and aggregate across all sys/temp variants at the base-model level.
+
+What it calculates:
+- For each config’s latest run and each prompt:
+  - Target coverage = average across all variants of the base model (sys/temp).
+  - Peer average = for each other base model, average its variants; then average across bases.
+  - Delta = Target − Peer Average (negative = underperforming vs peers).
+
+Single model usage:
+```bash
+pnpm cli generate-ndeltas --model "gpt-4o" --min-peers 2 --limit 500
+```
+
+All models mode:
+```bash
+pnpm cli generate-ndeltas --all-models --min-runs 3 --min-peers 2 --limit 500
+```
+
+- `--model <id>`: Target base model ID (e.g., `gpt-4o`). If omitted, you must pass `--all-models`.
+- `--all-models`: Compute NDeltas for all base models discovered in latest runs that meet thresholds.
+- `--min-runs <N>`: Minimum number of eligible latest runs a base model must appear in to be processed (eligibility = run has at least `min-peers` peer base models).
+- `--min-peers <N>`: Minimum number of peer base models required in a run to consider it.
+- `--limit <N>`: Keep only the top-N most negative deltas per model.
+- `--dry-run`: Print what would be saved without writing files.
+
+Output:
+- Saved to `live/models/ndeltas/{base}.json` (e.g., `gpt-4o.json`).
+
+API & UI:
+- API: `/api/ndeltas/{baseModel}` → returns the saved JSON.
+- UI: `/ndeltas/{baseModel}` → table of weak prompts ranked by most negative delta.
+
+Notes:
+- Uses only the latest run per config.
+- Excludes the IDEAL model from peers.
+- “Coverage” is the rubric score; similarity is not included in NDeltas.
+
 ## Blueprint File Structure
 
 Blueprints can be YAML (`.yml`, `.yaml`) or JSON (`.json`) files. They use a "multi-document" YAML structure, separating the main configuration from the list of prompts with a `---` divider for clarity.
