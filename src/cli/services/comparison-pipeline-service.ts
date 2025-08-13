@@ -20,6 +20,7 @@ async function aggregateAndSaveResults(
     commitSha?: string,
     blueprintFileName?: string,
     requireExecutiveSummary?: boolean,
+    skipExecutiveSummary?: boolean,
 ): Promise<{ data: FinalComparisonOutputV2, fileName: string | null }> {
     logger.info('[PipelineService] Aggregating results...');
     logger.info(`[PipelineService] Received blueprint ID for saving: '${config.id}'`);
@@ -123,19 +124,26 @@ async function aggregateAndSaveResults(
         errors: Object.keys(errors).length > 0 ? errors : undefined,
     };
 
-    // Generate summary after the main result object is constructed
-    const summaryResult = await generateExecutiveSummary(finalOutput, logger);
-    if (!('error' in summaryResult)) {
-        finalOutput.executiveSummary = summaryResult;
-        logger.info(`[PipelineService] ✅ Executive summary generated successfully.`);
-    } else {
-        logger.error(`[PipelineService] ❌ Executive summary generation failed: ${summaryResult.error}`);
+    // Optionally generate executive summary
+    if (skipExecutiveSummary) {
         if (requireExecutiveSummary) {
-            logger.error(`[PipelineService] 🚨 FATAL: --require-executive-summary flag is set, but summary generation failed.`);
-            throw new Error(`Executive summary generation failed and is required: ${summaryResult.error}`);
+            logger.warn(`[PipelineService] Both --skip-executive-summary and --require-executive-summary were provided. Skipping executive summary as requested.`);
+        }
+        logger.info(`[PipelineService] ⏭️  Skipping executive summary generation by flag.`);
+    } else {
+        const summaryResult = await generateExecutiveSummary(finalOutput, logger);
+        if (!('error' in summaryResult)) {
+            finalOutput.executiveSummary = summaryResult;
+            logger.info(`[PipelineService] ✅ Executive summary generated successfully.`);
         } else {
-            logger.warn(`[PipelineService] ⚠️  Run will continue without executive summary. Use 'backfill-executive-summary' to retry later.`);
-            // Still save the run data without the executive summary
+            logger.error(`[PipelineService] ❌ Executive summary generation failed: ${summaryResult.error}`);
+            if (requireExecutiveSummary) {
+                logger.error(`[PipelineService] 🚨 FATAL: --require-executive-summary flag is set, but summary generation failed.`);
+                throw new Error(`Executive summary generation failed and is required: ${summaryResult.error}`);
+            } else {
+                logger.warn(`[PipelineService] ⚠️  Run will continue without executive summary. Use 'backfill-executive-summary' to retry later.`);
+                // Still save the run data without the executive summary
+            }
         }
     }
 
@@ -174,6 +182,7 @@ export async function executeComparisonPipeline(
     commitSha?: string,
     blueprintFileName?: string,
     requireExecutiveSummary?: boolean,
+    skipExecutiveSummary?: boolean,
 ): Promise<{ data: FinalComparisonOutputV2, fileName: string | null }> {
     logger.info(`[PipelineService] Starting comparison pipeline for configId: '${config.id || config.configId}' runLabel: '${runLabel}'`);
     
@@ -261,6 +270,7 @@ export async function executeComparisonPipeline(
         commitSha,
         blueprintFileName,
         requireExecutiveSummary,
+        skipExecutiveSummary,
     );
     logger.info(`[PipelineService] executeComparisonPipeline finished successfully. Results at: ${finalResult.fileName}`);
     return finalResult;

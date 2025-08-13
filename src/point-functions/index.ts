@@ -16,6 +16,10 @@ import { icontains_at_least_n_of } from './icontains_at_least_n_of';
 import { matches_at_least_n_of } from './matches_at_least_n_of';
 import { imatch_at_least_n_of } from './imatch_at_least_n_of';
 import { js } from './js';
+import { tool_called } from './tool_called';
+import { tool_args_match } from './tool_args_match';
+import { tool_call_count_between } from './tool_call_count_between';
+import { tool_call_order } from './tool_call_order';
 
 export const pointFunctions: Record<string, PointFunction> = {
     contains,
@@ -44,4 +48,8 @@ export const pointFunctions: Record<string, PointFunction> = {
     imatch_at_least_n_of,
     js,
     expr: js,
+    tool_called,
+    tool_args_match,
+    tool_call_count_between,
+    tool_call_order,
 };

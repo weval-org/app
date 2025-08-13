@@ -6,7 +6,7 @@ class OpenRouterModuleClient {
   async makeApiCall(options: LLMApiCallOptions): Promise<LLMApiCallResult> {
     // Extract modelName from modelId (format: "openrouter:meta-llama/llama-3.1-8b-instruct:free")
     const modelName = options.modelId.split(':').slice(1).join(':') || options.modelId;
-    const { messages, systemPrompt, temperature, maxTokens, timeout = 30000 } = options;
+    const { messages, systemPrompt, temperature, maxTokens, timeout = 30000, tools, toolChoice, toolMode } = options;
     const apiKey = process.env.OPENROUTER_API_KEY;
 
     if (!apiKey) {
@@ -28,13 +28,20 @@ class OpenRouterModuleClient {
           "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({
-          model: modelName, 
-          messages: finalMessagesPayload,
-          temperature: temperature ?? 0.7, 
-          max_tokens: maxTokens,
-          stream: false
-        }),
+        body: JSON.stringify((() => {
+          const payload: any = {
+            model: modelName, 
+            messages: finalMessagesPayload,
+            temperature: temperature ?? 0.7, 
+            max_tokens: maxTokens,
+            stream: false
+          };
+          if (tools && (toolMode === 'native' || toolMode === 'auto')) {
+            payload.tools = tools.map(t => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.schema || {} } }));
+            if (toolChoice) payload.tool_choice = toolChoice as any;
+          }
+          return payload;
+        })()),
         signal: controller.signal
       });
 

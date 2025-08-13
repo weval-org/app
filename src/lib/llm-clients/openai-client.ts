@@ -74,7 +74,7 @@ class OpenAIClient {
         const modelName = options.modelId.split(':')[1] || options.modelId;
         console.log(`[OpenAIClient] Extracted model name: ${modelName}`);
         
-        const { messages: optionMessages, systemPrompt, temperature = 0.3, maxTokens = 1500, timeout = 30000 } = options;
+        const { messages: optionMessages, systemPrompt, temperature = 0.3, maxTokens = 1500, timeout = 30000, tools, toolChoice, toolMode } = options;
         
         const fetch = (await import('node-fetch')).default;
 
@@ -99,6 +99,11 @@ class OpenAIClient {
                 messages,
                 stream: false,
             };
+            // Native tool-calling support (opt-in via toolMode 'native' or 'auto')
+            if (tools && (toolMode === 'native' || toolMode === 'auto')) {
+                payload.tools = tools.map(t => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.schema || {} } }));
+                if (toolChoice) payload.tool_choice = toolChoice as any;
+            }
             if (!effective?.omitTemperature && typeof temperature === 'number') {
                 payload.temperature = temperature;
             }
@@ -162,7 +167,20 @@ class OpenAIClient {
             }
 
             const jsonResponse = await response.json() as any;
-            const responseText = jsonResponse.choices[0]?.message?.content?.trim() ?? '';
+            // Synthesize TOOL_CALL lines from native tool_calls if present
+            let toolPrefix = '';
+            const toolCalls = jsonResponse.choices?.[0]?.message?.tool_calls;
+            if (Array.isArray(toolCalls)) {
+                for (const tc of toolCalls) {
+                    const fn = tc?.function;
+                    if (fn?.name) {
+                        let argsObj: any = undefined;
+                        try { argsObj = fn.arguments ? JSON.parse(fn.arguments) : undefined; } catch { argsObj = fn.arguments; }
+                        toolPrefix += `TOOL_CALL ${JSON.stringify({ name: fn.name, arguments: argsObj })}\n`;
+                    }
+                }
+            }
+            const responseText = (toolPrefix + (jsonResponse.choices[0]?.message?.content?.trim() ?? '')).trim();
             const result: LLMApiCallResult = { responseText };
 
             return result;

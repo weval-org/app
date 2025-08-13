@@ -22,6 +22,10 @@ export interface LLMApiCallOptions {
     thinkingBudget?: number;
     // Generic parameter passthrough for custom providers
     customParameters?: Record<string, any>;
+    // Tools (optional): when provided and toolMode is 'native' or 'auto', clients may advertise tools
+    tools?: ToolSpec[];
+    toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } };
+    toolMode?: 'trace-only' | 'native' | 'auto'; // default: trace-only
 }
 
 /**
@@ -31,6 +35,12 @@ export interface LLMApiCallResult {
   responseText: string;
   error?: string; // Optional error message if the call failed
   // We can add more fields here if needed, like token counts, finish reasons etc.
+}
+
+export interface ToolSpec {
+    name: string;
+    description?: string;
+    schema?: any;
 }
 
 export interface CustomModelDefinition {

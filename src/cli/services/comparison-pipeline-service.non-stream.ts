@@ -1,9 +1,16 @@
-import { ComparisonConfig, PromptResponseData } from '../types/cli_types';
+import { ComparisonConfig, EvaluationMethod, FinalComparisonOutputV2, PromptResponseData, Evaluator } from '../types/cli_types';
 import { ConversationMessage } from '@/types/shared';
 import { getModelResponse, DEFAULT_TEMPERATURE } from './llm-service';
 import { checkForErrors } from '../utils/response-utils';
 import { SimpleLogger } from '@/lib/blueprint-service';
 import pLimit from '@/lib/pLimit';
+import { extractToolCallsFromText } from '../utils/tool-trace';
+import { getConfig } from '../config';
+import { saveResult as saveResultToStorage } from '@/lib/storageService';
+import { toSafeTimestamp } from '@/lib/timestampUtils';
+import { generateExecutiveSummary } from './executive-summary-service';
+import { EmbeddingEvaluator } from '@/cli/evaluators/embedding-evaluator';
+import { LLMCoverageEvaluator } from '@/cli/evaluators/llm-coverage-evaluator';
 
 export type ProgressCallback = (completed: number, total: number) => Promise<void>;
 
@@ -185,7 +192,8 @@ export async function generateAllResponses(
                             fullConversationHistory: fullConversationHistoryWithResponse,
                             hasError,
                             errorMessage,
-                            systemPromptUsed: systemPromptToUse ?? null
+                            systemPromptUsed: systemPromptToUse ?? null,
+                            toolCalls: extractToolCallsFromText(finalAssistantResponseText)
                         };
                         generatedCount++;
                         logger.info(`[PipelineService] Generated ${generatedCount}/${totalResponsesToGenerate} responses.`);
@@ -202,4 +210,226 @@ export async function generateAllResponses(
     await Promise.all(tasks);
     logger.info(`[PipelineService] Finished generating ${generatedCount}/${totalResponsesToGenerate} responses.`);
     return allResponsesMap;
+}
+
+type Logger = ReturnType<typeof getConfig>['logger'];
+
+async function aggregateAndSaveResults(
+    config: ComparisonConfig,
+    runLabel: string,
+    allResponsesMap: Map<string, PromptResponseData>,
+    evaluationResults: Partial<FinalComparisonOutputV2['evaluationResults'] & Pick<FinalComparisonOutputV2, 'extractedKeyPoints'>>,
+    evalMethodsUsed: EvaluationMethod[],
+    logger: Logger,
+    commitSha?: string,
+    blueprintFileName?: string,
+    requireExecutiveSummary?: boolean,
+    skipExecutiveSummary?: boolean,
+): Promise<{ data: FinalComparisonOutputV2, fileName: string | null }> {
+    logger.info('[PipelineService] Aggregating results...');
+    logger.info(`[PipelineService] Received blueprint ID for saving: '${config.id}'`);
+
+    const promptIds: string[] = [];
+    const promptContexts: Record<string, string | ConversationMessage[]> = {};
+    const allFinalAssistantResponses: Record<string, Record<string, string>> = {};
+    const fullConversationHistories: Record<string, Record<string, ConversationMessage[]>> = {};
+    const errors: Record<string, Record<string, string>> = {};
+    const effectiveModelsSet = new Set<string>();
+    const modelSystemPrompts: Record<string, string | null> = {};
+    let hasAnyIdeal = false;
+
+    // Determine if any ideal response exists based on the config
+    if (config.prompts.some(p => (p as any).idealResponse)) {
+        hasAnyIdeal = true;
+    }
+
+    for (const [promptId, promptData] of allResponsesMap.entries()) {
+        promptIds.push(promptId);
+        // Store context appropriately
+        if (promptData.initialMessages && promptData.initialMessages.length > 0) {
+            promptContexts[promptId] = promptData.initialMessages;
+        } else if (promptData.promptText) {
+            promptContexts[promptId] = promptData.promptText;
+        } else {
+            promptContexts[promptId] = 'Error: No input context found';
+        }
+
+        allFinalAssistantResponses[promptId] = {};
+        if (process.env.STORE_FULL_HISTORY !== 'false') {
+            fullConversationHistories[promptId] = {};
+        }
+
+        // Add ideal response text if it was part of the input
+        if (promptData.idealResponseText !== null && promptData.idealResponseText !== undefined) {
+            allFinalAssistantResponses[promptId]['ideal'] = promptData.idealResponseText;
+        }
+
+        for (const [effectiveModelId, responseData] of Object.entries(promptData.modelResponses)) {
+            effectiveModelsSet.add(effectiveModelId);
+            allFinalAssistantResponses[promptId][effectiveModelId] = responseData.finalAssistantResponseText;
+            modelSystemPrompts[effectiveModelId] = responseData.systemPromptUsed;
+
+            if (responseData.fullConversationHistory && fullConversationHistories[promptId]) {
+                fullConversationHistories[promptId][effectiveModelId] = responseData.fullConversationHistory;
+            }
+
+            if (responseData.hasError && responseData.errorMessage) {
+                if (!errors[promptId]) errors[promptId] = {};
+                errors[promptId][effectiveModelId] = responseData.errorMessage;
+            }
+        }
+    }
+
+    if (hasAnyIdeal) {
+        effectiveModelsSet.add('ideal');
+    }
+
+    const effectiveModels = Array.from(effectiveModelsSet).sort();
+
+    const currentTimestamp = new Date().toISOString();
+    const safeTimestamp = toSafeTimestamp(currentTimestamp);
+
+    const resolvedConfigId: string = config.id!;
+    const resolvedConfigTitle: string = config.title!;
+
+    if (!resolvedConfigId) {
+        logger.error(`Critical: Blueprint ID is missing. Config: ${JSON.stringify(config)}`);
+        throw new Error('Blueprint ID is missing unexpectedly after validation.');
+    }
+    if (!resolvedConfigTitle) {
+        logger.error(`Critical: Blueprint Title is missing. Config: ${JSON.stringify(config)}`);
+        throw new Error('Blueprint Title is missing unexpectedly after validation.');
+    }
+
+    const finalOutput: FinalComparisonOutputV2 = {
+        configId: resolvedConfigId,
+        configTitle: resolvedConfigTitle,
+        runLabel,
+        timestamp: safeTimestamp,
+        description: config.description,
+        sourceCommitSha: commitSha,
+        sourceBlueprintFileName: blueprintFileName,
+        config: config,
+        evalMethodsUsed: evalMethodsUsed,
+        effectiveModels: effectiveModels,
+        modelSystemPrompts: modelSystemPrompts,
+        promptIds: promptIds.sort(),
+        promptContexts: promptContexts,
+        extractedKeyPoints: evaluationResults.extractedKeyPoints ?? undefined,
+        allFinalAssistantResponses: allFinalAssistantResponses,
+        fullConversationHistories: (process.env.STORE_FULL_HISTORY !== 'false') ? fullConversationHistories : undefined,
+        evaluationResults: {
+            similarityMatrix: evaluationResults.similarityMatrix ?? undefined,
+            perPromptSimilarities: evaluationResults.perPromptSimilarities ?? undefined,
+            llmCoverageScores: evaluationResults.llmCoverageScores ?? undefined,
+        },
+        errors: Object.keys(errors).length > 0 ? errors : undefined,
+    };
+
+    // Optionally generate executive summary
+    if (skipExecutiveSummary) {
+        if (requireExecutiveSummary) {
+            logger.warn(`[PipelineService] Both --skip-executive-summary and --require-executive-summary were provided. Skipping executive summary as requested.`);
+        }
+        logger.info(`[PipelineService] ⏭️  Skipping executive summary generation by flag.`);
+    } else {
+        const summaryResult = await generateExecutiveSummary(finalOutput, logger);
+        if (!('error' in summaryResult)) {
+            (finalOutput as any).executiveSummary = summaryResult;
+            logger.info(`[PipelineService] ✅ Executive summary generated successfully.`);
+        } else {
+            logger.error(`[PipelineService] ❌ Executive summary generation failed: ${summaryResult.error}`);
+            if (requireExecutiveSummary) {
+                logger.error(`[PipelineService] 🚨 FATAL: --require-executive-summary flag is set, but summary generation failed.`);
+                throw new Error(`Executive summary generation failed and is required: ${summaryResult.error}`);
+            } else {
+                logger.warn(`[PipelineService] ⚠️  Run will continue without executive summary. Use 'backfill-executive-summary' to retry later.`);
+                // Still save the run data without the executive summary
+            }
+        }
+    }
+
+    const fileName = `${runLabel}_${safeTimestamp}_comparison.json`;
+
+    try {
+        await saveResultToStorage(resolvedConfigId, fileName, finalOutput);
+        logger.info(`[PipelineService] Successfully saved aggregated results to storage with key/filename: ${fileName}`);
+        return { data: finalOutput, fileName: fileName };
+    } catch (error: any) {
+        logger.error(`[PipelineService] Failed to save the final comparison output to storage: ${error.message}`);
+        return { data: finalOutput, fileName: null };
+    }
+}
+
+export async function executeComparisonPipeline(
+    config: ComparisonConfig,
+    runLabel: string,
+    evalMethods: EvaluationMethod[],
+    logger: Logger,
+    // Optional: allow passing pre-generated responses to skip generation
+    existingResponsesMap?: Map<string, PromptResponseData>,
+    forcePointwiseKeyEval?: boolean,
+    useCache: boolean = false,
+    commitSha?: string,
+    blueprintFileName?: string,
+    requireExecutiveSummary?: boolean,
+    skipExecutiveSummary?: boolean,
+): Promise<{ data: FinalComparisonOutputV2, fileName: string | null }> {
+    logger.info(`[PipelineService] Starting comparison pipeline for configId: '${(config as any).id || (config as any).configId}' runLabel: '${runLabel}'`);
+
+    // Step 1: Generate all model responses if not provided
+    const allResponsesMap = existingResponsesMap ?? await generateAllResponses(config, logger, useCache);
+
+    // Step 2: Prepare for evaluation
+    const evaluationInputs: any[] = [];
+
+    for (const promptData of allResponsesMap.values()) {
+        const modelIdsForThisPrompt = Object.keys(promptData.modelResponses);
+
+        evaluationInputs.push({
+            promptData: promptData,
+            config: config,
+            effectiveModelIds: modelIdsForThisPrompt,
+            embeddingModel: (config as any).embeddingModel,
+        });
+    }
+
+    // Step 3: Run selected evaluation methods
+    const evaluators: Evaluator[] = [
+        new EmbeddingEvaluator(logger),
+        new LLMCoverageEvaluator(logger, useCache),
+    ];
+
+    const chosenEvaluators = evaluators.filter(e => evalMethods.includes(e.getMethodName() as any));
+    logger.info(`[PipelineService] Will run the following evaluators: ${chosenEvaluators.map(e => e.getMethodName()).join(', ')}`);
+
+    let combinedEvaluationResults: Partial<FinalComparisonOutputV2['evaluationResults'] & Pick<FinalComparisonOutputV2, 'extractedKeyPoints'>> = {
+        llmCoverageScores: {},
+        similarityMatrix: {},
+        perPromptSimilarities: {},
+        extractedKeyPoints: {}
+    };
+
+    for (const evaluator of chosenEvaluators) {
+        logger.info(`[PipelineService] --- Running ${evaluator.getMethodName()} evaluator ---`);
+        const results: any = await (evaluator as any).evaluate(evaluationInputs);
+        combinedEvaluationResults = { ...combinedEvaluationResults, ...results };
+        logger.info(`[PipelineService] --- Finished ${evaluator.getMethodName()} evaluator ---`);
+    }
+
+    // Step 4: Aggregate and save results
+    const finalResult = await aggregateAndSaveResults(
+        config,
+        runLabel,
+        allResponsesMap,
+        combinedEvaluationResults,
+        evalMethods,
+        logger,
+        commitSha,
+        blueprintFileName,
+        requireExecutiveSummary,
+        skipExecutiveSummary,
+    );
+    logger.info(`[PipelineService] executeComparisonPipeline finished successfully. Results at: ${finalResult.fileName}`);
+    return finalResult;
 }

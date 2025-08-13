@@ -464,6 +464,7 @@ interface RunOptions {
     cache?: boolean;
     collectionsRepoPath?: string;
     requireExecutiveSummary?: boolean;
+    skipExecutiveSummary?: boolean;
     updateSummaries?: boolean;
 }
 
@@ -621,7 +622,8 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions, commi
                 options.cache,
                 commitSha || undefined,
                 blueprintFileName,
-                options.requireExecutiveSummary
+                options.requireExecutiveSummary,
+                options.skipExecutiveSummary
             ); 
 
             if (pipelineResult && typeof pipelineResult === 'object' && 'fileName' in pipelineResult && 'data' in pipelineResult) {
@@ -927,6 +929,7 @@ const localCommand = new Command('local')
     .option('--cache', 'Enable caching for model responses (defaults to false).')
     .option('--collections-repo-path <path>', 'Path to a local checkout of a collections repository (e.g., weval/configs) to resolve model collection placeholders.')
     .option('--require-executive-summary', 'Fail the entire run if executive summary generation fails (defaults to false).')
+    .option('--skip-executive-summary', 'Skip generating the executive summary for this run.')
     .option('--update-summaries', 'Update model summaries and homepage summary after the evaluation run (defaults to false).')
     .action(actionLocal);
 
@@ -938,6 +941,7 @@ const githubCommand = new Command('github')
     .option('--cache', 'Enable caching for model responses (defaults to false).')
     .option('--collections-repo-path <path>', 'Optional. Path to a local checkout of a collections repository to override the default behavior of fetching collections from GitHub.')
     .option('--require-executive-summary', 'Fail the entire run if executive summary generation fails (defaults to false).')
+    .option('--skip-executive-summary', 'Skip generating the executive summary for this run.')
     .option('--update-summaries', 'Update model summaries and homepage summary after the evaluation run (defaults to false).')
     .action(actionGitHub);
 

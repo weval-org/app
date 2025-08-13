@@ -113,6 +113,20 @@ export interface WevalPromptConfig {
     weight?: number;
 }
 
+// --- Tool-use (trace-only) types ---
+export interface ToolDefinition {
+    name: string;
+    description?: string;
+    schema?: any; // JSON Schema for arguments (optional but recommended)
+}
+
+export interface ToolUsePolicy {
+    enabled?: boolean; // default false
+    mode?: 'trace-only'; // reserved for future modes; currently only 'trace-only'
+    maxSteps?: number; // maximum allowed tool-call lines expected from model
+    outputFormat?: 'json-line'; // current protocol: TOOL_CALL {json}
+}
+
 export interface WevalConfig {
     configId?: string;
     configTitle?: string;
@@ -137,6 +151,11 @@ export interface WevalConfig {
             judges?: Judge[];
         }
     }
+    // Tool-use (trace-only) config
+    tools?: ToolDefinition[];
+    toolUse?: ToolUsePolicy;
+    // Optional static context for prompts (e.g., frozen corpus). Shape is user-defined.
+    context?: Record<string, unknown>;
 }
 
 export interface WevalResult {
@@ -280,4 +299,6 @@ export type ModelResponseDetail = {
     systemPromptUsed: string | null;
     hasError: boolean;
     errorMessage?: string;
+    // Trace-only tool calls extracted from assistant content
+    toolCalls?: { name: string; arguments: any }[];
 }; 

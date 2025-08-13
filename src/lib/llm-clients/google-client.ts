@@ -1,5 +1,4 @@
 import { LLMApiCallOptions, LLMApiCallResult, StreamChunk } from './types';
-import crypto from 'crypto';
 import { ConversationMessage } from '@/types/shared';
 
 const GOOGLE_API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -51,7 +50,7 @@ class GoogleClient {
     public async makeApiCall(options: LLMApiCallOptions): Promise<LLMApiCallResult> {
         // Extract modelName from modelId (format: "google:gemini-pro")
         const modelName = options.modelId.split(':')[1] || options.modelId;
-        const { messages, systemPrompt, temperature = 0.3, maxTokens = 1500, timeout = 30000 } = options;
+        const { messages, systemPrompt, temperature = 0.3, maxTokens = 1500, timeout = 30000, tools, toolMode } = options;
         const fetch = (await import('node-fetch')).default;
 
         // Convert messages to ConversationMessage type
@@ -60,13 +59,17 @@ class GoogleClient {
             content: m.content
         })) || [];
 
-        const body = JSON.stringify({
+        const bodyObj: any = {
             contents: toGoogleMessages(conversationMessages, systemPrompt),
             generationConfig: {
                 temperature,
                 maxOutputTokens: maxTokens,
             },
-        });
+        };
+        if (tools && (toolMode === 'native' || toolMode === 'auto')) {
+            bodyObj.tools = [{ functionDeclarations: tools.map(t => ({ name: t.name, description: t.description, parameters: t.schema || { type: 'object' } })) }];
+        }
+        const body = JSON.stringify(bodyObj);
 
         try {
             const controller = new AbortController();
@@ -87,7 +90,18 @@ class GoogleClient {
             }
 
             const jsonResponse = await response.json() as any;
-            const responseText = jsonResponse.candidates[0]?.content?.parts[0]?.text?.trim() ?? '';
+            // Gemini tool calls (functionCalls) → synthesize TOOL_CALL lines
+            let toolPrefix = '';
+            const candidates = jsonResponse?.candidates || [];
+            for (const cand of candidates) {
+                const parts = cand?.content?.parts || [];
+                for (const p of parts) {
+                    if (p?.functionCall?.name) {
+                        toolPrefix += `TOOL_CALL ${JSON.stringify({ name: p.functionCall.name, arguments: p.functionCall.args })}\n`;
+                    }
+                }
+            }
+            const responseText = (toolPrefix + (jsonResponse.candidates[0]?.content?.parts?.[0]?.text?.trim() ?? '')).trim();
             const result: LLMApiCallResult = { responseText };
 
             return result;

@@ -26,7 +26,7 @@ class AnthropicClient {
         // Extract modelName from modelId (format: "anthropic:claude-3-opus")
         const modelName = options.modelId.split(':')[1] || options.modelId;
         let { messages, systemPrompt } = options;
-        const { temperature = 0.3, maxTokens = 1500, timeout = 30000 } = options;
+        const { temperature = 0.3, maxTokens = 1500, timeout = 30000, tools, toolMode } = options;
         const fetch = (await import('node-fetch')).default;
 
         // If systemPrompt was not passed explicitly, pull it from the first `system` role message (Messages API compatibility).
@@ -40,7 +40,7 @@ class AnthropicClient {
         // Remove any system-role messages before sending.
         const filteredMessages = messages?.filter(m => m.role !== 'system') || [];
 
-        const bodyObj = {
+        const bodyObj: any = {
             model: modelName,
             system: systemPrompt,
             messages: filteredMessages,
@@ -48,6 +48,13 @@ class AnthropicClient {
             temperature,
             stream: false,
         };
+        if (tools && (toolMode === 'native' || toolMode === 'auto')) {
+            bodyObj.tools = tools.map(t => ({
+                name: t.name,
+                description: t.description,
+                input_schema: t.schema || { type: 'object', properties: {} }
+            }));
+        }
 
         const body = JSON.stringify(bodyObj);
 
@@ -70,7 +77,15 @@ class AnthropicClient {
             }
 
             const jsonResponse = await response.json() as any;
-            const responseText = jsonResponse.content[0]?.text?.trim() ?? '';
+            // Anthropic tool use (if present) → synthesize TOOL_CALL lines
+            let toolPrefix = '';
+            const content = jsonResponse?.content || [];
+            for (const block of content) {
+                if (block?.type === 'tool_use' && block?.name) {
+                    toolPrefix += `TOOL_CALL ${JSON.stringify({ name: block.name, arguments: block.input })}\n`;
+                }
+            }
+            const responseText = (toolPrefix + (jsonResponse.content[0]?.text?.trim() ?? '')).trim();
             const result: LLMApiCallResult = { responseText };
 
             return result;

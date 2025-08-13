@@ -101,6 +101,19 @@ describe('generateAllResponses circuit breaker', () => {
     expect(result.size).toBe(15);
   });
 
+  it('extracts tool call traces from assistant content', async () => {
+    const config = createConfig('trace-model', 1);
+    mockedGetModelResponse.mockResolvedValue(
+      'TOOL_CALL {"name":"calculator","arguments":{"expression":"(2+3)*4"}}\nThanks!'
+    );
+
+    const result = await generateAllResponses(config, mockLogger as any, false);
+    const resp = result.get('p1')?.modelResponses['trace-model[temp:0.7]'];
+    expect(resp?.toolCalls).toBeTruthy();
+    expect(resp?.toolCalls?.length).toBe(1);
+    expect(resp?.toolCalls?.[0]).toEqual({ name: 'calculator', arguments: { expression: '(2+3)*4' } });
+  });
+
   it('should handle multiple models independently', async () => {
     const config: ComparisonConfig = {
       id: 'test-config',

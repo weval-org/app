@@ -24,7 +24,7 @@ class MistralClient {
     public async makeApiCall(options: LLMApiCallOptions): Promise<LLMApiCallResult> {
         // Extract modelName from modelId (format: "mistral:mistral-large-latest")
         const modelName = options.modelId.split(':')[1] || options.modelId;
-        const { messages, systemPrompt, temperature = 0.3, maxTokens = 1500, timeout = 30000 } = options;
+        const { messages, systemPrompt, temperature = 0.3, maxTokens = 1500, timeout = 30000, tools, toolMode } = options;
         const fetch = (await import('node-fetch')).default;
 
         // Mistral follows the OpenAI format closely, so we can reuse that logic.
@@ -33,13 +33,18 @@ class MistralClient {
             apiMessages.unshift({ role: 'system', content: systemPrompt });
         }
 
-        const body = JSON.stringify({
+        const bodyObj: any = {
             model: modelName,
             messages: apiMessages,
             max_tokens: maxTokens,
             temperature,
             stream: false,
-        });
+        };
+        // Mistral follows OpenAI-style tool calling for chat (if supported)
+        if (tools && (toolMode === 'native' || toolMode === 'auto')) {
+            bodyObj.tools = tools.map(t => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.schema || {} } }));
+        }
+        const body = JSON.stringify(bodyObj);
 
         try {
             const controller = new AbortController();
@@ -60,7 +65,19 @@ class MistralClient {
             }
 
             const jsonResponse = await response.json() as any;
-            const responseText = jsonResponse.choices[0]?.message?.content?.trim() ?? '';
+            let toolPrefix = '';
+            const toolCalls = jsonResponse.choices?.[0]?.message?.tool_calls;
+            if (Array.isArray(toolCalls)) {
+                for (const tc of toolCalls) {
+                    const fn = tc?.function;
+                    if (fn?.name) {
+                        let argsObj: any = undefined;
+                        try { argsObj = fn.arguments ? JSON.parse(fn.arguments) : undefined; } catch { argsObj = fn.arguments; }
+                        toolPrefix += `TOOL_CALL ${JSON.stringify({ name: fn.name, arguments: argsObj })}\n`;
+                    }
+                }
+            }
+            const responseText = (toolPrefix + (jsonResponse.choices[0]?.message?.content?.trim() ?? '')).trim();
             const result: LLMApiCallResult = { responseText };
 
             return result;

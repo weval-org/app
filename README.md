@@ -324,6 +324,54 @@ temperatures: [0.0, 0.5, 0.8]
 
 For full details on rubric syntax (`should` and `should_not` blocks), system prompt usage, and convenience aliases, please see the [Blueprint Format Documentation](docs/BLUEPRINT_FORMAT.md) and the [Points Documentation](docs/POINTS_DOCUMENTATION.md).
 
+### Experimental: Tool-use and tracing
+
+This project includes early, experimental support for evaluating and tracing model tool calls within blueprints. Expect breaking changes as we iterate.
+
+- What it is: point functions that check a model’s emitted tool calls in responses.
+- How tool calls are emitted: the current convention expects each call on its own line as plain text:
+  - `TOOL_CALL {"name":"<tool>","arguments":{...}}`
+- Declaring tools: to make tests fair, declare the available tools (names and argument shapes) in the prompt, typically in the `system` message, and show a minimal example of a valid call.
+- Available checks (examples):
+  - `$tool_called`: assert a tool name was invoked at least once
+  - `$tool_args_match`: assert that a call’s arguments contain specific key/values (deep subset match)
+  - `$tool_call_count_between`: assert that the number of calls is within a range
+  - `$tool_call_order`: assert relative ordering of calls
+
+Minimal example blueprint snippet:
+
+```yaml
+- id: retrieve-with-options
+  messages:
+    - system: |
+        Emit each tool call on its own line and nothing else:
+        TOOL_CALL {"name":"<tool>","arguments":{...}}
+
+        Available tools:
+        - retrieve(docId: string, options?: { snippet?: boolean, maxChars?: number })
+
+        Example:
+        TOOL_CALL {"name":"retrieve","arguments":{"docId":"123","options":{"snippet":true,"maxChars":80}}}
+    - user: |
+        Retrieve docId "41" and include snippet, limited to 120 chars.
+        Keep calls to at most 2.
+  should:
+    - $tool_called: "retrieve"
+    - $tool_args_match:
+        name: "retrieve"
+        where:
+          docId: "41"
+          options:
+            snippet: true
+            maxChars: 120
+    - $tool_call_count_between: [1, 2]
+```
+
+Important caveats:
+- Experimental status: emission format, parsing, and point-function semantics may change without notice.
+- Fairness: unless you clearly enumerate the available tools and their argument shapes, requiring a specific tool name can be unfair; either declare tools in the system message or relax the rubric.
+- Internals: parsing lives in `src/cli/utils/tool-trace.ts`; point functions live under `src/point-functions/`.
+
 ## Web Dashboard & Visualizations
 
 The Next.js dashboard reads data from the configured storage provider (local or cloud).
