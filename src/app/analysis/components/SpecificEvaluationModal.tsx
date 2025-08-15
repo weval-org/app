@@ -29,8 +29,8 @@ const SpecificEvaluationModal: React.FC = () => {
         modelEvaluationModal,
         closeModelEvaluationDetailModal,
         analysisStats,
-        fetchPromptResponses,
-        fetchEvaluationDetailsBatchForPrompt,
+        fetchModalResponse,
+        fetchEvaluationDetails,
         getCachedResponse,
         getCachedEvaluation,
         isLoadingResponse,
@@ -63,7 +63,7 @@ const SpecificEvaluationModal: React.FC = () => {
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
-    // Kick off batch loads when modal opens
+    // Kick off scoped loads when modal opens (only needed variants + IDEAL)
     useEffect(() => {
         if (!isOpen || !promptId || !modelId || !data) {
             // Reset when modal closes or identifiers are missing
@@ -72,10 +72,37 @@ const SpecificEvaluationModal: React.FC = () => {
         }
         if (hasRequestedBatchesRef.current) return;
         hasRequestedBatchesRef.current = true;
-        // Batch load: all responses for this prompt, and all detailed evaluations for this prompt
-        fetchPromptResponses(promptId).catch(() => {});
-        fetchEvaluationDetailsBatchForPrompt(promptId).catch(() => {});
-    }, [isOpen, promptId, modelId, data, fetchPromptResponses, fetchEvaluationDetailsBatchForPrompt]);
+        try {
+            const { effectiveModels, config } = data;
+            const clickedParsed = parseModelIdForDisplay(modelId);
+            const variantModelIds = (config.systems && config.systems.length > 1)
+                ? effectiveModels.filter(m => {
+                    const p = parseModelIdForDisplay(m);
+                    return p.baseId === clickedParsed.baseId && p.systemPromptIndex === clickedParsed.systemPromptIndex;
+                })
+                : effectiveModels.filter(m => parseModelIdForDisplay(m).baseId === clickedParsed.baseId);
+
+            const responsesToFetch = new Set<string>([...variantModelIds, IDEAL_MODEL_ID]);
+            const evalsToFetch = new Set<string>(variantModelIds);
+
+            const responsePromises: Array<Promise<any>> = [];
+            const evalPromises: Array<Promise<any>> = [];
+
+            responsesToFetch.forEach(mId => {
+                if (getCachedResponse(promptId, mId) === null) {
+                    responsePromises.push(fetchModalResponse(promptId, mId));
+                }
+            });
+            evalsToFetch.forEach(mId => {
+                if (!getCachedEvaluation(promptId, mId)) {
+                    evalPromises.push(fetchEvaluationDetails(promptId, mId));
+                }
+            });
+
+            // Fire in parallel; internal promise-level dedupe prevents duplicates
+            Promise.all([...responsePromises, ...evalPromises]).catch(() => {});
+        } catch {}
+    }, [isOpen, promptId, modelId, data, fetchModalResponse, fetchEvaluationDetails, getCachedResponse, getCachedEvaluation]);
 
     const toggleLogExpansion = (index: number) => {
         setExpandedLogs(prev => ({ ...prev, [index]: !prev[index] }));
