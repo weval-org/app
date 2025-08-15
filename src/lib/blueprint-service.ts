@@ -97,6 +97,85 @@ export async function fetchBlueprintContentByName(
 }
 
 /**
+ * Lists and fetches all blueprint files inside a given directory (relative to the `blueprints/` root)
+ * from the weval/configs GitHub repository.
+ *
+ * Example: dirName = "foo" or "audits/foo" will match files under
+ * blueprints/foo/** and blueprints/audits/foo/** with extensions yml|yaml|json.
+ */
+export async function fetchBlueprintsInDirectory(
+  dirName: string,
+  githubToken?: string,
+  logger: SimpleLogger = defaultLogger
+): Promise<Array<{ content: string; fileType: 'json' | 'yaml'; blueprintPath: string; commitSha: string | null }>> {
+  const apiHeaders: Record<string, string> = { 'Accept': 'application/vnd.github.v3+json' };
+  const rawContentHeaders: Record<string, string> = { ...GITHUB_RAW_CONTENT_HEADERS };
+
+  if (githubToken) {
+    apiHeaders['Authorization'] = `token ${githubToken}`;
+    rawContentHeaders['Authorization'] = `token ${githubToken}`;
+  }
+
+  // Fetch latest commit SHA for reference
+  const repoCommitsApiUrl = `https://api.github.com/repos/${BLUEPRINT_CONFIG_REPO_SLUG}/commits/main`;
+  let latestCommitSha: string | null = null;
+  try {
+    const commitResponse = await axios.get(repoCommitsApiUrl, { headers: apiHeaders });
+    latestCommitSha = commitResponse.data.sha;
+    if (latestCommitSha) {
+      logger.info(`[blueprint-service] Fetched latest commit SHA for ${BLUEPRINT_CONFIG_REPO_SLUG}@main: ${latestCommitSha}`);
+    }
+  } catch (commitError: any) {
+    logger.error(`[blueprint-service] Failed to fetch latest commit SHA: ${commitError.message}. Proceeding without it.`);
+  }
+
+  const treeApiUrl = `https://api.github.com/repos/${BLUEPRINT_CONFIG_REPO_SLUG}/git/trees/main?recursive=1`;
+  logger.info(`[blueprint-service] Fetching file tree from: ${treeApiUrl}`);
+
+  try {
+    const treeResponse = await axios.get(treeApiUrl, { headers: apiHeaders });
+    const blueprintFiles = treeResponse.data.tree.filter(
+      (node: any) => node.type === 'blob' && node.path.startsWith('blueprints/')
+    );
+
+    const dirPrefix = `blueprints/${dirName.replace(/^\/+|\/+$/g, '')}/`;
+    const extensions = ['yml', 'yaml', 'json'];
+
+    const matchedFiles: any[] = blueprintFiles.filter((node: any) => {
+      if (!node.path.startsWith(dirPrefix)) return false;
+      const lower = node.path.toLowerCase();
+      return extensions.some(ext => lower.endsWith(`.${ext}`));
+    });
+
+    if (matchedFiles.length === 0) {
+      logger.warn(`[blueprint-service] No blueprint files found under directory '${dirName}'.`);
+      return [];
+    }
+
+    const results: Array<{ content: string; fileType: 'json' | 'yaml'; blueprintPath: string; commitSha: string | null }> = [];
+
+    for (const fileNode of matchedFiles) {
+      logger.info(`[blueprint-service] Fetching blueprint content from: ${fileNode.path}`);
+      const response = await axios.get(fileNode.url, { headers: rawContentHeaders });
+      if (response.status === 200 && response.data) {
+        const content = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+        const fileType: 'json' | 'yaml' = fileNode.path.toLowerCase().endsWith('.json') ? 'json' : 'yaml';
+        const blueprintPath = fileNode.path.startsWith('blueprints/')
+          ? fileNode.path.substring('blueprints/'.length)
+          : fileNode.path;
+        results.push({ content, fileType, blueprintPath, commitSha: latestCommitSha });
+      }
+    }
+
+    logger.info(`[blueprint-service] Found ${results.length} blueprint(s) in directory '${dirName}'.`);
+    return results;
+  } catch (error: any) {
+    logger.error(`[blueprint-service] Error listing blueprints in directory '${dirName}': ${error.message}`);
+    return [];
+  }
+}
+
+/**
  * Fetches a model collection (a JSON array of model strings) from the weval/configs GitHub repository.
  * @param collectionName The name of the collection (e.g., "CORE"), which corresponds to a file like "CORE.json".
  * @param githubToken Optional GitHub token for authenticated requests.

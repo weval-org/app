@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
 interface ResponseData {
   promptId: string;
@@ -26,12 +26,19 @@ export function useLazyResponseData(configId: string, runLabel: string, timestam
   // Track per-prompt loads to avoid repeated network requests
   const [promptLoads, setPromptLoads] = useState<Set<string>>(new Set()); // in-flight
   const [promptLoaded, setPromptLoaded] = useState<Set<string>>(new Set()); // completed
+  const inflightPromptResponses = useRef<Map<string, Promise<Record<string, string> | null>>>(new Map());
 
   // Shared cache for detailed evaluation objects keyed by `${promptId}:${modelId}`
   const [evaluationCache, setEvaluationCache] = useState<Map<string, any>>(new Map());
   const [evaluationLoading, setEvaluationLoading] = useState<Set<string>>(new Set());
+  // Track in-flight detail loads per prompt+model to avoid duplicate requests
+  const [evaluationDetailLoading, setEvaluationDetailLoading] = useState<Set<string>>(new Set());
+  // Promise-level dedupe to avoid race where state isn't updated fast enough
+  const inflightEvaluationPromises = useRef<Map<string, Promise<any | null>>>(new Map());
+  const inflightModalResponsePromises = useRef<Map<string, Promise<string | null>>>(new Map());
   const [evalPromptLoads, setEvalPromptLoads] = useState<Set<string>>(new Set());
   const [evalPromptLoaded, setEvalPromptLoaded] = useState<Set<string>>(new Set());
+  const inflightEvalPromptBatch = useRef<Map<string, Promise<Record<string, any> | null>>>(new Map());
 
   const baseUrl = `/api/comparison/${encodeURIComponent(configId)}/${encodeURIComponent(runLabel)}/${encodeURIComponent(timestamp)}`;
 
@@ -46,40 +53,45 @@ export function useLazyResponseData(configId: string, runLabel: string, timestam
       return responseCache.get(cacheKey)!;
     }
 
-    // Prevent duplicate requests
-    if (loading.has(cacheKey)) {
-      return null;
-    }
+    // Promise-level dedupe
+    const existing = inflightModalResponsePromises.current.get(cacheKey);
+    if (existing) return existing;
 
     setLoading(prev => new Set([...prev, cacheKey]));
 
-    try {
-      const response = await fetch(
-        `${baseUrl}/modal-data/${encodeURIComponent(promptId)}/${encodeURIComponent(modelId)}`
-      );
+    const promise = (async (): Promise<string | null> => {
+      try {
+        const response = await fetch(
+          `${baseUrl}/modal-data/${encodeURIComponent(promptId)}/${encodeURIComponent(modelId)}`
+        );
 
-      if (!response.ok) {
-        console.error(`Failed to fetch modal response for ${promptId}/${modelId}:`, response.statusText);
+        if (!response.ok) {
+          console.error(`Failed to fetch modal response for ${promptId}/${modelId}:`, response.statusText);
+          return null;
+        }
+
+        const data: ResponseData = await response.json();
+        
+        // Cache the response
+        setResponseCache(prev => new Map(prev).set(cacheKey, data.response));
+        
+        return data.response;
+
+      } catch (error) {
+        console.error(`Error fetching modal response for ${promptId}/${modelId}:`, error);
         return null;
+      } finally {
+        setLoading(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(cacheKey);
+          return newSet;
+        });
+        inflightModalResponsePromises.current.delete(cacheKey);
       }
+    })();
 
-      const data: ResponseData = await response.json();
-      
-      // Cache the response
-      setResponseCache(prev => new Map(prev).set(cacheKey, data.response));
-      
-      return data.response;
-
-    } catch (error) {
-      console.error(`Error fetching modal response for ${promptId}/${modelId}:`, error);
-      return null;
-    } finally {
-      setLoading(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(cacheKey);
-        return newSet;
-      });
-    }
+    inflightModalResponsePromises.current.set(cacheKey, promise);
+    return promise;
   }, [baseUrl, responseCache, loading]);
 
   /**
@@ -131,35 +143,41 @@ export function useLazyResponseData(configId: string, runLabel: string, timestam
       });
       return Object.keys(snapshot).length ? snapshot : null;
     }
-    // Already in-flight?
-    if (promptLoads.has(promptId)) return null;
+    // Promise-level dedupe
+    const existing = inflightPromptResponses.current.get(promptId);
+    if (existing) return existing;
     setPromptLoads(prev => new Set([...prev, promptId]));
-    try {
-      const resp = await fetch(`${baseUrl}/prompt-responses/${encodeURIComponent(promptId)}`);
-      if (!resp.ok) {
-        console.error(`Failed to fetch prompt responses for ${promptId}:`, resp.statusText);
-        return null;
-      }
-      const data: PromptResponses = await resp.json();
-      setResponseCache(prev => {
-        const next = new Map(prev);
-        for (const modelId in data.responses) {
-          next.set(`${promptId}:${modelId}`, data.responses[modelId]);
+    const promise = (async (): Promise<Record<string, string> | null> => {
+      try {
+        const resp = await fetch(`${baseUrl}/prompt-responses/${encodeURIComponent(promptId)}`);
+        if (!resp.ok) {
+          console.error(`Failed to fetch prompt responses for ${promptId}:`, resp.statusText);
+          return null;
         }
-        return next;
-      });
-      setPromptLoaded(prev => new Set([...prev, promptId]));
-      return data.responses;
-    } catch (err) {
-      console.error(`Error fetching prompt responses for ${promptId}:`, err);
-      return null;
-    } finally {
-      setPromptLoads(prev => {
-        const next = new Set(prev);
-        next.delete(promptId);
-        return next;
-      });
-    }
+        const data: PromptResponses = await resp.json();
+        setResponseCache(prev => {
+          const next = new Map(prev);
+          for (const modelId in data.responses) {
+            next.set(`${promptId}:${modelId}`, data.responses[modelId]);
+          }
+          return next;
+        });
+        setPromptLoaded(prev => new Set([...prev, promptId]));
+        return data.responses;
+      } catch (err) {
+        console.error(`Error fetching prompt responses for ${promptId}:`, err);
+        return null;
+      } finally {
+        setPromptLoads(prev => {
+          const next = new Set(prev);
+          next.delete(promptId);
+          return next;
+        });
+        inflightPromptResponses.current.delete(promptId);
+      }
+    })();
+    inflightPromptResponses.current.set(promptId, promise);
+    return promise;
   }, [baseUrl, promptLoaded, promptLoads, responseCache]);
 
   /**
@@ -167,29 +185,47 @@ export function useLazyResponseData(configId: string, runLabel: string, timestam
    * This includes complete pointAssessments with keyPointText and individualJudgements.
    */
   const fetchEvaluationDetails = useCallback(async (promptId: string, modelId: string): Promise<any | null> => {
-    try {
-      const response = await fetch(
-        `${baseUrl}/evaluation-details/${encodeURIComponent(promptId)}/${encodeURIComponent(modelId)}`
-      );
+    const cacheKey = `${promptId}:${modelId}`;
+    // Serve from cache
+    const cached = evaluationCache.get(cacheKey);
+    if (cached) return cached;
+    // Promise-level dedupe
+    const existing = inflightEvaluationPromises.current.get(cacheKey);
+    if (existing) return existing;
+    setEvaluationDetailLoading(prev => new Set([...prev, cacheKey]));
+    const promise = (async (): Promise<any | null> => {
+      try {
+        const response = await fetch(
+          `${baseUrl}/evaluation-details/${encodeURIComponent(promptId)}/${encodeURIComponent(modelId)}`
+        );
 
-      if (!response.ok) {
-        console.error(`Failed to fetch evaluation details for ${promptId}/${modelId}:`, response.statusText);
+        if (!response.ok) {
+          console.error(`Failed to fetch evaluation details for ${promptId}/${modelId}:`, response.statusText);
+          return null;
+        }
+
+        const data = await response.json();
+        const result = data.evaluationResult;
+        if (result) {
+          setEvaluationCache(prev => new Map(prev).set(cacheKey, result));
+        }
+        return result;
+
+      } catch (error) {
+        console.error(`Error fetching evaluation details for ${promptId}/${modelId}:`, error);
         return null;
+      } finally {
+        setEvaluationDetailLoading(prev => {
+          const next = new Set(prev);
+          next.delete(cacheKey);
+          return next;
+        });
+        inflightEvaluationPromises.current.delete(cacheKey);
       }
-
-      const data = await response.json();
-      const result = data.evaluationResult;
-      if (result) {
-        const cacheKey = `${promptId}:${modelId}`;
-        setEvaluationCache(prev => new Map(prev).set(cacheKey, result));
-      }
-      return result;
-
-    } catch (error) {
-      console.error(`Error fetching evaluation details for ${promptId}/${modelId}:`, error);
-      return null;
-    }
-  }, [baseUrl]);
+    })();
+    inflightEvaluationPromises.current.set(cacheKey, promise);
+    return promise;
+  }, [baseUrl, evaluationCache, evaluationDetailLoading]);
 
   /**
    * Batch: Fetch evaluation details for ALL models for a given prompt
@@ -197,45 +233,52 @@ export function useLazyResponseData(configId: string, runLabel: string, timestam
   const fetchEvaluationDetailsBatchForPrompt = useCallback(async (promptId: string): Promise<Record<string, any> | null> => {
     // Return quickly if already loaded
     if (evalPromptLoaded.has(promptId)) return null;
-    if (evalPromptLoads.has(promptId)) return null;
+    // Promise-level dedupe
+    const existing = inflightEvalPromptBatch.current.get(promptId);
+    if (existing) return existing;
     const loadKey = `prompt:${promptId}`;
     setEvalPromptLoads(prev => new Set([...prev, promptId]));
     setEvaluationLoading(prev => new Set([...prev, loadKey]));
-    try {
-      const resp = await fetch(`${baseUrl}/evaluation-details-batch/${encodeURIComponent(promptId)}`);
-      if (!resp.ok) {
-        console.error('Failed to fetch batch evaluation details (prompt)', resp.statusText);
-        return null;
-      }
-      const batchData = await resp.json();
-      const evaluations = batchData.evaluations as Record<string, any> | undefined;
-      if (evaluations) {
-        setEvaluationCache(prev => {
-          const next = new Map(prev);
-          Object.entries(evaluations).forEach(([modelId, details]) => {
-            next.set(`${promptId}:${modelId}`, details);
+    const promise = (async (): Promise<Record<string, any> | null> => {
+      try {
+        const resp = await fetch(`${baseUrl}/evaluation-details-batch/${encodeURIComponent(promptId)}`);
+        if (!resp.ok) {
+          console.error('Failed to fetch batch evaluation details (prompt)', resp.statusText);
+          return null;
+        }
+        const batchData = await resp.json();
+        const evaluations = batchData.evaluations as Record<string, any> | undefined;
+        if (evaluations) {
+          setEvaluationCache(prev => {
+            const next = new Map(prev);
+            Object.entries(evaluations).forEach(([modelId, details]) => {
+              next.set(`${promptId}:${modelId}`, details);
+            });
+            return next;
           });
+          setEvalPromptLoaded(prev => new Set([...prev, promptId]));
+          return evaluations;
+        }
+        return null;
+      } catch (err) {
+        console.error('Error fetching batch evaluation details (prompt)', err);
+        return null;
+      } finally {
+        setEvalPromptLoads(prev => {
+          const next = new Set(prev);
+          next.delete(promptId);
           return next;
         });
-        setEvalPromptLoaded(prev => new Set([...prev, promptId]));
-        return evaluations;
+        setEvaluationLoading(prev => {
+          const next = new Set(prev);
+          next.delete(loadKey);
+          return next;
+        });
+        inflightEvalPromptBatch.current.delete(promptId);
       }
-      return null;
-    } catch (err) {
-      console.error('Error fetching batch evaluation details (prompt)', err);
-      return null;
-    } finally {
-      setEvalPromptLoads(prev => {
-        const next = new Set(prev);
-        next.delete(promptId);
-        return next;
-      });
-      setEvaluationLoading(prev => {
-        const next = new Set(prev);
-        next.delete(loadKey);
-        return next;
-      });
-    }
+    })();
+    inflightEvalPromptBatch.current.set(promptId, promise);
+    return promise;
   }, [baseUrl, evalPromptLoaded, evalPromptLoads]);
 
   /**

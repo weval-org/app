@@ -277,6 +277,32 @@ Notes:
 - Excludes the IDEAL model from peers.
 - “Coverage” is the rubric score; similarity is not included in NDeltas.
 
+### `generate-vibes-index`
+
+Precomputes a global "vibes" index so the `/vibes` page can instantly suggest models that feel like a chosen target while also factoring in coverage.
+
+What it aggregates (latest run per config):
+- Pairwise model similarity (base→base) from per-prompt cosine similarities of responses.
+- Per-model coverage (average hybrid score) across runs/configs.
+
+Usage:
+```bash
+pnpm cli generate-vibes-index
+# Options
+pnpm cli generate-vibes-index --dry-run --concurrency 8 -v
+```
+
+Output:
+- Saved to `live/models/vibes/index.json`
+
+API & UI:
+- API: `/api/vibes` → returns the saved JSON
+- UI: `/vibes` → select a target model and blend Similarity vs Coverage with a slider
+
+Notes:
+- Operates on base model IDs (variants collapsed via baseId parsing).
+- Excludes the IDEAL model from similarity.
+
 ## Blueprint File Structure
 
 Blueprints can be YAML (`.yml`, `.yaml`) or JSON (`.json`) files. They use a "multi-document" YAML structure, separating the main configuration from the list of prompts with a `---` divider for clarity.

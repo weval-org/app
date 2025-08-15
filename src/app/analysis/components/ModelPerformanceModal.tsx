@@ -41,8 +41,8 @@ const ModelPerformanceModal: React.FC = () => {
         openModelEvaluationDetailModal,
         promptTextsForMacroTable,
         analysisStats,
-        fetchPromptResponses,
-        fetchEvaluationDetailsBatchForPrompt,
+        fetchModalResponse,
+        fetchEvaluationDetails,
         getCachedResponse,
         getCachedEvaluation,
     } = useAnalysis();
@@ -66,16 +66,7 @@ const ModelPerformanceModal: React.FC = () => {
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
-    // Fetch data when prompt selection becomes known (defer heavy loads until needed)
-    useEffect(() => {
-        if (!isOpen || !data) return;
-        setIsLoadingModalData(true);
-        const selected = selectedPromptId;
-        Promise.all([
-            selected ? fetchPromptResponses(selected) : Promise.resolve(null),
-            selected ? fetchEvaluationDetailsBatchForPrompt(selected) : Promise.resolve(null),
-        ]).finally(() => setIsLoadingModalData(false));
-    }, [isOpen, data, selectedPromptId]);
+    // Fetching is defined after currentVariantModelId to satisfy linting rules
 
     const { modelVariants, initialVariantIndex } = useMemo(() => {
         if (!isOpen || !modelId || !data) return { modelVariants: [], initialVariantIndex: 0 };
@@ -201,13 +192,9 @@ const ModelPerformanceModal: React.FC = () => {
         });
     }, [promptPerformances]);
 
+    // Do not auto-select a prompt; wait for user click to avoid unnecessary fetching
     useEffect(() => {
-        if (sortedPrompts.length > 0) {
-            const currentSelectionExists = sortedPrompts.some(p => p.promptId === selectedPromptId);
-            if (!currentSelectionExists) {
-                setSelectedPromptId(sortedPrompts[0].promptId);
-            }
-        } else {
+        if (sortedPrompts.length === 0 && selectedPromptId !== null) {
             setSelectedPromptId(null);
         }
     }, [sortedPrompts, selectedPromptId]);
@@ -244,9 +231,19 @@ const ModelPerformanceModal: React.FC = () => {
         
         console.log('🎯 ModelPerformanceModal: Returning valid performance data');
         return { coverageResult, response };
-    }, [selectedPromptId, allCoverageScores, allFinalAssistantResponses, currentVariantModelId, getCachedResponse]);
+    }, [selectedPromptId, allCoverageScores, allFinalAssistantResponses, currentVariantModelId, getCachedResponse, isLoadingModalData]);
 
     const idealResponse = selectedPromptId && allFinalAssistantResponses ? allFinalAssistantResponses[selectedPromptId]?.[IDEAL_MODEL_ID] : null;
+
+    // Fetch data only when a prompt is selected (on-demand), scoped to the current model variant
+    useEffect(() => {
+        if (!isOpen || !data || !selectedPromptId || !currentVariantModelId) return;
+        setIsLoadingModalData(true);
+        Promise.all([
+            fetchModalResponse(selectedPromptId, currentVariantModelId),
+            fetchEvaluationDetails(selectedPromptId, currentVariantModelId),
+        ]).finally(() => setIsLoadingModalData(false));
+    }, [isOpen, data, selectedPromptId, currentVariantModelId, fetchModalResponse, fetchEvaluationDetails]);
 
     // Build temperature bundles for the selected system variant
     const tempVariants: TempVariantBundle[] = useMemo(() => {
@@ -345,7 +342,7 @@ const ModelPerformanceModal: React.FC = () => {
         };
 
         return [aggregateBundle, ...perTempBundles];
-    }, [selectedPromptId, data, allCoverageScores, allFinalAssistantResponses, currentVariantModelId, currentVariantPerformance]);
+    }, [selectedPromptId, data, allCoverageScores, allFinalAssistantResponses, currentVariantModelId, currentVariantPerformance, isLoadingModalData, getCachedEvaluation, getCachedResponse]);
 
     const { effectiveSystemPrompt, conversationContext } = useMemo(() => {
         if (!selectedPromptId || !config || !data?.promptContexts || !currentVariantModelId) return { effectiveSystemPrompt: null, conversationContext: null };

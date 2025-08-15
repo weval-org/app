@@ -35,6 +35,8 @@ import { migrateStorageLayoutCommand } from './commands/migrate-storage-layout';
 import { migrateResultFilesCommand } from './commands/migrate-result-files';
 import { debugConfigScoresCommand } from './commands/debug-config-scores';
 import { generateNDeltasCommand } from './commands/generate-ndeltas';
+import { generateVibesIndexCommand } from './commands/generate-vibes-index';
+import { generateCompassIndexCommand } from './commands/generate-compass-index';
 
 let isTerminating = false
 const cleanup = () => {
@@ -108,6 +110,8 @@ cli.addCommand(migrateStorageLayoutCommand);
 cli.addCommand(migrateResultFilesCommand);
 cli.addCommand(debugConfigScoresCommand);
 cli.addCommand(generateNDeltasCommand);
+cli.addCommand(generateVibesIndexCommand);
+cli.addCommand(generateCompassIndexCommand);
 
 cli.parseAsync(process.argv).catch(err => {
   console.error('CLI Error:', err); 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
@@ -26,6 +26,7 @@ const PromptPerformanceModal: React.FC = () => {
 
     const [responseCache, setResponseCache] = useState<Record<string, string>>({});
     const [isLoading, setIsLoading] = useState(false);
+    const isFetchingRef = useRef(false);
     const [isPromptDetailsExpanded, setIsPromptDetailsExpanded] = useState<boolean>(false);
 
     // Collapse temperature variants: keep only one entry per {baseId, systemPromptIndex}
@@ -61,12 +62,14 @@ const PromptPerformanceModal: React.FC = () => {
         } catch {}
     };
 
-    // Fetch data when modal opens
+    // Fetch data when modal opens (deduped; guard against StrictMode double-invoke)
     useEffect(() => {
         if (!isOpen || !promptId || !data) return;
+        if (isFetchingRef.current) return;
 
         const fetchData = async () => {
             setIsLoading(true);
+            isFetchingRef.current = true;
             try {
                 // Fetch prompt responses for all models
                 const responses = await fetchPromptResponses(promptId);
@@ -78,6 +81,7 @@ const PromptPerformanceModal: React.FC = () => {
                 await fetchEvaluationDetailsBatchForPrompt(promptId);
             } finally {
                 setIsLoading(false);
+                isFetchingRef.current = false;
             }
         };
 

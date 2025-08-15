@@ -136,19 +136,30 @@ export function calculateHeadlineStats(
   logger?: SimpleLogger,
 ): HeadlineStats {
   const testTaggedConfigs = new Set<string>();
+  const compassTaggedConfigs = new Set<string>();
   allConfigs.forEach((config) => {
-    if (config.tags && config.tags.includes('test')) {
+    const tags = config.tags || [];
+    if (tags.includes('test')) {
       testTaggedConfigs.add(config.id || config.configId);
+    }
+    if (tags.some(t => typeof t === 'string' && t.startsWith('_compass'))) {
+      compassTaggedConfigs.add(config.id || config.configId);
     }
   });
 
   if (testTaggedConfigs.size > 0) {
     console.log(`[calculateHeadlineStats] Found ${testTaggedConfigs.size} configs with "test" tag. Excluding them from calculations.`);
   }
+  if (compassTaggedConfigs.size > 0) {
+    console.log(`[calculateHeadlineStats] Found ${compassTaggedConfigs.size} configs with "_compass" tag. Excluding them from calculations.`);
+  }
 
-  const filteredConfigs = allConfigs.filter(
-    config => !(config.tags && config.tags.includes('test'))
-  );
+  const filteredConfigs = allConfigs.filter(config => {
+    const tags = config.tags || [];
+    const isTest = tags.includes('test');
+    const isCompass = tags.some(t => typeof t === 'string' && t.startsWith('_compass'));
+    return !(isTest || isCompass);
+  });
 
   if (filteredConfigs.length === 0) {
     console.log('[calculateHeadlineStats] No configs remaining after filtering out "test" tags. Returning null.');

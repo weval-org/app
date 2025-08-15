@@ -36,7 +36,8 @@ import {
 import { executeComparisonPipeline } from '../services/comparison-pipeline-service';
 import { generateConfigContentHash } from '../../lib/hash-utils';
 import { parseAndNormalizeBlueprint } from '../../lib/blueprint-parser';
-import { fetchBlueprintContentByName, resolveModelsInConfig } from '../../lib/blueprint-service';
+import { fetchBlueprintContentByName, fetchBlueprintsInDirectory, resolveModelsInConfig } from '../../lib/blueprint-service';
+import pLimit from '@/lib/pLimit';
 import { SimpleLogger } from '@/lib/blueprint-service';
 import { fromSafeTimestamp } from '@/lib/timestampUtils';
 import { ModelRunPerformance, ModelSummary } from '@/types/shared';
@@ -894,19 +895,38 @@ async function actionGitHub(options: { name?: string } & RunOptions) {
         const githubToken = process.env.GITHUB_TOKEN;
         const remoteConfig = await fetchBlueprintContentByName(blueprintName, githubToken, loggerInstance as SimpleLogger);
 
-        if (!remoteConfig) {
-            throw new Error(`Failed to load blueprint '${blueprintName}'. It was not found in the GitHub repository.`);
+        if (remoteConfig) {
+            const config = await loadAndValidateConfig({
+                configContent: remoteConfig.content,
+                blueprintPath: remoteConfig.blueprintPath,
+                fileType: remoteConfig.fileType,
+                collectionsRepoPath: options.collectionsRepoPath,
+                isRemote: true,
+            });
+            await runBlueprint(config, options, remoteConfig.commitSha, remoteConfig.blueprintPath);
+            return;
         }
 
-        const config = await loadAndValidateConfig({
-            configContent: remoteConfig.content,
-            blueprintPath: remoteConfig.blueprintPath,
-            fileType: remoteConfig.fileType,
-            collectionsRepoPath: options.collectionsRepoPath,
-            isRemote: true,
-        });
+        // If not found as a single file, try directory mode
+        loggerInstance.info(`Blueprint '${blueprintName}' not found as a single file. Checking if it's a directory...`);
+        const dirEntries = await fetchBlueprintsInDirectory(blueprintName, githubToken, loggerInstance as SimpleLogger);
+        if (!dirEntries || dirEntries.length === 0) {
+            throw new Error(`Failed to load blueprint '${blueprintName}'. Neither a file nor a directory with blueprints was found in the GitHub repository.`);
+        }
 
-        await runBlueprint(config, options, remoteConfig.commitSha, remoteConfig.blueprintPath);
+        loggerInstance.info(`Found ${dirEntries.length} blueprint file(s) under directory '${blueprintName}'. Running them with concurrency=5...`);
+        const limit = pLimit(5);
+        const tasks = dirEntries.map(entry => limit(async () => {
+            const cfg = await loadAndValidateConfig({
+                configContent: entry.content,
+                blueprintPath: entry.blueprintPath,
+                fileType: entry.fileType,
+                collectionsRepoPath: options.collectionsRepoPath,
+                isRemote: true,
+            });
+            await runBlueprint(cfg, options, entry.commitSha, entry.blueprintPath);
+        }));
+        await Promise.all(tasks);
     } catch (error: any) {
         // Enhanced error logging
         const chalk = (await import('chalk')).default;

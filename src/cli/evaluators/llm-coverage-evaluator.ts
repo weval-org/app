@@ -34,7 +34,8 @@ interface LLMCoverageEvaluationConfig {
 }
 
 export const DEFAULT_JUDGES: Judge[] = [
-    { id: 'prompt-aware-openai-gpt-4-1-mini', model: 'openai:gpt-4.1-mini', approach: 'prompt-aware' },
+    // We're fine with two for now.
+    // { id: 'prompt-aware-openai-gpt-4-1-mini', model: 'openai:gpt-4.1-mini', approach: 'prompt-aware' },
     { id: 'prompt-aware-gemini-2-5-flash', model: 'openrouter:google/gemini-2.5-flash', approach: 'prompt-aware' },
     { id: 'holistic-openai-gpt-4-1-mini', model: 'openai:gpt-4.1-mini', approach: 'holistic' }
 ];
