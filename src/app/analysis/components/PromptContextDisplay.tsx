@@ -52,9 +52,13 @@ const PromptContextDisplay: React.FC<PromptContextDisplayProps> = ({ promptConte
                 <div className="flex-1 pt-1">
                     <p className="text-sm font-bold text-muted-foreground/90 dark:text-slate-400 capitalize">{msg.role}</p>
                     <div className="prose prose-sm dark:prose-invert max-w-none text-foreground dark:text-slate-200 whitespace-pre-wrap pt-1">
-                        <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
-                            {msg.content}
-                        </ReactMarkdown>
+                        {msg.content === null ? (
+                            <span className="italic text-muted-foreground">[assistant: null — to be generated]</span>
+                        ) : (
+                            <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
+                                {msg.content}
+                            </ReactMarkdown>
+                        )}
                     </div>
                 </div>
             </div>

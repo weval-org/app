@@ -395,44 +395,39 @@ export class LLMCoverageEvaluator implements Evaluator {
         let pointwisePrompt: string;
 
         switch (approach) {
-            case 'prompt-aware':
+            case 'conversation-aware':
                 pointwisePrompt = `
-The user's original request was:
-<PROMPT>
-${promptContextText}
-</PROMPT>
+You are given a multi-turn conversation transcript and a criterion. Evaluate ONLY the content produced by the candidate model (marked as [Assistant (generated)]). Do not give credit for [Assistant (fixed)] turns.
 
-Given the following <TEXT> which was generated in response to the prompt:
+<TRANSCRIPT>
+${promptContextText}
+</TRANSCRIPT>
+
 <TEXT>
 ${modelResponseText}
 </TEXT>
 
-Carefully assess to what degree the following <CRITERION> is met in the text:
+Assess to what degree the following <CRITERION> is met by the generated assistant content:
 <CRITERION>
 ${keyPointText}
 </CRITERION>
 `;
                 break;
-            
+
+            case 'prompt-aware':
             case 'holistic':
                 pointwisePrompt = `
-The user's original request was:
-<PROMPT>
+You are given a multi-turn conversation transcript and a criterion. Evaluate ONLY the content produced by the candidate model (marked as [Assistant (generated)]). Do not give credit for [Assistant (fixed)] turns.
+
+<TRANSCRIPT>
 ${promptContextText}
-</PROMPT>
+</TRANSCRIPT>
 
-You are evaluating a response against a rubric of several criteria.
-For context only, the full list of criteria is:
-<CRITERIA_LIST>
-${allOtherKeyPoints.map(kp => `- ${kp}`).join('\n')}
-</CRITERIA_LIST>
-
-Given the following <TEXT> which was generated in response to the prompt:
 <TEXT>
 ${modelResponseText}
 </TEXT>
 
-Now, carefully assess how well THIS SPECIFIC <CRITERION> ONLY is expressed in the text:
+Carefully assess how well THIS SPECIFIC <CRITERION> is expressed in the generated assistant content:
 <CRITERION>
 ${keyPointText}
 </CRITERION>
@@ -442,12 +437,17 @@ ${keyPointText}
             case 'standard':
             default:
                  pointwisePrompt = `
-Given the following <TEXT>:
+You are given a multi-turn conversation transcript and a criterion. Evaluate ONLY the content produced by the candidate model (marked as [Assistant (generated)]). Do not give credit for [Assistant (fixed)] turns.
+
+<TRANSCRIPT>
+${promptContextText}
+</TRANSCRIPT>
+
 <TEXT>
 ${modelResponseText}
 </TEXT>
 
-Carefully assess how well the following <CRITERION> is expressed in the text:
+Carefully assess how well the following <CRITERION> is expressed in the generated assistant content:
 <CRITERION>
 ${keyPointText}
 </CRITERION>
@@ -575,12 +575,33 @@ Output: <reflection>The text mentions empathy, which means the criterion is MET 
 
     private getPromptContextString(promptData: EvaluationInput['promptData']): string {
         if (promptData.initialMessages && promptData.initialMessages.length > 0) {
-            return promptData.initialMessages.map(m => `${m.role}: ${m.content}`).join('\n--------------------\n');
+            return promptData.initialMessages.map(m => {
+                const roleLabel = m.role === 'assistant' && m.content === null ? 'assistant (placeholder-null)' : m.role;
+                return `${roleLabel}: ${m.content === null ? '<TO_BE_GENERATED>' : m.content}`;
+            }).join('\n--------------------\n');
         } else if (promptData.promptText) {
             return promptData.promptText;
         }
         this.logger.warn(`[LLMCoverageEvaluator] Could not derive prompt context string for prompt ID ${promptData.promptId}`);
         return "Error: No prompt context found.";
+    }
+
+    private getTranscriptForModel(promptData: EvaluationInput['promptData'], modelId: string): string {
+        const response = promptData.modelResponses[modelId];
+        if (!response || !response.fullConversationHistory || response.fullConversationHistory.length === 0) {
+            return this.getPromptContextString(promptData);
+        }
+        // Build labels for assistant generated turns
+        const generatedSet = new Set<number>((response as any).generatedAssistantIndices || []);
+        let assistantTurnCounter = 0;
+        return response.fullConversationHistory.map(m => {
+            if (m.role === 'assistant') {
+                const label = generatedSet.has(assistantTurnCounter) ? 'assistant (generated)' : 'assistant (fixed)';
+                assistantTurnCounter++;
+                return `${label}: ${m.content}`;
+            }
+            return `${m.role}: ${m.content}`;
+        }).join('\n--------------------\n');
     }
 
     async evaluate(
@@ -663,19 +684,28 @@ Output: <reflection>The text mentions empathy, which means the criterion is MET 
                         
                         const context: PointFunctionContext = { config, prompt: promptConfig, modelId, logger: this.logger };
 
+                        // Build aggregated subject text: concat all generated assistant turns; fallback to final-only
+                        let subjectText = responseData.finalAssistantResponseText;
+                        const genList = (responseData as any).generatedAssistantTexts as string[] | undefined;
+                        if (Array.isArray(genList) && genList.length > 0) {
+                            subjectText = genList.join('\n\n');
+                        }
+
                         // 1. Evaluate function points using our new helper
-                        const functionAssessments = await evaluateFunctionPoints(functionPoints, responseData.finalAssistantResponseText, context);
+                        const functionAssessments = await evaluateFunctionPoints(functionPoints, subjectText, context);
 
                         // 2. Evaluate text points (LLM-judged)
                         const textAssessments: PointAssessment[] = [];
                         if (textPoints.length > 0) {
                             const promptContextString = this.getPromptContextString(promptData);
                             for (const point of textPoints) {
+                                // Always provide full transcript with markers to all judges
+                                const transcriptForModel = this.getTranscriptForModel(promptData, modelId);
                                 const judgeResult = await this.evaluateSinglePoint(
-                                    responseData.finalAssistantResponseText,
+                                    subjectText,
                                     point,
                                     textPoints,
-                                    promptContextString,
+                                    transcriptForModel,
                                     config.description,
                                     llmCoverageConfig?.judges,
                                     llmCoverageConfig?.judgeMode

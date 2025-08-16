@@ -170,8 +170,8 @@ function formatConversation(messages: ConversationMessage[] | string): string {
     }
     if (Array.isArray(messages)) {
         return messages.map(m => {
-            // Only escape assistant-generated content to prevent breaking markdown.
-            const content = m.role === 'assistant' ? escapeMarkdown(m.content) : m.content;
+            const raw = m.content === null ? '[assistant: null — to be generated]' : m.content;
+            const content = m.role === 'assistant' ? escapeMarkdown(raw) : raw;
             return `**${m.role.charAt(0).toUpperCase() + m.role.slice(1)}:**\n\n> ${content.replace(/\n/g, '\n> ')}`;
         }).join('\n\n---\n\n');
     }

@@ -9,6 +9,10 @@ export interface TempVariantBundle {
   temperature: number | null; // null for aggregate
   assessments: PointAssessment[];
   modelResponse: string;
+  // Optional aggregated transcript of generated assistant turns for this variant/temp
+  generatedTranscript?: string;
+  // Optional structured history for nicer rendering
+  generatedHistory?: any[];
 }
 
 interface TemperatureTabbedEvaluationProps {
@@ -70,6 +74,8 @@ const TemperatureTabbedEvaluation: React.FC<TemperatureTabbedEvaluationProps> = 
         expandedLogs={expandedLogs}
         toggleLogExpansion={toggleLogExpansion}
         isMobile={isMobile}
+        generatedTranscript={activeBundle.generatedTranscript}
+        generatedHistory={activeBundle.generatedHistory as any}
       />
     </>
   );

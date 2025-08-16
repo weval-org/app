@@ -114,7 +114,7 @@ export function PromptCard({ prompt, onUpdate, onRemove, onDuplicate, isEditable
 
   const getPromptText = () => {
     if (!prompt.messages || prompt.messages.length === 0) return '';
-    return prompt.messages[0].content;
+    return prompt.messages[0].content ?? '';
   };
 
   const handlePromptTextChange = (newText: string) => {
@@ -271,7 +271,7 @@ export function PromptCard({ prompt, onUpdate, onRemove, onDuplicate, isEditable
                           {prompt.messages.map((message, index) => (
                               <div key={index} className="flex flex-col">
                                   <span className="text-xs font-semibold capitalize text-muted-foreground">{message.role}</span>
-                                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                                  <p className="text-sm whitespace-pre-wrap">{message.content ?? '[assistant: null — to be generated]'}</p>
                               </div>
                           ))}
                           <p className="text-xs text-center text-muted-foreground pt-2">Multi-turn prompts are currently read-only in the form view.</p>

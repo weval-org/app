@@ -13,6 +13,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import Icon from '@/components/ui/icon';
 import { usePreloadIcons } from '@/components/ui/use-preload-icons';
 import ReactMarkdown from 'react-markdown';
+import { ConversationMessage } from '@/types/shared';
 import RemarkGfmPlugin from 'remark-gfm';
 
 const getScoreColor = (score?: number): string => {
@@ -188,7 +189,11 @@ export const EvaluationView: React.FC<{
     expandedLogs: Record<number, boolean>;
     toggleLogExpansion: (index: number) => void;
     isMobile?: boolean;
-}> = ({ assessments, modelResponse, idealResponse, expandedLogs, toggleLogExpansion, isMobile = false }) => {
+    // Optional: aggregated transcript of generated turns
+    generatedTranscript?: string;
+    // Optional: structured generated history for nicer rendering
+    generatedHistory?: ConversationMessage[];
+}> = ({ assessments, modelResponse, idealResponse, expandedLogs, toggleLogExpansion, isMobile = false, generatedTranscript, generatedHistory }) => {
     const [expandedAssessments, setExpandedAssessments] = useState<Set<number>>(new Set());
     const [activeTab, setActiveTab] = useState('model-response');
 
@@ -317,16 +322,40 @@ export const EvaluationView: React.FC<{
                 <div className="bg-muted/20 border border-border/50 rounded-lg p-3">
                     <Tabs value={activeTab} onValueChange={setActiveTab}>
                         <TabsList className="grid w-full grid-cols-2 h-9">
-                            <TabsTrigger value="model-response">Model Response</TabsTrigger>
+                            <TabsTrigger value="model-response">Model Output</TabsTrigger>
                             <TabsTrigger value="ideal-response" disabled={!idealResponse}>Ideal</TabsTrigger>
                         </TabsList>
                         <TabsContent value="model-response" className="pt-3">
-                            {modelResponse ? (
+                            {generatedHistory && generatedHistory.length ? (
+                                <div className="space-y-3 max-h-[50vh] overflow-y-auto custom-scrollbar pr-2">
+                                    {generatedHistory.map((msg, idx) => (
+                                        <div key={idx} className={cn(
+                                            'rounded-md p-3 border',
+                                            msg.role === 'user' ? 'bg-sky-50 dark:bg-sky-900/20 border-sky-200 dark:border-sky-800/40' :
+                                            msg.role === 'assistant' ? 'bg-slate-50 dark:bg-slate-900/30 border-slate-200 dark:border-slate-700/40' :
+                                            'bg-gray-50 dark:bg-gray-900/20 border-gray-200 dark:border-gray-700/40'
+                                        )}>
+                                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">{msg.role}</p>
+                                            {msg.content === null ? (
+                                                <p className="italic text-muted-foreground">[assistant: null — to be generated]</p>
+                                            ) : (
+                                                <div className="prose prose-sm dark:prose-invert max-w-none">
+                                                    <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{msg.content}</ReactMarkdown>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : modelResponse ? (
                                 <div className="prose prose-sm dark:prose-invert max-w-none">
                                     <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{modelResponse}</ReactMarkdown>
                                 </div>
+                            ) : generatedTranscript ? (
+                                <div className="prose prose-sm dark:prose-invert max-w-none">
+                                    <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{generatedTranscript}</ReactMarkdown>
+                                </div>
                             ) : (
-                                <p className="italic text-muted-foreground">No response text available.</p>
+                                <p className="italic text-muted-foreground">No intermediary turns available.</p>
                             )}
                         </TabsContent>
                         <TabsContent value="ideal-response" className="pt-3">
@@ -377,16 +406,40 @@ export const EvaluationView: React.FC<{
             <div className="flex flex-1 flex-col rounded-lg border border-border/50 bg-muted/20 p-3 lg:w-2/5 min-h-0">
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 min-h-0 flex flex-col">
                     <TabsList className="grid w-full grid-cols-2 h-9 mb-1.5 flex-shrink-0">
-                        <TabsTrigger value="model-response">Model Response</TabsTrigger>
+                        <TabsTrigger value="model-response">Model Output</TabsTrigger>
                         <TabsTrigger value="ideal-response" disabled={!idealResponse}>Ideal</TabsTrigger>
                     </TabsList>
                     <TabsContent value="model-response" className="flex-grow overflow-y-auto custom-scrollbar pr-2">
-                        {modelResponse ? (
+                        {generatedHistory && generatedHistory.length ? (
+                            <div className="space-y-3">
+                                {generatedHistory.map((msg, idx) => (
+                                    <div key={idx} className={cn(
+                                        'rounded-md p-3 border',
+                                        msg.role === 'user' ? 'bg-sky-50 dark:bg-sky-900/20 border-sky-200 dark:border-sky-800/40' :
+                                        msg.role === 'assistant' ? 'bg-slate-50 dark:bg-slate-900/30 border-slate-200 dark:border-slate-700/40' :
+                                        'bg-gray-50 dark:bg-gray-900/20 border-gray-200 dark:border-gray-700/40'
+                                    )}>
+                                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">{msg.role}</p>
+                                        {msg.content === null ? (
+                                            <p className="italic text-muted-foreground">[assistant: null — to be generated]</p>
+                                        ) : (
+                                            <div className="prose prose-sm dark:prose-invert max-w-none">
+                                                <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{msg.content}</ReactMarkdown>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        ) : modelResponse ? (
                             <div className="prose prose-sm dark:prose-invert max-w-none">
                                 <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{modelResponse}</ReactMarkdown>
                             </div>
+                        ) : generatedTranscript ? (
+                            <div className="prose prose-sm dark:prose-invert max-w-none">
+                                <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{generatedTranscript}</ReactMarkdown>
+                            </div>
                         ) : (
-                            <p className="italic text-muted-foreground">No response text available.</p>
+                            <p className="italic text-muted-foreground">No intermediary turns available.</p>
                         )}
                     </TabsContent>
                     <TabsContent value="ideal-response" className="flex-grow overflow-y-auto custom-scrollbar pr-2">

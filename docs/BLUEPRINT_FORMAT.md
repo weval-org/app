@@ -328,6 +328,42 @@ You can also use a more compact format where the role is the key. `ai` is also s
 messages:
   - user: 'Tell me about the Roman Empire.'
   - assistant: 'The Roman Empire was one of the most powerful economic, cultural, and military forces in the world.'
+  # You can also leave an assistant turn as null to generate it during the run:
+  - assistant: null
+  - user: 'And then what happened?'
+
+## Sequential multi-turn with assistant: null (generated turns)
+
+You can model realistic, multi-turn conversations and have the candidate model generate one or more assistant turns during execution by placing `assistant: null` in the `messages` array. The pipeline will:
+
+- Generate a response at each `assistant: null`, append it to the working history, and continue.
+- If the final message is a user message, implicitly generate a final assistant turn (as if there were a trailing `assistant: null`).
+- Use the concatenation of all generated assistant turns as the subject text for evaluation (function checks and LLM-judged points).
+- Save the full conversation history (original messages plus generated turns) for each prompt×model.
+
+Example:
+
+```yaml
+- id: clarify-taxes
+  description: The assistant should ask clarifying questions before offering guidance. We evaluate over the aggregated generated content across turns.
+  messages:
+    - user: I need help with my taxes.
+    - assistant: null          # model generates turn 1
+    - user: I changed jobs mid-year and moved states.
+    - assistant: null          # model generates turn 2
+    - user: Anything else I should consider?  # implicit final assistant generation
+  should:
+    - Asks at least one clarifying question before giving suggestions.
+    - $word_count_between: [30, 500]
+  should_not:
+    - $matches: "(?i)not a (financial|tax) advisor" # example negative check
+```
+
+Notes and guarantees:
+
+- Validation allows `assistant: null`. All other roles must have non-empty string content.
+- If the last authored assistant message is a string (non-null), that message may be used as the final output if no generation is needed at the end.
+- Judges always receive the full transcript with clear markers; UI shows authored nulls as “assistant: null — to be generated” and displays the generated thread where available.
   - user: 'What was its capital?'
 ```
 

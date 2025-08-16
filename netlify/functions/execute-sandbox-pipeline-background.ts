@@ -214,13 +214,31 @@ export const handler: BackgroundHandler = async (event) => {
         logger
     );
 
+    const comparisonJson = JSON.stringify(finalOutput, null, 2);
+    // 1) Save under sandbox/runs for sandbox UI
     const resultKey = `${directory}/runs/${runId}/_comparison.json`;
     await s3Client.send(new PutObjectCommand({
         Bucket: process.env.APP_S3_BUCKET_NAME!,
         Key: resultKey,
-        Body: JSON.stringify(finalOutput, null, 2),
+        Body: comparisonJson,
         ContentType: 'application/json',
     }));
+    // 2) Also save a legacy monolithic file under live/blueprints so standard /api/comparison endpoints work in sandbox views
+    try {
+        const legacyConfigId = `sandbox-${runId}`;
+        const legacyRunLabel = 'sandbox-run';
+        const legacyTimestamp = finalOutput.timestamp; // already safe format
+        const legacyKey = `live/blueprints/${legacyConfigId}/${legacyRunLabel}_${legacyTimestamp}_comparison.json`;
+        await s3Client.send(new PutObjectCommand({
+            Bucket: process.env.APP_S3_BUCKET_NAME!,
+            Key: legacyKey,
+            Body: comparisonJson,
+            ContentType: 'application/json',
+        }));
+        logger.info(`[Sandbox Pipeline] Also wrote legacy comparison file for API compatibility: ${legacyKey}`);
+    } catch (err: any) {
+        logger.warn(`[Sandbox Pipeline] Failed to write legacy comparison file for API compatibility: ${err.message}`);
+    }
 
     const resultUrl = `/sandbox/results/${runId}`;
     await updateStatus('complete', 'Run finished!', { resultUrl });
@@ -242,6 +260,7 @@ async function aggregateSandboxResult(
     const promptIds = Array.from(allResponsesMap.keys());
     const effectiveModelsSet = new Set<string>();
     const allFinalAssistantResponses: Record<string, Record<string, string>> = {};
+    const fullConversationHistories: Record<string, Record<string, ConversationMessage[]>> = {};
     const promptContexts: Record<string, string | ConversationMessage[]> = {};
     const hasAnyIdeal = config.prompts.some(p => p.idealResponse);
 
@@ -268,6 +287,7 @@ async function aggregateSandboxResult(
 
     for (const [promptId, promptData] of allResponsesMap.entries()) {
         allFinalAssistantResponses[promptId] = {};
+        fullConversationHistories[promptId] = {};
         promptContexts[promptId] = promptData.initialMessages || [];
         if (promptData.idealResponseText) {
             allFinalAssistantResponses[promptId][IDEAL_MODEL_ID] = promptData.idealResponseText;
@@ -275,6 +295,9 @@ async function aggregateSandboxResult(
         for (const [effectiveModelId, responseData] of Object.entries(promptData.modelResponses)) {
             effectiveModelsSet.add(effectiveModelId);
             allFinalAssistantResponses[promptId][effectiveModelId] = responseData.finalAssistantResponseText;
+            if (Array.isArray(responseData.fullConversationHistory) && responseData.fullConversationHistory.length > 0) {
+                fullConversationHistories[promptId][effectiveModelId] = responseData.fullConversationHistory;
+            }
         }
     }
      if (hasAnyIdeal) {
@@ -290,6 +313,7 @@ async function aggregateSandboxResult(
         promptIds: promptIds.sort(),
         promptContexts, 
         allFinalAssistantResponses,
+        fullConversationHistories,
         evaluationResults: {
             similarityMatrix: evaluationResults.similarityMatrix,
             perPromptSimilarities: evaluationResults.perPromptSimilarities,

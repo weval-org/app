@@ -8,6 +8,7 @@ import MacroCoverageTable from './MacroCoverageTable';
 import DatasetStatistics from './DatasetStatistics';
 import DendrogramChart from './DendrogramChart';
 import SystemPromptsDisplay from './SystemPromptsDisplay';
+import PromptContextDisplay from './PromptContextDisplay';
 import {
     Tabs,
     TabsList,
@@ -46,12 +47,7 @@ const RenderPromptDetails: React.FC<{ promptId: string }> = ({ promptId }) => {
                     <>
                         <p className="text-xs font-semibold text-muted-foreground mt-4">Conversation:</p>
                         <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar p-1 rounded bg-muted/30 dark:bg-muted/20">
-                            {context.map((msg, index) => (
-                                <div key={index} className={`p-2 rounded-md ${msg.role === 'user' ? 'bg-sky-100 dark:bg-sky-900/50' : 'bg-muted dark:bg-muted/50'}`}>
-                                    <p className="text-xs font-semibold text-muted-foreground dark:text-muted-foreground capitalize">{msg.role}</p>
-                                    <p className="text-sm text-card-foreground dark:text-card-foreground whitespace-pre-wrap">{msg.content}</p>
-                                </div>
-                            ))}
+                            <PromptContextDisplay promptContext={context} />
                         </div>
                     </>
                 );

@@ -6,7 +6,7 @@ import { CustomModelDefinition } from "../lib/llm-clients/types";
 
 export interface ConversationMessage {
     role: 'user' | 'assistant' | 'system' | 'function' | 'tool';
-    content: string;
+    content: string | null;
 }
 
 // Corresponds to the detailed evaluation for a single rubric item.
@@ -236,7 +236,7 @@ export interface ExecutiveSummary {
 export interface Judge {
     id?: string; // Optional identifier for a specific judge configuration
     model: string;
-    approach: 'standard' | 'prompt-aware' | 'holistic';
+    approach: 'standard' | 'prompt-aware' | 'holistic' | 'conversation-aware';
 }
 
 // Public config type for llm-coverage evaluation (shared)
@@ -301,4 +301,7 @@ export type ModelResponseDetail = {
     errorMessage?: string;
     // Trace-only tool calls extracted from assistant content
     toolCalls?: { name: string; arguments: any }[];
+    // Sequential generation metadata (when assistant:null placeholders are used)
+    generatedAssistantIndices?: number[];
+    generatedAssistantTexts?: string[];
 }; 

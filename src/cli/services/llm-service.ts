@@ -69,7 +69,7 @@ export async function getModelResponse(params: GetModelResponseParams): Promise<
 
     const requestPayload: LLMApiCallOptions = {
         modelId,
-        messages: finalMessages,
+        messages: finalMessages?.map(m => ({ role: m.role, content: m.content ?? '' })),
         systemPrompt,
         temperature,
         maxTokens,

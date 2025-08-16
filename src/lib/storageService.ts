@@ -544,6 +544,26 @@ export async function getPromptResponses(configId: string, runLabel: string, tim
   return null;
 }
 
+/**
+ * Fetch full conversation history for a specific prompt+model if history artefact exists.
+ * Returns an array of ConversationMessage or null if not found.
+ */
+export async function getConversationHistory(
+  configId: string,
+  runLabel: string,
+  timestamp: string,
+  promptId: string,
+  modelId: string
+): Promise<any[] | null> {
+  const runBase = `${runLabel}_${timestamp}`;
+  // Match the same safe model id logic used when writing artefacts
+  const safeModel = getSafeModelId(modelId);
+  const relative = path.join('histories', promptId, `${safeModel}.json`);
+  const artefact = await readJsonFromStorage(configId, runBase, relative);
+  if (artefact && Array.isArray(artefact.history)) return artefact.history;
+  return null;
+}
+
 // ----------------------
 // Existence checker (used by migration tool)
 // ----------------------
@@ -752,6 +772,20 @@ export async function saveResult(configId: string, fileNameWithTimestamp: string
         artefactWrites.push(
           limit(() => writeJsonArtefact(path.join('coverage', pid, `${getSafeModelId(mid)}.json`), coverage[pid][mid]))
         );
+      }
+    }
+
+    // Full conversation histories per prompt/model (if present)
+    if (data.fullConversationHistories) {
+      for (const pid of Object.keys(data.fullConversationHistories)) {
+        for (const mid of Object.keys(data.fullConversationHistories[pid])) {
+          const history = data.fullConversationHistories[pid][mid];
+          if (Array.isArray(history) && history.length > 0) {
+            artefactWrites.push(
+              limit(() => writeJsonArtefact(path.join('histories', pid, `${getSafeModelId(mid)}.json`), { history }))
+            );
+          }
+        }
       }
     }
 

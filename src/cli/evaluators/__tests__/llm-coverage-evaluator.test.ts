@@ -93,10 +93,10 @@ describe('LLMCoverageEvaluator', () => {
             prompts: [promptConfig],
         };
         const modelResponses: { [modelId: string]: ModelResponseDetail } = {};
-        modelResponses['model1'] = { finalAssistantResponseText: modelResponseText, hasError: false, fullConversationHistory: [], systemPromptUsed: null };
+        modelResponses['model1'] = { finalAssistantResponseText: modelResponseText, hasError: false, fullConversationHistory: [...messages, { role: 'assistant', content: modelResponseText }], systemPromptUsed: null } as any;
 
         if (idealResponseText) {
-             modelResponses[IDEAL_MODEL_ID] = { finalAssistantResponseText: idealResponseText, hasError: false, fullConversationHistory: [], systemPromptUsed: null };
+             modelResponses[IDEAL_MODEL_ID] = { finalAssistantResponseText: idealResponseText, hasError: false, fullConversationHistory: [], systemPromptUsed: null } as any;
         }
 
         const promptData: PromptResponseData = {
@@ -117,6 +117,27 @@ describe('LLMCoverageEvaluator', () => {
 
     beforeEach(() => {
         requestIndividualJudgeSpy = jest.spyOn(LLMCoverageEvaluator.prototype as any, 'requestIndividualJudge');
+    });
+
+    it('supports conversation-aware judge using full transcript markers', async () => {
+        const points: PointDefinition[] = ['mentions greeting'];
+        const input = createMockEvaluationInput('prompt-convo-aware', points, 'Hi!');
+        const customJudges: Judge[] = [
+            { model: 'judge:conv', approach: 'conversation-aware' },
+        ];
+        (input.config as any).evaluationConfig = { 'llm-coverage': { judges: customJudges } };
+
+        requestIndividualJudgeSpy.mockImplementation(async (mrt, kpt, allKPs, promptContextText, suiteDesc, judge) => {
+            expect(judge.approach).toBe('conversation-aware');
+            expect(promptContextText).toContain('assistant');
+            return { coverage_extent: 1.0, reflection: 'good' };
+        });
+
+        const result = await evaluator.evaluate([input]);
+        const model1Result = result.llmCoverageScores?.['prompt-convo-aware']?.['model1'];
+        expect(model1Result).toBeDefined();
+        if (!model1Result || 'error' in model1Result) throw new Error('unexpected');
+        expect(model1Result.pointAssessments?.[0]?.coverageExtent).toBe(1.0);
     });
 
     afterEach(() => {

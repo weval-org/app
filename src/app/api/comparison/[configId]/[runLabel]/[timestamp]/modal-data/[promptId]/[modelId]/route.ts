@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPromptResponses, getResultByFileName } from '@/lib/storageService';
+import { getPromptResponses, getResultByFileName, getCoreResult, getConversationHistory } from '@/lib/storageService';
 import { ComparisonDataV2 } from '@/app/utils/types';
 
 /**
@@ -44,10 +44,19 @@ export async function GET(
       );
     }
 
+    // Try to fetch detailed conversation history if available for richer UI
+    let history: any[] | undefined = undefined;
+    try {
+      await getCoreResult(configId, runLabel, timestamp); // warm cache / validate
+      const h = await getConversationHistory(configId, runLabel, timestamp, decodedPromptId, decodedModelId);
+      if (h && Array.isArray(h)) history = h;
+    } catch {}
+
     const res = NextResponse.json({
       promptId: decodedPromptId,
       modelId: decodedModelId,
-      response
+      response,
+      history
     });
     res.headers.set('Cache-Control', 'public, max-age=0, s-maxage=3600, stale-while-revalidate=600');
     return res;

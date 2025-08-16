@@ -169,6 +169,20 @@ describe('run-config validation logic', () => {
         "Prompt ID 'p1', message 0 (role 'user'): Content cannot be empty.",
       );
     });
+
+    it('should allow assistant:null as a placeholder', () => {
+      const prompts: ComparisonConfig['prompts'] = [
+        {
+          id: 'p1',
+          messages: [
+            { role: 'user', content: 'hello' },
+            { role: 'assistant', content: null },
+            { role: 'user', content: 'follow-up' },
+          ] as any,
+        },
+      ];
+      expect(() => validatePrompts(prompts, mockLogger as any)).not.toThrow();
+    });
   });
 
   describe('resolveModelCollections', () => {

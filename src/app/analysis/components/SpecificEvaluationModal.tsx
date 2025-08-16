@@ -40,6 +40,7 @@ const SpecificEvaluationModal: React.FC = () => {
     const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
     const [isMobileView, setIsMobileView] = useState(false);
     const [selectedVariantIndex, setSelectedVariantIndex] = useState(0);
+    const [historiesForPrompt, setHistoriesForPrompt] = useState<Record<string, any>>({});
     // Track whether we've kicked off batch loads for this open cycle (ref to avoid re-render loops)
     const hasRequestedBatchesRef = useRef(false);
 
@@ -75,7 +76,7 @@ const SpecificEvaluationModal: React.FC = () => {
         hasRequestedBatchesRef.current = true;
         try {
             const { effectiveModels, config } = data;
-            const clickedParsed = parseModelIdForDisplay(modelId);
+            const clickedParsed = parseModelIdForDisplay(modelId!);
             const variantModelIds = (config.systems && config.systems.length > 1)
                 ? effectiveModels.filter(m => {
                     const p = parseModelIdForDisplay(m);
@@ -118,7 +119,7 @@ const SpecificEvaluationModal: React.FC = () => {
             return null;
         }
 
-        const clickedParsed = parseModelIdForDisplay(modelId);
+        const clickedParsed = parseModelIdForDisplay(modelId!);
         
         const variantModelIds = (config.systems && config.systems.length > 1)
             ? effectiveModels.filter(m => {
@@ -163,11 +164,32 @@ const SpecificEvaluationModal: React.FC = () => {
                 effectiveSystemPrompt = (data as any).modelSystemPrompts?.[modelIdVar] ?? null;
             }
 
+            // Attach generated transcript/history if available
+            let generatedTranscript: string | undefined = undefined;
+            let generatedHistory: any[] | undefined = undefined;
+            try {
+                const hist = historiesForPrompt[modelIdVar] || (data as any).fullConversationHistories?.[promptId]?.[modelIdVar];
+                if (Array.isArray(hist) && hist.length > 0) {
+                    generatedHistory = hist;
+                    const lines: string[] = [];
+                    hist.forEach((m: any) => {
+                        const role = m.role;
+                        const content = m.content === null ? '[assistant: null — to be generated]' : m.content;
+                        lines.push(`- ${role}: ${content}`);
+                    });
+                    generatedTranscript = lines.join('\n');
+                }
+            } catch {}
+
             const entry: ModelEvaluationVariant = {
                 modelId: modelIdVar,
                 assessments: detailedEvaluation.pointAssessments, // Use detailed data with full keyPointText and reflections
                 modelResponse: modelResponse,
                 systemPrompt: effectiveSystemPrompt,
+                // @ts-ignore
+                generatedTranscript,
+                // @ts-ignore
+                generatedHistory,
             };
             if (!tempBuckets.has(sysIndex)) tempBuckets.set(sysIndex, []);
             tempBuckets.get(sysIndex)!.push(entry);
@@ -215,6 +237,17 @@ const SpecificEvaluationModal: React.FC = () => {
                 systemPrompt: first.systemPrompt,
                 temps: Array.from(tempMap.keys()).sort((a,b)=>a-b),
                 perTempMap: tempMap,
+                // @ts-ignore - carry over transcript if identical across temps
+                ...( (() => {
+                    const transcripts = Array.from(tempMap.values()).map(v => (v as any).generatedTranscript).filter(Boolean);
+                    const allSame = transcripts.length > 0 && transcripts.every(t => t === transcripts[0]);
+                    const histories = Array.from(tempMap.values()).map(v => (v as any).generatedHistory).filter(Boolean) as any[][];
+                    const allSameHist = histories.length > 0 && histories.every(h => JSON.stringify(h) === JSON.stringify(histories[0]));
+                    const extra: any = {};
+                    if (allSame) extra.generatedTranscript = transcripts[0];
+                    if (allSameHist) extra.generatedHistory = histories[0];
+                    return extra;
+                })() )
             } as any);
 
         });
@@ -249,7 +282,7 @@ const SpecificEvaluationModal: React.FC = () => {
         };
         
         return result;
-    }, [isOpen, promptId, modelId, data, analysisStats, getCachedResponse, getCachedEvaluation]);
+    }, [isOpen, promptId, modelId, data, analysisStats, getCachedResponse, getCachedEvaluation, historiesForPrompt]);
 
     // Set initial variant index when modal data changes
     useEffect(() => {
@@ -272,14 +305,41 @@ const SpecificEvaluationModal: React.FC = () => {
     const tempVariants: TempVariantBundle[] = React.useMemo(() => {
         if (!variantBundle) return [];
         const arr: TempVariantBundle[] = [
-            { temperature: null, assessments: variantBundle.assessments, modelResponse: variantBundle.modelResponse }
+            { temperature: null, assessments: variantBundle.assessments, modelResponse: variantBundle.modelResponse, generatedTranscript: (variantBundle as any).generatedTranscript, generatedHistory: (variantBundle as any).generatedHistory }
         ];
         tempsList.forEach((t) => {
             const v = variantBundle.perTempMap?.get(t);
-            if (v) arr.push({ temperature: t, assessments: v.assessments, modelResponse: v.modelResponse });
+            if (v) arr.push({ temperature: t, assessments: v.assessments, modelResponse: v.modelResponse, generatedTranscript: (v as any).generatedTranscript, generatedHistory: (v as any).generatedHistory });
         });
         return arr;
     }, [variantBundle, tempsList]);
+
+    // Lazy-load histories for relevant model ids when modal opens
+    useEffect(() => {
+        if (!isOpen || !promptId || !data) return;
+        try {
+            const { effectiveModels } = data;
+            const clickedParsed = parseModelIdForDisplay(modelId!);
+            const variantModelIds = (data.config.systems && data.config.systems.length > 1)
+                ? effectiveModels.filter(m => {
+                    const p = parseModelIdForDisplay(m);
+                    return p.baseId === clickedParsed.baseId && p.systemPromptIndex === clickedParsed.systemPromptIndex;
+                })
+                : effectiveModels.filter(m => parseModelIdForDisplay(m).baseId === clickedParsed.baseId);
+            const baseUrl = `/api/comparison/${encodeURIComponent(data.configId)}/${encodeURIComponent(data.runLabel)}/${encodeURIComponent(data.timestamp)}`;
+            variantModelIds.forEach(async (mId) => {
+                if (historiesForPrompt[mId]) return;
+                try {
+                    const resp = await fetch(`${baseUrl}/modal-data/${encodeURIComponent(promptId)}/${encodeURIComponent(mId)}`);
+                    if (!resp.ok) return;
+                    const json = await resp.json();
+                    if (Array.isArray(json.history)) {
+                        setHistoriesForPrompt(prev => ({ ...prev, [mId]: json.history }));
+                    }
+                } catch {}
+            });
+        } catch {}
+    }, [isOpen, promptId, modelId, data, historiesForPrompt]);
 
     if (!isOpen || !modalData) return null;
 
@@ -288,7 +348,7 @@ const SpecificEvaluationModal: React.FC = () => {
     // Compute a rough remaining count from cache for UX (responses only)
     let remainingCount = 0;
     if (data && promptId && modelId) {
-        const clickedParsed = parseModelIdForDisplay(modelId);
+        const clickedParsed = parseModelIdForDisplay(modelId!);
         const { effectiveModels, config } = data;
         const variantModelIds = (config.systems && config.systems.length > 1)
             ? effectiveModels.filter(m => {

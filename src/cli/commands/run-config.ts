@@ -221,6 +221,10 @@ export function validatePrompts(prompts: ComparisonConfig['prompts'], logger: Lo
                 if (!message.role || !['user', 'assistant', 'system'].includes(message.role)) {
                     throw new Error(`Prompt ID '${promptConfig.id}', message ${i}: Invalid role '${message.role}'. Must be 'user', 'assistant', or 'system'.`);
                 }
+                // Allow assistant:null as a generation placeholder
+                if (message.role === 'assistant' && message.content === null) {
+                    continue;
+                }
                 if (!message.content || typeof message.content !== 'string' || message.content.trim() === '') {
                     throw new Error(`Prompt ID '${promptConfig.id}', message ${i} (role '${message.role}'): Content cannot be empty.`);
                 }

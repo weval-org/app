@@ -61,9 +61,7 @@ export async function generateAllResponses(
     
     // Create per-model limiters upfront (see detailed explanation above)
     modelIds.forEach(modelId => {
-        perModelLimits.set(modelId, pLimit(
-            process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test' ? 10 : 1
-        )); // Each model gets its own "one-at-a-time" execution queue
+        perModelLimits.set(modelId, pLimit(1)); // Strictly serialize per model to avoid race conditions
     });
 
     const totalResponsesToGenerate = config.prompts.length * modelIds.length * temperaturesToRun.length * systemPromptsToRun.length;
@@ -126,39 +124,104 @@ export async function generateAllResponses(
                         }
                         // ---------------------------
 
-                        // Rest of the processing logic uses modelId instead of modelString
-                        const messagesForLlm: ConversationMessage[] = [...promptConfig.messages!];
-
+                        // Sequential generation with assistant:null support
                         let finalAssistantResponseText = '';
                         let errorMessage: string | undefined;
                         let hasError = false;
                         let fullConversationHistoryWithResponse: ConversationMessage[] = [];
-
-                        if (systemPromptToUse && !messagesForLlm.find(m => m.role === 'system')) {
-                            messagesForLlm.unshift({ role: 'system', content: systemPromptToUse });
-                        }
+                        const generatedAssistantIndices: number[] = [];
+                        const generatedAssistantTexts: string[] = [];
 
                         try {
-                            finalAssistantResponseText = await getModelResponse({
-                                modelId: modelId,
-                                messages: messagesForLlm,
-                                temperature: temperatureForThisCall,
-                                useCache: useCache
-                            });
-
-                            if (!finalAssistantResponseText || finalAssistantResponseText.trim() === '') {
-                                throw new Error('Model returned an empty or whitespace-only response.');
+                            const workingHistory: ConversationMessage[] = [];
+                            if (systemPromptToUse) {
+                                workingHistory.push({ role: 'system', content: systemPromptToUse });
                             }
-
-                            // --- Circuit Breaker: Reset on Success ---
-                            if (failureCounters.has(modelId)) {
-                                const currentFailures = failureCounters.get(modelId) || 0;
-                                if (currentFailures > 0) {
-                                    logger.info(`[PipelineService] Successful response from '${modelId}' received. Resetting failure counter from ${currentFailures}.`);
-                                    failureCounters.set(modelId, 0);
+                            let assistantTurnCount = 0;
+                            for (const msg of promptConfig.messages!) {
+                                if (msg.role === 'assistant') {
+                                    if (msg.content === null) {
+                                        const genText = await getModelResponse({
+                                            modelId: modelId,
+                                            messages: [...workingHistory],
+                                            temperature: temperatureForThisCall,
+                                            useCache: useCache
+                                        });
+                                        if (!genText || genText.trim() === '') {
+                                            throw new Error('Model returned an empty or whitespace-only response.');
+                                        }
+                                        workingHistory.push({ role: 'assistant', content: genText });
+                                        generatedAssistantIndices.push(assistantTurnCount);
+                                        generatedAssistantTexts.push(genText);
+                                        finalAssistantResponseText = genText;
+                                        if (failureCounters.has(modelId)) {
+                                            const currentFailures = failureCounters.get(modelId) || 0;
+                                            if (currentFailures > 0) {
+                                                logger.info(`[PipelineService] Successful response from '${modelId}' received. Resetting failure counter from ${currentFailures}.`);
+                                                failureCounters.set(modelId, 0);
+                                            }
+                                        }
+                                    } else {
+                                        workingHistory.push({ role: 'assistant', content: msg.content });
+                                    }
+                                    assistantTurnCount++;
+                                } else {
+                                    workingHistory.push(msg as ConversationMessage);
                                 }
                             }
-                            // ------------------------------------
+
+                            // Implicit trailing assistant generation when last message is a user
+                            const originalMessages = promptConfig.messages!;
+                            const lastMsg = originalMessages[originalMessages.length - 1];
+                            if (lastMsg && lastMsg.role === 'user') {
+                                const genText = await getModelResponse({
+                                    modelId: modelId,
+                                    messages: workingHistory,
+                                    temperature: temperatureForThisCall,
+                                    useCache: useCache
+                                });
+                                if (!genText || genText.trim() === '') {
+                                    throw new Error('Model returned an empty or whitespace-only response.');
+                                }
+                                workingHistory.push({ role: 'assistant', content: genText });
+                                generatedAssistantIndices.push(assistantTurnCount);
+                                generatedAssistantTexts.push(genText);
+                                finalAssistantResponseText = genText;
+                                if (failureCounters.has(modelId)) {
+                                    const currentFailures = failureCounters.get(modelId) || 0;
+                                    if (currentFailures > 0) {
+                                        logger.info(`[PipelineService] Successful response from '${modelId}' received. Resetting failure counter from ${currentFailures}.`);
+                                        failureCounters.set(modelId, 0);
+                                    }
+                                }
+                            } else if (!finalAssistantResponseText) {
+                                // Fallback: use last fixed assistant or single-shot generation
+                                const lastAssistant = [...originalMessages].reverse().find(m => m.role === 'assistant' && typeof m.content === 'string');
+                                if (lastAssistant && typeof lastAssistant.content === 'string') {
+                                    finalAssistantResponseText = lastAssistant.content;
+                                } else {
+                                    const genText = await getModelResponse({
+                                        modelId: modelId,
+                                        messages: workingHistory,
+                                        temperature: temperatureForThisCall,
+                                        useCache: useCache
+                                    });
+                                    if (!genText || genText.trim() === '') {
+                                        throw new Error('Model returned an empty or whitespace-only response.');
+                                    }
+                                    workingHistory.push({ role: 'assistant', content: genText });
+                                    generatedAssistantIndices.push(assistantTurnCount);
+                                    generatedAssistantTexts.push(genText);
+                                    finalAssistantResponseText = genText;
+                                    if (failureCounters.has(modelId)) {
+                                        const currentFailures = failureCounters.get(modelId) || 0;
+                                        if (currentFailures > 0) {
+                                            logger.info(`[PipelineService] Successful response from '${modelId}' received. Resetting failure counter from ${currentFailures}.`);
+                                            failureCounters.set(modelId, 0);
+                                        }
+                                    }
+                                }
+                            }
 
                             hasError = checkForErrors(finalAssistantResponseText);
                             if (hasError) {
@@ -166,16 +229,22 @@ export async function generateAllResponses(
                                 errorMessage = errorMatch ? errorMatch[1].trim() : `Response contains error markers.`;
                             }
 
-                            fullConversationHistoryWithResponse = [...messagesForLlm, { role: 'assistant', content: finalAssistantResponseText }];
+                            fullConversationHistoryWithResponse = [...workingHistory];
 
                         } catch (error: any) {
                             errorMessage = `Failed to get response for ${finalEffectiveId}: ${error.message || String(error)}`;
                             finalAssistantResponseText = `<<error>>${errorMessage}<</error>>`;
                             hasError = true;
                             logger.error(`[PipelineService] ${errorMessage}`);
-                            fullConversationHistoryWithResponse = [...messagesForLlm, { role: 'assistant', content: finalAssistantResponseText }];
 
-                            // --- Circuit Breaker: Increment on Failure ---
+                            const historyBeforeFailure: ConversationMessage[] = [];
+                            if (systemPromptToUse) {
+                                historyBeforeFailure.push({ role: 'system', content: systemPromptToUse });
+                            }
+                            historyBeforeFailure.push(...promptConfig.messages!.filter(m => !(m.role === 'assistant' && m.content === null)) as ConversationMessage[]);
+                            historyBeforeFailure.push({ role: 'assistant', content: finalAssistantResponseText });
+                            fullConversationHistoryWithResponse = historyBeforeFailure;
+
                             const newFailureCount = (failureCounters.get(modelId) || 0) + 1;
                             failureCounters.set(modelId, newFailureCount);
                             logger.warn(`[PipelineService] Failure counter for '${modelId}' is now ${newFailureCount}.`);
@@ -184,7 +253,6 @@ export async function generateAllResponses(
                                 trippedModels.add(modelId);
                                 logger.error(`[PipelineService] Circuit breaker for '${modelId}' has been tripped after ${newFailureCount} consecutive failures. Subsequent requests will be auto-failed.`);
                             }
-                            // -----------------------------------------
                         }
 
                         currentPromptData.modelResponses[finalEffectiveId] = {
@@ -193,7 +261,9 @@ export async function generateAllResponses(
                             hasError,
                             errorMessage,
                             systemPromptUsed: systemPromptToUse ?? null,
-                            toolCalls: extractToolCallsFromText(finalAssistantResponseText)
+                            toolCalls: extractToolCallsFromText(finalAssistantResponseText),
+                            generatedAssistantIndices,
+                            generatedAssistantTexts
                         };
                         generatedCount++;
                         logger.info(`[PipelineService] Generated ${generatedCount}/${totalResponsesToGenerate} responses.`);

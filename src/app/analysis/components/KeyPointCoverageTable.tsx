@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { getModelDisplayLabel, parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
 import {
@@ -22,9 +22,10 @@ interface ModelCardProps {
     promptCoverageScores: Record<string, CoverageResult>;
     promptResponses: Record<string, string>;
     idealResponse?: string;
+    historiesForPrompt?: Record<string, any>;
 }
 
-const ModelCard: React.FC<ModelCardProps> = ({ modelId, promptCoverageScores, promptResponses, idealResponse }) => {
+const ModelCard: React.FC<ModelCardProps> = ({ modelId, promptCoverageScores, promptResponses, idealResponse, historiesForPrompt }) => {
     const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
 
     const toggleLogExpansion = (index: number) => {
@@ -44,10 +45,29 @@ const ModelCard: React.FC<ModelCardProps> = ({ modelId, promptCoverageScores, pr
             const cov = promptCoverageScores[mId];
             const resp = promptResponses[mId];
             if (!cov || 'error' in cov || resp === undefined) return;
+            // Build generated transcript if history artefact present
+            let generatedTranscript: string | undefined = undefined;
+            let generatedHistory: any[] | undefined = undefined;
+            try {
+                const histObj = historiesForPrompt?.[mId];
+                const hist = Array.isArray(histObj) ? histObj : (Array.isArray(histObj?.history) ? histObj.history : null);
+                if (hist && Array.isArray(hist) && hist.length > 0) {
+                    generatedHistory = hist;
+                    const lines: string[] = [];
+                    hist.forEach((m: any) => {
+                        const role = m.role;
+                        const content = m.content === null ? '[assistant: null — to be generated]' : m.content;
+                        lines.push(`- ${role}: ${content}`);
+                    });
+                    generatedTranscript = lines.join('\n');
+                }
+            } catch {}
             bundles.push({
                 temperature: p.temperature ?? 0,
                 assessments: cov.pointAssessments || [],
                 modelResponse: resp,
+                generatedTranscript,
+                generatedHistory,
             });
         });
 
@@ -76,14 +96,28 @@ const ModelCard: React.FC<ModelCardProps> = ({ modelId, promptCoverageScores, pr
             }
         }
 
+        // Aggregate bundle: only include a transcript if all temps share the same one
+        let aggregateGeneratedTranscript: string | undefined = undefined;
+        let aggregateGeneratedHistory: any[] | undefined = undefined;
+        try {
+            const transcripts = bundles.map(b => b.generatedTranscript).filter(Boolean) as string[];
+            const allSame = transcripts.length > 0 && transcripts.every(t => t === transcripts[0]);
+            if (allSame) aggregateGeneratedTranscript = transcripts[0];
+            const histories = bundles.map(b => b.generatedHistory).filter(Boolean) as any[][];
+            const allSameHist = histories.length > 0 && histories.every(h => JSON.stringify(h) === JSON.stringify(histories[0]));
+            if (allSameHist) aggregateGeneratedHistory = histories[0];
+        } catch {}
+
         const aggregateBundle: TempVariantBundle = {
             temperature: null,
             assessments: aggregated,
             modelResponse: bundles.map(b => `\n[T ${b.temperature}]\n${b.modelResponse}`).join('\n\n'),
+            generatedTranscript: aggregateGeneratedTranscript,
+            generatedHistory: aggregateGeneratedHistory,
         };
 
         return [aggregateBundle, ...bundles];
-    }, [modelId, promptCoverageScores, promptResponses]);
+    }, [modelId, promptCoverageScores, promptResponses, historiesForPrompt]);
 
     if (tempVariants.length === 0) {
         return (
@@ -186,7 +220,8 @@ const ModelView: React.FC<{
     promptResponses: Record<string, string>;
     systemPrompts?: (string | null)[] | null;
     promptSimilarities: Record<string, Record<string, number>> | null;
-}> = ({ displayedModels, promptCoverageScores, promptResponses, systemPrompts, promptSimilarities }) => {
+    historiesForPrompt?: Record<string, any>;
+}> = ({ displayedModels, promptCoverageScores, promptResponses, systemPrompts, promptSimilarities, historiesForPrompt }) => {
 
     displayedModels = displayedModels.filter(modelId => {
         const parsed = parseModelIdForDisplay(modelId);
@@ -307,17 +342,18 @@ const ModelView: React.FC<{
             
             <div className="flex-grow min-w-0 flex flex-col min-h-0">
                  {selectedModelId ? (
-                                    <ModelCard
-    modelId={selectedModelId}
-    promptCoverageScores={promptCoverageScores}
-    promptResponses={promptResponses}
-    idealResponse={promptResponses[IDEAL_MODEL_ID]}
-/>
-                ) : (
+                    <ModelCard
+                        modelId={selectedModelId}
+                        promptCoverageScores={promptCoverageScores}
+                        promptResponses={promptResponses}
+                        idealResponse={promptResponses[IDEAL_MODEL_ID]}
+                        historiesForPrompt={historiesForPrompt}
+                    />
+                 ) : (
                     <div className="flex items-center justify-center h-full p-8 bg-muted/30 rounded-lg">
                         <p className="text-muted-foreground italic">Select a model to view its detailed evaluation.</p>
                     </div>
-                )}
+                 )}
             </div>
         </div>
     );
@@ -337,6 +373,7 @@ const KeyPointCoverageTable: React.FC<KeyPointCoverageTableProps> = ({
   hideHeader = false,
 }) => {
   const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
+  const [historiesForPrompt, setHistoriesForPrompt] = useState<Record<string, any>>({});
   
   const {
       evaluationResults,
@@ -355,6 +392,39 @@ const KeyPointCoverageTable: React.FC<KeyPointCoverageTableProps> = ({
     return evaluationResults?.perPromptSimilarities?.[promptId] || null;
   }, [evaluationResults, promptId]);
 
+  // Seed histories from initial data if available (sandbox runs include fullConversationHistories)
+  const staticHistoriesForPrompt = useMemo(() => {
+    const fh = (data as any).fullConversationHistories;
+    return (fh && fh[promptId]) ? fh[promptId] as Record<string, any> : {};
+  }, [data, promptId]);
+
+  useEffect(() => {
+    // Initialize with static histories for this prompt when prompt changes
+    setHistoriesForPrompt(staticHistoriesForPrompt);
+  }, [staticHistoriesForPrompt]);
+
+  // Lazy-load conversation histories for displayed models to enable Generated Thread tab
+  useEffect(() => {
+    let aborted = false;
+    const baseUrl = `/api/comparison/${encodeURIComponent(data.configId)}/${encodeURIComponent(data.runLabel)}/${encodeURIComponent(data.timestamp)}`;
+    const fetchHistory = async (modelId: string) => {
+      try {
+        const resp = await fetch(`${baseUrl}/modal-data/${encodeURIComponent(promptId)}/${encodeURIComponent(modelId)}`);
+        if (!resp.ok) return;
+        const json = await resp.json();
+        if (!aborted && Array.isArray(json.history)) {
+          setHistoriesForPrompt(prev => ({ ...prev, [modelId]: json.history }));
+        }
+      } catch {}
+    };
+    displayedModels.forEach(m => {
+      // Skip if already seeded from static or fetched
+      if (staticHistoriesForPrompt[m]) return;
+      if (!historiesForPrompt[m]) fetchHistory(m);
+    });
+    return () => { aborted = true; };
+  }, [displayedModels, data.configId, data.runLabel, data.timestamp, promptId, historiesForPrompt, staticHistoriesForPrompt]);
+
   const modelViewContent = (
     <>
       {/* Desktop View */}
@@ -365,6 +435,7 @@ const KeyPointCoverageTable: React.FC<KeyPointCoverageTableProps> = ({
             promptResponses={promptResponses}
             systemPrompts={config.systems}
             promptSimilarities={promptSimilarities}
+            historiesForPrompt={historiesForPrompt}
         />
       </div>
       

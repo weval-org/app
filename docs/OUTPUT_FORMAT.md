@@ -113,3 +113,36 @@ This object contains the specific output from a single judge within a consensus 
   "reflection": string
 }
 ```
+
+---
+
+## 3. Artefact-Based Run Layout (live/blueprints)
+
+Each run produces a bundle of artefacts under `live/blueprints/[configId]/[runLabel]_[timestamp]/`:
+
+- `core.json` – lightweight metadata and placeholders for bulky fields
+- `responses/[promptId].json` – final assistant responses per prompt
+- `coverage/[promptId]/[modelId].json` – per-prompt × model rubric evaluations
+- `histories/[promptId]/[modelId].json` – full conversation history for this prompt×model, including generated assistant turns when `assistant: null` is used and the implicit final assistant if the last message is a user. Shape:
+
+```json
+{
+  "history": [
+    { "role": "user", "content": "I need help with my taxes." },
+    { "role": "assistant", "content": "Sure—can you share your filing status and states involved?" },
+    { "role": "user", "content": "I changed jobs mid-year and moved states." },
+    { "role": "assistant", "content": "Thanks! Did you have income in both states?" },
+    { "role": "user", "content": "Anything else I should consider?" },
+    { "role": "assistant", "content": "Consider part-year residency rules, withholding, and credits..." }
+  ]
+}
+```
+
+## 4. Legacy Monolithic File
+
+For backward compatibility, the original monolithic file `[runLabel]_[timestamp]_comparison.json` is still written in the same folder.
+
+Sandbox runs additionally write a compatibility copy under:
+- `live/blueprints/sandbox-<runId>/sandbox-run_<timestamp>_comparison.json`
+
+This allows standard comparison endpoints to work in Sandbox result pages.
