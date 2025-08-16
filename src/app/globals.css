@@ -106,6 +106,10 @@
     --coverage-fully-met: 140 61% 37%;
 
     --border-contrast: rgba(0, 0, 0, 0.1);
+
+    /* Compass plot colors */
+    --compass-pole-neg: 220 80% 75%; /* Cool blue for negative pole */
+    --compass-pole-pos: 25 95% 70%; /* Warm orange for positive pole */
   }
 
   .dark {
@@ -192,6 +196,10 @@
     --coverage-fully-met: 140 61% 63%; 
 
     --border-contrast: rgba(255, 255, 255, 0.15);
+
+    /* Compass plot colors */
+    --compass-pole-neg: 220 70% 65%;
+    --compass-pole-pos: 25 85% 60%;
   }
 }
 

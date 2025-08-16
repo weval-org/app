@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getResultByFileName } from '@/lib/storageService';
+import { getPromptResponses, getResultByFileName } from '@/lib/storageService';
 import { ComparisonDataV2 } from '@/app/utils/types';
 
 /**
@@ -25,19 +25,17 @@ export async function GET(
     const decodedPromptId = decodeURIComponent(promptId);
     const decodedModelId = decodeURIComponent(modelId);
 
-    // Fetch the full comparison data
-    const fileName = `${runLabel}_${timestamp}_comparison.json`;
-    const fullData = await getResultByFileName(configId, fileName) as ComparisonDataV2;
-
-    if (!fullData) {
-      return NextResponse.json(
-        { error: 'Comparison data not found' },
-        { status: 404 }
-      );
+    // Prefer prompt-level responses artefact for efficiency
+    const promptResponses = await getPromptResponses(configId, runLabel, timestamp, decodedPromptId);
+    let response: string | undefined;
+    if (promptResponses) {
+      response = promptResponses[decodedModelId];
+    } else {
+      // Fallback: legacy full comparison file
+      const fileName = `${runLabel}_${timestamp}_comparison.json`;
+      const fullData = await getResultByFileName(configId, fileName) as ComparisonDataV2;
+      response = fullData?.allFinalAssistantResponses?.[decodedPromptId]?.[decodedModelId];
     }
-
-    // Extract the specific response
-    const response = fullData.allFinalAssistantResponses?.[decodedPromptId]?.[decodedModelId];
 
     if (response === undefined) {
       return NextResponse.json(
@@ -46,11 +44,13 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       promptId: decodedPromptId,
       modelId: decodedModelId,
-      response: response
+      response
     });
+    res.headers.set('Cache-Control', 'public, max-age=0, s-maxage=3600, stale-while-revalidate=600');
+    return res;
 
   } catch (error) {
     console.error('[Modal Data API] Error fetching modal data:', error);

@@ -85,9 +85,12 @@ export async function actionGenerateCompassIndex(options: { verbose?: boolean; c
 
   // Add combined two-pole axes if present (MVP pairs)
   const pairs: Array<{ id: string; pos: string; neg: string }> = [
-    { id: 'info_style', pos: 'figurative', neg: 'literal' },
-    { id: 'interaction_style', pos: 'proactive', neg: 'reactive' },
-    { id: 'style', pos: 'formal', neg: 'casual' },
+    { id: 'abstraction', pos: 'figurative', neg: 'literal' },
+    { id: 'proactivity', pos: 'proactive', neg: 'reactive' },
+    // { id: 'formality', pos: 'formal', neg: 'casual' },
+    { id: 'epistemic-humility', pos: 'cautious', neg: 'confident' },
+    { id: 'risk-level', pos: 'risk-seeking', neg: 'risk-averse' },
+    { id: 'social-alignment', pos: 'heterodox', neg: 'normative' },
   ];
   pairs.forEach(pair => {
     const pos = out.axes[pair.pos];
@@ -112,9 +115,12 @@ export async function actionGenerateCompassIndex(options: { verbose?: boolean; c
   });
 
   out.axisMetadata = {
-    info_style: { id: 'info_style', positivePole: 'Figurative', negativePole: 'Literal' },
-    interaction_style: { id: 'interaction_style', positivePole: 'Proactive', negativePole: 'Reactive' },
-    style: { id: 'style', positivePole: 'Formal', negativePole: 'Casual' },
+    abstraction: { id: 'abstraction', positivePole: 'Figurative', negativePole: 'Literal' },
+    proactivity: { id: 'proactivity', positivePole: 'Proactive', negativePole: 'Reactive' },
+    // formality: { id: 'formality', positivePole: 'Formal', negativePole: 'Casual' },
+    'epistemic-humility': { id: 'epistemic-humility', positivePole: 'Cautious', negativePole: 'Confident' },
+    'risk-level': { id: 'risk-level', positivePole: 'Risk-Seeking', negativePole: 'Risk-Averse' },
+    'social-alignment': { id: 'social-alignment', positivePole: 'Heterodox', negativePole: 'Normative' },
   };
 
   await saveCompassIndex(out);

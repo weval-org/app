@@ -1,15 +1,7 @@
 "use client";
 import React from 'react';
-import { Slider } from '@/components/ui/slider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 import { extractMakerFromModelId, getModelDisplayLabel } from '@/app/utils/modelIdUtils';
-
-type VibesIndex = {
-  models: Record<string, { averageHybrid: number | null; totalRuns: number; uniqueConfigs: number }>;
-  capabilityScores?: Record<string, Record<string, { score: number | null; contributingRuns: number }>>;
-  generatedAt: string;
-};
 
 type CompassIndex = {
   axes: Record<string, Record<string, { value: number | null; runs: number }>>;
@@ -45,6 +37,7 @@ export default function CompassPage() {
   const [compass, setCompass] = React.useState<CompassIndex | null>(null);
   const [loading, setLoading] = React.useState<boolean>(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [viewMode, setViewMode] = React.useState<'sliders' | 'spider'>('sliders');
 
   React.useEffect(() => {
     let mounted = true;
@@ -54,6 +47,7 @@ export default function CompassPage() {
         if (mounted) {
           if (res.ok) {
             const json: CompassIndex = await res.json();
+            console.log('Compass data loaded:', json);
             setCompass(json);
           } else {
             setError('Failed to load compass data');
@@ -76,9 +70,14 @@ export default function CompassPage() {
       Object.keys(axisData).forEach(modelId => allModelIds.add(modelId));
     });
 
-    const info = compass.axes?.['info_style'];
-    const inter = compass.axes?.['interaction_style'];
-    if (!info || !inter) return [];
+    const info = compass.axes?.['abstraction'];
+    const inter = compass.axes?.['proactivity'];
+    if (!info || !inter) {
+      console.warn('Axis data for scatter plot not found. Need "abstraction" and "proactivity".', {
+        availableAxes: Object.keys(compass.axes || {}),
+      });
+      return [];
+    }
 
     let base = Array.from(allModelIds).map(id => {
       const xRec = info[id];
@@ -119,13 +118,56 @@ export default function CompassPage() {
       x: scale(p.x, xMin, xMax),
       y: scale(p.y, yMin, yMax),
     }));
+    console.log('Processed points for scatter plot:', finalPoints);
     return finalPoints;
+  }, [compass]);
+
+  const explorerModels = React.useMemo(() => {
+    if (!compass?.axes || !compass?.axisMetadata) return [];
+    
+    const allModelIds = new Set<string>();
+    Object.values(compass.axes).forEach(axisData => {
+      Object.keys(axisData).forEach(modelId => allModelIds.add(modelId));
+    });
+
+    const models = Array.from(allModelIds).map(id => {
+      const hasData = Object.values(compass.axisMetadata!).some(axis => {
+        const modelAxisData = compass.axes?.[axis.id]?.[id];
+        return modelAxisData && modelAxisData.runs >= 3 && modelAxisData.value !== null;
+      });
+      
+      if (hasData) {
+        return {
+          id,
+          maker: extractMakerFromModelId(id),
+        };
+      }
+      return null;
+    }).filter(Boolean);
+
+    return models as { id: string, maker: string }[];
   }, [compass]);
 
   const [hover, setHover] = React.useState<Point | null>(null);
 
-  const xAxis = compass?.axisMetadata?.['info_style'];
-  const yAxis = compass?.axisMetadata?.['interaction_style'];
+  const axisRanges = React.useMemo(() => {
+    if (!compass?.axes || !compass?.axisMetadata) return {};
+    const ranges: Record<string, { min: number; max: number }> = {};
+    for (const axis of Object.values(compass.axisMetadata)) {
+      const axisData = compass.axes[axis.id];
+      if (!axisData) continue;
+      const values = Object.values(axisData)
+        .map(d => d.value)
+        .filter((v): v is number => v !== null && typeof v === 'number' && isFinite(v));
+      if (values.length > 0) {
+        ranges[axis.id] = { min: Math.min(...values), max: Math.max(...values) };
+      }
+    }
+    return ranges;
+  }, [compass]);
+
+  const xAxis = compass?.axisMetadata?.['abstraction'];
+  const yAxis = compass?.axisMetadata?.['proactivity'];
 
   const width = 900;
   const height = 520;
@@ -244,87 +286,209 @@ export default function CompassPage() {
 
       <div className="mt-12">
         <div className="space-y-1 mb-6">
-          <h2 className="text-2xl font-semibold">Axis Explorer</h2>
+          <h2 className="text-2xl font-semibold">Model Explorer</h2>
           <p className="text-muted-foreground">
-            Explore model scores on individual behavioral axes.
+            Explore individual model scores across all behavioral axes.
           </p>
         </div>
-        <div className="space-y-6">
-          {compass?.axisMetadata && Object.values(compass.axisMetadata).map(axis => {
-            const axisData = compass?.axes[axis.id];
-            if (!axisData) return null;
 
-            const models = Object.entries(axisData)
-              .map(([id, data]) => {
-                if (data.value === null || typeof data.value !== 'number' || !isFinite(data.value)) return null;
-                // Filter out models with insufficient data
-                const runs = data.runs ?? 0;
-                if (runs < 3) return null;
+        <div className="flex items-center space-x-2 mb-6">
+          <button
+            onClick={() => setViewMode('sliders')}
+            className={`px-3 py-1 text-sm rounded-md ${viewMode === 'sliders' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+          >
+            Sliders
+          </button>
+          <button
+            onClick={() => setViewMode('spider')}
+            className={`px-3 py-1 text-sm rounded-md ${viewMode === 'spider' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}
+          >
+            Spider
+          </button>
+        </div>
 
-                return {
-                  id,
-                  value: data.value,
-                  runs: data.runs,
-                  maker: extractMakerFromModelId(id),
-                };
-              })
-              .filter((m): m is { id: string; value: number; runs: number; maker: string } => m !== null)
-              .sort((a, b) => a.value - b.value);
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {explorerModels.map(model => (
+            <Card key={model.id}>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <div
+                    className="w-4 h-4 rounded-full"
+                    style={{ backgroundColor: makerColorMap[model.maker] || makerColorMap.UNKNOWN }}
+                  />
+                  <span>{getModelDisplayLabel(model.id, { prettifyModelName: true, hideProvider: true })}</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-2">
+                {viewMode === 'sliders' ? (
+                  <>
+                    {compass?.axisMetadata && Object.values(compass.axisMetadata).map(axis => {
+                      const axisData = compass?.axes[axis.id];
+                      if (!axisData) return null;
 
-            return (
-              <Card key={axis.id}>
-                <CardHeader>
-                  <CardTitle className="capitalize">{axis.id.replace(/_/g, ' ')}</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  <div className="relative h-20 w-full px-24">
-                    {/* Axis line */}
-                    <div className="absolute top-1/2 left-0 right-0 h-1 -translate-y-1/2 bg-slate-200 dark:bg-slate-700 rounded-full" />
-                    
-                    {/* Pole labels */}
-                    <span className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full pr-4 text-sm font-medium text-muted-foreground text-right w-24">{axis.negativePole}</span>
-                    <span className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-full pl-4 text-sm font-medium text-muted-foreground text-left w-24">{axis.positivePole}</span>
+                      const modelData = axisData[model.id];
+                      const value = modelData?.value;
+                      const runs = modelData?.runs ?? 0;
 
-                    {/* Model points */}
-                    <div className="relative w-full h-full">
-                      {models.map((model, index) => {
-                        const color = makerColorMap[model.maker] || makerColorMap.UNKNOWN;
-                        const left = `${model.value * 100}%`;
-                        const yOffset = (index % 5 - 2) * 16;
-
+                      if (value === null || typeof value !== 'number' || !isFinite(value) || runs < 3) {
                         return (
-                          <div
-                            key={model.id}
-                            className="absolute top-1/2 group transition-transform duration-200 hover:scale-125"
-                            style={{
-                              left,
-                              transform: `translate(-50%, calc(-50% + ${yOffset}px))`,
-                              zIndex: 10,
-                            }}
-                          >
-                            <div
-                              className="w-3.5 h-3.5 rounded-full cursor-pointer border-2 border-white dark:border-slate-800"
-                              style={{ backgroundColor: color }}
-                            />
-                            {/* Tooltip */}
-                            <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-max max-w-xs bg-popover text-popover-foreground rounded-md shadow-lg p-2 text-xs z-20 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                              <p className="font-bold">{getModelDisplayLabel(model.id, { prettifyModelName: true, hideProvider: true })}</p>
-                              <p>Score: {model.value.toFixed(3)}</p>
-                              <p>Runs: {model.runs}</p>
+                          <div key={axis.id}>
+                            <p className="text-sm font-semibold text-center mb-1 capitalize">{axis.id.replace(/_/g, ' ').replace(/-/g, ' ')}</p>
+                            <div className="h-6 flex items-center justify-center text-center text-xs text-muted-foreground bg-slate-100 dark:bg-slate-800 rounded">
+                              Not enough data
                             </div>
                           </div>
                         );
-                      })}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+                      }
+
+                      const range = axisRanges[axis.id];
+                      let normalizedValue = 0.5;
+                      if (range && range.max - range.min > 1e-6) {
+                        normalizedValue = (value - range.min) / (range.max - range.min);
+                      }
+
+                      return (
+                        <div key={axis.id}>
+                           <p className="text-sm font-semibold text-center mb-1 capitalize">{axis.id.replace(/_/g, ' ').replace(/-/g, ' ')}</p>
+                           <div className="flex items-center space-x-2">
+                            <span className="text-xs text-muted-foreground w-20 text-right capitalize">{axis.negativePole}</span>
+                            <div
+                              className="w-full h-2 rounded-full relative group"
+                              style={{
+                                background: 'linear-gradient(to right, hsl(var(--compass-pole-neg)), hsl(var(--compass-pole-pos)))',
+                              }}
+                            >
+                              <div
+                                className="absolute -top-1 h-4 w-4 rounded-full border-2 border-primary bg-background ring-1 ring-inset ring-border"
+                                style={{
+                                  left: `${normalizedValue * 100}%`,
+                                  transform: 'translateX(-50%)',
+                                }}
+                              />
+                               <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-max max-w-xs bg-popover text-popover-foreground rounded-md shadow-lg p-2 text-xs z-20 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                <p>Score: {value.toFixed(3)}</p>
+                              </div>
+                            </div>
+                            <span className="text-xs text-muted-foreground w-20 text-left capitalize">{axis.positivePole}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </>
+                ) : (
+                  <SpiderChart model={model} compass={compass} axisRanges={axisRanges} />
+                )}
+              </CardContent>
+            </Card>
+          ))}
         </div>
       </div>
     </div>
   );
 }
+
+const SpiderChart = ({ model, compass, axisRanges }: { model: { id: string, maker: string }, compass: CompassIndex | null, axisRanges: Record<string, { min: number, max: number }> }) => {
+  const chartSize = 200;
+  const center = chartSize / 2;
+  const [hoveredAxis, setHoveredAxis] = React.useState<string | null>(null);
+
+  const chartData = React.useMemo(() => {
+    if (!compass?.axisMetadata || !compass?.axes) return { points: [], labels: [] };
+
+    const axes = Object.values(compass.axisMetadata);
+    const numAxes = axes.length;
+    const angleSlice = (Math.PI * 2) / numAxes;
+
+    const labels = axes.map((axis, i) => {
+      const angle = angleSlice * i - Math.PI / 2;
+      const x = center + (center - 20) * Math.cos(angle);
+      const y = center + (center - 20) * Math.sin(angle);
+      return { ...axis, x, y };
+    });
+
+    const maxRadius = center * 0.8;
+    const midlineRadius = maxRadius / 2;
+
+    const points = axes.map((axis, i) => {
+      const modelData = compass.axes[axis.id]?.[model.id];
+      let normalizedValue = 0.5;
+      if (modelData && modelData.value !== null && typeof modelData.value === 'number' && modelData.runs >=3) {
+        const range = axisRanges[axis.id];
+        if (range && range.max - range.min > 1e-6) {
+          normalizedValue = (modelData.value - range.min) / (range.max - range.min);
+        }
+      }
+      
+      const radius = midlineRadius + (normalizedValue - 0.5) * maxRadius;
+      const angle = angleSlice * i - Math.PI / 2;
+      const x = center + radius * Math.cos(angle);
+      const y = center + radius * Math.sin(angle);
+      return { x, y, axisId: axis.id, value: modelData?.value };
+    });
+
+    return { points, labels, midlineRadius };
+  }, [compass, model.id, axisRanges]);
+
+  const color = makerColorMap[model.maker] || makerColorMap.UNKNOWN;
+
+  const pointString = chartData.points.map(p => `${p.x},${p.y}`).join(' ');
+
+  const hoveredData = hoveredAxis ? Object.values(compass?.axisMetadata || {}).find(a => a.id === hoveredAxis) : null;
+  const hoveredValue = hoveredAxis ? compass?.axes?.[hoveredAxis]?.[model.id]?.value : null;
+
+  return (
+    <div className="relative w-full aspect-square flex items-center justify-center">
+      <svg viewBox={`0 0 ${chartSize} ${chartSize}`}>
+        {/* Concentric circles */}
+        {[0.25, 0.75, 1].map(r => (
+          <circle key={r} cx={center} cy={center} r={(center * 0.8 / 2) * r * 2} fill="none" stroke="hsl(var(--border))" strokeWidth="0.5" />
+        ))}
+        {/* Midline */}
+        {chartData.midlineRadius && (
+          <circle cx={center} cy={center} r={chartData.midlineRadius} fill="none" stroke="hsl(var(--primary))" strokeWidth="0.5" strokeDasharray="2 2" />
+        )}
+        {/* Axis lines */}
+        {chartData.labels.map((label, i) => (
+          <line key={label.id} x1={center} y1={center} x2={chartData.labels[i].x} y2={chartData.labels[i].y} stroke="hsl(var(--border))" strokeWidth="0.5" />
+        ))}
+        {/* Data shape */}
+        <polygon points={pointString} fill={color} fillOpacity="0.3" stroke={color} strokeWidth="2" />
+        {/* Data points */}
+        {chartData.points.map((p, i) => (
+          <circle
+            key={chartData.labels[i].id}
+            cx={p.x}
+            cy={p.y}
+            r="3"
+            fill={color}
+            onMouseEnter={() => setHoveredAxis(chartData.labels[i].id)}
+            onMouseLeave={() => setHoveredAxis(null)}
+          />
+        ))}
+        {/* Axis labels */}
+        {chartData.labels.map(label => (
+          <text
+            key={label.id}
+            x={label.x}
+            y={label.y}
+            textAnchor={Math.abs(label.x - center) < 1 ? 'middle' : label.x > center ? 'start' : 'end'}
+            dominantBaseline="middle"
+            fontSize="8"
+            className="fill-muted-foreground capitalize"
+          >
+            {label.id.replace(/_/g, ' ').replace(/-/g, ' ')}
+          </text>
+        ))}
+      </svg>
+      {hoveredAxis && hoveredData && (
+        <div className="absolute top-0 right-0 bg-popover p-2 rounded-md shadow-lg text-xs border">
+          <p className="font-bold capitalize">{hoveredData.id.replace(/_/g, ' ').replace(/-/g, ' ')}</p>
+          <p>Score: {typeof hoveredValue === 'number' ? hoveredValue.toFixed(3) : 'N/A'}</p>
+          <p className="text-muted-foreground">{`${hoveredData.negativePole} ↔ ${hoveredData.positivePole}`}</p>
+        </div>
+      )}
+    </div>
+  );
+};
 
 

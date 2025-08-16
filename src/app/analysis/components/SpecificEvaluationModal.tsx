@@ -29,6 +29,7 @@ const SpecificEvaluationModal: React.FC = () => {
         modelEvaluationModal,
         closeModelEvaluationDetailModal,
         analysisStats,
+        fetchPromptResponses,
         fetchModalResponse,
         fetchEvaluationDetails,
         getCachedResponse,
@@ -85,14 +86,11 @@ const SpecificEvaluationModal: React.FC = () => {
             const responsesToFetch = new Set<string>([...variantModelIds, IDEAL_MODEL_ID]);
             const evalsToFetch = new Set<string>(variantModelIds);
 
-            const responsePromises: Array<Promise<any>> = [];
             const evalPromises: Array<Promise<any>> = [];
 
-            responsesToFetch.forEach(mId => {
-                if (getCachedResponse(promptId, mId) === null) {
-                    responsePromises.push(fetchModalResponse(promptId, mId));
-                }
-            });
+            // Warm the response cache with a single small prompt-level artefact fetch
+            // This avoids multiple identical S3 GETs for responses/{promptId}.json
+            const warmResponses = fetchPromptResponses(promptId).catch(() => null);
             evalsToFetch.forEach(mId => {
                 if (!getCachedEvaluation(promptId, mId)) {
                     evalPromises.push(fetchEvaluationDetails(promptId, mId));
@@ -100,9 +98,9 @@ const SpecificEvaluationModal: React.FC = () => {
             });
 
             // Fire in parallel; internal promise-level dedupe prevents duplicates
-            Promise.all([...responsePromises, ...evalPromises]).catch(() => {});
+            Promise.all([warmResponses, ...evalPromises]).catch(() => {});
         } catch {}
-    }, [isOpen, promptId, modelId, data, fetchModalResponse, fetchEvaluationDetails, getCachedResponse, getCachedEvaluation]);
+    }, [isOpen, promptId, modelId, data, fetchPromptResponses, fetchModalResponse, fetchEvaluationDetails, getCachedResponse, getCachedEvaluation]);
 
     const toggleLogExpansion = (index: number) => {
         setExpandedLogs(prev => ({ ...prev, [index]: !prev[index] }));
