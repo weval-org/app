@@ -114,6 +114,12 @@ const ModelCard: React.FC<ModelCardProps> = ({ modelId, promptCoverageScores, pr
             modelResponse: bundles.map(b => `\n[T ${b.temperature}]\n${b.modelResponse}`).join('\n\n'),
             generatedTranscript: aggregateGeneratedTranscript,
             generatedHistory: aggregateGeneratedHistory,
+            perTemperatureOutputs: bundles.length > 1 ? bundles.map(b => ({
+                temperature: (b.temperature ?? 0) as number,
+                generatedHistory: b.generatedHistory,
+                generatedTranscript: b.generatedTranscript,
+                modelResponse: b.modelResponse,
+            })) : undefined,
         };
 
         return [aggregateBundle, ...bundles];

@@ -123,12 +123,12 @@ describe('LLMCoverageEvaluator', () => {
         const points: PointDefinition[] = ['mentions greeting'];
         const input = createMockEvaluationInput('prompt-convo-aware', points, 'Hi!');
         const customJudges: Judge[] = [
-            { model: 'judge:conv', approach: 'conversation-aware' },
+            { model: 'judge:conv', approach: 'prompt-aware' },
         ];
         (input.config as any).evaluationConfig = { 'llm-coverage': { judges: customJudges } };
 
         requestIndividualJudgeSpy.mockImplementation(async (mrt, kpt, allKPs, promptContextText, suiteDesc, judge) => {
-            expect(judge.approach).toBe('conversation-aware');
+            expect(judge.approach).toBe('prompt-aware');
             expect(promptContextText).toContain('assistant');
             return { coverage_extent: 1.0, reflection: 'good' };
         });

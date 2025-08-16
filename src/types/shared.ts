@@ -236,7 +236,7 @@ export interface ExecutiveSummary {
 export interface Judge {
     id?: string; // Optional identifier for a specific judge configuration
     model: string;
-    approach: 'standard' | 'prompt-aware' | 'holistic' | 'conversation-aware';
+    approach: 'standard' | 'prompt-aware' | 'holistic';
 }
 
 // Public config type for llm-coverage evaluation (shared)

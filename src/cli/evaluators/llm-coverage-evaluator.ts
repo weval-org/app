@@ -395,25 +395,6 @@ export class LLMCoverageEvaluator implements Evaluator {
         let pointwisePrompt: string;
 
         switch (approach) {
-            case 'conversation-aware':
-                pointwisePrompt = `
-You are given a multi-turn conversation transcript and a criterion. Evaluate ONLY the content produced by the candidate model (marked as [Assistant (generated)]). Do not give credit for [Assistant (fixed)] turns.
-
-<TRANSCRIPT>
-${promptContextText}
-</TRANSCRIPT>
-
-<TEXT>
-${modelResponseText}
-</TEXT>
-
-Assess to what degree the following <CRITERION> is met by the generated assistant content:
-<CRITERION>
-${keyPointText}
-</CRITERION>
-`;
-                break;
-
             case 'prompt-aware':
             case 'holistic':
                 pointwisePrompt = `

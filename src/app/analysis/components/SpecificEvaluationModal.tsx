@@ -305,7 +305,22 @@ const SpecificEvaluationModal: React.FC = () => {
     const tempVariants: TempVariantBundle[] = React.useMemo(() => {
         if (!variantBundle) return [];
         const arr: TempVariantBundle[] = [
-            { temperature: null, assessments: variantBundle.assessments, modelResponse: variantBundle.modelResponse, generatedTranscript: (variantBundle as any).generatedTranscript, generatedHistory: (variantBundle as any).generatedHistory }
+            { 
+                temperature: null, 
+                assessments: variantBundle.assessments, 
+                modelResponse: variantBundle.modelResponse, 
+                generatedTranscript: (variantBundle as any).generatedTranscript, 
+                generatedHistory: (variantBundle as any).generatedHistory,
+                perTemperatureOutputs: tempsList.length > 1 ? tempsList.map((t) => {
+                    const v = variantBundle.perTempMap?.get(t);
+                    return {
+                        temperature: t as number,
+                        generatedHistory: (v as any)?.generatedHistory,
+                        generatedTranscript: (v as any)?.generatedTranscript,
+                        modelResponse: v?.modelResponse
+                    };
+                }) : undefined
+            }
         ];
         tempsList.forEach((t) => {
             const v = variantBundle.perTempMap?.get(t);

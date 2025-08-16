@@ -193,7 +193,9 @@ export const EvaluationView: React.FC<{
     generatedTranscript?: string;
     // Optional: structured generated history for nicer rendering
     generatedHistory?: ConversationMessage[];
-}> = ({ assessments, modelResponse, idealResponse, expandedLogs, toggleLogExpansion, isMobile = false, generatedTranscript, generatedHistory }) => {
+    // Optional: for aggregate view: sequential per-temperature outputs
+    generatedHistoryByTemp?: Array<{ temperature: number; history?: ConversationMessage[]; transcript?: string; text?: string }>;
+}> = ({ assessments, modelResponse, idealResponse, expandedLogs, toggleLogExpansion, isMobile = false, generatedTranscript, generatedHistory, generatedHistoryByTemp }) => {
     const [expandedAssessments, setExpandedAssessments] = useState<Set<number>>(new Set());
     const [activeTab, setActiveTab] = useState('model-response');
 
@@ -346,6 +348,43 @@ export const EvaluationView: React.FC<{
                                         </div>
                                     ))}
                                 </div>
+                            ) : (generatedHistoryByTemp && generatedHistoryByTemp.length > 0) ? (
+                                <div className="space-y-6 max-h-[50vh] overflow-y-auto custom-scrollbar pr-2">
+                                    {generatedHistoryByTemp.map((entry, idx) => (
+                                        <div key={idx} className="space-y-2">
+                                            <p className="text-xs font-semibold text-muted-foreground">T {entry.temperature}</p>
+                                            {entry.history && entry.history.length ? (
+                                                <div className="space-y-3">
+                                                    {entry.history.map((msg, j) => (
+                                                        <div key={j} className={cn(
+                                                            'rounded-md p-3 border',
+                                                            msg.role === 'user' ? 'bg-sky-50 dark:bg-sky-900/20 border-sky-200 dark:border-sky-800/40' :
+                                                            msg.role === 'assistant' ? 'bg-slate-50 dark:bg-slate-900/30 border-slate-200 dark:border-slate-700/40' :
+                                                            'bg-gray-50 dark:bg-gray-900/20 border-gray-200 dark:border-gray-700/40'
+                                                        )}>
+                                                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">{msg.role}</p>
+                                                            {msg.content === null ? (
+                                                                <p className="italic text-muted-foreground">[assistant: null — to be generated]</p>
+                                                            ) : (
+                                                                <div className="prose prose-sm dark:prose-invert max-w-none">
+                                                                    <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{msg.content}</ReactMarkdown>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : entry.transcript ? (
+                                                <div className="prose prose-sm dark:prose-invert max-w-none">
+                                                    <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{entry.transcript}</ReactMarkdown>
+                                                </div>
+                                            ) : entry.text ? (
+                                                <div className="prose prose-sm dark:prose-invert max-w-none">
+                                                    <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{entry.text}</ReactMarkdown>
+                                                </div>
+                                            ) : null}
+                                        </div>
+                                    ))}
+                                </div>
                             ) : modelResponse ? (
                                 <div className="prose prose-sm dark:prose-invert max-w-none">
                                     <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{modelResponse}</ReactMarkdown>
@@ -427,6 +466,43 @@ export const EvaluationView: React.FC<{
                                                 <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{msg.content}</ReactMarkdown>
                                             </div>
                                         )}
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (generatedHistoryByTemp && generatedHistoryByTemp.length > 0) ? (
+                            <div className="space-y-6">
+                                {generatedHistoryByTemp.map((entry, idx) => (
+                                    <div key={idx} className="space-y-2">
+                                        <p className="text-xs font-semibold text-muted-foreground">T {entry.temperature}</p>
+                                        {entry.history && entry.history.length ? (
+                                            <div className="space-y-3">
+                                                {entry.history.map((msg, j) => (
+                                                    <div key={j} className={cn(
+                                                        'rounded-md p-3 border',
+                                                        msg.role === 'user' ? 'bg-sky-50 dark:bg-sky-900/20 border-sky-200 dark:border-sky-800/40' :
+                                                        msg.role === 'assistant' ? 'bg-slate-50 dark:bg-slate-900/30 border-slate-200 dark:border-slate-700/40' :
+                                                        'bg-gray-50 dark:bg-gray-900/20 border-gray-200 dark:border-gray-700/40'
+                                                    )}>
+                                                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">{msg.role}</p>
+                                                        {msg.content === null ? (
+                                                            <p className="italic text-muted-foreground">[assistant: null — to be generated]</p>
+                                                        ) : (
+                                                            <div className="prose prose-sm dark:prose-invert max-w-none">
+                                                                <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{msg.content}</ReactMarkdown>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : entry.transcript ? (
+                                            <div className="prose prose-sm dark:prose-invert max-w-none">
+                                                <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{entry.transcript}</ReactMarkdown>
+                                            </div>
+                                        ) : entry.text ? (
+                                            <div className="prose prose-sm dark:prose-invert max-w-none">
+                                                <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{entry.text}</ReactMarkdown>
+                                            </div>
+                                        ) : null}
                                     </div>
                                 ))}
                             </div>

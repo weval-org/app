@@ -13,6 +13,8 @@ export interface TempVariantBundle {
   generatedTranscript?: string;
   // Optional structured history for nicer rendering
   generatedHistory?: any[];
+  // For aggregate: array of per-temperature outputs to render sequentially
+  perTemperatureOutputs?: Array<{ temperature: number; generatedHistory?: any[]; generatedTranscript?: string; modelResponse?: string }>;
 }
 
 interface TemperatureTabbedEvaluationProps {
@@ -76,6 +78,12 @@ const TemperatureTabbedEvaluation: React.FC<TemperatureTabbedEvaluationProps> = 
         isMobile={isMobile}
         generatedTranscript={activeBundle.generatedTranscript}
         generatedHistory={activeBundle.generatedHistory as any}
+        generatedHistoryByTemp={activeBundle.perTemperatureOutputs?.map(o => ({
+          temperature: o.temperature,
+          history: o.generatedHistory as any,
+          transcript: o.generatedTranscript,
+          text: o.modelResponse,
+        }))}
       />
     </>
   );
