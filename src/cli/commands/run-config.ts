@@ -471,6 +471,8 @@ interface RunOptions {
     requireExecutiveSummary?: boolean;
     skipExecutiveSummary?: boolean;
     updateSummaries?: boolean;
+    genTimeoutMs?: number | string;
+    genRetries?: number | string;
 }
 
 async function promptForConfig(): Promise<string> {
@@ -617,6 +619,9 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions, commi
             // Pass the string-only list of model IDs to the pipeline
             const pipelineConfig = { ...config, models: modelIdsToRun };
 
+            const genRetries = options.genRetries !== undefined ? parseInt(String(options.genRetries), 10) : undefined;
+            const genTimeoutMs = options.genTimeoutMs !== undefined ? parseInt(String(options.genTimeoutMs), 10) : undefined;
+
             const pipelineResult = await executeComparisonPipeline(
                 pipelineConfig, 
                 finalRunLabel, 
@@ -628,7 +633,8 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions, commi
                 commitSha || undefined,
                 blueprintFileName,
                 options.requireExecutiveSummary,
-                options.skipExecutiveSummary
+                options.skipExecutiveSummary,
+                { genTimeoutMs, genRetries }
             ); 
 
             if (pipelineResult && typeof pipelineResult === 'object' && 'fileName' in pipelineResult && 'data' in pipelineResult) {
@@ -955,6 +961,8 @@ const localCommand = new Command('local')
     .option('--require-executive-summary', 'Fail the entire run if executive summary generation fails (defaults to false).')
     .option('--skip-executive-summary', 'Skip generating the executive summary for this run.')
     .option('--update-summaries', 'Update model summaries and homepage summary after the evaluation run (defaults to false).')
+    .option('--gen-timeout-ms <number>', 'Timeout in milliseconds for each candidate generation API call (default 30000).')
+    .option('--gen-retries <number>', 'Number of retries for each candidate generation API call (default 1).')
     .action(actionLocal);
 
 const githubCommand = new Command('github')
@@ -967,6 +975,8 @@ const githubCommand = new Command('github')
     .option('--require-executive-summary', 'Fail the entire run if executive summary generation fails (defaults to false).')
     .option('--skip-executive-summary', 'Skip generating the executive summary for this run.')
     .option('--update-summaries', 'Update model summaries and homepage summary after the evaluation run (defaults to false).')
+    .option('--gen-timeout-ms <number>', 'Timeout in milliseconds for each candidate generation API call (default 30000).')
+    .option('--gen-retries <number>', 'Number of retries for each candidate generation API call (default 1).')
     .action(actionGitHub);
 
 export const runConfigCommand = new Command('run-config')

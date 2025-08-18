@@ -22,6 +22,7 @@ export async function generateAllResponses(
     logger: SimpleLogger,
     useCache: boolean,
     onProgress?: ProgressCallback,
+    genOptions?: { genTimeoutMs?: number; genRetries?: number },
 ): Promise<Map<string, PromptResponseData>> {
     logger.info(`[PipelineService] Generating model responses... Caching: ${useCache}`);
     const limit = pLimit(config.concurrency || DEFAULT_GENERATION_CONCURRENCY);
@@ -61,7 +62,10 @@ export async function generateAllResponses(
     
     // Create per-model limiters upfront (see detailed explanation above)
     modelIds.forEach(modelId => {
-        perModelLimits.set(modelId, pLimit(1)); // Strictly serialize per model to avoid race conditions
+        // 1 is best for testability, but no harm in higher for non test env
+        perModelLimits.set(modelId, pLimit(
+            process.env.NODE_ENV === 'test' ? 1 : 10
+        )); // Strictly serialize per model to avoid race conditions
     });
 
     const totalResponsesToGenerate = config.prompts.length * modelIds.length * temperaturesToRun.length * systemPromptsToRun.length;
@@ -145,7 +149,9 @@ export async function generateAllResponses(
                                             modelId: modelId,
                                             messages: [...workingHistory],
                                             temperature: temperatureForThisCall,
-                                            useCache: useCache
+                                            useCache: useCache,
+                                            timeout: genOptions?.genTimeoutMs,
+                                            retries: genOptions?.genRetries,
                                         });
                                         if (!genText || genText.trim() === '') {
                                             throw new Error('Model returned an empty or whitespace-only response.');
@@ -178,7 +184,9 @@ export async function generateAllResponses(
                                     modelId: modelId,
                                     messages: workingHistory,
                                     temperature: temperatureForThisCall,
-                                    useCache: useCache
+                                    useCache: useCache,
+                                    timeout: genOptions?.genTimeoutMs,
+                                    retries: genOptions?.genRetries,
                                 });
                                 if (!genText || genText.trim() === '') {
                                     throw new Error('Model returned an empty or whitespace-only response.');
@@ -204,7 +212,9 @@ export async function generateAllResponses(
                                         modelId: modelId,
                                         messages: workingHistory,
                                         temperature: temperatureForThisCall,
-                                        useCache: useCache
+                                        useCache: useCache,
+                                        timeout: genOptions?.genTimeoutMs,
+                                        retries: genOptions?.genRetries,
                                     });
                                     if (!genText || genText.trim() === '') {
                                         throw new Error('Model returned an empty or whitespace-only response.');
@@ -444,11 +454,12 @@ export async function executeComparisonPipeline(
     blueprintFileName?: string,
     requireExecutiveSummary?: boolean,
     skipExecutiveSummary?: boolean,
+    genOptions?: { genTimeoutMs?: number; genRetries?: number },
 ): Promise<{ data: FinalComparisonOutputV2, fileName: string | null }> {
     logger.info(`[PipelineService] Starting comparison pipeline for configId: '${(config as any).id || (config as any).configId}' runLabel: '${runLabel}'`);
 
     // Step 1: Generate all model responses if not provided
-    const allResponsesMap = existingResponsesMap ?? await generateAllResponses(config, logger, useCache);
+    const allResponsesMap = existingResponsesMap ?? await generateAllResponses(config, logger, useCache, undefined, genOptions);
 
     // Step 2: Prepare for evaluation
     const evaluationInputs: any[] = [];

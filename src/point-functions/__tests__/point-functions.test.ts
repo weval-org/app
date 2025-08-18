@@ -5,7 +5,7 @@ import { ends_with } from '@/point-functions/ends_with';
 import { contains_all_of } from '@/point-functions/contains_all_of';
 import { word_count_between } from '@/point-functions/word_count_between';
 import { icontains } from '@/point-functions/icontains';
-import { imatch } from '@/point-functions/imatch';
+import { imatches } from '@/point-functions/imatches';
 import { PointFunctionContext } from '../types';
 import { js } from '../js';
 
@@ -117,10 +117,10 @@ describe('Point Functions', () => {
 
     describe('imatch', () => {
         it('should return true for case-insensitive regex match', () => {
-            expect(imatch('Sentence.', '^sentence\\.$', mockContext)).toBe(true);
+            expect(imatches('Sentence.', '^sentence\\.$', mockContext)).toBe(true);
         });
         it('should return false if no regex match', () => {
-            expect(imatch('Sentence.', '^foo', mockContext)).toBe(false);
+            expect(imatches('Sentence.', '^foo', mockContext)).toBe(false);
         });
     });
 

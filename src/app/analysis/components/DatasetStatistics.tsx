@@ -444,7 +444,7 @@ const DatasetStatistics = () => {
                                 <div className="mt-4 sm:mt-6 text-xs text-muted-foreground dark:text-slate-300 bg-muted/70 dark:bg-slate-700/30 p-3 rounded-md ring-1 ring-border/50 dark:ring-slate-600/50">
                                     <p className="font-semibold mb-1 text-primary">Hybrid Score Explained:</p>
                                     <div className="prose prose-sm max-w-none text-muted-foreground">
-                                        <p>The Hybrid Score is a weighted average combining semantic similarity (35% weight) and key point coverage (65% weight). This emphasizes rubric adherence while still valuing overall response quality. <span className="mt-1 block sm:inline font-mono text-primary/80 text-[0.7rem]">Formula: (0.35 * sim_score) + (0.65 * cov_score)</span></p>
+                                        <p>The Hybrid Score currently defaults to the rubric coverage score (coverage-only).</p>
                                     </div>
                                 </div>
                             </>

@@ -140,6 +140,7 @@ graph TD;
         - **Place-holders** for bulky fields (`allFinalAssistantResponses`, `fullConversationHistories`)
     -   `responses/`     → prompt-level final assistant responses split by prompt (`responses/[promptId].json`).
     -   `coverage/`      → per-prompt × model rubric evaluations (`coverage/[promptId]/[modelId].json`).
+    -   `histories/`     → per-prompt × model full conversation histories (`histories/[promptId]/[modelId].json`).
     -   *(Legacy)* `[runLabel]_[timestamp]_comparison.json` – the original monolithic file is still generated for backward compatibility but will be phased out.
 
   The application fetches `core.json` via `/api/comparison/.../core` to render the page instantly.  Detailed data is lazy-loaded on demand from `responses/` and `coverage/` paths, with automatic fallback to the legacy monolithic file when artefacts are missing.

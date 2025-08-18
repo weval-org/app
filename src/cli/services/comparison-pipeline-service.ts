@@ -183,11 +183,12 @@ export async function executeComparisonPipeline(
     blueprintFileName?: string,
     requireExecutiveSummary?: boolean,
     skipExecutiveSummary?: boolean,
+    genOptions?: { genTimeoutMs?: number; genRetries?: number },
 ): Promise<{ data: FinalComparisonOutputV2, fileName: string | null }> {
     logger.info(`[PipelineService] Starting comparison pipeline for configId: '${config.id || config.configId}' runLabel: '${runLabel}'`);
     
     // Step 1: Generate all model responses if not provided
-    const allResponsesMap = existingResponsesMap ?? await generateAllResponses(config, logger, useCache);
+    const allResponsesMap = existingResponsesMap ?? await generateAllResponses(config, logger, useCache, undefined, genOptions);
     
     // Step 2: Prepare for evaluation
     const evaluationInputs: EvaluationInput[] = [];

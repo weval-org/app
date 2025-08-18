@@ -164,11 +164,19 @@ const SpecificEvaluationModal: React.FC = () => {
                 effectiveSystemPrompt = (data as any).modelSystemPrompts?.[modelIdVar] ?? null;
             }
 
-            // Attach generated transcript/history if available
+            // Attach generated transcript/history if available (keyed by promptId+modelId)
             let generatedTranscript: string | undefined = undefined;
             let generatedHistory: any[] | undefined = undefined;
             try {
-                const hist = historiesForPrompt[modelIdVar] || (data as any).fullConversationHistories?.[promptId]?.[modelIdVar];
+                const historyCacheKey = `${promptId}:${modelIdVar}`;
+                const hist = historiesForPrompt[historyCacheKey] || (data as any).fullConversationHistories?.[promptId]?.[modelIdVar];
+                // Debug: history source
+                // eslint-disable-next-line no-console
+                console.log('[SpecificEvaluationModal] History lookup', {
+                    historyCacheKey,
+                    fromInMemory: Array.isArray(historiesForPrompt[historyCacheKey]),
+                    fromDataBlob: Array.isArray((data as any).fullConversationHistories?.[promptId]?.[modelIdVar])
+                });
                 if (Array.isArray(hist) && hist.length > 0) {
                     generatedHistory = hist;
                     const lines: string[] = [];
@@ -343,18 +351,43 @@ const SpecificEvaluationModal: React.FC = () => {
                 : effectiveModels.filter(m => parseModelIdForDisplay(m).baseId === clickedParsed.baseId);
             const baseUrl = `/api/comparison/${encodeURIComponent(data.configId)}/${encodeURIComponent(data.runLabel)}/${encodeURIComponent(data.timestamp)}`;
             variantModelIds.forEach(async (mId) => {
-                if (historiesForPrompt[mId]) return;
+                const cacheKey = `${promptId}:${mId}`;
+                if (historiesForPrompt[cacheKey]) return;
                 try {
-                    const resp = await fetch(`${baseUrl}/modal-data/${encodeURIComponent(promptId)}/${encodeURIComponent(mId)}`);
+                    const url = `${baseUrl}/modal-data/${encodeURIComponent(promptId)}/${encodeURIComponent(mId)}`;
+                    // eslint-disable-next-line no-console
+                    console.log('[SpecificEvaluationModal] Fetching history', { url, cacheKey });
+                    const resp = await fetch(url);
                     if (!resp.ok) return;
                     const json = await resp.json();
                     if (Array.isArray(json.history)) {
-                        setHistoriesForPrompt(prev => ({ ...prev, [mId]: json.history }));
+                        setHistoriesForPrompt(prev => ({ ...prev, [cacheKey]: json.history }));
                     }
                 } catch {}
             });
         } catch {}
     }, [isOpen, promptId, modelId, data, historiesForPrompt]);
+
+    // Reset per-open caches and UI state when modal closes; also when switching prompts
+    useEffect(() => {
+        if (!isOpen) {
+            setHistoriesForPrompt({});
+            setExpandedLogs({});
+            setSelectedVariantIndex(0);
+            setActiveTemp('agg');
+        }
+    }, [isOpen]);
+
+    useEffect(() => {
+        if (isOpen && promptId) {
+            // Drop histories for other prompts to avoid accidental reuse
+            setHistoriesForPrompt(prev => {
+                const next: Record<string, any> = {};
+                Object.keys(prev).forEach(k => { if (k.startsWith(`${promptId}:`)) next[k] = prev[k]; });
+                return next;
+            });
+        }
+    }, [isOpen, promptId]);
 
     if (!isOpen || !modalData) return null;
 

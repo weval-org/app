@@ -6,7 +6,7 @@ import { starts_with } from './starts_with';
 import { word_count_between } from './word_count_between';
 import { contains_any_of } from './contains_any_of';
 import { icontains } from './icontains';
-import { imatch } from './imatch';
+import { imatches } from './imatches';
 import { ends_with } from './ends_with';
 import { contains_all_of } from './contains_all_of';
 import { matches_all_of } from './matches_all_of';
@@ -38,7 +38,8 @@ export const pointFunctions: Record<string, PointFunction> = {
     imatch_all_of,
     icontains,
     icontain: icontains,
-    imatch,
+    imatches,
+    imatch: imatches,
     contains_at_least_n_of,
     contain_at_least_n_of: contains_at_least_n_of,
     icontains_at_least_n_of,

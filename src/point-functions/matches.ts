@@ -8,6 +8,9 @@ export const matches: PointFunction = (
     if (typeof args !== 'string') {
         return { error: "Invalid arguments for 'matches'. Expected a regex string." };
     }
+    if (typeof llmResponseText !== 'string') {
+        return false;
+    }
     try {
         const regex = new RegExp(args);
         return regex.test(llmResponseText);

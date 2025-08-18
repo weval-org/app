@@ -17,6 +17,8 @@ export interface GetModelResponseParams {
     temperature?: number;
     maxTokens?: number;
     useCache?: boolean;
+    timeout?: number;
+    retries?: number;
 }
 
 // Legacy alias for backward compatibility
@@ -31,6 +33,8 @@ export async function getModelResponse(params: GetModelResponseParams): Promise<
         temperature = 0,
         maxTokens,
         useCache = true,
+        timeout,
+        retries,
     } = params;
     const { logger } = getConfig();
 
@@ -73,6 +77,7 @@ export async function getModelResponse(params: GetModelResponseParams): Promise<
         systemPrompt,
         temperature,
         maxTokens,
+        ...(typeof timeout === 'number' && isFinite(timeout) ? { timeout } : {}),
     };
 
     const apiCall = async () => {
@@ -88,7 +93,7 @@ export async function getModelResponse(params: GetModelResponseParams): Promise<
     try {
         const pRetry = (await import('p-retry')).default;
         const responseContent = await pRetry(apiCall, {
-            retries: 1,
+            retries: (typeof retries === 'number' && retries >= 0) ? retries : 1,
             onFailedAttempt: (error: any) => {
                 logger.warn(`[LLM Service] API call failed. Attempt ${error.attemptNumber}. Retries left: ${error.retriesLeft}.`);
                 logger.warn(`[LLM Service] Error: ${error.message}`);

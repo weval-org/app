@@ -28,7 +28,7 @@ The platform's analysis is primarily built upon two quantitative methods.
 
 This method quantifies the semantic closeness between model responses and a potential "ideal" answer.
 
-*   **Process**: Every model's textual response is converted into a high-dimensional vector using a text embedding model (e.g., OpenAI's `text-embedding-ada-002`).
+*   **Process**: Every model's textual response is converted into a high-dimensional vector using a text embedding model (e.g., OpenAI's `text-embedding-3-small`).
 *   **Mathematics**: The similarity between any two response vectors, $\mathbf{A}$ and $\mathbf{B}$, is calculated using **Cosine Similarity**:
     ```math
     \text{Similarity}(\mathbf{A}, \mathbf{B}) = \frac{\mathbf{A} \cdot \mathbf{B}}{\|\mathbf{A}\| \|\mathbf{B}\|}
@@ -55,10 +55,10 @@ evaluationConfig:
 ```
 
 If no `judges` are specified, the system uses a default set designed to provide a balanced evaluation:
-1.  **`standard` approach:** A judge sees only the model's response and the single criterion to be evaluated. This tests for the presence of the criterion in isolation.
-2.  **`prompt-aware` approach:** A judge sees the response, the criterion, and the original user prompt. This allows the judge to consider the criterion in the context of the user's request.
+1.  **`prompt-aware` approach (default):** A judge sees the response, the criterion, and the original user prompt. This allows the judge to consider the criterion in the context of the user's request.
+2.  **`holistic` approach (default):** A judge sees the response, the criterion, the user prompt, and *all other criteria* in the rubric. This provides the richest context, allowing the judge to assess the point as part of a whole, which can be useful for identifying redundancy or assessing trade-offs.
 
-A third approach, **`holistic`**, can be configured manually. This approach shows the judge the response, the criterion, the user prompt, and *all other criteria* in the rubric. This provides the richest context, allowing the judge to assess the point as part of a whole, which can be useful for identifying redundancy or assessing trade-offs.
+The **`standard`** approach (criterion-only) remains supported and can be configured explicitly if desired, but it is not part of the current default set. A backup judge is also used to improve robustness when primary judges fail.
 
 #### Judge Prompting and Classification
 
@@ -123,7 +123,7 @@ The Hybrid Score is a composite metric designed to provide a single, balanced me
     *   $S_{\text{cov}}$ is the rubric coverage score.
     *   $\beta$ is the weighting factor for similarity.
 
-    Weval uses a default weighting of **$\beta = 0.35$ (35% for similarity) and $1-\beta=0.65$ (65% for coverage)**. This reflects the platform's emphasis on rubric-based evaluation as the primary measure of performance, while still valuing the holistic quality captured by semantic similarity. On the homepage leaderboard, this default weighting is used, but users are provided with a slider to dynamically adjust this weighting, which re-ranks the models in real-time.
+    Weval currently uses a default weighting of **$\beta = 0.0$ (0% for similarity) and $1-\beta=1.0$ (100% for coverage)**. In other words, the Hybrid Score equals the coverage score by default. This reflects a deliberate choice to prioritize rubric adherence in the current version. The homepage UI may provide controls to experiment with alternative weightings for exploration, but core calculations default to coverage-only.
 
 *   **(Legacy) Geometric Mean**: Previously, the platform used a geometric mean ($\sqrt{S_{\text{sim}} \cdot S_{\text{cov}}}$). While statistically sound for averaging normalized ratios, it was replaced because the weighted arithmetic mean makes the platform's priorities more explicit and easier for users to understand.
 
