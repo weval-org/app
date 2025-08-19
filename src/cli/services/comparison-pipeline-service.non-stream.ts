@@ -64,8 +64,18 @@ export async function generateAllResponses(
     modelIds.forEach(modelId => {
         // 1 is best for testability, but no harm in higher for non test env
         perModelLimits.set(modelId, pLimit(
-            process.env.NODE_ENV === 'test' ? 1 : 10
-        )); // Strictly serialize per model to avoid race conditions
+            // process.env.NODE_ENV === 'test' ? 1 : 10
+            1 // best to not break circuit breaker
+            // Notes:
+            // Why: a circuit breaker is about “consecutive failures.”
+            // If you let N calls for the same model fly in parallel,
+            // they all start before any failure increments the counter.
+            // When they all fail, you overshoot the threshold by up to
+            // “in‑flight” calls. The only way to strictly enforce “stop after N”
+            // is to allow at most 1 in-flight call per model (so the failure
+            // counter is checked/updated before dispatching the next call).
+
+        ));
     });
 
     const totalResponsesToGenerate = config.prompts.length * modelIds.length * temperaturesToRun.length * systemPromptsToRun.length;
