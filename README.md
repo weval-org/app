@@ -251,6 +251,35 @@ pnpm cli clone-run homework-int-help-heuristics/919a1807afd4ec60/2025-08-09T02-1
 -   `--gen-timeout-ms <number>`: Timeout in milliseconds for each candidate generation API call. **Default: 30000**.
 -   `--gen-retries <number>`: Number of retries for each candidate generation API call. **Default: 1**.
 
+Fixtures (deterministic model responses for testing):
+
+```bash
+# Local blueprint with local fixtures file
+pnpm cli run-config local --config examples/blueprints/greeting.yml --fixtures examples/fixtures/greeting.json --eval-method llm-coverage --skip-executive-summary
+
+# GitHub blueprint with repo fixtures (looks under fixtures/<name>.yml|yaml|json)
+pnpm cli run-config github --name foo-blueprint --fixtures foo-blueprint-fixtures --eval-method llm-coverage --skip-executive-summary
+
+# Multi-turn example with assistant:null turns provided by fixtures
+pnpm cli run-config local --config examples/blueprints/clarify.yml --fixtures examples/fixtures/clarify.json --eval-method llm-coverage --skip-executive-summary
+```
+
+- `--fixtures <nameOrPath>`: When provided, candidate responses are sourced from an external fixtures file instead of calling the model API when applicable. For GitHub mode, the name is resolved under `fixtures/` in the `weval/configs` repo.
+- `--fixtures-strict`: If set, missing fixtures for any prompt×model pair cause a failure instead of falling back to live generation.
+
+Fixtures (deterministic model responses for testing):
+
+```bash
+# Local blueprint with local fixtures file
+pnpm cli run-config local --config examples/blueprints/greeting.yml --fixtures examples/fixtures/greeting.json --eval-method llm-coverage
+
+# GitHub blueprint with repo fixtures (looks under fixtures/<name>.yml|yaml|json)
+pnpm cli run-config github --name foo-blueprint --fixtures foo-blueprint-fixtures --eval-method llm-coverage
+```
+
+- `--fixtures <nameOrPath>`: When provided, candidate responses are sourced from an external fixtures file instead of calling the model API when applicable. For GitHub mode, the name is resolved under `fixtures/` in the `weval/configs` repo.
+- `--fixtures-strict`: If set, missing fixtures for any prompt×model pair cause a failure instead of falling back to live generation.
+
 Notes:
 -   Reuse is based on exact match of prompt id and effective model id (including temperature and system prompt index). If a pair exists in the source run, its response is reused; otherwise it is generated.
 -   Coverage and embeddings are recomputed for the final set to ensure consistency with the target blueprint configuration (e.g., different model cohorts or altered prompts).

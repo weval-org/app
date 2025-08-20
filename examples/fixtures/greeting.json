@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "strategy": "seeded",
+  "seed": 42,
+  "responses": {
+    "greeting": { "default": ["i am well", "doing fine"] }
+  }
+}
+

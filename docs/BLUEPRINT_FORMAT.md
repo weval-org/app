@@ -567,6 +567,30 @@ These checks operate on the parsed `toolCalls` trace only; they do not execute t
 
 No parser changes are required. The blueprint parser already forwards unknown configuration fields (such as `tools`, `toolUse`, `context`) into the final config object unchanged.
 
+---
+
+## Fixtures (External, Optional)
+
+Fixtures provide deterministic candidate responses for testing without changing the blueprint.
+
+- Location:
+  - Local runs: pass a file path via `--fixtures <path>`
+  - GitHub runs: pass a name via `--fixtures <name>`; the file is resolved under `fixtures/<name>.yml|yaml|json` in `weval/configs`
+- Format: YAML or JSON
+- Shape:
+  - `version?: number`
+  - `strategy?: 'seeded' | 'round-robin' | 'first'` (default: seeded)
+  - `seed?: string | number` (for seeded selection)
+  - `responses: { [promptId]: { default?: string | string[] | { turns: string[] }, byModel?: { [modelIdOrPattern]: string | string[] | { turns: string[] } } } }`
+    - `string` → single fixed response (final assistant)
+    - `string[]` → array to select from per the strategy (final assistant)
+    - `{ turns: string[] }` → fills assistant:null turns in order
+
+Notes:
+- Fixtures only affect candidate responses. Evaluation (coverage/similarity) runs as usual.
+- For multi-turn prompts using `assistant: null`, provide `turns` to fill those generated turns deterministically.
+- A `--fixtures-strict` flag can require all prompt×model pairs have fixtures; otherwise the system falls back to live generation for missing entries.
+
 
 ## Legacy JSON Blueprint Format
 

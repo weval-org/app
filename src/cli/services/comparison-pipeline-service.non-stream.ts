@@ -11,6 +11,7 @@ import { toSafeTimestamp } from '@/lib/timestampUtils';
 import { generateExecutiveSummary } from './executive-summary-service';
 import { EmbeddingEvaluator } from '@/cli/evaluators/embedding-evaluator';
 import { LLMCoverageEvaluator } from '@/cli/evaluators/llm-coverage-evaluator';
+import { FixtureSet, pickFixtureValue } from '@/lib/fixtures-service';
 
 export type ProgressCallback = (completed: number, total: number) => Promise<void>;
 
@@ -23,6 +24,8 @@ export async function generateAllResponses(
     useCache: boolean,
     onProgress?: ProgressCallback,
     genOptions?: { genTimeoutMs?: number; genRetries?: number },
+    runLabel?: string,
+    fixturesCtx?: { fixtures: FixtureSet; strict: boolean },
 ): Promise<Map<string, PromptResponseData>> {
     logger.info(`[PipelineService] Generating model responses... Caching: ${useCache}`);
     const limit = pLimit(config.concurrency || DEFAULT_GENERATION_CONCURRENCY);
@@ -138,13 +141,15 @@ export async function generateAllResponses(
                         }
                         // ---------------------------
 
-                        // Sequential generation with assistant:null support
+                        // Sequential generation with assistant:null support with fixtures
                         let finalAssistantResponseText = '';
                         let errorMessage: string | undefined;
                         let hasError = false;
                         let fullConversationHistoryWithResponse: ConversationMessage[] = [];
                         const generatedAssistantIndices: number[] = [];
                         const generatedAssistantTexts: string[] = [];
+                        let fixtureUsed: boolean = false;
+                        let fixtureSource: 'final' | 'turns' | undefined;
 
                         try {
                             const workingHistory: ConversationMessage[] = [];
@@ -155,14 +160,24 @@ export async function generateAllResponses(
                             for (const msg of promptConfig.messages!) {
                                 if (msg.role === 'assistant') {
                                     if (msg.content === null) {
-                                        const genText = await getModelResponse({
-                                            modelId: modelId,
-                                            messages: [...workingHistory],
-                                            temperature: temperatureForThisCall,
-                                            useCache: useCache,
-                                            timeout: genOptions?.genTimeoutMs,
-                                            retries: genOptions?.genRetries,
-                                        });
+                                        // Try fixtures turn-level
+                                        let genText: string | null = null;
+                                        const fixturePick = fixturesCtx?.fixtures ? pickFixtureValue(fixturesCtx.fixtures, promptConfig.id, modelId, finalEffectiveId, runLabel || '') : null;
+                                        if (fixturePick?.turns && fixturePick.turns.length > generatedAssistantIndices.length) {
+                                            genText = fixturePick.turns[generatedAssistantIndices.length];
+                                            fixtureUsed = true;
+                                            fixtureSource = 'turns';
+                                        }
+                                        if (!genText) {
+                                            genText = await getModelResponse({
+                                                modelId: modelId,
+                                                messages: [...workingHistory],
+                                                temperature: temperatureForThisCall,
+                                                useCache: useCache,
+                                                timeout: genOptions?.genTimeoutMs,
+                                                retries: genOptions?.genRetries,
+                                            });
+                                        }
                                         if (!genText || genText.trim() === '') {
                                             throw new Error('Model returned an empty or whitespace-only response.');
                                         }
@@ -190,14 +205,24 @@ export async function generateAllResponses(
                             const originalMessages = promptConfig.messages!;
                             const lastMsg = originalMessages[originalMessages.length - 1];
                             if (lastMsg && lastMsg.role === 'user') {
-                                const genText = await getModelResponse({
-                                    modelId: modelId,
-                                    messages: workingHistory,
-                                    temperature: temperatureForThisCall,
-                                    useCache: useCache,
-                                    timeout: genOptions?.genTimeoutMs,
-                                    retries: genOptions?.genRetries,
-                                });
+                                // Final assistant either from fixtures or real gen
+                                let genText: string | null = null;
+                                const fixturePick = fixturesCtx?.fixtures ? pickFixtureValue(fixturesCtx.fixtures, promptConfig.id, modelId, finalEffectiveId, runLabel || '') : null;
+                                if (!generatedAssistantIndices.length && fixturePick?.final) {
+                                    genText = fixturePick.final;
+                                    fixtureUsed = true;
+                                    fixtureSource = 'final';
+                                }
+                                if (!genText) {
+                                    genText = await getModelResponse({
+                                        modelId: modelId,
+                                        messages: workingHistory,
+                                        temperature: temperatureForThisCall,
+                                        useCache: useCache,
+                                        timeout: genOptions?.genTimeoutMs,
+                                        retries: genOptions?.genRetries,
+                                    });
+                                }
                                 if (!genText || genText.trim() === '') {
                                     throw new Error('Model returned an empty or whitespace-only response.');
                                 }
@@ -218,14 +243,23 @@ export async function generateAllResponses(
                                 if (lastAssistant && typeof lastAssistant.content === 'string') {
                                     finalAssistantResponseText = lastAssistant.content;
                                 } else {
-                                    const genText = await getModelResponse({
-                                        modelId: modelId,
-                                        messages: workingHistory,
-                                        temperature: temperatureForThisCall,
-                                        useCache: useCache,
-                                        timeout: genOptions?.genTimeoutMs,
-                                        retries: genOptions?.genRetries,
-                                    });
+                                    let genText: string | null = null;
+                                    const fixturePick = fixturesCtx?.fixtures ? pickFixtureValue(fixturesCtx.fixtures, promptConfig.id, modelId, finalEffectiveId, runLabel || '') : null;
+                                    if (fixturePick?.final) {
+                                        genText = fixturePick.final;
+                                        fixtureUsed = true;
+                                        fixtureSource = 'final';
+                                    }
+                                    if (!genText) {
+                                        genText = await getModelResponse({
+                                            modelId: modelId,
+                                            messages: workingHistory,
+                                            temperature: temperatureForThisCall,
+                                            useCache: useCache,
+                                            timeout: genOptions?.genTimeoutMs,
+                                            retries: genOptions?.genRetries,
+                                        });
+                                    }
                                     if (!genText || genText.trim() === '') {
                                         throw new Error('Model returned an empty or whitespace-only response.');
                                     }
@@ -283,7 +317,9 @@ export async function generateAllResponses(
                             systemPromptUsed: systemPromptToUse ?? null,
                             toolCalls: extractToolCallsFromText(finalAssistantResponseText),
                             generatedAssistantIndices,
-                            generatedAssistantTexts
+                            generatedAssistantTexts,
+                            fixtureUsed: fixtureUsed || undefined,
+                            fixtureSource
                         };
                         generatedCount++;
                         logger.info(`[PipelineService] Generated ${generatedCount}/${totalResponsesToGenerate} responses.`);

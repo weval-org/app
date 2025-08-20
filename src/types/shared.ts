@@ -299,6 +299,9 @@ export type ModelResponseDetail = {
     systemPromptUsed: string | null;
     hasError: boolean;
     errorMessage?: string;
+    // Fixture metadata
+    fixtureUsed?: boolean;
+    fixtureSource?: 'final' | 'turns';
     // Trace-only tool calls extracted from assistant content
     toolCalls?: { name: string; arguments: any }[];
     // Sequential generation metadata (when assistant:null placeholders are used)

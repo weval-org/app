@@ -1,0 +1,15 @@
+title: Clarify (fixtures turns demo)
+models:
+  - openai:gpt-4o-mini
+tags: [test]
+---
+- id: clarify
+  messages:
+    - user: I need help with my taxes.
+    - assistant: null
+    - user: I changed jobs mid-year and moved states.
+    - assistant: null
+    - user: Anything else I should consider?
+  should:
+    - $contains: "?"
+

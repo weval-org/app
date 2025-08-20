@@ -1,0 +1,10 @@
+title: Greeting (fixtures demo)
+models:
+  - openai:gpt-4o-mini
+tags: [test]
+---
+- id: greeting
+  prompt: "how are you?"
+  should:
+    - $contains: "well"
+

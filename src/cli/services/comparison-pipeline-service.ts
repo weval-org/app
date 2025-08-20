@@ -7,6 +7,7 @@ import { saveResult as saveResultToStorage } from '@/lib/storageService';
 import { toSafeTimestamp } from '@/lib/timestampUtils';
 import { generateExecutiveSummary as generateExecutiveSummary } from './executive-summary-service';
 import { generateAllResponses } from './comparison-pipeline-service.non-stream';
+import type { FixtureSet } from '@/lib/fixtures-service';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
@@ -185,11 +186,12 @@ export async function executeComparisonPipeline(
     skipExecutiveSummary?: boolean,
     genOptions?: { genTimeoutMs?: number; genRetries?: number },
     prefilledCoverage?: Record<string, Record<string, any>>,
+    fixturesCtx?: { fixtures: FixtureSet; strict: boolean },
 ): Promise<{ data: FinalComparisonOutputV2, fileName: string | null }> {
     logger.info(`[PipelineService] Starting comparison pipeline for configId: '${config.id || config.configId}' runLabel: '${runLabel}'`);
     
     // Step 1: Generate all model responses if not provided
-    const allResponsesMap = existingResponsesMap ?? await generateAllResponses(config, logger, useCache, undefined, genOptions);
+    const allResponsesMap = existingResponsesMap ?? await generateAllResponses(config, logger, useCache, undefined, genOptions, runLabel, fixturesCtx);
     
     // Step 2: Prepare for evaluation
     const evaluationInputs: EvaluationInput[] = [];

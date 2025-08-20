@@ -22,10 +22,21 @@ import { toSafeTimestamp } from '@/lib/timestampUtils';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { getModelResponse, DEFAULT_TEMPERATURE } from '../services/llm-service';
 import { parseModelIdForApiCall } from '@/app/utils/modelIdUtils';
+import { loadFixturesFromLocal, pickFixtureValue, FixtureSet } from '@/lib/fixtures-service';
 
-async function actionRepairRun(runIdentifier: string, options: { cache?: boolean; genTimeoutMs?: number | string; genRetries?: number | string }) {
+async function actionRepairRun(runIdentifier: string, options: { cache?: boolean; genTimeoutMs?: number | string; genRetries?: number | string, fixtures?: string, fixturesStrict?: boolean }) {
   const { logger } = getConfig();
   const useCache = options.cache ?? false;
+  let fixtures: FixtureSet | null = null;
+  if (options.fixtures) {
+    fixtures = await loadFixturesFromLocal(options.fixtures, logger as any);
+    if (!fixtures && options.fixturesStrict) {
+      logger.error(`--fixtures '${options.fixtures}' not found and --fixtures-strict is set.`);
+      process.exit(1);
+      return;
+    }
+    if (fixtures) logger.info(`Loaded fixtures from '${options.fixtures}'. Strategy=${fixtures.strategy || 'seeded'}`);
+  }
 
   logger.info(`Starting repair for run: ${runIdentifier}`);
 
@@ -135,7 +146,9 @@ async function actionRepairRun(runIdentifier: string, options: { cache?: boolean
                 const { originalModelId, temperature: parsedTemp } = parseModelIdForApiCall(modelId);
                 const temperature = parsedTemp ?? DEFAULT_TEMPERATURE;
                 
-                const newResponseText = await getModelResponse({ 
+                // Try fixtures first (final response only). For assistant:null sequences, full turn-level fixtures are not applied in repair.
+                const fixturePick = fixtures ? pickFixtureValue(fixtures, promptId, originalModelId, modelId, runLabel) : null;
+                const newResponseText = fixturePick?.final ?? await getModelResponse({ 
                     modelId: originalModelId, 
                     messages: promptConfig.messages, 
                     temperature, 
@@ -264,4 +277,6 @@ export const repairRunCommand = new Command('repair-run')
   .option('--cache', 'Enable caching for model responses during repair (by default, caching is disabled for repairs).', false)
   .option('--gen-timeout-ms <number>', 'Timeout in milliseconds for each candidate generation API call during repair (default 30000).')
   .option('--gen-retries <number>', 'Number of retries for each candidate generation API call during repair (default 1).')
+  .option('--fixtures <path>', 'Optional local fixtures file to use when regenerating failed pairs (final assistant only).')
+  .option('--fixtures-strict', 'Error when a fixture for a prompt×model is missing instead of generating live.', false)
   .action(actionRepairRun); 

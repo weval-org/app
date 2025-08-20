@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "strategy": "first",
+  "responses": {
+    "clarify": {
+      "default": {
+        "turns": [
+          "Could you share your filing status?",
+          "Also, which states did you live and work in during the year?"
+        ]
+      }
+    }
+  }
+}
+

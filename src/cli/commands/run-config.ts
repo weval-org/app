@@ -37,6 +37,7 @@ import { executeComparisonPipeline } from '../services/comparison-pipeline-servi
 import { generateConfigContentHash } from '../../lib/hash-utils';
 import { parseAndNormalizeBlueprint } from '../../lib/blueprint-parser';
 import { fetchBlueprintContentByName, fetchBlueprintsInDirectory, resolveModelsInConfig } from '../../lib/blueprint-service';
+import { fetchFixturesByName, loadFixturesFromLocal, FixtureSet } from '@/lib/fixtures-service';
 import { validateBlueprintSchema } from '@/lib/blueprint-validator';
 import pLimit from '@/lib/pLimit';
 import { SimpleLogger } from '@/lib/blueprint-service';
@@ -245,6 +246,7 @@ export async function loadAndValidateConfig(options: {
     fileType?: 'json' | 'yaml',
     collectionsRepoPath?: string,
     isRemote?: boolean,
+    fixturesNameOrPath?: string,
 }): Promise<ComparisonConfig> {
     const { configPath, configContent, blueprintPath, fileType, collectionsRepoPath, isRemote } = options;
     const { logger } = getConfig();
@@ -537,7 +539,7 @@ async function promptForBlueprintName(): Promise<string> {
     return blueprintName.trim();
 }
 
-async function runBlueprint(config: ComparisonConfig, options: RunOptions, commitSha?: string | null, blueprintFileName?: string) {
+async function runBlueprint(config: ComparisonConfig, options: RunOptions & { fixturesNameOrPath?: string, fixturesStrict?: boolean, isRemote?: boolean }, commitSha?: string | null, blueprintFileName?: string) {
     const { logger: loggerInstance } = getConfig();
 
     try {
@@ -640,6 +642,38 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions, commi
             const genRetries = options.genRetries !== undefined ? parseInt(String(options.genRetries), 10) : undefined;
             const genTimeoutMs = options.genTimeoutMs !== undefined ? parseInt(String(options.genTimeoutMs), 10) : undefined;
 
+            // Load fixtures if requested
+            let fixturesCtx: { fixtures: FixtureSet; strict: boolean } | undefined;
+            if (options.fixturesNameOrPath) {
+                try {
+                    if (options.isRemote) {
+                        const ghToken = process.env.GITHUB_TOKEN;
+                        const res = await fetchFixturesByName(options.fixturesNameOrPath, ghToken, loggerInstance as any);
+                        if (res.fixtures) {
+                            fixturesCtx = { fixtures: res.fixtures, strict: !!options.fixturesStrict };
+                            loggerInstance.info(`Fixtures loaded from repo for '${options.fixturesNameOrPath}'. Strategy=${res.fixtures.strategy || 'seeded'}`);
+                        } else if (options.fixturesStrict) {
+                            throw new Error(`--fixtures '${options.fixturesNameOrPath}' not found in repo fixtures/ and --fixtures-strict is set.`);
+                        } else {
+                            loggerInstance.warn(`Fixtures '${options.fixturesNameOrPath}' not found in repo; proceeding without fixtures.`);
+                        }
+                    } else {
+                        const fixtures = await loadFixturesFromLocal(options.fixturesNameOrPath, loggerInstance as any);
+                        if (fixtures) {
+                            fixturesCtx = { fixtures, strict: !!options.fixturesStrict };
+                            loggerInstance.info(`Fixtures loaded from local path '${options.fixturesNameOrPath}'. Strategy=${fixtures.strategy || 'seeded'}`);
+                        } else if (options.fixturesStrict) {
+                            throw new Error(`--fixtures '${options.fixturesNameOrPath}' not found and --fixtures-strict is set.`);
+                        } else {
+                            loggerInstance.warn(`Fixtures '${options.fixturesNameOrPath}' not found; proceeding without fixtures.`);
+                        }
+                    }
+                } catch (e: any) {
+                    loggerInstance.error(`Failed to load fixtures '${options.fixturesNameOrPath}': ${e.message}`);
+                    throw e;
+                }
+            }
+
             const pipelineResult = await executeComparisonPipeline(
                 pipelineConfig, 
                 finalRunLabel, 
@@ -652,7 +686,9 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions, commi
                 blueprintFileName,
                 options.requireExecutiveSummary,
                 options.skipExecutiveSummary,
-                { genTimeoutMs, genRetries }
+                { genTimeoutMs, genRetries },
+                undefined,
+                fixturesCtx
             ); 
 
             if (pipelineResult && typeof pipelineResult === 'object' && 'fileName' in pipelineResult && 'data' in pipelineResult) {
@@ -875,7 +911,7 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions, commi
     }
 }
 
-async function actionLocal(options: { config?: string } & RunOptions) {
+async function actionLocal(options: { config?: string, fixtures?: string, fixturesStrict?: boolean } & RunOptions) {
     const { logger: loggerInstance } = getConfig();
     loggerInstance.info(`Weval 'run-config local' CLI started. Options received: ${JSON.stringify(options)}`);
     
@@ -895,7 +931,7 @@ async function actionLocal(options: { config?: string } & RunOptions) {
             collectionsRepoPath: options.collectionsRepoPath,
             isRemote: false,
         });
-        await runBlueprint(config, options);
+        await runBlueprint(config, { ...options, fixturesNameOrPath: options.fixtures, fixturesStrict: options.fixturesStrict, isRemote: false });
     } catch (error: any) {
         loggerInstance.error(`Error during 'run-config local': ${error.message}`);
         if (process.env.DEBUG && error.stack) {
@@ -905,7 +941,7 @@ async function actionLocal(options: { config?: string } & RunOptions) {
     }
 }
 
-async function actionGitHub(options: { name?: string } & RunOptions) {
+async function actionGitHub(options: { name?: string, fixtures?: string, fixturesStrict?: boolean } & RunOptions) {
     const { logger: loggerInstance } = getConfig();
     loggerInstance.info(`Weval 'run-config github' CLI started. Options received: ${JSON.stringify(options)}`);
     
@@ -931,7 +967,7 @@ async function actionGitHub(options: { name?: string } & RunOptions) {
                 collectionsRepoPath: options.collectionsRepoPath,
                 isRemote: true,
             });
-            await runBlueprint(config, options, remoteConfig.commitSha, remoteConfig.blueprintPath);
+            await runBlueprint(config, { ...options, fixturesNameOrPath: options.fixtures, fixturesStrict: options.fixturesStrict, isRemote: true }, remoteConfig.commitSha, remoteConfig.blueprintPath);
             return;
         }
 
@@ -952,7 +988,7 @@ async function actionGitHub(options: { name?: string } & RunOptions) {
                 collectionsRepoPath: options.collectionsRepoPath,
                 isRemote: true,
             });
-            await runBlueprint(cfg, options, entry.commitSha, entry.blueprintPath);
+            await runBlueprint(cfg, { ...options, fixturesNameOrPath: options.fixtures, fixturesStrict: options.fixturesStrict, isRemote: true }, entry.commitSha, entry.blueprintPath);
         }));
         await Promise.all(tasks);
     } catch (error: any) {
@@ -972,6 +1008,8 @@ async function actionGitHub(options: { name?: string } & RunOptions) {
 const localCommand = new Command('local')
     .description('Runs an evaluation from a local blueprint file.')
     .option('-c, --config <path>', 'Path to the local blueprint file (.yml, .yaml, or .json). If not provided, you will be prompted to enter it.')
+    .option('--fixtures <nameOrPath>', 'Fixtures file path (local). If provided, candidate responses are taken from fixtures.')
+    .option('--fixtures-strict', 'Error when a fixture for a prompt×model is missing instead of generating live.', false)
     .option('-r, --run-label <runLabelValue>', 'A unique label for this specific execution run. If not provided, a label will be generated based on the blueprint content.')
     .option('--eval-method <methods>', "Comma-separated evaluation methods (embedding, llm-coverage, all)")
     .option('--cache', 'Enable caching for model responses (defaults to false).')
@@ -986,6 +1024,8 @@ const localCommand = new Command('local')
 const githubCommand = new Command('github')
     .description('Runs an evaluation from a blueprint on the weval/configs GitHub repository.')
     .option('-n, --name <name>', 'Name of the blueprint in the GitHub repo (e.g., "my-test-blueprint"), without file extension. If not provided, you will be prompted to enter it.')
+    .option('--fixtures <name>', 'Fixtures name in the configs repo under fixtures/<name>.yml|yaml|json. If provided, candidate responses are taken from fixtures.')
+    .option('--fixtures-strict', 'Error when a fixture for a prompt×model is missing instead of generating live.', false)
     .option('-r, --run-label <runLabelValue>', 'A unique label for this specific execution run. If not provided, a label will be generated based on the blueprint content.')
     .option('--eval-method <methods>', "Comma-separated evaluation methods (embedding, llm-coverage, all)")
     .option('--cache', 'Enable caching for model responses (defaults to false).')

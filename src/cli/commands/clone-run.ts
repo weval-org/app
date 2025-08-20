@@ -6,6 +6,7 @@ import { executeComparisonPipeline } from '../services/comparison-pipeline-servi
 import { ComparisonConfig, PromptResponseData } from '../types/cli_types';
 import { ConversationMessage } from '@/types/shared';
 import { getModelResponse, DEFAULT_TEMPERATURE } from '../services/llm-service';
+import { loadFixturesFromLocal, FixtureSet, pickFixtureValue } from '@/lib/fixtures-service';
 import { fetchBlueprintContentByName } from '@/lib/blueprint-service';
 import type { SimpleLogger } from '@/lib/blueprint-service';
 import { getCoverageResult, getConfigSummary, saveConfigSummary, updateSummaryDataWithNewRun } from '@/lib/storageService';
@@ -18,6 +19,8 @@ interface CloneOptions {
   genTimeoutMs?: number | string;
   genRetries?: number | string;
   updateSummaries?: boolean;
+  fixtures?: string;
+  fixturesStrict?: boolean;
 }
 
 function buildEffectiveId(baseModelId: string, temp: number | undefined, systems: (string | null | undefined)[] | undefined, spIdx: number): string {
@@ -227,6 +230,11 @@ async function actionCloneRun(sourceIdentifier: string, options: CloneOptions) {
     `-${removedBaseModels.length} removed${removedBaseModels.length ? ` [${removedBaseModels.join(', ')}]` : ''}`
   );
   const responseMap = new Map<string, PromptResponseData>();
+  let fixtures: FixtureSet | null = null;
+  if (options.fixtures) {
+    fixtures = await loadFixturesFromLocal(options.fixtures, logger as any);
+    if (fixtures) logger.info(`Loaded fixtures for clone-run.`);
+  }
   let totalPlannedReuse = 0;
   let totalPlannedGenerate = 0;
   const prefilledCoverage: Record<string, Record<string, any>> = {};
@@ -286,15 +294,27 @@ async function actionCloneRun(sourceIdentifier: string, options: CloneOptions) {
           }
 
           // Generate missing pair
-          const { text, history, hasError, errorMessage } = await generateResponseForPair({
-            modelId: baseModelId,
-            temperature: (tempValue as number | undefined),
-            systemPrompt: systemPromptUsed ?? null,
-            messages: prompt.messages as ConversationMessage[],
-            useCache,
-            genTimeoutMs: options.genTimeoutMs !== undefined ? parseInt(String(options.genTimeoutMs), 10) : undefined,
-            genRetries: options.genRetries !== undefined ? parseInt(String(options.genRetries), 10) : undefined,
-          });
+          // Try fixtures
+          let text: string;
+          let history: ConversationMessage[];
+          let hasError = false;
+          let errorMessage: string | undefined;
+          const fixturePick = fixtures ? pickFixtureValue(fixtures, prompt.id, baseModelId, effectiveId, runLabel) : null;
+          if (fixturePick?.final) {
+            history = [...(prompt.messages as ConversationMessage[]), { role: 'assistant', content: fixturePick.final }];
+            text = fixturePick.final;
+          } else {
+            const res = await generateResponseForPair({
+              modelId: baseModelId,
+              temperature: (tempValue as number | undefined),
+              systemPrompt: systemPromptUsed ?? null,
+              messages: prompt.messages as ConversationMessage[],
+              useCache,
+              genTimeoutMs: options.genTimeoutMs !== undefined ? parseInt(String(options.genTimeoutMs), 10) : undefined,
+              genRetries: options.genRetries !== undefined ? parseInt(String(options.genRetries), 10) : undefined,
+            });
+            text = res.text; history = res.history; hasError = res.hasError; errorMessage = res.errorMessage;
+          }
 
           promptData.modelResponses[effectiveId] = {
             finalAssistantResponseText: text,
@@ -302,6 +322,8 @@ async function actionCloneRun(sourceIdentifier: string, options: CloneOptions) {
             hasError: !!hasError,
             errorMessage: errorMessage,
             systemPromptUsed: systemPromptUsed ?? null,
+            fixtureUsed: fixturePick?.final ? true : undefined,
+            fixtureSource: fixturePick?.final ? 'final' : undefined,
           } as any;
           promptGen++;
         }
@@ -374,6 +396,8 @@ export const cloneRunCommand = new Command('clone-run')
   .option('--gen-timeout-ms <number>', 'Timeout in milliseconds for each candidate generation API call (default 30000).')
   .option('--gen-retries <number>', 'Number of retries for each candidate generation API call (default 1).')
   .option('--update-summaries', 'Also update summaries (homepage, latest runs, model summaries) like run-config when STORAGE_PROVIDER=s3 or UPDATE_LOCAL_SUMMARY=true.')
+  .option('--fixtures <nameOrPath>', 'Optional fixtures for generation of missing pairs. Local path or repo name (not fetched automatically in clone-run).')
+  .option('--fixtures-strict', 'Error when a fixture for a prompt×model is missing instead of generating live.', false)
   .action(actionCloneRun);
 
 
