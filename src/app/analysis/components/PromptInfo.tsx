@@ -20,6 +20,7 @@ interface PromptInfoProps {
   promptContext: string | ConversationMessage[] | undefined;
   systemPrompt: string | null;
   variantIndex: number;
+  hideConversation?: boolean;
 }
 
 const PromptInfo: React.FC<PromptInfoProps> = ({ 
@@ -27,9 +28,10 @@ const PromptInfo: React.FC<PromptInfoProps> = ({
   citation, 
   promptContext, 
   systemPrompt,
-  variantIndex 
+  variantIndex,
+  hideConversation = false,
 }) => {
-  const [isOpen, setIsOpen] = React.useState(true);
+  const [isOpen, setIsOpen] = React.useState(false);
 
   // usePreloadIcons(['message-square', 'chevron-down']);
 
@@ -94,12 +96,14 @@ const PromptInfo: React.FC<PromptInfoProps> = ({
             </div>
             
             {/* Prompt Context Section */}
-            <div className="space-y-2">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Conversation</h4>
-              <div className="p-3 rounded-md bg-muted/30 border border-border/50">
-                <PromptContextDisplay promptContext={promptContext} />
+            {!hideConversation && (
+              <div className="space-y-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Conversation</h4>
+                <div className="p-3 rounded-md bg-muted/30 border border-border/50">
+                  <PromptContextDisplay promptContext={promptContext} />
+                </div>
               </div>
-            </div>
+            )}
           </CardContent>
         </CollapsibleContent>
       </Collapsible>

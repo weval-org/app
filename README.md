@@ -141,6 +141,8 @@ pnpm cli run-config local --config path/to/your_blueprint.yml --run-label <your_
 -   `--cache`: Enables caching for model responses.
 -   `--collections-repo-path <path>`: Path to a local `weval/configs` repo to resolve model collections.
 -   `--update-summaries`: Updates platform-wide summaries (homepage, model leaderboards, etc.) after the evaluation. **Default: false** (only runs the evaluation and updates per-config summary).
+ -   `--gen-timeout-ms <number>`: Timeout in milliseconds for each candidate generation API call. **Default: 30000**.
+ -   `--gen-retries <number>`: Number of retries for each candidate generation API call. **Default: 1**.
 
 **2. Run with a blueprint from GitHub by name:**
 
@@ -150,6 +152,8 @@ pnpm cli run-config github --name udhr-misattribution-absurd-framing --run-label
 
 -   `--name <name>`: **(Required)** Name of the blueprint in the `weval/configs` repo (without extension). Can include subdirectories, e.g., `subdir/my-blueprint`.
 -   `--update-summaries`: Updates platform-wide summaries (homepage, model leaderboards, etc.) after the evaluation. **Default: false** (only runs the evaluation and updates per-config summary).
+ -   `--gen-timeout-ms <number>`: Timeout in milliseconds for each candidate generation API call. **Default: 30000**.
+ -   `--gen-retries <number>`: Number of retries for each candidate generation API call. **Default: 1**.
 
 ### `generate-search-index`
 
@@ -222,6 +226,38 @@ pnpm cli repair-run <configId/runLabel/timestamp>
 
 -   `<runIdentifier>`: **(Required)** The unique identifier for the run, typically found in the URL of the analysis page (e.g., `my-config__my-test/my-run-label/2024-01-01T12-00-00-000Z`). Note that subdirectories in a blueprint's path are converted to a double underscore (`__`) in the `configId`.
 -   `--cache`: Enables caching for model responses during the repair. By default, caching is disabled for repairs to ensure fresh results.
+ -   `--gen-timeout-ms <number>`: Timeout in milliseconds for each candidate generation API call during repair. **Default: 30000**.
+ -   `--gen-retries <number>`: Number of retries for each candidate generation API call during repair. **Default: 1**.
+
+### `clone-run`
+
+Clones an existing run into a brand-new run using a target blueprint, deterministically reusing prior responses where inputs match and generating only what’s missing. Evaluations (coverage/embeddings) are computed over the final cohort of prompt/model variants.
+
+```bash
+pnpm cli clone-run <configId/runLabel/timestamp> [options]
+
+# Examples
+pnpm cli clone-run homework-int-help-heuristics/919a1807afd4ec60/2025-08-09T02-18-24-413Z --cache
+pnpm cli clone-run homework-int-help-heuristics/919a1807afd4ec60/2025-08-09T02-18-24-413Z \
+  --config evaluation_blueprints/homework-int-help-heuristics.yml --eval-method all
+```
+
+-   `<runIdentifier>`: **(Required)** The source run identifier (`configId/runLabel/timestamp`).
+-   `--config <path>`: Path to the target blueprint file (`.yml`, `.yaml`, or `.json`).
+    - If omitted, the command will try to load the blueprint by name from the `weval/configs` GitHub repository using `configId`.
+    - If that fetch fails, it falls back to the embedded `config` inside the source run JSON.
+-   `--eval-method <methods>`: Comma-separated methods. Defaults to `embedding`. (`embedding`, `llm-coverage`, `all`).
+-   `--cache`: Enables caching for model responses when generating missing pairs.
+-   `--gen-timeout-ms <number>`: Timeout in milliseconds for each candidate generation API call. **Default: 30000**.
+-   `--gen-retries <number>`: Number of retries for each candidate generation API call. **Default: 1**.
+
+Notes:
+-   Reuse is based on exact match of prompt id and effective model id (including temperature and system prompt index). If a pair exists in the source run, its response is reused; otherwise it is generated.
+-   Coverage and embeddings are recomputed for the final set to ensure consistency with the target blueprint configuration (e.g., different model cohorts or altered prompts).
+-   The output is a new run:
+    - `runLabel`: Derived from the target blueprint’s content hash (will usually differ from the source run).
+    - `timestamp`: Always new.
+    - Saved to: `live/blueprints/{configId}/{runLabel}_{timestamp}_comparison.json` (plus artefacts).
 
 ### `generate-model-card` (Experimental)
 

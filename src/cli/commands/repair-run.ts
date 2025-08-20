@@ -23,7 +23,7 @@ import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { getModelResponse, DEFAULT_TEMPERATURE } from '../services/llm-service';
 import { parseModelIdForApiCall } from '@/app/utils/modelIdUtils';
 
-async function actionRepairRun(runIdentifier: string, options: { cache?: boolean }) {
+async function actionRepairRun(runIdentifier: string, options: { cache?: boolean; genTimeoutMs?: number | string; genRetries?: number | string }) {
   const { logger } = getConfig();
   const useCache = options.cache ?? false;
 
@@ -135,7 +135,14 @@ async function actionRepairRun(runIdentifier: string, options: { cache?: boolean
                 const { originalModelId, temperature: parsedTemp } = parseModelIdForApiCall(modelId);
                 const temperature = parsedTemp ?? DEFAULT_TEMPERATURE;
                 
-                const newResponseText = await getModelResponse({ modelId: originalModelId, messages: promptConfig.messages, temperature, useCache });
+                const newResponseText = await getModelResponse({ 
+                    modelId: originalModelId, 
+                    messages: promptConfig.messages, 
+                    temperature, 
+                    useCache,
+                    timeout: options.genTimeoutMs !== undefined ? parseInt(String(options.genTimeoutMs), 10) : undefined,
+                    retries: options.genRetries !== undefined ? parseInt(String(options.genRetries), 10) : undefined,
+                });
                 
                 // Update response data
                 if(resultData.allFinalAssistantResponses && resultData.allFinalAssistantResponses[promptId] && resultData.allFinalAssistantResponses[promptId][modelId]) {
@@ -255,4 +262,6 @@ export const repairRunCommand = new Command('repair-run')
   .description('Repairs a specific evaluation run by re-running failed assessments and generation errors.')
   .argument('<runIdentifier>', 'The unique identifier for the run (e.g., "configId/runLabel/timestamp")')
   .option('--cache', 'Enable caching for model responses during repair (by default, caching is disabled for repairs).', false)
+  .option('--gen-timeout-ms <number>', 'Timeout in milliseconds for each candidate generation API call during repair (default 30000).')
+  .option('--gen-retries <number>', 'Number of retries for each candidate generation API call during repair (default 1).')
   .action(actionRepairRun); 

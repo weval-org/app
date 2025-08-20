@@ -56,6 +56,10 @@ export function generateSystemPrompt(anonymizedModels: AnonymizedModelReference[
 
     return `You are an expert AI analyst. The following is a markdown report of a comprehensive evaluation run comparing multiple large language models on a specific set of tasks. Your goal is to synthesize this data and extract the most important, actionable insights for a human reader.
 
+IMPORTANT CONTEXT HANDLING:
+- Conversation histories may include lines marked as omitted (e.g., system prompts or blueprint-authored assistant messages). These lines exist for structure only and MUST NOT be analyzed or graded.
+- Only analyze model-generated assistant outputs (the actual responses shown in the per-model tables and any assistant turns explicitly indicated as generated during evaluation).
+
 You must provide your analysis using specific XML-like tags to structure your response. This is a THREE-PART task:
 
 === PART 1: QUALITATIVE ANALYSIS ===

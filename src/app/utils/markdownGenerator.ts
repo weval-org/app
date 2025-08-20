@@ -424,6 +424,7 @@ function buildMarkdown(data: WevalResult, truncationRatio: number = 1.0): string
     if (data.sourceCommitSha) {
         md += `**Commit SHA:** \`${data.sourceCommitSha.substring(0, 7)}\`\n`;
     }
+    md += `\n> Note: In conversation histories below, blueprint-authored assistant messages are omitted, and generated assistant turns are indicated. Grade and analyze models based on the **generated** responses shown in the tables, not on omitted context lines.\n\n`;
     
     // Add system prompt configuration information
     if (data.config) {
@@ -498,8 +499,39 @@ function buildMarkdown(data: WevalResult, truncationRatio: number = 1.0): string
             if (typeof promptContext === 'string') {
                 md += `> ${promptContext}\n\n`;
             } else if (Array.isArray(promptContext)) {
+                // Prefer the concrete history captured during generation (from the first available model)
+                const firstModelId = models[0];
+                const conversationHistoryForContext = data.allFinalAssistantResponses?.[promptId]?.[firstModelId] && data.fullConversationHistories?.[promptId]?.[firstModelId];
+
+                const initialMessagesForContext = Array.isArray(conversationHistoryForContext)
+                    ? conversationHistoryForContext.slice(0, -1) // exclude the final assistant reply
+                    : promptContext;
+
                 md += `**Conversation History:**\n`;
-                promptContext.forEach(msg => {
+                initialMessagesForContext.forEach((msg, idx) => {
+                    // Elide raw system prompt text to avoid leakage
+                    if (msg.role === 'system') {
+                        md += `* **system:** (omitted; see System Prompt Strategy)\n`;
+                        return;
+                    }
+
+                    if (msg.role === 'assistant') {
+                        // If we have the original prompt context, detect whether this assistant turn was generated
+                        // Generated turns appear where the original had assistant: null
+                        const originalAtIdx = promptContext[idx];
+                        const wasGenerated = originalAtIdx && originalAtIdx.role === 'assistant' && originalAtIdx.content === null;
+
+                        if (wasGenerated) {
+                            const content = (msg.content || '').toString();
+                            md += `* **assistant:** ${escapeMarkdown(content)}\n`;
+                        } else {
+                            // Assistant content provided by the blueprint (not generated) → collapse to ellipsis
+                            md += `* **assistant:** …\n`;
+                        }
+                        return;
+                    }
+
+                    // User and other roles: show as-is
                     md += `* **${msg.role}:** ${msg.content}\n`;
                 });
                 md += `\n`;
@@ -663,6 +695,19 @@ function buildMarkdownAnonymized(data: WevalResult, truncationRatio: number = 1.
             } else if (Array.isArray(promptContext)) {
                 md += `**Conversation History:**\n`;
                 promptContext.forEach(msg => {
+                    if (msg.role === 'system') {
+                        md += `* **system:** (omitted; see System Prompt Strategy)\n`;
+                        return;
+                    }
+                    if (msg.role === 'assistant') {
+                        const wasGenerated = msg.content === null;
+                        if (wasGenerated) {
+                            md += `* **assistant:** (generated during evaluation; see responses below)\n`;
+                        } else {
+                            md += `* **assistant:** (omitted; blueprint-authored)\n`;
+                        }
+                        return;
+                    }
                     md += `* **${msg.role}:** ${msg.content}\n`;
                 });
                 md += `\n`;

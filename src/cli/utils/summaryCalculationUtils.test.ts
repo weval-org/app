@@ -224,6 +224,13 @@ describe('calculateHeadlineStats', () => {
 
       const topicModelScores = new Map();
       const configModelScores = new Map();
+      // Ensure presence in ≥ half of listed configs (mock lists 3 → need 2)
+      const c1 = new Map();
+      c1.set('provider:globally-active-model', 0.8);
+      configModelScores.set('uk-clinical-scenarios', c1);
+      const c2 = new Map();
+      c2.set('provider:globally-active-model', 0.8);
+      configModelScores.set('sycophancy-probe', c2);
       
       // Global stats show high participation
       const globalModelStats = new Map();
@@ -875,6 +882,10 @@ describe('calculateCapabilityLeaderboards', () => {
     const ukClinicalScores = new Map();
     ukClinicalScores.set('provider:model-a', 0.85);
     configModelScores.set('uk-clinical-scenarios', ukClinicalScores);
+    // Satisfy ≥ half presence by adding another listed config
+    const sycophancyScores = new Map();
+    sycophancyScores.set('provider:model-a', 0.8);
+    configModelScores.set('sycophancy-probe', sycophancyScores);
 
     // Add global qualification data
     const globalModelStats = new Map();
@@ -917,6 +928,10 @@ describe('calculateCapabilityLeaderboards', () => {
     ukClinicalScores.set('provider:model-a', 0.85);
     ukClinicalScores.set('provider:model-unqualified', 0.90); // This model has no dimension grades
     configModelScores.set('uk-clinical-scenarios', ukClinicalScores);
+    // Add second listed config for qualifying model only
+    const sycophancyScores = new Map();
+    sycophancyScores.set('provider:model-a', 0.8);
+    configModelScores.set('sycophancy-probe', sycophancyScores);
 
     // Add global qualification data - only model-a qualifies globally
     const globalModelStats = new Map();
@@ -967,6 +982,10 @@ describe('calculateCapabilityLeaderboards', () => {
     const ukClinicalScores = new Map();
     ukClinicalScores.set('provider:model-a', 0.9);
     configModelScores.set('uk-clinical-scenarios', ukClinicalScores);
+    // Add second listed config to pass presence gate
+    const sycophancyScores = new Map();
+    sycophancyScores.set('provider:model-a', 0.85);
+    configModelScores.set('sycophancy-probe', sycophancyScores);
 
     // Add global qualification data
     const globalModelStats = new Map();
@@ -1048,6 +1067,11 @@ describe('calculateCapabilityLeaderboards', () => {
     ukClinicalScores.set('provider:model-a', 0.8); // Will get weight 2.0 = 1.6
     ukClinicalScores.set('provider:model-b', 0.9); // Will get weight 2.0 = 1.8
     configModelScores.set('uk-clinical-scenarios', ukClinicalScores);
+    // Add second listed config for both models to meet presence gate
+    const sycophancyScores2 = new Map();
+    sycophancyScores2.set('provider:model-a', 0.7);
+    sycophancyScores2.set('provider:model-b', 0.95);
+    configModelScores.set('sycophancy-probe', sycophancyScores2);
 
     // Add global qualification data for both models
     const globalModelStats = new Map();
@@ -1224,6 +1248,10 @@ describe('calculateCapabilityLeaderboards', () => {
       const sycophancyConfig = new Map();
       sycophancyConfig.set('provider:model-a', 0.80); // Same score, same run as in topic
       configModelScores.set('sycophancy-probe', sycophancyConfig);
+      // Add another listed config to satisfy presence gate
+      const ukClinicalConfig = new Map();
+      ukClinicalConfig.set('provider:model-a', 0.82);
+      configModelScores.set('uk-clinical-scenarios', ukClinicalConfig);
 
       // Add global qualification data
       const globalModelStats = new Map();
@@ -1309,6 +1337,13 @@ describe('calculateCapabilityLeaderboards', () => {
       topicModelScores.set('Mental Health & Crisis Support', mentalHealthTopic);
 
       const configModelScores = new Map();
+      // Add two listed configs to satisfy presence gate (scores arbitrary)
+      const ukClinical = new Map();
+      ukClinical.set('provider:model-a', 0.8);
+      configModelScores.set('uk-clinical-scenarios', ukClinical);
+      const sycophancy2 = new Map();
+      sycophancy2.set('provider:model-a', 0.78);
+      configModelScores.set('sycophancy-probe', sycophancy2);
 
       // Add global qualification data
       const globalModelStats = new Map();
@@ -1370,6 +1405,13 @@ describe('calculateCapabilityLeaderboards', () => {
       topicModelScores.set('Safety', safetyTopic);
 
       const configModelScores = new Map();
+      // Satisfy presence gate with two listed configs
+      const ukClinical = new Map();
+      ukClinical.set('provider:model-a', 0.8);
+      configModelScores.set('uk-clinical-scenarios', ukClinical);
+      const sycophancy = new Map();
+      sycophancy.set('provider:model-a', 0.78);
+      configModelScores.set('sycophancy-probe', sycophancy);
 
       // Add global qualification data
       const globalModelStats = new Map();
@@ -1429,6 +1471,13 @@ describe('calculateCapabilityLeaderboards', () => {
       topicModelScores.set('Safety', safetyTopic);
 
       const configModelScores = new Map();
+      // Satisfy presence gate with two listed configs
+      const ukClinical = new Map();
+      ukClinical.set('provider:model-a', 0.8);
+      configModelScores.set('uk-clinical-scenarios', ukClinical);
+      const sycophancy = new Map();
+      sycophancy.set('provider:model-a', 0.78);
+      configModelScores.set('sycophancy-probe', sycophancy);
 
       // Add global qualification data
       const globalModelStats = new Map();
@@ -1495,6 +1544,13 @@ describe('calculateCapabilityLeaderboards', () => {
         configMap.set('provider:model-a', 0.85);
         configModelScores.set(`explicit-only-config-${i}`, configMap);
       }
+      // Also satisfy presence gate with listed configs
+      const ukClinical2 = new Map();
+      ukClinical2.set('provider:model-a', 0.82);
+      configModelScores.set('uk-clinical-scenarios', ukClinical2);
+      const sycophancy3 = new Map();
+      sycophancy3.set('provider:model-a', 0.81);
+      configModelScores.set('sycophancy-probe', sycophancy3);
 
       // Add global qualification data
       const globalModelStats = new Map();
@@ -1519,6 +1575,81 @@ describe('calculateCapabilityLeaderboards', () => {
       
       // Should combine both contributions normally - just verify it works
       expect(modelAScore!.averageScore).toBeGreaterThan(0);
+    });
+  });
+
+  describe('Per-capability config presence requirement (≥ half of listed configs)', () => {
+    const makeGlobalStats = () => {
+      const globalModelStats = new Map();
+      globalModelStats.set('provider:model-a', {
+        totalRuns: 15,
+        uniqueConfigs: 6,
+      });
+      return globalModelStats;
+    };
+
+    const makeDimensionGrades = () => {
+      const modelDimensionGrades = new Map();
+      const modelAGrades = new Map();
+      modelAGrades.set('safety', {
+        totalScore: 80,
+        count: 15,
+        uniqueConfigs: new Set(['config1', 'config2', 'config3', 'config4', 'config5', 'config6']),
+        scores: Array(15).fill({ score: 8, configTitle: 'Test', runLabel: 'run1', timestamp: '2024-01-01', configId: 'config1' })
+      });
+      modelDimensionGrades.set('provider:model-a', modelAGrades);
+      return modelDimensionGrades;
+    };
+
+    it('excludes model if present in fewer than half of listed configs', () => {
+      const modelDimensionGrades = makeDimensionGrades();
+      const topicModelScores = new Map();
+      const configModelScores = new Map();
+      // CAPABILITY_BUCKETS lists 3 configs in this test suite mock: uk-clinical-scenarios, sycophancy-probe, explicit-only-config
+      // Provide score for only 1 of them → requires ceil(3/2)=2, so should exclude
+      const ukClinical = new Map();
+      ukClinical.set('provider:model-a', 0.85);
+      configModelScores.set('uk-clinical-scenarios', ukClinical);
+
+      const result = calculateCapabilityLeaderboards(
+        modelDimensionGrades,
+        topicModelScores,
+        configModelScores,
+        makeGlobalStats(),
+        mockLogger
+      );
+
+      const safetyCapability = result.leaderboards.find(cap => cap.id === 'test-safety');
+      expect(safetyCapability).toBeDefined();
+      const included = safetyCapability!.leaderboard.find(m => m.modelId === 'provider:model-a');
+      expect(included).toBeUndefined();
+    });
+
+    it('includes model if present in at least half of listed configs', () => {
+      const modelDimensionGrades = makeDimensionGrades();
+      const topicModelScores = new Map();
+      const configModelScores = new Map();
+      // Provide scores for 2 of the 3 listed configs → meets ceil(3/2)=2
+      const ukClinical = new Map();
+      ukClinical.set('provider:model-a', 0.85);
+      configModelScores.set('uk-clinical-scenarios', ukClinical);
+
+      const sycophancy = new Map();
+      sycophancy.set('provider:model-a', 0.80);
+      configModelScores.set('sycophancy-probe', sycophancy);
+
+      const result = calculateCapabilityLeaderboards(
+        modelDimensionGrades,
+        topicModelScores,
+        configModelScores,
+        makeGlobalStats(),
+        mockLogger
+      );
+
+      const safetyCapability = result.leaderboards.find(cap => cap.id === 'test-safety');
+      expect(safetyCapability).toBeDefined();
+      const included = safetyCapability!.leaderboard.find(m => m.modelId === 'provider:model-a');
+      expect(included).toBeDefined();
     });
   });
 }); 

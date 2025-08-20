@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import type { Metadata, ResolvingMetadata } from 'next';
 import { cache } from 'react';
 import { EnhancedRunInfo } from '@/app/utils/homepageDataUtils';
 import ConfigRunsClientPage from './ConfigRunsClientPage';
@@ -14,6 +15,12 @@ export interface ApiRunsResponse {
 export const revalidate = 3600;
 
 type ThisPageProps = {
+    params: Promise<{
+        configId: string;
+    }>;
+};
+
+type ThisPageGenerateMetadataProps = {
     params: Promise<{
         configId: string;
     }>;
@@ -40,6 +47,26 @@ const getConfigRunsData = cache(async (configId: string): Promise<ApiRunsRespons
         notFound();
     }
 });
+
+export async function generateMetadata(
+  props: ThisPageGenerateMetadataProps,
+  _parent: ResolvingMetadata
+): Promise<Metadata> {
+  const { configId } = await props.params;
+  try {
+    const data = await getConfigRunsData(configId);
+    const titleBase = data.configTitle || configId;
+    const pageTitle = `Analysis: ${titleBase} — All Runs`;
+    return {
+      title: pageTitle,
+      description: data.configDescription || undefined,
+    };
+  } catch {
+    return {
+      title: `Analysis: ${configId}`,
+    };
+  }
+}
 
 export default async function ConfigRunsPage({ params }: ThisPageProps) {
   const thisParams = await params;

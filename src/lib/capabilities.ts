@@ -154,7 +154,8 @@ export const CAPABILITY_BUCKETS: CapabilityBucket[] = [
       { key: 'indian-rti-act', weight: 1.5 },
       { key: 'ipcc-ar6-synthesis-report-spm', weight: 1.5 },
       { key: 'platform-workers-sea-algo-manage', weight: 1.5 },
-      { key: 'maternal-health-uttar-pradesh', weight: 2.0 }
+      { key: 'maternal-health-uttar-pradesh', weight: 2.0 },
+      { key: 'jp-clinical-scenarios', weight: 1.0 }
     ],
   },
   {

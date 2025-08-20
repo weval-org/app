@@ -184,6 +184,7 @@ export async function executeComparisonPipeline(
     requireExecutiveSummary?: boolean,
     skipExecutiveSummary?: boolean,
     genOptions?: { genTimeoutMs?: number; genRetries?: number },
+    prefilledCoverage?: Record<string, Record<string, any>>,
 ): Promise<{ data: FinalComparisonOutputV2, fileName: string | null }> {
     logger.info(`[PipelineService] Starting comparison pipeline for configId: '${config.id || config.configId}' runLabel: '${runLabel}'`);
     
@@ -222,7 +223,45 @@ export async function executeComparisonPipeline(
 
     for (const evaluator of chosenEvaluators) {
         logger.info(`[PipelineService] --- Running ${evaluator.getMethodName()} evaluator ---`);
-        const results = await evaluator.evaluate(evaluationInputs);
+        let inputsForThisEvaluator = evaluationInputs;
+        if (evaluator.getMethodName() === 'llm-coverage' && prefilledCoverage) {
+            // Filter out models that already have prefilled coverage
+            inputsForThisEvaluator = evaluationInputs.map(inp => {
+                const models = Object.keys(inp.promptData.modelResponses);
+                const remainingModels = models.filter(m => !prefilledCoverage?.[inp.promptData.promptId]?.[m]);
+                if (remainingModels.length === models.length) return inp;
+                const pruned = { ...inp, promptData: { ...inp.promptData, modelResponses: {} as any } } as EvaluationInput;
+                remainingModels.forEach(m => {
+                    (pruned.promptData.modelResponses as any)[m] = (inp.promptData.modelResponses as any)[m];
+                });
+                return pruned;
+            });
+        }
+        const results = await evaluator.evaluate(inputsForThisEvaluator);
+        if (evaluator.getMethodName() === 'llm-coverage') {
+            // Deep-merge coverage results to avoid overwriting prefilled entries
+            const dest = (combinedEvaluationResults.llmCoverageScores = combinedEvaluationResults.llmCoverageScores || {});
+            const resCov = (results as any).llmCoverageScores || {};
+            // Merge evaluator results first
+            for (const [pid, models] of Object.entries(resCov)) {
+                dest[pid] = dest[pid] || {};
+                for (const [mid, cov] of Object.entries(models as any)) {
+                    dest[pid]![mid] = cov as any;
+                }
+            }
+            // Then merge prefilled coverage (takes precedence)
+            if (prefilledCoverage) {
+                for (const [pid, models] of Object.entries(prefilledCoverage)) {
+                    dest[pid] = dest[pid] || {};
+                    for (const [mid, cov] of Object.entries(models)) {
+                        dest[pid]![mid] = cov as any;
+                    }
+                }
+            }
+            logger.info(`[PipelineService] Coverage merge complete. Prompts with coverage: ${Object.keys(dest).length}`);
+            // Assign merged object back onto results so downstream aggregation sees it
+            (results as any).llmCoverageScores = dest;
+        }
         combinedEvaluationResults = { ...combinedEvaluationResults, ...results };
         logger.info(`[PipelineService] --- Finished ${evaluator.getMethodName()} evaluator ---`);
         

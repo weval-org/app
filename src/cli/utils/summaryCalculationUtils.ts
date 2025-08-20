@@ -854,20 +854,39 @@ export function calculateCapabilityLeaderboards(
           const meetsGlobalThreshold = globalStats && 
                                      globalStats.totalRuns >= MIN_TOTAL_RUNS_GLOBAL && 
                                      globalStats.uniqueConfigs >= MIN_UNIQUE_CONFIGS_GLOBAL;
+
+          // New rule: if a capability defines explicit configs, require the model
+          // to be present (have a score) in at least half of those configs.
+          let meetsConfigPresence = true;
+          const listedConfigs = bucket.configs || [];
+          if (listedConfigs.length > 0) {
+            const requiredPresence = Math.ceil(listedConfigs.length / 2);
+            let presentCount = 0;
+            for (const c of listedConfigs) {
+              const modelsForConfig = configModelScores.get(c.key);
+              if (modelsForConfig && modelsForConfig.has(modelId)) {
+                presentCount++;
+              }
+            }
+            meetsConfigPresence = presentCount >= requiredPresence;
+          }
           
           if (logger) {
-            const status = meetsGlobalThreshold ? "✓" : "✗";
+            const status = (meetsGlobalThreshold && meetsConfigPresence) ? "✓" : "✗";
             const globalInfo = globalStats ? `global_runs=${globalStats.totalRuns}, global_configs=${globalStats.uniqueConfigs}` : 'no_global_stats';
-            logger.info(`  ${status} ${modelId}: ${(finalScore * 100).toFixed(1)}% (${globalInfo}, capability_weight=${data.totalWeight.toFixed(1)})`);
+            const configInfo = listedConfigs.length > 0 ? `, config_presence_req=${Math.ceil(listedConfigs.length / 2)}/${listedConfigs.length}` : '';
+            logger.info(`  ${status} ${modelId}: ${(finalScore * 100).toFixed(1)}% (${globalInfo}${configInfo}, capability_weight=${data.totalWeight.toFixed(1)})`);
             if (!meetsGlobalThreshold) {
               const reason = globalStats 
                 ? `needs ≥${MIN_TOTAL_RUNS_GLOBAL} global runs (has ${globalStats.totalRuns}) and ≥${MIN_UNIQUE_CONFIGS_GLOBAL} global configs (has ${globalStats.uniqueConfigs})`
                 : 'no global participation data found';
               logger.info(`    Excluded: ${reason}`);
+            } else if (!meetsConfigPresence) {
+              logger.info(`    Excluded: insufficient presence in listed configs for capability (requires ≥${Math.ceil(listedConfigs.length / 2)} of ${listedConfigs.length})`);
             }
           }
           
-          if (meetsGlobalThreshold) {
+          if (meetsGlobalThreshold && meetsConfigPresence) {
             leaderboard.push({
               modelId,
               averageScore: finalScore,

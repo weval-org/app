@@ -506,6 +506,7 @@ const SpecificEvaluationModal: React.FC = () => {
                                 promptContext={modalData.promptContext}
                                 systemPrompt={displayedVariant!.systemPrompt}
                                 variantIndex={selectedVariantIndex}
+                                hideConversation={Boolean((variantBundle as any)?.generatedHistory) || Boolean((variantBundle as any)?.perTempMap)}
                             />
 
                             <TemperatureTabbedEvaluation
@@ -574,6 +575,7 @@ const SpecificEvaluationModal: React.FC = () => {
                                 promptContext={modalData.promptContext}
                                 systemPrompt={displayedVariant!.systemPrompt}
                                 variantIndex={selectedVariantIndex}
+                                hideConversation={Boolean((variantBundle as any)?.generatedHistory) || Boolean((variantBundle as any)?.perTempMap)}
                             />
 
                             <TemperatureTabbedEvaluation

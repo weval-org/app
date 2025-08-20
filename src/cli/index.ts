@@ -37,6 +37,7 @@ import { debugConfigScoresCommand } from './commands/debug-config-scores';
 import { generateNDeltasCommand } from './commands/generate-ndeltas';
 import { generateVibesIndexCommand } from './commands/generate-vibes-index';
 import { generateCompassIndexCommand } from './commands/generate-compass-index';
+import { cloneRunCommand } from './commands/clone-run';
 
 let isTerminating = false
 const cleanup = () => {
@@ -98,6 +99,7 @@ cli.addCommand(deleteConfigCommand);
 cli.addCommand(backfillPromptContextsCommand);
 cli.addCommand(backfillExecutiveSummaryCommand);
 cli.addCommand(repairRunCommand);
+cli.addCommand(cloneRunCommand);
 cli.addCommand(addToPairsCommand);
 cli.addCommand(deleteFromPairsCommand);
 cli.addCommand(generateModelCardCommand);

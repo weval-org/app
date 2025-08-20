@@ -237,7 +237,7 @@ export function validatePrompts(prompts: ComparisonConfig['prompts'], logger: Lo
     }
 }
 
-async function loadAndValidateConfig(options: {
+export async function loadAndValidateConfig(options: {
     configPath?: string,
     configContent?: string,
     blueprintPath?: string,
@@ -433,7 +433,7 @@ async function loadAndValidateConfig(options: {
     return configJson;
 }
 
-function parseEvalMethods(evalMethodString: string | undefined): EvaluationMethod[] {
+export function parseEvalMethods(evalMethodString: string | undefined): EvaluationMethod[] {
     if (!evalMethodString) return ['llm-coverage'];
 
     const methods = evalMethodString.split(',').map(m => m.trim().toLowerCase()).filter(m => m);
