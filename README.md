@@ -262,6 +262,15 @@ pnpm cli run-config github --name foo-blueprint --fixtures foo-blueprint-fixture
 
 # Multi-turn example with assistant:null turns provided by fixtures
 pnpm cli run-config local --config examples/blueprints/clarify.yml --fixtures examples/fixtures/clarify.json --eval-method llm-coverage --skip-executive-summary
+
+# Force local write (no S3) and skip summary updates for quick local check
+# This is a nice sanity check which you can quickly and easily run yourself
+STORAGE_PROVIDER=local UPDATE_LOCAL_SUMMARY=false \
+  pnpm cli run-config local \
+  --config examples/blueprints/clarify.yml \
+  --fixtures examples/fixtures/clarify.json \
+  --eval-method llm-coverage \
+  --skip-executive-summary
 ```
 
 - `--fixtures <nameOrPath>`: When provided, candidate responses are sourced from an external fixtures file instead of calling the model API when applicable. For GitHub mode, the name is resolved under `fixtures/` in the `weval/configs` repo.
