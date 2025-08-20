@@ -251,6 +251,17 @@ pnpm cli clone-run homework-int-help-heuristics/919a1807afd4ec60/2025-08-09T02-1
 -   `--gen-timeout-ms <number>`: Timeout in milliseconds for each candidate generation API call. **Default: 30000**.
 -   `--gen-retries <number>`: Number of retries for each candidate generation API call. **Default: 1**.
 
+Demo (stdout-only) mode:
+
+```bash
+pnpm cli run-config local \
+  --config examples/blueprints/clarify.yml \
+  --fixtures examples/fixtures/clarify.json \
+  --demo-stdout
+```
+
+-   `--demo-stdout`: Do not persist results (local or S3) and print a compact JSON payload to stdout instead. In this mode, the CLI forces `llm-coverage` only, skips the executive summary, and does not compute embeddings.
+
 Fixtures (deterministic model responses for testing):
 
 ```bash
@@ -376,6 +387,18 @@ API & UI:
 Notes:
 - Operates on base model IDs (variants collapsed via baseId parsing).
 - Excludes the IDEAL model from similarity.
+
+### `demo-example-with-fixtures`
+
+Run an example blueprint with its fixtures and print the result to stdout without saving.
+
+```bash
+pnpm cli demo-example-with-fixtures clarify
+```
+
+-   Looks for `examples/blueprints/clarify.yml` and `examples/fixtures/clarify.json`.
+-   Equivalent to running `run-config local` with `--demo-stdout`.
+-   Behavior: no persistence, `llm-coverage` only, executive summary skipped, embeddings not computed. Emits a single JSON line for easy piping.
 
 ## Blueprint File Structure
 

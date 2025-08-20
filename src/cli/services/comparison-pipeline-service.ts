@@ -22,6 +22,7 @@ async function aggregateAndSaveResults(
     blueprintFileName?: string,
     requireExecutiveSummary?: boolean,
     skipExecutiveSummary?: boolean,
+    noSave?: boolean,
 ): Promise<{ data: FinalComparisonOutputV2, fileName: string | null }> {
     logger.info('[PipelineService] Aggregating results...');
     logger.info(`[PipelineService] Received blueprint ID for saving: '${config.id}'`);
@@ -150,6 +151,11 @@ async function aggregateAndSaveResults(
 
     const fileName = `${runLabel}_${safeTimestamp}_comparison.json`;
 
+    if (noSave) {
+        logger.info(`[PipelineService] Demo/no-save mode enabled. Skipping persistence and returning result only.`);
+        return { data: finalOutput, fileName: null };
+    }
+
     try {
         await saveResultToStorage(resolvedConfigId, fileName, finalOutput);
         logger.info(`[PipelineService] Successfully saved aggregated results to storage with key/filename: ${fileName}`);
@@ -187,6 +193,7 @@ export async function executeComparisonPipeline(
     genOptions?: { genTimeoutMs?: number; genRetries?: number },
     prefilledCoverage?: Record<string, Record<string, any>>,
     fixturesCtx?: { fixtures: FixtureSet; strict: boolean },
+    noSave?: boolean,
 ): Promise<{ data: FinalComparisonOutputV2, fileName: string | null }> {
     logger.info(`[PipelineService] Starting comparison pipeline for configId: '${config.id || config.configId}' runLabel: '${runLabel}'`);
     
@@ -313,6 +320,7 @@ export async function executeComparisonPipeline(
         blueprintFileName,
         requireExecutiveSummary,
         skipExecutiveSummary,
+        noSave,
     );
     logger.info(`[PipelineService] executeComparisonPipeline finished successfully. Results at: ${finalResult.fileName}`);
     return finalResult;

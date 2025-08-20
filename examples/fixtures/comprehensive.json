@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "strategy": "first",
+  "responses": {
+    "deterministic-pass": {
+      "default": "alpha beta gamma."
+    },
+    "deterministic-fail": {
+      "default": "success"
+    },
+    "json-and-js": {
+      "default": "{\n  \"name\": \"widget\",\n  \"count\": 3,\n  \"tags\": [\"alpha\", \"beta\"],\n  \"explanation\": \"Here is the object you requested. Additional notes below.\"\n}"
+    },
+    "reusable-points": {
+      "default": "This short note briefly mentions alpha and beta in a concise way."
+    },
+    "tool-use-pass": {
+      "default": "TOOL_CALL {\"name\":\"retrieve\",\"arguments\":{\"docId\":\"41\",\"options\":{\"snippet\":true,\"maxChars\":120}}}\nTOOL_CALL {\"name\":\"retrieve\",\"arguments\":{\"docId\":\"42\"}}"
+    },
+    "tool-use-fail": {
+      "default": "TOOL_CALL {\"name\":\"retrieve\",\"arguments\":{\"docId\":\"99\",\"options\":{\"snippet\":true,\"maxChars\":100}}}"
+    },
+    "multi-turn-clarify": {
+      "default": {
+        "turns": [
+          "Could you tell me your preferred screen size and whether you value battery life over peak performance?",
+          "Given portability and budget, consider a 13–14\" device with at least 16GB RAM and a modern U-series CPU."
+        ],
+        "final": "Final thought: prioritize build quality, a comfortable keyboard, and a bright 300+ nit display for usability."
+      }
+    }
+  }
+}
+
+

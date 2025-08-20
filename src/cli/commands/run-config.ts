@@ -493,6 +493,7 @@ interface RunOptions {
     updateSummaries?: boolean;
     genTimeoutMs?: number | string;
     genRetries?: number | string;
+    demoStdout?: boolean;
 }
 
 async function promptForConfig(): Promise<string> {
@@ -598,7 +599,8 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions & { fi
             throw new Error('No models to evaluate after resolving collections.');
         }
 
-        const chosenMethods = parseEvalMethods(options.evalMethod);
+        // In demo/stdout mode, force-only llm-coverage
+        const chosenMethods = options.demoStdout ? (['llm-coverage'] as EvaluationMethod[]) : parseEvalMethods(options.evalMethod);
         await loggerInstance.info(`Evaluation methods to be used: ${chosenMethods.join(', ')}`);
 
         await loggerInstance.info('--- Run Blueprint Summary ---');
@@ -684,11 +686,13 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions & { fi
                 options.cache,
                 commitSha || undefined,
                 blueprintFileName,
-                options.requireExecutiveSummary,
-                options.skipExecutiveSummary,
+                // In demo mode we always skip executive summary regardless of flags
+                options.requireExecutiveSummary && !options.demoStdout,
+                true, // skipExecutiveSummary
                 { genTimeoutMs, genRetries },
                 undefined,
-                fixturesCtx
+                fixturesCtx,
+                options.demoStdout === true
             ); 
 
             if (pipelineResult && typeof pipelineResult === 'object' && 'fileName' in pipelineResult && 'data' in pipelineResult) {
@@ -706,7 +710,7 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions & { fi
             process.exit(1);
         }
 
-        if (newResultData && (process.env.STORAGE_PROVIDER === 's3' || process.env.UPDATE_LOCAL_SUMMARY === 'true')) {
+        if (!options.demoStdout && newResultData && (process.env.STORAGE_PROVIDER === 's3' || process.env.UPDATE_LOCAL_SUMMARY === 'true')) {
             loggerInstance.info('Attempting to update summary files...');
             if (!actualResultFileName) {
                 throw new Error('Could not determine result filename for summary update.');
@@ -895,6 +899,23 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions & { fi
         }
 
         await loggerInstance.info('Weval run_config command finished successfully.');
+
+        if (options.demoStdout && newResultData) {
+            // Emit a compact JSON payload of the result to stdout
+            const payload = {
+                configId: newResultData.configId,
+                configTitle: newResultData.configTitle,
+                runLabel: newResultData.runLabel,
+                timestamp: newResultData.timestamp,
+                evalMethodsUsed: newResultData.evalMethodsUsed,
+                promptIds: newResultData.promptIds,
+                allFinalAssistantResponses: newResultData.allFinalAssistantResponses,
+                evaluationResults: newResultData.evaluationResults,
+                errors: newResultData.errors,
+            };
+            // Print as a single JSON line for easy piping
+            process.stdout.write(JSON.stringify(payload) + '\n');
+        }
     } catch (error: any) {
         const logger = getConfig()?.logger || console;
         logger.error(`Top-level error in Weval run command: ${error.message}`);
@@ -1019,6 +1040,7 @@ const localCommand = new Command('local')
     .option('--update-summaries', 'Update model summaries and homepage summary after the evaluation run (defaults to false).')
     .option('--gen-timeout-ms <number>', 'Timeout in milliseconds for each candidate generation API call (default 30000).')
     .option('--gen-retries <number>', 'Number of retries for each candidate generation API call (default 1).')
+    .option('--demo-stdout', 'Demo mode: never save results or summaries; force llm-coverage; skip executive summary; print JSON to stdout.', false)
     .action(actionLocal);
 
 const githubCommand = new Command('github')
@@ -1035,6 +1057,7 @@ const githubCommand = new Command('github')
     .option('--update-summaries', 'Update model summaries and homepage summary after the evaluation run (defaults to false).')
     .option('--gen-timeout-ms <number>', 'Timeout in milliseconds for each candidate generation API call (default 30000).')
     .option('--gen-retries <number>', 'Number of retries for each candidate generation API call (default 1).')
+    .option('--demo-stdout', 'Demo mode: never save results or summaries; force llm-coverage; skip executive summary; print JSON to stdout.', false)
     .action(actionGitHub);
 
 export const runConfigCommand = new Command('run-config')

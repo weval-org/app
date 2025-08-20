@@ -38,6 +38,7 @@ import { generateNDeltasCommand } from './commands/generate-ndeltas';
 import { generateVibesIndexCommand } from './commands/generate-vibes-index';
 import { generateCompassIndexCommand } from './commands/generate-compass-index';
 import { cloneRunCommand } from './commands/clone-run';
+import { demoExampleWithFixturesCommand } from './commands/demo-example-with-fixtures';
 
 let isTerminating = false
 const cleanup = () => {
@@ -114,6 +115,7 @@ cli.addCommand(debugConfigScoresCommand);
 cli.addCommand(generateNDeltasCommand);
 cli.addCommand(generateVibesIndexCommand);
 cli.addCommand(generateCompassIndexCommand);
+cli.addCommand(demoExampleWithFixturesCommand);
 
 cli.parseAsync(process.argv).catch(err => {
   console.error('CLI Error:', err); 

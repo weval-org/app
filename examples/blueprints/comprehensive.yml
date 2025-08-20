@@ -1,0 +1,131 @@
+title: "Comprehensive Blueprint Feature Demo"
+description: |
+  Exercises a wide range of blueprint features and point-functions.
+  Includes deterministic checks, JS-based checks, tool-use tracing, multi-turn with assistant:null,
+  prompt weights, citations, and intentional successes/failures.
+tags: [test, demo, docs, comprehensive]
+models:
+  - openai:gpt-4o-mini
+system: |
+  You are a careful assistant that follows instructions exactly.
+  When asked to emit tool calls, output one call per line with the prefix "TOOL_CALL " followed by JSON.
+  Do not include any extra commentary when emitting tool calls.
+point_defs:
+  scoreBand: |
+    // Example reusable JS point returning a partial score based on presence of key phrases
+    const lower = r.toLowerCase();
+    const hits = ["alpha", "beta", "gamma"].filter(k => lower.includes(k)).length;
+    ({ score: hits / 3, explain: `Found ${hits}/3 terms` })
+tools:
+  - name: retrieve
+    description: "Retrieve a document by id with options"
+    schema:
+      type: object
+      properties:
+        docId: { type: string }
+        options:
+          type: object
+          properties:
+            snippet: { type: boolean }
+            maxChars: { type: number }
+      required: [docId]
+toolUse:
+  enabled: true
+  mode: trace-only
+  maxSteps: 3
+  outputFormat: json-line
+
+---
+
+# 1) Deterministic pass: contains/matches
+- id: deterministic-pass
+  prompt: "State the magic words exactly: alpha beta gamma."
+  should:
+    - $contains_all_of: ["alpha", "beta", "gamma"]
+    - $matches: "^alpha beta gamma\\.$"
+  should_not:
+    - $icontains: "error"
+
+# 2) Deterministic fail: looks for phrase that won't be in fixtures
+- id: deterministic-fail
+  prompt: "Reply with the word 'success' only."
+  should:
+    - $contains: "this-string-will-not-appear"
+  should_not:
+    - $contains: "failure"
+
+# 3) JSON shape + JS check with weight
+- id: json-and-js
+  prompt: "Return a small JSON object with keys: name, count, tags (array)."
+  weight: 1.5
+  should:
+    - $is_json: true
+    - $js: "try { const o = JSON.parse(r); return !!(o.name && typeof o.count==='number' && Array.isArray(o.tags)); } catch { return false }"
+    - "Includes a helpful explanation above or below the JSON block.": "(conceptual point; judge LLM grades this)"
+  should_not:
+    - $imatches: "error|exception|stack"
+
+# 4) Reusable point via $ref and word count bounds
+- id: reusable-points
+  prompt: "Write a short note mentioning alpha, beta, or gamma."
+  should:
+    - $ref: scoreBand
+    - $word_count_between: [5, 80]
+
+# 5) Tool-use tracing (success)
+- id: tool-use-pass
+  messages:
+    - system: |
+        Emit each tool call on its own line.
+        TOOL_CALL {"name":"<tool>","arguments":{...}}
+        Do not output any other text.
+        Available tools:
+        - retrieve(docId: string, options?: { snippet?: boolean, maxChars?: number })
+        Example:
+        TOOL_CALL {"name":"retrieve","arguments":{"docId":"123","options":{"snippet":true,"maxChars":80}}}
+    - user: "Retrieve docId '41' with snippet true and 120 chars. Then retrieve '42' without options."
+  should:
+    - $tool_called: "retrieve"
+    - $tool_args_match:
+        name: "retrieve"
+        where:
+          docId: "41"
+          options:
+            snippet: true
+            maxChars: 120
+    - $tool_call_count_between: [2, 2, "retrieve"]
+    - $tool_call_order: ["retrieve", "retrieve"]
+
+# 6) Tool-use tracing (intentional fail: wrong arg)
+- id: tool-use-fail
+  messages:
+    - system: |
+        Emit each tool call on its own line.
+        TOOL_CALL {"name":"<tool>","arguments":{...}}
+        Do not output any other text.
+        Available tools:
+        - retrieve(docId: string, options?: { snippet?: boolean, maxChars?: number })
+    - user: "Retrieve docId '99' with snippet true and 100 chars."
+  should:
+    - $tool_args_match:
+        name: "retrieve"
+        where:
+          docId: "99"
+          options:
+            snippet: true
+            maxChars: 200   # wrong on purpose; fixtures will use 100
+
+# 7) Multi-turn with assistant:null (turns provided by fixtures)
+- id: multi-turn-clarify
+  messages:
+    - user: "I need help picking a laptop."
+    - assistant: null
+    - user: "I want something portable and under $1200."
+    - assistant: null
+    - user: "Any final thoughts?"
+  should:
+    - "Asks at least one clarifying question."
+    - $contains_any_of: ["?", "questions", "clarify"]
+    - $word_count_between: [20, 300]
+
+
