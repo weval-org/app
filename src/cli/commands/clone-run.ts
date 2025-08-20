@@ -299,7 +299,7 @@ async function actionCloneRun(sourceIdentifier: string, options: CloneOptions) {
           let history: ConversationMessage[];
           let hasError = false;
           let errorMessage: string | undefined;
-          const fixturePick = fixtures ? pickFixtureValue(fixtures, prompt.id, baseModelId, effectiveId, runLabel) : null;
+          const fixturePick = fixtures ? pickFixtureValue(fixtures, prompt.id, baseModelId, effectiveId, proposedRunLabel) : null;
           if (fixturePick?.final) {
             history = [...(prompt.messages as ConversationMessage[]), { role: 'assistant', content: fixturePick.final }];
             text = fixturePick.final;
