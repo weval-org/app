@@ -37,6 +37,7 @@ import { executeComparisonPipeline } from '../services/comparison-pipeline-servi
 import { generateConfigContentHash } from '../../lib/hash-utils';
 import { parseAndNormalizeBlueprint } from '../../lib/blueprint-parser';
 import { fetchBlueprintContentByName, fetchBlueprintsInDirectory, resolveModelsInConfig } from '../../lib/blueprint-service';
+import { validateBlueprintSchema } from '@/lib/blueprint-validator';
 import pLimit from '@/lib/pLimit';
 import { SimpleLogger } from '@/lib/blueprint-service';
 import { fromSafeTimestamp } from '@/lib/timestampUtils';
@@ -278,7 +279,24 @@ export async function loadAndValidateConfig(options: {
     
     let configJson: ComparisonConfig;
     try {
+        // Optional pre-parse validation (authoring). Non-fatal; logs only.
+        try {
+            const rawForValidation = type === 'yaml' ? yaml.load(content) : JSON.parse(content);
+            const pre = validateBlueprintSchema(rawForValidation as any, 'authoring');
+            if (!pre.valid) {
+                logger.warn(`Authoring schema validation reported ${pre.errors?.length || 0} issue(s). Proceeding with parser. First: ${pre.errors?.[0]?.message || 'unknown'}`);
+            }
+        } catch {}
+
         configJson = parseAndNormalizeBlueprint(content, type);
+
+        // Post-parse canonical validation. Non-fatal; logs only for now.
+        try {
+            const post = validateBlueprintSchema(configJson as any, 'canonical');
+            if (!post.valid) {
+                logger.warn(`Canonical schema validation reported ${post.errors?.length || 0} issue(s). Proceeding. First: ${post.errors?.[0]?.message || 'unknown'}`);
+            }
+        } catch {}
     } catch (parseError: any) {
         logger.error(`Failed to parse or normalize configuration from source '${sourceName}'.`);
         logger.error(`System error: ${parseError.message}`);
