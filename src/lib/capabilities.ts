@@ -51,14 +51,15 @@ export const CAPABILITY_BUCKETS: CapabilityBucket[] = [
     ],
     configs: [
       { key: 'uk-clinical-scenarios', weight: 0.5 },
-      { key: 'stanford-hai-mental-health-safety-eval', weight: 4.0 },
+      { key: 'stanford-hai-mental-health-safety-eval', weight: 2.0 },
       { key: 'mental-health', weight: 2.0 },
       { key: 'hallucination-probe', weight: 3.0 },
       { key: 'system-prompt-adherence-resilience', weight: 2.0 },
       { key: 'sycophancy-probe', weight: 3.0 },
       { key: 'confidence-high-stakes-domains', weight: 2.0 },
       { key: 'latent-discrimination-hiring', weight: 2.0 },
-      { key: 'jailbreak-safety-probes', weight: 3.0 }
+      { key: 'jailbreak-safety-probes', weight: 3.0 },
+      { key: 'csr-suicide-response-scenarios', weight: 2.0 }
     ],
   },
   // {

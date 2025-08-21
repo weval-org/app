@@ -44,6 +44,43 @@ export async function getModelResponse(params: GetModelResponseParams): Promise<
         finalMessages = [{ role: 'user', content: prompt }];
     }
 
+    // --- Cache Debugging Controls (non-invasive; does not alter actual keying) ---
+    const DEBUG_CACHE = (process.env.LLM_CACHE_DEBUG || '').toLowerCase() === 'true' || process.env.LLM_CACHE_DEBUG === '1';
+    const DEBUG_MODEL = process.env.LLM_CACHE_DEBUG_MODEL;
+    const DEBUG_TEMP = process.env.LLM_CACHE_DEBUG_TEMP;
+    const DEBUG_PROMPT_CONTAINS = process.env.LLM_CACHE_DEBUG_PROMPT_CONTAINS;
+
+    // Build a canonicalized payload (messages with system injected) purely for debugging/visibility
+    const canonicalMessagesForHash: ConversationMessage[] | undefined = (() => {
+        const base: ConversationMessage[] = [];
+        if (systemPrompt) {
+            base.push({ role: 'system', content: systemPrompt });
+        }
+        if (finalMessages && Array.isArray(finalMessages)) {
+            // Use messages as-is; do not trim or transform so logs reflect exactly what's sent downstream
+            base.push(...finalMessages.map(m => ({ role: m.role, content: m.content ?? '' })));
+        }
+        return base.length > 0 ? base : undefined;
+    })();
+
+    const canonicalKeyPayload = {
+        modelId,
+        messages: canonicalMessagesForHash,
+        temperature,
+        maxTokens,
+    } as const;
+
+    const shouldDebugThisCall = DEBUG_CACHE && (
+        (!DEBUG_MODEL || modelId.includes(DEBUG_MODEL)) &&
+        (!DEBUG_TEMP || String(temperature) === String(DEBUG_TEMP)) &&
+        (!DEBUG_PROMPT_CONTAINS || (() => {
+            try {
+                const hay = (canonicalMessagesForHash || finalMessages || []).map(m => m.content || '').join('\n');
+                return hay.includes(DEBUG_PROMPT_CONTAINS);
+            } catch { return false; }
+        })())
+    );
+
     // Create a comprehensive cache key that includes ALL parameters that affect the response
     const cacheKeyPayload = {
         modelId,
@@ -55,6 +92,19 @@ export async function getModelResponse(params: GetModelResponseParams): Promise<
         // Include any other parameters that might affect the response
     };
     const cacheKey = generateCacheKey(cacheKeyPayload);
+
+    if (shouldDebugThisCall) {
+        try {
+            const canonicalKey = generateCacheKey(canonicalKeyPayload as any);
+            const sample = (canonicalMessagesForHash || finalMessages || []).slice(0, 3);
+            logger.info(`[LLM Service][CACHE-DEBUG] modelId=${modelId} temp=${temperature ?? 'n/a'} maxTokens=${maxTokens ?? 'n/a'}`);
+            logger.info(`[LLM Service][CACHE-DEBUG] key(current-schema)=${cacheKey.slice(0, 12)}…`);
+            logger.info(`[LLM Service][CACHE-DEBUG] key(canonical)=${canonicalKey.slice(0, 12)}…`);
+            logger.info(`[LLM Service][CACHE-DEBUG] canonicalMessages(first 3 turns): ${JSON.stringify(sample)}`);
+        } catch (e: any) {
+            logger.warn(`[LLM Service][CACHE-DEBUG] Failed to compute canonical key: ${e?.message || e}`);
+        }
+    }
 
     if (useCache) {
         // Check cache first

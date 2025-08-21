@@ -688,7 +688,7 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions & { fi
                 blueprintFileName,
                 // In demo mode we always skip executive summary regardless of flags
                 options.requireExecutiveSummary && !options.demoStdout,
-                true, // skipExecutiveSummary
+                (options.skipExecutiveSummary === true) || (options.demoStdout === true),
                 { genTimeoutMs, genRetries },
                 undefined,
                 fixturesCtx,

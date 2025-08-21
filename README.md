@@ -228,6 +228,7 @@ pnpm cli repair-run <configId/runLabel/timestamp>
 -   `--cache`: Enables caching for model responses during the repair. By default, caching is disabled for repairs to ensure fresh results.
  -   `--gen-timeout-ms <number>`: Timeout in milliseconds for each candidate generation API call during repair. **Default: 30000**.
  -   `--gen-retries <number>`: Number of retries for each candidate generation API call during repair. **Default: 1**.
+ -   `--update-summaries`: Updates platform-wide summaries (homepage, model leaderboards, etc.) after the repair. Default: false (parity with `run-config`).
 
 ### `clone-run`
 
@@ -250,6 +251,7 @@ pnpm cli clone-run homework-int-help-heuristics/919a1807afd4ec60/2025-08-09T02-1
 -   `--cache`: Enables caching for model responses when generating missing pairs.
 -   `--gen-timeout-ms <number>`: Timeout in milliseconds for each candidate generation API call. **Default: 30000**.
 -   `--gen-retries <number>`: Number of retries for each candidate generation API call. **Default: 1**.
+ -   `--concurrency <number>`: Concurrency for generating missing pairs and fetching coverage reuse. **Default: 8**.
 
 Demo (stdout-only) mode:
 

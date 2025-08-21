@@ -10,6 +10,7 @@ import { loadFixturesFromLocal, FixtureSet, pickFixtureValue } from '@/lib/fixtu
 import { fetchBlueprintContentByName } from '@/lib/blueprint-service';
 import type { SimpleLogger } from '@/lib/blueprint-service';
 import { getCoverageResult, getConfigSummary, saveConfigSummary, updateSummaryDataWithNewRun } from '@/lib/storageService';
+import pLimit from '@/lib/pLimit';
 import { actionBackfillSummary } from './backfill-summary';
 
 interface CloneOptions {
@@ -21,6 +22,7 @@ interface CloneOptions {
   updateSummaries?: boolean;
   fixtures?: string;
   fixturesStrict?: boolean;
+  concurrency?: number | string;
 }
 
 function buildEffectiveId(baseModelId: string, temp: number | undefined, systems: (string | null | undefined)[] | undefined, spIdx: number): string {
@@ -257,6 +259,9 @@ async function actionCloneRun(sourceIdentifier: string, options: CloneOptions) {
     let promptGen = 0;
     let promptCoverageReuse = 0;
 
+    const limit = pLimit(options.concurrency !== undefined ? parseInt(String(options.concurrency), 10) : 8);
+    const tasks: Promise<void>[] = [];
+
     for (const baseModelId of modelIds) {
       for (let spIdx = 0; spIdx < systemsToRun.length; spIdx++) {
         const systemValue = systemsToRun[spIdx];
@@ -264,71 +269,74 @@ async function actionCloneRun(sourceIdentifier: string, options: CloneOptions) {
         for (const tempValue of tempsToRun) {
           const effectiveId = buildEffectiveId(baseModelId, tempValue as number | undefined, systemsToRun, spIdx);
 
-          // Try reuse from source when prompt unchanged and system prompt matches the previously used system
           if (!promptChanged) {
             const prevText = sourceData?.allFinalAssistantResponses?.[prompt.id]?.[effectiveId];
             const prevHist = sourceData?.fullConversationHistories?.[prompt.id]?.[effectiveId];
             const prevSystemUsed = sourceData?.modelSystemPrompts?.[effectiveId] ?? null;
             const systemsMatch = (prevSystemUsed ?? null) === (systemPromptUsed ?? null);
             if (typeof prevText === 'string' && systemsMatch) {
+              // Immediate reuse of response
               promptData.modelResponses[effectiveId] = {
                 finalAssistantResponseText: prevText,
                 fullConversationHistory: Array.isArray(prevHist) ? prevHist : undefined,
                 hasError: false,
                 systemPromptUsed: systemPromptUsed ?? null,
               } as any;
-              // Try to reuse coverage if judge config and rubric match
-              try {
-                const cov = await getCoverageResult(sourceConfigId, sourceRunLabel, sourceTimestamp, prompt.id, effectiveId);
-                if (cov && cov.pointAssessments && Array.isArray(cov.pointAssessments)) {
-                  // Judge identity and rubric checks could be stricter; minimal reuse for now
-                  prefilledCoverage[prompt.id] = prefilledCoverage[prompt.id] || {};
-                  prefilledCoverage[prompt.id][effectiveId] = cov;
-                  promptCoverageReuse++;
-                  totalCoverageReused++;
-                }
-              } catch {}
               promptReuse++;
+              // Coverage reuse task (concurrent)
+              tasks.push(limit(async () => {
+                try {
+                  const cov = await getCoverageResult(sourceConfigId, sourceRunLabel, sourceTimestamp, prompt.id, effectiveId);
+                  if (cov && cov.pointAssessments && Array.isArray(cov.pointAssessments)) {
+                    prefilledCoverage[prompt.id] = prefilledCoverage[prompt.id] || {};
+                    prefilledCoverage[prompt.id][effectiveId] = cov;
+                    promptCoverageReuse++;
+                    totalCoverageReused++;
+                  }
+                } catch {}
+              }));
               continue;
             }
           }
 
-          // Generate missing pair
-          // Try fixtures
-          let text: string;
-          let history: ConversationMessage[];
-          let hasError = false;
-          let errorMessage: string | undefined;
-          const fixturePick = fixtures ? pickFixtureValue(fixtures, prompt.id, baseModelId, effectiveId, proposedRunLabel) : null;
-          if (fixturePick?.final) {
-            history = [...(prompt.messages as ConversationMessage[]), { role: 'assistant', content: fixturePick.final }];
-            text = fixturePick.final;
-          } else {
-            const res = await generateResponseForPair({
-              modelId: baseModelId,
-              temperature: (tempValue as number | undefined),
-              systemPrompt: systemPromptUsed ?? null,
-              messages: prompt.messages as ConversationMessage[],
-              useCache,
-              genTimeoutMs: options.genTimeoutMs !== undefined ? parseInt(String(options.genTimeoutMs), 10) : undefined,
-              genRetries: options.genRetries !== undefined ? parseInt(String(options.genRetries), 10) : undefined,
-            });
-            text = res.text; history = res.history; hasError = res.hasError; errorMessage = res.errorMessage;
-          }
-
-          promptData.modelResponses[effectiveId] = {
-            finalAssistantResponseText: text,
-            fullConversationHistory: history,
-            hasError: !!hasError,
-            errorMessage: errorMessage,
-            systemPromptUsed: systemPromptUsed ?? null,
-            fixtureUsed: fixturePick?.final ? true : undefined,
-            fixtureSource: fixturePick?.final ? 'final' : undefined,
-          } as any;
-          promptGen++;
+          // Generation task (concurrent)
+          tasks.push(limit(async () => {
+            const fixturePick = fixtures ? pickFixtureValue(fixtures, prompt.id, baseModelId, effectiveId, proposedRunLabel) : null;
+            if (fixturePick?.final) {
+              const history = [...(prompt.messages as ConversationMessage[]), { role: 'assistant', content: fixturePick.final }];
+              promptData.modelResponses[effectiveId] = {
+                finalAssistantResponseText: fixturePick.final,
+                fullConversationHistory: history,
+                hasError: false,
+                systemPromptUsed: systemPromptUsed ?? null,
+                fixtureUsed: true,
+                fixtureSource: 'final',
+              } as any;
+            } else {
+              const res = await generateResponseForPair({
+                modelId: baseModelId,
+                temperature: (tempValue as number | undefined),
+                systemPrompt: systemPromptUsed ?? null,
+                messages: prompt.messages as ConversationMessage[],
+                useCache,
+                genTimeoutMs: options.genTimeoutMs !== undefined ? parseInt(String(options.genTimeoutMs), 10) : undefined,
+                genRetries: options.genRetries !== undefined ? parseInt(String(options.genRetries), 10) : undefined,
+              });
+              promptData.modelResponses[effectiveId] = {
+                finalAssistantResponseText: res.text,
+                fullConversationHistory: res.history,
+                hasError: !!res.hasError,
+                errorMessage: res.errorMessage,
+                systemPromptUsed: systemPromptUsed ?? null,
+              } as any;
+            }
+            promptGen++;
+          }));
         }
       }
     }
+
+    await Promise.all(tasks);
 
     responseMap.set(prompt.id, promptData);
 

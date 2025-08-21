@@ -8,12 +8,12 @@ import { getConfig } from '../config';
 import { FinalComparisonOutputV2 as FetchedComparisonData } from '../types/cli_types';
 import * as llmService from '../services/llm-service';
 
-jest.mock('@/lib/storageService');
-jest.mock('@/cli/commands/backfill-summary');
-jest.mock('@/cli/services/executive-summary-service');
-jest.mock('@/cli/evaluators/llm-coverage-evaluator');
-jest.mock('@/cli/config');
-jest.mock('@/cli/services/llm-service');
+jest.mock('../../lib/storageService');
+jest.mock('./backfill-summary');
+jest.mock('../services/executive-summary-service');
+jest.mock('../evaluators/llm-coverage-evaluator');
+jest.mock('../config');
+jest.mock('../services/llm-service');
 
 const mockedStorage = storageService as jest.Mocked<typeof storageService>;
 const mockedBackfill = backfillSummary as jest.Mocked<typeof backfillSummary>;
@@ -97,7 +97,7 @@ describe('repair-run command', () => {
         mockedLLMService.getModelResponse.mockResolvedValue('Repaired response from API');
     });
 
-    it('should successfully repair a run with failed assessments', async () => {
+    it('should successfully repair a run with failed assessments (no summaries by default)', async () => {
         await repairRunCommand.parseAsync(['node', 'test', mockRunIdentifier]);
 
         // 1. Should fetch the correct file
@@ -126,12 +126,13 @@ describe('repair-run command', () => {
         expect(mockedExecutiveSummary.generateExecutiveSummary).toHaveBeenCalledTimes(1);
         expect(savedData.executiveSummary?.content).toBe('Repaired summary.');
 
-        // 5. Should trigger a summary backfill
-        expect(mockedBackfill.actionBackfillSummary).toHaveBeenCalledTimes(1);
+        // 5. Should NOT trigger a summary backfill by default
+        expect(mockedBackfill.actionBackfillSummary).not.toHaveBeenCalled();
 
         // 6. Should log success
         expect(mockLogger.info).toHaveBeenCalledWith(`Repair process for ${mockRunIdentifier} completed successfully.`);
     });
+
     
     it('should exit gracefully if no repairs are needed', async () => {
         const perfectData = JSON.parse(JSON.stringify(mockFailedResultData)) as FetchedComparisonData;

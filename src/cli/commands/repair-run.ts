@@ -2,7 +2,10 @@ import { Command } from 'commander';
 import { getConfig } from '../config';
 import {
   getResultByFileName,
-  saveResult
+  saveResult,
+  getConfigSummary,
+  saveConfigSummary,
+  updateSummaryDataWithNewRun,
 } from '../../lib/storageService';
 import { actionBackfillSummary } from './backfill-summary';
 import {
@@ -24,7 +27,7 @@ import { getModelResponse, DEFAULT_TEMPERATURE } from '../services/llm-service';
 import { parseModelIdForApiCall } from '@/app/utils/modelIdUtils';
 import { loadFixturesFromLocal, pickFixtureValue, FixtureSet } from '@/lib/fixtures-service';
 
-async function actionRepairRun(runIdentifier: string, options: { cache?: boolean; genTimeoutMs?: number | string; genRetries?: number | string, fixtures?: string, fixturesStrict?: boolean }) {
+async function actionRepairRun(runIdentifier: string, options: { cache?: boolean; genTimeoutMs?: number | string; genRetries?: number | string, fixtures?: string, fixturesStrict?: boolean, updateSummaries?: boolean }) {
   const { logger } = getConfig();
   const useCache = options.cache ?? false;
   let fixtures: FixtureSet | null = null;
@@ -263,10 +266,34 @@ async function actionRepairRun(runIdentifier: string, options: { cache?: boolean
   await saveResult(configId, fileName, resultData);
   logger.info('Successfully saved repaired result file.');
   
-  logger.info('To ensure data consistency, the summary files will now be rebuilt.');
-  logger.info('--- Starting Summary Backfill ---');
-  await actionBackfillSummary({ verbose: false });
-  logger.info('--- Finished Summary Backfill ---');
+  // Parity with run-config: attempt per-config summary update when persistence is enabled
+  if (process.env.STORAGE_PROVIDER === 's3' || process.env.UPDATE_LOCAL_SUMMARY === 'true') {
+    try {
+      logger.info(`Updating per-config summary for config: ${configId}`);
+      const existingConfigSummary = await getConfigSummary(configId);
+      const existingConfigsArray = existingConfigSummary ? [existingConfigSummary] : null;
+      const updatedConfigArray = updateSummaryDataWithNewRun(
+        existingConfigsArray,
+        resultData as any,
+        fileName
+      );
+      const newConfigSummary = updatedConfigArray[0];
+      await saveConfigSummary(configId, newConfigSummary as any);
+      logger.info(`Successfully saved per-config summary for ${configId}.`);
+    } catch (e: any) {
+      logger.error(`Failed to update per-config summary for ${configId}: ${e.message}`);
+    }
+  }
+  
+  // Parity with run-config: only update summaries when explicitly requested
+  if (options.updateSummaries) {
+    logger.info('Rebuilding aggregate summaries as requested by --update-summaries...');
+    logger.info('--- Starting Summary Backfill ---');
+    await actionBackfillSummary({ verbose: false });
+    logger.info('--- Finished Summary Backfill ---');
+  } else {
+    logger.info('Skipping summary rebuild (use --update-summaries to enable).');
+  }
 
   logger.info(`Repair process for ${runIdentifier} completed successfully.`);
 }
@@ -279,4 +306,5 @@ export const repairRunCommand = new Command('repair-run')
   .option('--gen-retries <number>', 'Number of retries for each candidate generation API call during repair (default 1).')
   .option('--fixtures <path>', 'Optional local fixtures file to use when regenerating failed pairs (final assistant only).')
   .option('--fixtures-strict', 'Error when a fixture for a prompt×model is missing instead of generating live.', false)
+  .option('--update-summaries', 'Update model summaries and homepage summary after the repair (defaults to false).', false)
   .action(actionRepairRun); 

@@ -68,7 +68,7 @@ export async function generateAllResponses(
         // 1 is best for testability, but no harm in higher for non test env
         perModelLimits.set(modelId, pLimit(
             // process.env.NODE_ENV === 'test' ? 1 : 10
-            1 // best to not break circuit breaker
+            10 // best to not break circuit breaker
             // Notes:
             // Why: a circuit breaker is about “consecutive failures.”
             // If you let N calls for the same model fly in parallel,

@@ -198,6 +198,32 @@ export function useWorkspace(
   }, [isAuthLoading, importBlueprint, loadFilesFromLocalStorage, saveToLocalStorage, loadFile]);
 
   const fetchFiles = useCallback(async (forceRefresh = false, providedForkName?: string) => {
+    // Helper to deduplicate remote GitHub files that may appear multiple times
+    // due to multiple branches or sync artifacts. We keep one entry per name,
+    // preferring: open PR > closed PR > no PR, and then newest lastModified.
+    const dedupeRemoteFilesByName = (filesToDedupe: BlueprintFile[]): BlueprintFile[] => {
+      const score = (f: BlueprintFile): number => {
+        let s = 0;
+        if (f.prStatus?.state === 'open') s += 3_000_000_000_000; // highest priority
+        else if (f.prStatus?.state === 'closed') s += 2_000_000_000_000;
+        if (f.branchName && f.branchName !== 'main') s += 100_000_000_000; // prefer feature branches over main
+        const ts = Date.parse(f.lastModified || '') || 0;
+        s += ts;
+        return s;
+      };
+
+      const nameToBest: Map<string, BlueprintFile> = new Map();
+      for (const f of filesToDedupe) {
+        const existing = nameToBest.get(f.name);
+        if (!existing) {
+          nameToBest.set(f.name, f);
+        } else if (score(f) > score(existing)) {
+          nameToBest.set(f.name, f);
+        }
+      }
+      return Array.from(nameToBest.values());
+    };
+
     const effectiveForkName = providedForkName || forkName;
     console.log(`[fetchFiles] Called with forceRefresh=${forceRefresh}, isLoggedIn=${isLoggedIn}, forkName=${effectiveForkName} (provided: ${providedForkName}, state: ${forkName}), status=${status}`);
     
@@ -247,8 +273,9 @@ export function useWorkspace(
                 throw new Error(`Failed to fetch files: ${response.statusText}`);
             }
 
-            const remoteFiles = await response.json();
-            const allFiles = [...localFilesFromDisk, ...remoteFiles];
+            const remoteFiles = (await response.json()) as BlueprintFile[];
+            const dedupedRemote = dedupeRemoteFilesByName(remoteFiles);
+            const allFiles = [...localFilesFromDisk, ...dedupedRemote];
             setFiles(allFiles);
             
             if (!activeBlueprintRef.current && allFiles.length > 0) {
