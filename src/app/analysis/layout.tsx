@@ -1,4 +1,6 @@
+"use client";
 import { Suspense } from 'react';
+import { usePathname } from 'next/navigation';
 import { SiteFooter } from '@/app/components/SiteFooter';
 import { SiteHeader } from '@/app/components/SiteHeader';
 import { TopProgressBar } from '@/app/components/TopProgressBar';
@@ -9,6 +11,17 @@ export default function FullWidthLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+  const isArticle = pathname?.includes('/article');
+
+  if (isArticle) {
+    return (
+      <main className="w-full bg-background text-foreground">
+        {children}
+      </main>
+    );
+  }
+
   return (
     <div className="flex flex-col min-h-screen">
       <Suspense fallback={null}>

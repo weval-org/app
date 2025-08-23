@@ -39,6 +39,7 @@ import { generateVibesIndexCommand } from './commands/generate-vibes-index';
 import { generateCompassIndexCommand } from './commands/generate-compass-index';
 import { cloneRunCommand } from './commands/clone-run';
 import { demoExampleWithFixturesCommand } from './commands/demo-example-with-fixtures';
+import { backfillArticleCommand } from './commands/backfill-article';
 
 let isTerminating = false
 const cleanup = () => {
@@ -99,6 +100,7 @@ cli.addCommand(backfillSummaryCommand);
 cli.addCommand(deleteConfigCommand);
 cli.addCommand(backfillPromptContextsCommand);
 cli.addCommand(backfillExecutiveSummaryCommand);
+cli.addCommand(backfillArticleCommand);
 cli.addCommand(repairRunCommand);
 cli.addCommand(cloneRunCommand);
 cli.addCommand(addToPairsCommand);

@@ -179,6 +179,7 @@ export interface WevalResult {
     evaluationResults: WevalEvaluationResults;
     excludedModels?: string[];
     executiveSummary?: ExecutiveSummary;
+    article?: WevalArticle;
 }
 
 // New structured executive summary types
@@ -230,6 +231,19 @@ export interface ExecutiveSummary {
     content: string;
     structured?: StructuredInsights; // New: parsed structured data
     isStructured?: boolean; // Flag to indicate if this uses structured format
+}
+
+// Narrative article written by an analyst LLM (data journalism style)
+export interface WevalArticle {
+    modelId: string; // summarizer model id used
+    title: string;
+    deck?: string; // short subhead/tagline
+    content: string; // markdown body; may contain <ref /> tags for linkification
+    isStructured?: boolean; // reserved; articles are markdown-first
+    meta?: {
+        readingTimeMin?: number;
+        version?: string;
+    };
 }
 
 // Judge configuration for llm-coverage evaluation
