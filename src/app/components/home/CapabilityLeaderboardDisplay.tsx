@@ -68,7 +68,7 @@ const CapabilityLeaderboardDisplay: React.FC<{
       </div>
       
       {/* Responsive grid optimized for 3 capabilities */}
-      <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-3 gap-4 max-w-6xl mx-auto">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
         {leaderboards.map((bucket: any) => {
           const isExpanded = expandedCards.has(bucket.id);
           const displayedModels = isExpanded ? bucket.leaderboard : bucket.leaderboard.slice(0, 5);

@@ -245,6 +245,70 @@ export const findSimilarityExtremes = (matrix: Record<string, Record<string, num
 };
 
 /**
+ * Builds a base-model-level similarity matrix by aggregating variant-to-variant similarities.
+ * For each pair of base models A and B, we average all valid similarities between any variants
+ * of A and any variants of B present in the provided modelIds list.
+ * - Excludes IDEAL_BENCHMARK entries if present in modelIds.
+ * - Returns a symmetric matrix baseId -> baseId -> avg similarity.
+ */
+export function buildBaseSimilarityMatrix(
+  matrix: Record<string, Record<string, number>> | undefined,
+  modelIds: string[]
+): Record<string, Record<string, number>> {
+  const result: Record<string, Record<string, number>> = {};
+  if (!matrix || !Array.isArray(modelIds) || modelIds.length === 0) return result;
+
+  // Group effective model IDs by canonical baseId for display
+  const baseToVariants = new Map<string, string[]>();
+  modelIds.forEach((mid) => {
+    if (mid === IDEAL_MODEL_ID) return; // exclude ideal benchmark
+    const { baseId } = parseModelIdForDisplay(mid);
+    if (!baseToVariants.has(baseId)) baseToVariants.set(baseId, []);
+    baseToVariants.get(baseId)!.push(mid);
+  });
+
+  const baseIds = Array.from(baseToVariants.keys());
+
+  // Initialize rows
+  baseIds.forEach((b) => {
+    result[b] = {};
+  });
+
+  for (let i = 0; i < baseIds.length; i++) {
+    for (let j = i + 1; j < baseIds.length; j++) {
+      const baseA = baseIds[i];
+      const baseB = baseIds[j];
+      const variantsA = baseToVariants.get(baseA)!;
+      const variantsB = baseToVariants.get(baseB)!;
+
+      let sum = 0;
+      let count = 0;
+      for (const va of variantsA) {
+        for (const vb of variantsB) {
+          const s1 = matrix[va]?.[vb];
+          const s2 = matrix[vb]?.[va];
+          const s = typeof s1 === 'number' && !isNaN(s1)
+            ? s1
+            : (typeof s2 === 'number' && !isNaN(s2) ? s2 : null);
+          if (s !== null) {
+            sum += s;
+            count++;
+          }
+        }
+      }
+
+      if (count > 0) {
+        const avg = sum / count;
+        result[baseA][baseB] = avg;
+        result[baseB][baseA] = avg;
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
  * Calculates the overall best and worst average coverage scores across all prompts for each model.
  * Excludes the IDEAL_MODEL_ID.
  */

@@ -25,6 +25,8 @@ import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
 import AnalysisPageHeader from '@/app/analysis/components/AnalysisPageHeader';
 import { fromSafeTimestamp, formatTimestampForDisplay } from '@/lib/timestampUtils';
 import ModelPerformanceModal from '@/app/analysis/components/ModelPerformanceModal';
+import ModelSimilarityModal from '@/app/analysis/components/ModelSimilarityModal';
+import PromptSimilarityModal from '@/app/analysis/components/PromptSimilarityModal';
 import { PromptSelector } from '@/app/analysis/components/PromptSelector';
 import PromptPerformanceModal from '@/app/analysis/components/PromptPerformanceModal';
 import Icon from '@/components/ui/icon';
@@ -219,6 +221,8 @@ export const ClientPage: React.FC = () => {
             <SpecificEvaluationModal />
             <ModelPerformanceModal />
             <PromptPerformanceModal />
+            <ModelSimilarityModal />
+            <PromptSimilarityModal />
         </div>
     )
 } 

@@ -111,12 +111,20 @@ if (storageProvider === 's3') {
   }
 }
 
-const streamToString = (stream: Readable): Promise<string> =>
+export const streamToString = (stream: Readable): Promise<string> =>
   new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     stream.on('data', (chunk) => chunks.push(chunk));
     stream.on('error', reject);
     stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
+  });
+
+export const streamToBuffer = (stream: Readable): Promise<Buffer> =>
+  new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    stream.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+    stream.on('error', reject);
+    stream.on('end', () => resolve(Buffer.concat(chunks)));
   });
 
 const LATEST_RUNS_SUMMARY_KEY = 'multi/latest_runs_summary.json';
@@ -1896,6 +1904,20 @@ export async function getVibesIndex(): Promise<VibesIndexContent | null> {
   }
 }
 
+// --- Macro Canvas Artefacts (index, mappings, tiles) ---
+export function getStorageContext() {
+  return {
+    storageProvider,
+    s3Client,
+    s3BucketName,
+    RESULTS_DIR,
+    LIVE_DIR,
+    streamToString,
+    streamToBuffer,
+  } as const;
+}
+
+export * from '@/lib/storage/macro';
 const COMPASS_INDEX_KEY = path.join(LIVE_DIR, 'models', 'compass', 'index.json');
 
 export async function saveCompassIndex(content: CompassIndexContent): Promise<void> {
@@ -2092,12 +2114,10 @@ export async function buildModelCardMappings(): Promise<Record<string, string>> 
         if (modelCard?.discoveredModelIds && modelCard?.lastUpdated) {
           // Map each discovered model variant to this card pattern
           for (const modelId of modelCard.discoveredModelIds) {
-            // Strip temperature and system prompt suffixes to get base model ID
-            // This handles patterns like: "[temp:0.5]", "[sp_idx:1]", "[temp:0.0][sp_idx:2]"
-            const baseModelId = modelId
-              .replace(/\[temp:[^\]]+\]/g, '')
-              .replace(/\[sp_idx:\d+\]/g, '')
-              .trim();
+            // Normalize to canonical base model ID used by leaderboards (provider-normalized, suffix-stripped)
+            // This ensures exact matches against leaderboard model IDs (which are baseIds)
+            const { parseModelIdForDisplay } = await import('@/app/utils/modelIdUtils');
+            const baseModelId = parseModelIdForDisplay(modelId).baseId;
             
             // Check if we already have a mapping for this base model ID
             if (mappings[baseModelId]) {

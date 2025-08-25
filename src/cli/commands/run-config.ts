@@ -454,7 +454,8 @@ export async function loadAndValidateConfig(options: {
 }
 
 export function parseEvalMethods(evalMethodString: string | undefined): EvaluationMethod[] {
-    if (!evalMethodString) return ['llm-coverage'];
+    // Default to BOTH embeddings and llm-coverage when not specified
+    if (!evalMethodString) return ['embedding', 'llm-coverage'];
 
     const methods = evalMethodString.split(',').map(m => m.trim().toLowerCase()).filter(m => m);
     const validMethods: EvaluationMethod[] = ['embedding', 'llm-coverage'];

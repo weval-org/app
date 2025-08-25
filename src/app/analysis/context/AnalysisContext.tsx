@@ -63,6 +63,7 @@ export interface AnalysisContextType {
         worstPerformingModel: { id: string; score: number } | null;
         mostDifferentiatingPrompt: { id: string; score: number; text: string | null } | null;
         mostSimilarPair: { pair: [string, string]; value: number } | null;
+        leastSimilarPair: { pair: [string, string]; value: number } | null;
         modelLeaderboard: Array<{ id: string; score: number; count: number }> | null;
     } | null;
     isSandbox: boolean;
@@ -76,6 +77,23 @@ export interface AnalysisContextType {
     };
     openModelPerformanceModal: (modelId: string) => void;
     closeModelPerformanceModal: () => void;
+
+    // For Similarity Leaderboard Modal
+    similarityModal: {
+        isOpen: boolean;
+        modelId: string | null;
+    };
+    openSimilarityModal: (modelId?: string | null) => void;
+    closeSimilarityModal: () => void;
+
+    // Per-prompt similarities modal
+    promptSimilarityModal?: { isOpen: boolean; promptId: string | null };
+    openPromptSimilarityModal?: (promptId: string) => void;
+    closePromptSimilarityModal?: () => void;
+
+    // Lazy fetch for per-prompt similarities
+    // Returns matrix plus optional similarities against IDEAL benchmark
+    fetchPerPromptSimilarities?: (promptId: string) => Promise<{ similarities: Record<string, Record<string, number>>; idealSimilarities?: Record<string, number> } | null>;
 
     // For PromptDetailModal
     promptDetailModal: {

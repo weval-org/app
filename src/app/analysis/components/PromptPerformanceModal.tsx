@@ -22,6 +22,7 @@ const PromptPerformanceModal: React.FC = () => {
         fetchPromptResponses,
         fetchEvaluationDetailsBatchForPrompt,
         getCachedEvaluation,
+        openPromptSimilarityModal,
     } = useAnalysis();
 
     const [responseCache, setResponseCache] = useState<Record<string, string>>({});
@@ -87,6 +88,8 @@ const PromptPerformanceModal: React.FC = () => {
 
         fetchData();
     }, [isOpen, promptId, data, fetchPromptResponses, fetchEvaluationDetailsBatchForPrompt]);
+
+    // No explicit abort logic; rely on unmount and dedupe behavior
 
     const promptContext = useMemo(() => {
         if (!data || !promptId) return null;
@@ -174,15 +177,27 @@ const PromptPerformanceModal: React.FC = () => {
                     <div className='p-4 md:p-6 border-b'>
                         <div className="flex items-center justify-between gap-3 mb-2">
                             <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">The Prompt</h3>
-                            <button
-                                type="button"
-                                onClick={togglePromptDetails}
-                                className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-border hover:bg-muted/50 text-foreground"
-                                title={isPromptDetailsExpanded ? 'Hide details' : 'Show details'}
-                            >
-                                <Icon name="chevrons-up-down" className={`w-3.5 h-3.5 transition-transform ${isPromptDetailsExpanded ? 'rotate-180' : ''}`} />
-                                {isPromptDetailsExpanded ? 'Hide details' : 'Show details'}
-                            </button>
+                            <div className="flex items-center gap-2">
+                                {openPromptSimilarityModal && (
+                                    <button
+                                        type="button"
+                                        onClick={() => openPromptSimilarityModal(promptId)}
+                                        className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-border hover:bg-muted/50 text-foreground"
+                                        title="View semantic similarity matrix between models for this prompt"
+                                    >
+                                        View similarity
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={togglePromptDetails}
+                                    className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-border hover:bg-muted/50 text-foreground"
+                                    title={isPromptDetailsExpanded ? 'Hide details' : 'Show details'}
+                                >
+                                    <Icon name="chevrons-up-down" className={`w-3.5 h-3.5 transition-transform ${isPromptDetailsExpanded ? 'rotate-180' : ''}`} />
+                                    {isPromptDetailsExpanded ? 'Hide details' : 'Show details'}
+                                </button>
+                            </div>
                         </div>
 
                         {!isPromptDetailsExpanded && (

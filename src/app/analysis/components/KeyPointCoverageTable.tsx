@@ -227,7 +227,8 @@ const ModelView: React.FC<{
     systemPrompts?: (string | null)[] | null;
     promptSimilarities: Record<string, Record<string, number>> | null;
     historiesForPrompt?: Record<string, any>;
-}> = ({ displayedModels, promptCoverageScores, promptResponses, systemPrompts, promptSimilarities, historiesForPrompt }) => {
+    requestHistory?: (modelId: string) => void;
+}> = ({ displayedModels, promptCoverageScores, promptResponses, systemPrompts, promptSimilarities, historiesForPrompt, requestHistory }) => {
 
     displayedModels = displayedModels.filter(modelId => {
         const parsed = parseModelIdForDisplay(modelId);
@@ -242,16 +243,26 @@ const ModelView: React.FC<{
 
     const groupedModels = useMemo(() => {
         const groups: Record<string, { modelId: string; systemPromptIndex?: number }[]> = {};
+        const seenByBase: Record<string, Set<number | 'u'>> = {};
 
         displayedModels.forEach(modelId => {
             const parsed = parseModelIdForDisplay(modelId);
-            if (!groups[parsed.baseId]) {
-                groups[parsed.baseId] = [];
+            const baseId = parsed.baseId;
+            const sysIdxKey: number | 'u' = (parsed.systemPromptIndex ?? null) === null ? 'u' : (parsed.systemPromptIndex ?? 'u');
+
+            if (!groups[baseId]) {
+                groups[baseId] = [];
+                seenByBase[baseId] = new Set();
             }
-            groups[parsed.baseId].push({
-                modelId: modelId,
-                systemPromptIndex: parsed.systemPromptIndex,
-            });
+
+            // Collapse temperature variants: only keep a single representative per systemPromptIndex
+            if (!seenByBase[baseId].has(sysIdxKey)) {
+                groups[baseId].push({
+                    modelId: modelId,
+                    systemPromptIndex: parsed.systemPromptIndex,
+                });
+                seenByBase[baseId].add(sysIdxKey);
+            }
         });
         
         for (const baseId in groups) {
@@ -266,7 +277,11 @@ const ModelView: React.FC<{
     const allBaseIds = groupedModels.map(([baseId]) => baseId);
     const displayStrategy = getModelDisplayStrategy(allBaseIds);
 
-    
+    // Lazily request history when selection changes
+    useEffect(() => {
+        if (selectedModelId && requestHistory) requestHistory(selectedModelId);
+    }, [selectedModelId, requestHistory]);
+
     return (
         <div className="flex flex-col md:flex-row gap-6 h-full min-h-0">
             <div className="md:w-1/3 lg:w-1/4 flex-shrink-0 flex flex-col min-h-0">
@@ -409,27 +424,20 @@ const KeyPointCoverageTable: React.FC<KeyPointCoverageTableProps> = ({
     setHistoriesForPrompt(staticHistoriesForPrompt);
   }, [staticHistoriesForPrompt]);
 
-  // Lazy-load conversation histories for displayed models to enable Generated Thread tab
-  useEffect(() => {
-    let aborted = false;
+  const requestHistory = React.useCallback((modelId: string) => {
     const baseUrl = `/api/comparison/${encodeURIComponent(data.configId)}/${encodeURIComponent(data.runLabel)}/${encodeURIComponent(data.timestamp)}`;
-    const fetchHistory = async (modelId: string) => {
+    if (staticHistoriesForPrompt[modelId] || historiesForPrompt[modelId]) return;
+    (async () => {
       try {
         const resp = await fetch(`${baseUrl}/modal-data/${encodeURIComponent(promptId)}/${encodeURIComponent(modelId)}`);
         if (!resp.ok) return;
         const json = await resp.json();
-        if (!aborted && Array.isArray(json.history)) {
+        if (Array.isArray(json.history)) {
           setHistoriesForPrompt(prev => ({ ...prev, [modelId]: json.history }));
         }
       } catch {}
-    };
-    displayedModels.forEach(m => {
-      // Skip if already seeded from static or fetched
-      if (staticHistoriesForPrompt[m]) return;
-      if (!historiesForPrompt[m]) fetchHistory(m);
-    });
-    return () => { aborted = true; };
-  }, [displayedModels, data.configId, data.runLabel, data.timestamp, promptId, historiesForPrompt, staticHistoriesForPrompt]);
+    })();
+  }, [data.configId, data.runLabel, data.timestamp, promptId, historiesForPrompt, staticHistoriesForPrompt]);
 
   const modelViewContent = (
     <>
@@ -442,6 +450,7 @@ const KeyPointCoverageTable: React.FC<KeyPointCoverageTableProps> = ({
             systemPrompts={config.systems}
             promptSimilarities={promptSimilarities}
             historiesForPrompt={historiesForPrompt}
+            requestHistory={requestHistory}
         />
       </div>
       

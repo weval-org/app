@@ -29,12 +29,12 @@ export interface AnalysisPageHeaderProps {
 
 // Component for overall summary stats (aggregate view) - now with leaderboard
 const SummaryStatsTable = () => {
-  const { summaryStats, data, openModelPerformanceModal, openPromptDetailModal } = useUnifiedAnalysis();
+  const { summaryStats, data, openModelPerformanceModal, openPromptDetailModal, openSimilarityModal } = useUnifiedAnalysis();
   const [showAllModels, setShowAllModels] = React.useState(false);
 
   if (!summaryStats) return null;
 
-  const { modelLeaderboard, mostDifferentiatingPrompt, mostSimilarPair } = summaryStats;
+  const { modelLeaderboard, mostDifferentiatingPrompt, mostSimilarPair, leastSimilarPair } = summaryStats;
 
   // Detect variations and build appropriate title
   const hasMultipleSystemPrompts = data?.config?.systems && data.config.systems.length > 1;
@@ -160,6 +160,42 @@ const SummaryStatsTable = () => {
           </div>
         )}
 
+        {leastSimilarPair && (
+          <div className="bg-card/50 dark:bg-slate-800/30 rounded-lg p-3 border border-border/50">
+            <div className="flex items-start justify-between mb-2">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                🔀 Least Similar Models
+              </span>
+            </div>
+            <div className="text-sm font-medium text-foreground">
+              <span 
+                className="cursor-pointer hover:text-primary underline-offset-2 hover:underline"
+                onClick={() => openSimilarityModal(leastSimilarPair.pair[0])}
+              >
+                {getModelDisplayLabel(leastSimilarPair.pair[0], { hideProvider: true, prettifyModelName: true })}
+              </span>
+              <span className="mx-1 text-muted-foreground">vs</span>
+              <span 
+                className="cursor-pointer hover:text-primary underline-offset-2 hover:underline"
+                onClick={() => openSimilarityModal(leastSimilarPair.pair[1])}
+              >
+                {getModelDisplayLabel(leastSimilarPair.pair[1], { hideProvider: true, prettifyModelName: true })}
+              </span>
+            </div>
+            <div className="text-xs text-primary font-mono mt-1">
+              {(leastSimilarPair.value * 100).toFixed(1)}% similarity
+            </div>
+            <div className="mt-2">
+              <button 
+                onClick={() => openSimilarityModal(leastSimilarPair.pair[0])}
+                className="text-xs text-muted-foreground hover:text-primary transition-colors underline underline-offset-2"
+              >
+                View similarity leaderboard
+              </button>
+            </div>
+          </div>
+        )}
+
         {mostSimilarPair && (
           <div className="bg-card/50 dark:bg-slate-800/30 rounded-lg p-3 border border-border/50">
             <div className="flex items-start justify-between mb-2">
@@ -170,20 +206,28 @@ const SummaryStatsTable = () => {
             <div className="text-sm font-medium text-foreground">
               <span 
                 className="cursor-pointer hover:text-primary underline-offset-2 hover:underline"
-                onClick={() => openModelPerformanceModal(mostSimilarPair.pair[0])}
+                onClick={() => openSimilarityModal(mostSimilarPair.pair[0])}
               >
                 {getModelDisplayLabel(mostSimilarPair.pair[0], { hideProvider: true, prettifyModelName: true })}
               </span>
               <span className="mx-1 text-muted-foreground">vs</span>
               <span 
                 className="cursor-pointer hover:text-primary underline-offset-2 hover:underline"
-                onClick={() => openModelPerformanceModal(mostSimilarPair.pair[1])}
+                onClick={() => openSimilarityModal(mostSimilarPair.pair[1])}
               >
                 {getModelDisplayLabel(mostSimilarPair.pair[1], { hideProvider: true, prettifyModelName: true })}
               </span>
             </div>
             <div className="text-xs text-primary font-mono mt-1">
               {(mostSimilarPair.value * 100).toFixed(1)}% similarity
+            </div>
+            <div className="mt-2">
+              <button 
+                onClick={() => openSimilarityModal(mostSimilarPair.pair[0])}
+                className="text-xs text-muted-foreground hover:text-primary transition-colors underline underline-offset-2"
+              >
+                View similarity leaderboard
+              </button>
             </div>
           </div>
         )}
@@ -194,7 +238,7 @@ const SummaryStatsTable = () => {
 
 // Component for prompt-specific stats (single prompt view)
 const PromptSpecificStatsTable = () => {
-  const { data, currentPromptId, displayedModels, openModelPerformanceModal } = useUnifiedAnalysis();
+  const { data, currentPromptId, displayedModels, openModelPerformanceModal, openPromptSimilarityModal } = useUnifiedAnalysis();
 
   const promptStats = useMemo(() => {
     if (!data || !currentPromptId || !data.evaluationResults?.llmCoverageScores) return null;
@@ -367,6 +411,7 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
     normalizedExecutiveSummary,
     currentPromptId,
     summaryStats,
+    openPromptSimilarityModal,
   } = useUnifiedAnalysis();
 
   if (!data) return null;
@@ -491,6 +536,15 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
                   <h3 className="text-base font-semibold text-foreground mb-2 flex items-center">
                     <Icon name="sparkles" className="w-4 h-4 mr-2 text-primary" />
                     Stats for this prompt
+                    {currentPromptId && openPromptSimilarityModal && (
+                      <button
+                        onClick={() => openPromptSimilarityModal(currentPromptId)}
+                        className="ml-3 text-xs font-normal text-muted-foreground hover:text-primary underline underline-offset-2"
+                        title="View semantic similarity matrix between models for this prompt"
+                      >
+                        View similarity
+                      </button>
+                    )}
                     {((data?.config?.systems && data.config.systems.length > 1) || 
                       (data?.config?.temperatures && data.config.temperatures.length > 1)) && (
                       <TooltipProvider>

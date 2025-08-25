@@ -42,6 +42,11 @@ export function useLazyResponseData(configId: string, runLabel: string, timestam
 
   const baseUrl = `/api/comparison/${encodeURIComponent(configId)}/${encodeURIComponent(runLabel)}/${encodeURIComponent(timestamp)}`;
 
+  // Cache for per-prompt similarities with optional IDEAL aggregates
+  type PerPromptSimilarityPayload = { similarities: Record<string, Record<string, number>>; idealSimilarities?: Record<string, number> };
+  const [promptSimilarityCache, setPromptSimilarityCache] = useState<Map<string, PerPromptSimilarityPayload>>(new Map());
+  const inflightPromptSimilarity = useRef<Map<string, Promise<PerPromptSimilarityPayload | null>>>(new Map());
+
   /**
    * Fetches a single response for a specific prompt+model combination
    */
@@ -93,6 +98,36 @@ export function useLazyResponseData(configId: string, runLabel: string, timestam
     inflightModalResponsePromises.current.set(cacheKey, promise);
     return promise;
   }, [baseUrl, responseCache, loading]);
+
+  // Fetch per-prompt similarities (embedding distances) lazily
+  const fetchPerPromptSimilarities = useCallback(async (promptId: string): Promise<PerPromptSimilarityPayload | null> => {
+    if (promptSimilarityCache.has(promptId)) {
+      return promptSimilarityCache.get(promptId)!;
+    }
+    const existing = inflightPromptSimilarity.current.get(promptId);
+    if (existing) return existing;
+    const promise = (async (): Promise<PerPromptSimilarityPayload | null> => {
+      try {
+        const resp = await fetch(`${baseUrl}/per-prompt-similarities/${encodeURIComponent(promptId)}`);
+        if (!resp.ok) return null;
+        const data = await resp.json();
+        const matrix = data?.similarities as Record<string, Record<string, number>> | undefined;
+        const ideal = data?.idealSimilarities as Record<string, number> | undefined;
+        if (matrix) {
+          const payload: PerPromptSimilarityPayload = { similarities: matrix, idealSimilarities: ideal };
+          setPromptSimilarityCache(prev => new Map(prev).set(promptId, payload));
+          return payload;
+        }
+        return null;
+      } catch {
+        return null;
+      } finally {
+        inflightPromptSimilarity.current.delete(promptId);
+      }
+    })();
+    inflightPromptSimilarity.current.set(promptId, promise);
+    return promise;
+  }, [baseUrl, promptSimilarityCache]);
 
   /**
    * Fetches all responses for a specific model across all prompts
@@ -352,6 +387,7 @@ export function useLazyResponseData(configId: string, runLabel: string, timestam
     getCachedEvaluation,
     isLoading,
     isLoadingEvaluation: (key: string) => evaluationLoading.has(key),
+    fetchPerPromptSimilarities,
     cacheSize: responseCache.size
   };
 }

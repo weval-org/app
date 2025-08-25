@@ -19,6 +19,9 @@ catechism_dump.txt
 
 # testing
 /coverage
+.husky
+.swc
+.auth
 
 # next.js
 /.next/

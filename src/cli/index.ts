@@ -39,6 +39,7 @@ import { generateVibesIndexCommand } from './commands/generate-vibes-index';
 import { generateCompassIndexCommand } from './commands/generate-compass-index';
 import { cloneRunCommand } from './commands/clone-run';
 import { demoExampleWithFixturesCommand } from './commands/demo-example-with-fixtures';
+import { prepMacroCommand } from './commands/prep-macro';
 import { backfillArticleCommand } from './commands/backfill-article';
 
 let isTerminating = false
@@ -118,6 +119,7 @@ cli.addCommand(generateNDeltasCommand);
 cli.addCommand(generateVibesIndexCommand);
 cli.addCommand(generateCompassIndexCommand);
 cli.addCommand(demoExampleWithFixturesCommand);
+cli.addCommand(prepMacroCommand);
 
 cli.parseAsync(process.argv).catch(err => {
   console.error('CLI Error:', err); 

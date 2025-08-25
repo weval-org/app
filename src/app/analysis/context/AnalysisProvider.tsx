@@ -10,7 +10,7 @@ import { useLazyResponseData } from '@/app/analysis/hooks/useLazyResponseData';
 
 import { ActiveHighlight } from '@/app/analysis/components/CoverageTableLegend';
 import { ComparisonDataV2, CoverageResult } from '@/app/utils/types';
-import { calculateStandardDeviation, findSimilarityExtremes } from '@/app/utils/calculationUtils';
+import { calculateStandardDeviation, findSimilarityExtremes, buildBaseSimilarityMatrix } from '@/app/utils/calculationUtils';
 import { parseModelIdForDisplay, getCanonicalModels } from '@/app/utils/modelIdUtils';
 import {  useRouter, useSearchParams } from 'next/navigation';
 import { fromSafeTimestamp, formatTimestampForDisplay } from '@/lib/timestampUtils';
@@ -394,7 +394,12 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
             }
         }
 
-        const overallPairExtremes = findSimilarityExtremes(data.evaluationResults?.similarityMatrix);
+        // Compute extremes using base-model aggregated similarity to avoid trivial variant pairs
+        const baseMatrix = buildBaseSimilarityMatrix(
+            data.evaluationResults?.similarityMatrix,
+            data.effectiveModels || []
+        );
+        const overallPairExtremes = findSimilarityExtremes(baseMatrix);
 
         // Get model leaderboard (all models) - always based on coverage scores
         let modelLeaderboard = null;
@@ -412,6 +417,7 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
             worstPerformingModel: worstPerformer,
             mostDifferentiatingPrompt,
             mostSimilarPair: overallPairExtremes.mostSimilar,
+            leastSimilarPair: overallPairExtremes.leastSimilar,
             modelLeaderboard,
         };
     }, [isSandbox, data, analysisStats, getPromptContextDisplayString, isFullMode]);
@@ -470,6 +476,16 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
         setModelEvaluationModal({ isOpen: false, promptId: null, modelId: null });
     }, []);
 
+    // Similarity leaderboard modal state
+    const [similarityModal, setSimilarityModal] = useState<{ isOpen: boolean; modelId: string | null }>({ isOpen: false, modelId: null });
+    const openSimilarityModal = useCallback((modelId: string | null = null) => setSimilarityModal({ isOpen: true, modelId }), []);
+    const closeSimilarityModal = useCallback(() => setSimilarityModal({ isOpen: false, modelId: null }), []);
+
+    // Prompt similarities modal state
+    const [promptSimilarityModal, setPromptSimilarityModal] = useState<{ isOpen: boolean; promptId: string | null }>({ isOpen: false, promptId: null });
+    const openPromptSimilarityModal = useCallback((promptId: string) => setPromptSimilarityModal({ isOpen: true, promptId }), []);
+    const closePromptSimilarityModal = useCallback(() => setPromptSimilarityModal({ isOpen: false, promptId: null }), []);
+
     const contextValue: AnalysisContextType = useMemo(() => ({
         configId,
         runLabel,
@@ -506,6 +522,12 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
         modelPerformanceModal,
         openModelPerformanceModal,
         closeModelPerformanceModal,
+        similarityModal,
+        openSimilarityModal,
+        closeSimilarityModal,
+        promptSimilarityModal,
+        openPromptSimilarityModal,
+        closePromptSimilarityModal,
         promptDetailModal,
         openPromptDetailModal,
         closePromptDetailModal,
@@ -515,6 +537,7 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
         fetchEvaluationDetails: lazyResponseData.fetchEvaluationDetails,
         fetchEvaluationDetailsBatchForPrompt: lazyResponseData.fetchEvaluationDetailsBatchForPrompt,
         fetchEvaluationDetailsBatchForModel: lazyResponseData.fetchEvaluationDetailsBatchForModel,
+        fetchPerPromptSimilarities: lazyResponseData.fetchPerPromptSimilarities,
         getCachedResponse: lazyResponseData.getCachedResponse,
         getCachedEvaluation: lazyResponseData.getCachedEvaluation,
         isLoadingResponse: lazyResponseData.isLoading,
@@ -529,7 +552,7 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
         closeModelEvaluationDetailModal, resolvedTheme, permutationSensitivityMap,
         promptTextsForMacroTable, currentPromptId, pageTitle, breadcrumbItems, summaryStats,
         isSandbox, sandboxIdFromProps, normalizedExecutiveSummary, modelPerformanceModal,
-        openModelPerformanceModal, closeModelPerformanceModal, promptDetailModal,
+        openModelPerformanceModal, closeModelPerformanceModal, similarityModal, openSimilarityModal, closeSimilarityModal, promptDetailModal,
         openPromptDetailModal, closePromptDetailModal, lazyResponseData
     ]);
 

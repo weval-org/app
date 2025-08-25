@@ -45,6 +45,7 @@ const ModelPerformanceModal: React.FC = () => {
         fetchEvaluationDetails,
         getCachedResponse,
         getCachedEvaluation,
+        openPromptSimilarityModal,
     } = useAnalysis();
 
     const [expandedResponse, setExpandedResponse] = useState<Record<string, boolean>>({});
@@ -65,6 +66,8 @@ const ModelPerformanceModal: React.FC = () => {
         window.addEventListener('resize', checkMobile);
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
+
+    // No explicit abort logic; rely on unmounting and idempotent fetch handling
 
     // Fetching is defined after currentVariantModelId to satisfy linting rules
 
@@ -474,7 +477,18 @@ const ModelPerformanceModal: React.FC = () => {
                                 )}
                                 <div className="mb-4 pb-4 border-b">
                                     <div className="mb-4">
-                                        <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">The Prompt</h3>
+                                        <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                                            The Prompt
+                                            {openPromptSimilarityModal && selectedPromptId && (
+                                                <button
+                                                    onClick={() => openPromptSimilarityModal(selectedPromptId)}
+                                                    className="ml-2 text-xs font-normal underline underline-offset-2 text-muted-foreground hover:text-primary"
+                                                    title="View semantic similarity matrix between models for this prompt"
+                                                >
+                                                    View similarity
+                                                </button>
+                                            )}
+                                        </h3>
                                         {config.prompts.find(p => p.id === selectedPromptId)?.description && (
                                             <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground border-l-4 border-primary/20 pl-4 py-1 mb-4">
                                                 <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{config.prompts.find(p => p.id === selectedPromptId)?.description}</ReactMarkdown>

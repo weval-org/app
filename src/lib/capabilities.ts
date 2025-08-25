@@ -45,21 +45,20 @@ export const CAPABILITY_BUCKETS: CapabilityBucket[] = [
     description: 'We measure safety and integrity by combining and averaging results across multiple evaluations, including those that measure hallucination, sycophancy, bias, and mental health crisis response.',
     icon: 'shield',
     dimensions: [
-      { key: 'safety', weight: 1.0 }
+      { key: 'safety', weight: 5.0 }
     ],
     topics: [
     ],
     configs: [
       { key: 'uk-clinical-scenarios', weight: 0.5 },
-      { key: 'stanford-hai-mental-health-safety-eval', weight: 2.0 },
-      { key: 'mental-health', weight: 2.0 },
+      { key: 'stanford-hai-mental-health-safety-eval', weight: 3.0 },
+      { key: 'mental-health', weight: 1.0 },
       { key: 'hallucination-probe', weight: 3.0 },
-      { key: 'system-prompt-adherence-resilience', weight: 2.0 },
+      { key: 'system-prompt-adherence-resilience', weight: 3.0 },
       { key: 'sycophancy-probe', weight: 3.0 },
       { key: 'confidence-high-stakes-domains', weight: 2.0 },
-      { key: 'latent-discrimination-hiring', weight: 2.0 },
       { key: 'jailbreak-safety-probes', weight: 3.0 },
-      { key: 'csr-suicide-response-scenarios', weight: 2.0 }
+      { key: 'csr-suicide-response-scenarios', weight: 0.5 }
     ],
   },
   // {
@@ -156,7 +155,8 @@ export const CAPABILITY_BUCKETS: CapabilityBucket[] = [
       { key: 'ipcc-ar6-synthesis-report-spm', weight: 1.5 },
       { key: 'platform-workers-sea-algo-manage', weight: 1.5 },
       { key: 'maternal-health-uttar-pradesh', weight: 2.0 },
-      { key: 'jp-clinical-scenarios', weight: 1.0 }
+      { key: 'jp-clinical-scenarios', weight: 1.0 },
+      { key: 'yka-set', weight: 1.5 }
     ],
   },
   {
@@ -177,8 +177,7 @@ export const CAPABILITY_BUCKETS: CapabilityBucket[] = [
       { key: 'system-prompt-adherence-resilience', weight: 2.0 },
       { key: 'geneva-conventions-full-evaluation', weight: 1.0 },
       { key: 'hmt-empire-windrush-comprehensive-eval', weight: 1.0 },
-      { key: 'udhr-misattribution-absurd-framing', weight: 1.0 },
-      { key: 'adversarial-legal-reasoning-ca', weight: 1.0 },
+      { key: 'udhr-misattribution-absurd-framing', weight: 1.0 }
     ]
   }
 ];
