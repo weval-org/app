@@ -159,6 +159,75 @@ export function GlobalConfigCard({ blueprint, onUpdate, isEditable, isAdvancedMo
                             readOnly={!isEditable}
                         />
                     </div>
+
+                    {/* Author attribution */}
+                    <div>
+                        <label className="text-sm font-semibold text-foreground" htmlFor="blueprint-author">Author (optional)</label>
+                        <p className="text-xs text-muted-foreground mb-1.5">Credit the author or source. Use a simple name or name with link and image.</p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                            <Input
+                                id="blueprint-author"
+                                type="text"
+                                placeholder="Name"
+                                value={typeof (blueprint as any).author === 'string' ? (blueprint as any).author : ((blueprint as any).author?.name || '')}
+                                onChange={(e) => {
+                                    const current = (blueprint as any).author;
+                                    const next = produce(blueprint, draft => {
+                                        const value = e.target.value;
+                                        if (!value) {
+                                            (draft as any).author = undefined;
+                                        } else if (typeof current === 'string' || current === undefined) {
+                                            (draft as any).author = { name: value };
+                                        } else {
+                                            (draft as any).author = { ...current, name: value };
+                                        }
+                                    });
+                                    onUpdate(next);
+                                }}
+                                className="text-sm"
+                                readOnly={!isEditable}
+                            />
+                            <Input
+                                type="url"
+                                placeholder="URL (optional)"
+                                value={typeof (blueprint as any).author === 'string' ? '' : ((blueprint as any).author?.url || '')}
+                                onChange={(e) => {
+                                    const next = produce(blueprint, draft => {
+                                        const val = e.target.value;
+                                        if (!(draft as any).author || typeof (draft as any).author === 'string') {
+                                            (draft as any).author = { name: ((draft as any).author && typeof (draft as any).author === 'string') ? (draft as any).author : (draft.title || 'Author'), url: val };
+                                        } else {
+                                            (draft as any).author.url = val;
+                                        }
+                                        // Clean empty fields
+                                        if ((draft as any).author && !(draft as any).author.url) delete (draft as any).author.url;
+                                    });
+                                    onUpdate(next);
+                                }}
+                                className="text-sm"
+                                readOnly={!isEditable}
+                            />
+                            <Input
+                                type="url"
+                                placeholder="Image URL (optional)"
+                                value={typeof (blueprint as any).author === 'string' ? '' : ((blueprint as any).author?.image_url || '')}
+                                onChange={(e) => {
+                                    const next = produce(blueprint, draft => {
+                                        const val = e.target.value;
+                                        if (!(draft as any).author || typeof (draft as any).author === 'string') {
+                                            (draft as any).author = { name: ((draft as any).author && typeof (draft as any).author === 'string') ? (draft as any).author : (draft.title || 'Author'), image_url: val };
+                                        } else {
+                                            (draft as any).author.image_url = val;
+                                        }
+                                        if ((draft as any).author && !(draft as any).author.image_url) delete (draft as any).author.image_url;
+                                    });
+                                    onUpdate(next);
+                                }}
+                                className="text-sm"
+                                readOnly={!isEditable}
+                            />
+                        </div>
+                    </div>
                     
                     <div>
                         <div className="flex items-center justify-between mb-2">

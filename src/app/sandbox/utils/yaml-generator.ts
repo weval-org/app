@@ -120,7 +120,17 @@ export function generateMinimalBlueprintYaml(config: ComparisonConfig): string {
         return newPrompt;
     });
 
-    const headerYaml = isHeaderMeaningful(header) ? yaml.dump(header, { skipInvalid: true, indent: 2, flowLevel: -1 }) : '';
+    // Ensure author remains minimally represented (string or object)
+    const headerForYaml: any = { ...header };
+    if (headerForYaml.author) {
+        const a: any = headerForYaml.author;
+        if (typeof a === 'object' && a !== null) {
+            // Remove empty optional fields for cleanliness
+            if (!a.url) delete a.url;
+            if (!a.image_url) delete a.image_url;
+        }
+    }
+    const headerYaml = isHeaderMeaningful(headerForYaml) ? yaml.dump(headerForYaml, { skipInvalid: true, indent: 2, flowLevel: -1 }) : '';
     const promptsYaml = deNormalizedPrompts.length > 0 
         ? deNormalizedPrompts
             .map(p => yaml.dump(p, { skipInvalid: true, indent: 2, flowLevel: -1 }))

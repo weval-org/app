@@ -14,6 +14,21 @@ export const BlueprintAuthoringSchema = {
         id: { type: 'string', deprecated: true, description: 'Ignored at runtime; ID derived from path or server policy.' },
         title: { type: 'string' },
         description: { type: 'string' },
+        author: {
+          oneOf: [
+            { type: 'string' },
+            {
+              type: 'object',
+              properties: {
+                name: { type: 'string' },
+                url: { type: 'string' },
+                image_url: { type: 'string' },
+              },
+              required: ['name'],
+              additionalProperties: true,
+            }
+          ]
+        },
         tags: { type: 'array', items: { type: 'string' } },
         models: {
           type: 'array',

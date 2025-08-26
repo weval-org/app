@@ -29,7 +29,7 @@ const getHybridScoreColor = (score: number | null | undefined): string => {
 };
 
 export default function RunLabelInstancesClientPage({ configId, runLabel, data }: { configId: string, runLabel: string, data: ApiRunsResponse }) {
-  const { runs: allRunsForThisConfig, configTitle, configDescription, configTags } = data;
+  const { runs: allRunsForThisConfig, configTitle, configDescription, configTags, configAuthor } = data;
 
   const runInstances = useMemo(() => {
     if (!allRunsForThisConfig) { 
@@ -84,6 +84,7 @@ export default function RunLabelInstancesClientPage({ configId, runLabel, data }
       configTitle={configTitle || ''}
       description={configDescription || ''}
       tags={configTags || []}
+      author={configAuthor || undefined}
       pageTitle={pageTitle}
       breadcrumbItems={breadcrumbItems}
     >

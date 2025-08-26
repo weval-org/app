@@ -46,6 +46,7 @@ export interface EnhancedComparisonConfigInfo {
   id?: string;
   title?: string;
   description?: string;
+  author?: string | { name: string; url?: string; image_url?: string };
   runs: EnhancedRunInfo[];
   latestRunTimestamp: string;
   overallAverageHybridScore?: number | null;

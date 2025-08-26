@@ -604,6 +604,11 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions & { fi
         const chosenMethods = options.demoStdout ? (['llm-coverage'] as EvaluationMethod[]) : parseEvalMethods(options.evalMethod);
         await loggerInstance.info(`Evaluation methods to be used: ${chosenMethods.join(', ')}`);
 
+        // Log captured metadata for observability
+        const description = config.description;
+        const author = (config as any).author;
+        await loggerInstance.info(`Blueprint metadata - Title: ${currentTitle ? `"${currentTitle}"` : 'none'}, Description: ${description ? `"${description.substring(0, 50)}${description.length > 50 ? '...' : ''}"` : 'none'}, Author: ${author ? (typeof author === 'string' ? `"${author}"` : `"${author.name}"${author.url ? ` (${author.url})` : ''}`) : 'none'}`);
+
         await loggerInstance.info('--- Run Blueprint Summary ---');
         await loggerInstance.info(`Blueprint ID: ${currentConfigId}`);
         await loggerInstance.info(`Blueprint Title: ${currentTitle}`);

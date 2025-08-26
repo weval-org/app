@@ -133,6 +133,11 @@ export interface WevalConfig {
     id?: string;
     title?: string;
     description?: string;
+    /**
+     * Optional author attribution for the blueprint.
+     * Can be a simple string (name) or an object with name/url/image_url.
+     */
+    author?: string | { name: string; url?: string; image_url?: string };
     point_defs?: Record<string, string>; // Reusable point function definitions
     models: (string | CustomModelDefinition)[];
     system?: string | null;

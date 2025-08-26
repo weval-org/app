@@ -30,6 +30,7 @@ interface AnalysisProviderProps {
     configTitle?: string;
     description?: string;
     tags?: string[];
+    author?: string | { name: string; url?: string; image_url?: string };
     
     // Common props
     configId: string;
@@ -51,6 +52,7 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
     configTitle: propConfigTitle,
     description: propDescription,
     tags: propTags,
+    author: propAuthor,
     configId: configIdFromProps,
     runLabel: runLabelFromProps,
     timestamp: timestampFromProps,
@@ -439,6 +441,7 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
                 title: propConfigTitle || configId,
                 description: propDescription,
                 tags: propTags,
+                author: propAuthor,
                 models: [],
                 prompts: [],
             },
@@ -457,7 +460,7 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
             excludedModels: [],
             evalMethodsUsed: [],
         } as ComparisonDataV2;
-    }, [isFullMode, data, configId, propConfigTitle, runLabel, timestamp, propDescription, propTags]);
+    }, [isFullMode, data, configId, propConfigTitle, runLabel, timestamp, propDescription, propTags, propAuthor]);
 
     const { toast } = useToast();
 

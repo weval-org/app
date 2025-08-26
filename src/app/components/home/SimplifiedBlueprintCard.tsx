@@ -36,6 +36,37 @@ export default function SimplifiedBlueprintCard({ blueprint: bp }: SimplifiedBlu
                 {bp.title || bp.configTitle}
               </h3>
             </div>
+            {bp.author && (
+              <div className="-mt-1 mb-2">
+                {(() => {
+                  const a: any = (bp as any).author;
+                  const name: string = typeof a === 'string' ? a : a.name;
+                  const url: string | undefined = typeof a === 'string' ? undefined : a.url;
+                  const imageUrl: string | undefined = typeof a === 'string' ? undefined : a.image_url;
+                  const content = (
+                    <span className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                      {imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={imageUrl} alt={name} className="h-4 w-4 rounded-full border border-border" />
+                      ) : (
+                        <Icon name="user" className="w-4 h-4 text-muted-foreground" />
+                      )}
+                      <span>By</span>
+                      <span className="text-foreground">{name}</span>
+                    </span>
+                  );
+                  return (
+                    <span className="inline-flex items-center rounded-full bg-muted/60 px-2 py-0.5 border border-border/60" title="Blueprint author">
+                      {url ? (
+                        <a href={url} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                          {content}
+                        </a>
+                      ) : content}
+                    </span>
+                  );
+                })()}
+              </div>
+            )}
             {bp.description && (
               <div className="text-sm text-muted-foreground dark:text-muted-foreground mb-3 leading-relaxed line-clamp-3 pr-4 group-hover:text-foreground/80 dark:group-hover:text-foreground/80">
                 <ReactMarkdown

@@ -164,10 +164,22 @@ async function actionCloneRun(sourceIdentifier: string, options: CloneOptions) {
         isRemote: true,
       });
       logger.info(`Loaded blueprint '${sourceConfigId}' from GitHub.`);
+      
+      // Log captured metadata for observability
+      const title = targetConfig.title || targetConfig.configTitle;
+      const description = targetConfig.description;
+      const author = (targetConfig as any).author;
+      logger.info(`Blueprint metadata - Title: ${title ? `"${title}"` : 'none'}, Description: ${description ? `"${description.substring(0, 50)}${description.length > 50 ? '...' : ''}"` : 'none'}, Author: ${author ? (typeof author === 'string' ? `"${author}"` : `"${author.name}"${author.url ? ` (${author.url})` : ''}`) : 'none'}`);
     } else {
       // Fallback: use the config embedded in the source run
       logger.warn(`Blueprint '${sourceConfigId}' not found on GitHub. Falling back to source run's embedded config.`);
       targetConfig = sourceData.config as ComparisonConfig;
+      
+      // Log captured metadata from embedded config for observability
+      const title = targetConfig.title || targetConfig.configTitle;
+      const description = targetConfig.description;
+      const author = (targetConfig as any).author;
+      logger.info(`Embedded config metadata - Title: ${title ? `"${title}"` : 'none'}, Description: ${description ? `"${description.substring(0, 50)}${description.length > 50 ? '...' : ''}"` : 'none'}, Author: ${author ? (typeof author === 'string' ? `"${author}"` : `"${author.name}"${author.url ? ` (${author.url})` : ''}`) : 'none'}`);
       if (!targetConfig?.prompts || !Array.isArray(targetConfig.prompts)) {
         logger.error('Source run does not contain an embedded config suitable for cloning.');
         process.exit(1);
@@ -180,6 +192,12 @@ async function actionCloneRun(sourceIdentifier: string, options: CloneOptions) {
       configPath: options.config,
       isRemote: false,
     });
+    
+    // Log captured metadata from local config for observability
+    const title = targetConfig.title || targetConfig.configTitle;
+    const description = targetConfig.description;
+    const author = (targetConfig as any).author;
+    logger.info(`Local config metadata - Title: ${title ? `"${title}"` : 'none'}, Description: ${description ? `"${description.substring(0, 50)}${description.length > 50 ? '...' : ''}"` : 'none'}, Author: ${author ? (typeof author === 'string' ? `"${author}"` : `"${author.name}"${author.url ? ` (${author.url})` : ''}`) : 'none'}`);
   }
 
   // Prepare evaluation methods

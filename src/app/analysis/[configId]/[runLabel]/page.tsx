@@ -26,13 +26,14 @@ const getRunLabelInstancesData = cache(async (configId: string, runLabel: string
         const configTitle = configSummary.title || configSummary.configTitle || null;
         const configDescription = configSummary.description || null;
         const configTags = configSummary.tags || null;
+        const configAuthor = configSummary.author || null;
 
         if (runs.length === 0) {
             console.log(`[Page Fetch] No runs found for runLabel '${runLabel}' in config '${configId}'.`);
             notFound();
         }
         
-        return { runs, configTitle, configDescription, configTags };
+        return { runs, configTitle, configDescription, configTags, configAuthor };
 
     } catch (error) {
         console.error(`[Page Fetch] Error fetching config summary for ${configId}:`, error);

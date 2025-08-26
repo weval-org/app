@@ -315,6 +315,20 @@ export function parseAndNormalizeBlueprint(content: string, fileType: 'json' | '
     finalConfig.id = finalConfig.id || configHeader.configId;
     finalConfig.title = finalConfig.title || configHeader.configTitle;
     finalConfig.system = finalConfig.system || configHeader.systemPrompt; // Legacy alias
+    // Normalize author (allow string or object with name/url/image_url)
+    if ((finalConfig as any).author !== undefined) {
+        const a: any = (finalConfig as any).author;
+        if (typeof a === 'string') {
+            // ok
+        } else if (a && typeof a === 'object') {
+            if (typeof a.name !== 'string' || a.name.trim() === '') {
+                throw new Error("Invalid 'author' object: missing 'name' string.");
+            }
+            // allow url/image_url if strings; keep as-is
+        } else {
+            throw new Error("Invalid 'author' field: must be a string or an object with 'name'.");
+        }
+    }
     
     // Clean up header aliases and old fields
     delete (finalConfig as any).configId;
