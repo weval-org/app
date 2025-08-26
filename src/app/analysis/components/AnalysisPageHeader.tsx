@@ -508,6 +508,43 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
             </div>
           )}
 
+          {/* Optional reference badge */}
+          {(data?.config as any)?.reference && (
+            <div className="mt-2">
+              {(() => {
+                const r: any = (data.config as any).reference;
+                const title: string = typeof r === 'string' ? r : (r.title || r.name);
+                const url: string | undefined = typeof r === 'string' ? undefined : r.url;
+                const maxLength = 60; // Truncate at 60 characters
+                const displayTitle = title.length > maxLength ? `${title.substring(0, maxLength)}...` : title;
+                const content = (
+                  <span className="text-sm text-foreground">
+                    <Icon name="book-open" className="w-4 h-4 text-foreground inline mr-1 align-text-bottom" />
+                    Reference: <span className="font-bold">{displayTitle}</span>
+                  </span>
+                );
+                return (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex items-center rounded-full bg-muted/60 px-2.5 py-1 border border-border/60">
+                          {url ? (
+                            <a href={url} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                              {content}
+                            </a>
+                          ) : content}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="max-w-md">{title}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                );
+              })()}
+            </div>
+          )}
+
           {/* Prompt-specific content for single prompt view */}
           {isInSinglePromptView && promptData && (
             <div className="mt-4 space-y-4">

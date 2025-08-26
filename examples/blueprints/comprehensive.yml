@@ -3,6 +3,12 @@ description: |
   Exercises a wide range of blueprint features and point-functions.
   Includes deterministic checks, JS-based checks, tool-use tracing, multi-turn with assistant:null,
   prompt weights, citations, and intentional successes/failures.
+author:
+  name: "Weval Team"
+  url: "https://weval.org"
+reference:
+  title: "Weval: A Comprehensive Framework for LLM Evaluation"
+  url: "https://arxiv.org/abs/2024.example"
 tags: [test, demo, docs, comprehensive]
 models:
   - openai:gpt-4o-mini

@@ -1,0 +1,45 @@
+title: "Reference Field Examples"
+description: "Demonstrates both string and object formats for author and reference fields"
+
+# Author as object with full details
+author:
+  name: "Dr. Jane Smith"
+  url: "https://example.com/jane-smith"
+  image_url: "https://example.com/avatar.jpg"
+
+# Reference as object with title and URL (could also use 'citation' as alias)
+reference:
+  title: "Evaluating Large Language Models: A Comprehensive Survey (2024)"
+  url: "https://arxiv.org/abs/2024.evaluation"
+
+tags: [example, demo]
+models:
+  - openai:gpt-4o-mini
+
+---
+
+# Simple string examples and prompt-level citations
+- id: simple-string-formats
+  prompt: "What is artificial intelligence?"
+  # This shows how to use simple string formats at the top level:
+  # author: "John Doe"
+  # citation: "Smith et al. (2024) - AI Evaluation Methods"
+
+- id: prompt-with-object-citation
+  prompt: "Explain the transformer architecture."
+  # Prompt-level citation as object
+  citation:
+    title: "Attention Is All You Need"
+    url: "https://arxiv.org/abs/1706.03762"
+
+- id: prompt-with-string-reference
+  prompt: "What is BERT?"
+  # Prompt-level reference as string (alias for citation)
+  reference: "Devlin et al. (2018) - BERT: Pre-training of Deep Bidirectional Transformers"
+
+- id: prompt-with-name-alias
+  prompt: "Describe GPT architecture."
+  # Using 'name' instead of 'title' 
+  citation:
+    name: "Language Models are Unsupervised Multitask Learners"
+    url: "https://d4mucfpksywv.cloudfront.net/better-language-models/language-models.pdf"

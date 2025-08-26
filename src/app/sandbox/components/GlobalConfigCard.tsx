@@ -228,6 +228,55 @@ export function GlobalConfigCard({ blueprint, onUpdate, isEditable, isAdvancedMo
                             />
                         </div>
                     </div>
+
+                    {/* Reference attribution */}
+                    <div>
+                        <label className="text-sm font-semibold text-foreground" htmlFor="blueprint-reference">Reference (optional)</label>
+                        <p className="text-xs text-muted-foreground mb-1.5">Credit a source paper, dataset, or other reference this blueprint is based on.</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <Input
+                                id="blueprint-reference"
+                                type="text"
+                                placeholder="Title or citation"
+                                value={typeof (blueprint as any).reference === 'string' ? (blueprint as any).reference : ((blueprint as any).reference?.title || '')}
+                                onChange={(e) => {
+                                    const current = (blueprint as any).reference;
+                                    const next = produce(blueprint, draft => {
+                                        const value = e.target.value;
+                                        if (!value) {
+                                            (draft as any).reference = undefined;
+                                        } else if (typeof current === 'string' || current === undefined) {
+                                            (draft as any).reference = { title: value };
+                                        } else {
+                                            (draft as any).reference = { ...current, title: value };
+                                        }
+                                    });
+                                    onUpdate(next);
+                                }}
+                                className="text-sm"
+                                readOnly={!isEditable}
+                            />
+                            <Input
+                                type="url"
+                                placeholder="URL (optional)"
+                                value={typeof (blueprint as any).reference === 'string' ? '' : ((blueprint as any).reference?.url || '')}
+                                onChange={(e) => {
+                                    const next = produce(blueprint, draft => {
+                                        const val = e.target.value;
+                                        if (!(draft as any).reference || typeof (draft as any).reference === 'string') {
+                                            (draft as any).reference = { title: ((draft as any).reference && typeof (draft as any).reference === 'string') ? (draft as any).reference : 'Reference', url: val };
+                                        } else {
+                                            (draft as any).reference.url = val;
+                                        }
+                                        if ((draft as any).reference && !(draft as any).reference.url) delete (draft as any).reference.url;
+                                    });
+                                    onUpdate(next);
+                                }}
+                                className="text-sm"
+                                readOnly={!isEditable}
+                            />
+                        </div>
+                    </div>
                     
                     <div>
                         <div className="flex items-center justify-between mb-2">

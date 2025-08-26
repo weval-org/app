@@ -19,6 +19,7 @@ interface ConfigRunsClientPageProps {
     description?: string;
     tags?: string[];
     author?: string | { name: string; url?: string; image_url?: string };
+    reference?: string | { title: string; url?: string };
     runs: EnhancedRunInfo[];
     totalRuns: number;
     currentPage: number;
@@ -31,6 +32,7 @@ const ConfigRunsClientPage: React.FC<ConfigRunsClientPageProps> = ({
     description,
     tags,
     author,
+    reference,
     runs,
     totalRuns,
     currentPage,
@@ -106,6 +108,7 @@ const ConfigRunsClientPage: React.FC<ConfigRunsClientPageProps> = ({
             description={description}
             tags={tags}
             author={author}
+            reference={reference}
             pageTitle={pageTitle}
             breadcrumbItems={breadcrumbItems}
         >

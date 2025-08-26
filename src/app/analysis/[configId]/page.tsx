@@ -11,6 +11,7 @@ export interface ApiRunsResponse {
     configDescription: string | null;
     configTags: string[] | null;
     configAuthor?: string | { name: string; url?: string; image_url?: string } | null;
+    configReference?: string | { title: string; url?: string } | null;
 }
 
 export const revalidate = 3600;
@@ -41,8 +42,9 @@ const getConfigRunsData = cache(async (configId: string): Promise<ApiRunsRespons
         const configDescription = configSummary.description || null;
         const configTags = configSummary.tags || null;
         const configAuthor = configSummary.author || null;
+        const configReference = (configSummary as any).reference || null;
 
-        return { runs, configTitle, configDescription, configTags, configAuthor };
+        return { runs, configTitle, configDescription, configTags, configAuthor, configReference };
 
     } catch (error) {
         console.error(`[Page Fetch] Error fetching config summary for ${configId}:`, error);
@@ -80,6 +82,7 @@ export default async function ConfigRunsPage({ params }: ThisPageProps) {
       description={data.configDescription || undefined}
       tags={data.configTags || undefined}
       author={data.configAuthor || undefined}
+      reference={data.configReference || undefined}
       runs={data.runs}
       totalRuns={data.runs.length}
       currentPage={1}

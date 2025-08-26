@@ -29,6 +29,42 @@ export const BlueprintAuthoringSchema = {
             }
           ]
         },
+        reference: {
+          oneOf: [
+            { type: 'string' },
+            {
+              type: 'object',
+              properties: {
+                title: { type: 'string' },
+                name: { type: 'string' }, // alias for title
+                url: { type: 'string' },
+              },
+              anyOf: [
+                { required: ['title'] },
+                { required: ['name'] }
+              ],
+              additionalProperties: true,
+            }
+          ]
+        },
+        citation: {
+          oneOf: [
+            { type: 'string' },
+            {
+              type: 'object',
+              properties: {
+                title: { type: 'string' },
+                name: { type: 'string' }, // alias for title
+                url: { type: 'string' },
+              },
+              anyOf: [
+                { required: ['title'] },
+                { required: ['name'] }
+              ],
+              additionalProperties: true,
+            }
+          ]
+        },
         tags: { type: 'array', items: { type: 'string' } },
         models: {
           type: 'array',
@@ -75,7 +111,42 @@ export const BlueprintAuthoringSchema = {
         // Alias for JSON legacy
         idealResponse: { type: 'string', deprecated: true },
         description: { type: 'string' },
-        citation: { type: 'string' },
+        citation: {
+          oneOf: [
+            { type: 'string' },
+            {
+              type: 'object',
+              properties: {
+                title: { type: 'string' },
+                name: { type: 'string' }, // alias for title
+                url: { type: 'string' },
+              },
+              anyOf: [
+                { required: ['title'] },
+                { required: ['name'] }
+              ],
+              additionalProperties: true,
+            }
+          ]
+        },
+        reference: {
+          oneOf: [
+            { type: 'string' },
+            {
+              type: 'object',
+              properties: {
+                title: { type: 'string' },
+                name: { type: 'string' }, // alias for title
+                url: { type: 'string' },
+              },
+              anyOf: [
+                { required: ['title'] },
+                { required: ['name'] }
+              ],
+              additionalProperties: true,
+            }
+          ]
+        },
         system: { type: ['string', 'null'] },
         // Canonical rubric names
         should: { $ref: '#/$defs/pointBlock' },

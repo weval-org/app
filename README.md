@@ -232,7 +232,7 @@ pnpm cli repair-run <configId/runLabel/timestamp>
 
 ### `clone-run`
 
-Clones an existing run into a brand-new run using a target blueprint, deterministically reusing prior responses where inputs match and generating only what’s missing. Evaluations (coverage/embeddings) are computed over the final cohort of prompt/model variants.
+Clones an existing run into a brand-new run using a target blueprint, deterministically reusing prior responses where inputs match and generating only what's missing. Evaluations (coverage/embeddings) are computed over the final cohort of prompt/model variants.
 
 ```bash
 pnpm cli clone-run <configId/runLabel/timestamp> [options]
@@ -243,15 +243,32 @@ pnpm cli clone-run homework-int-help-heuristics/919a1807afd4ec60/2025-08-09T02-1
   --config evaluation_blueprints/homework-int-help-heuristics.yml --eval-method all
 ```
 
--   `<runIdentifier>`: **(Required)** The source run identifier (`configId/runLabel/timestamp`).
--   `--config <path>`: Path to the target blueprint file (`.yml`, `.yaml`, or `.json`).
+### `update-run-metadata`
+
+Updates only the metadata (title, description, author, tags, reference) of an existing run from the latest blueprint, without re-running the evaluation pipeline. This is useful for quickly updating blueprint information without the time and cost of re-evaluating all models.
+
+```bash
+pnpm cli update-run-metadata <configId/runLabel/timestamp> [options]
+
+# Examples
+pnpm cli update-run-metadata ai-collapse-probes/1c93820b4c5566b0/2025-08-10T05-59-39-562Z --update-summaries
+pnpm cli update-run-metadata my-config/my-run/2024-01-01T12-00-00-000Z --config path/to/updated-blueprint.yml
+```
+
+-   `<runIdentifier>`: **(Required)** The target run identifier (`configId/runLabel/timestamp`) to update.
+-   `--config <path>`: Path to the blueprint file (`.yml`, `.yaml`, or `.json`) to source metadata from.
     - If omitted, the command will try to load the blueprint by name from the `weval/configs` GitHub repository using `configId`.
-    - If that fetch fails, it falls back to the embedded `config` inside the source run JSON.
+-   `--update-summaries`: Updates platform-wide summaries (homepage, model leaderboards, etc.) after updating the metadata. **Default: false**.
+
+**Note:** This command only updates metadata fields (title, description, author, reference, tags). It does not re-run evaluations or modify model responses.
+
+**Parameters for `clone-run`:**
+
 -   `--eval-method <methods>`: Comma-separated methods. Defaults to `embedding`. (`embedding`, `llm-coverage`, `all`).
 -   `--cache`: Enables caching for model responses when generating missing pairs.
 -   `--gen-timeout-ms <number>`: Timeout in milliseconds for each candidate generation API call. **Default: 30000**.
 -   `--gen-retries <number>`: Number of retries for each candidate generation API call. **Default: 1**.
- -   `--concurrency <number>`: Concurrency for generating missing pairs and fetching coverage reuse. **Default: 8**.
+-   `--concurrency <number>`: Concurrency for generating missing pairs and fetching coverage reuse. **Default: 8**.
 
 Demo (stdout-only) mode:
 

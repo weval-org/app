@@ -1078,6 +1078,7 @@ export function updateSummaryDataWithNewRun(
       title: configTitle,
       description: newResultData.config?.description || '',
       author: (newResultData.config as any)?.author,
+      reference: (newResultData.config as any)?.reference,
       runs: [],
       latestRunTimestamp: timestamp,
       tags: unifiedTags,
@@ -1090,6 +1091,8 @@ export function updateSummaryDataWithNewRun(
     configSummary.description = newResultData.config?.description || configSummary.description;
     // Update author if present in latest config
     (configSummary as any).author = (newResultData.config as any)?.author ?? (configSummary as any).author;
+    // Update reference if present in latest config
+    (configSummary as any).reference = (newResultData.config as any)?.reference ?? (configSummary as any).reference;
     configSummary.tags = unifiedTags;
   }
   

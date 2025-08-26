@@ -330,6 +330,28 @@ export function parseAndNormalizeBlueprint(content: string, fileType: 'json' | '
         }
     }
     
+    // Normalize reference/citation (support both as aliases)
+    const referenceValue = (finalConfig as any).reference || (finalConfig as any).citation;
+    if (referenceValue !== undefined) {
+        if (typeof referenceValue === 'string') {
+            (finalConfig as any).reference = referenceValue;
+        } else if (referenceValue && typeof referenceValue === 'object') {
+            const title = referenceValue.title || referenceValue.name;
+            if (typeof title !== 'string' || title.trim() === '') {
+                throw new Error("Invalid 'reference'/'citation' object: missing 'title' or 'name' string.");
+            }
+            // Normalize to use 'title' field consistently
+            (finalConfig as any).reference = {
+                title: title,
+                url: referenceValue.url
+            };
+        } else {
+            throw new Error("Invalid 'reference'/'citation' field: must be a string or an object with 'title'/'name'.");
+        }
+        // Remove citation alias to avoid duplication
+        delete (finalConfig as any).citation;
+    }
+    
     // Clean up header aliases and old fields
     delete (finalConfig as any).configId;
     delete (finalConfig as any).configTitle;
@@ -376,7 +398,23 @@ export function parseAndNormalizeBlueprint(content: string, fileType: 'json' | '
         finalPrompt.description = p.description;
         finalPrompt.idealResponse = p.ideal || p.idealResponse;
         finalPrompt.system = p.system;
-        finalPrompt.citation = p.citation;
+        
+        // Normalize citation/reference (support both as aliases)
+        const promptCitationValue = p.citation || p.reference;
+        if (promptCitationValue !== undefined) {
+            if (typeof promptCitationValue === 'string') {
+                finalPrompt.citation = promptCitationValue;
+            } else if (promptCitationValue && typeof promptCitationValue === 'object') {
+                const title = promptCitationValue.title || promptCitationValue.name;
+                if (typeof title !== 'string' || title.trim() === '') {
+                    throw new Error(`Invalid 'citation'/'reference' object in prompt '${p.id}': missing 'title' or 'name' string.`);
+                }
+                // Store as object but keep citation field for backward compatibility
+                finalPrompt.citation = promptCitationValue;
+            } else {
+                throw new Error(`Invalid 'citation'/'reference' field in prompt '${p.id}': must be a string or an object with 'title'/'name'.`);
+            }
+        }
         // Normalize prompt-level weight (importance). Accept aliases: weight, importance, multiplier
         const rawWeight = p.weight ?? p.importance ?? p.multiplier;
         if (rawWeight !== undefined) {

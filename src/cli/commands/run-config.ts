@@ -607,7 +607,8 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions & { fi
         // Log captured metadata for observability
         const description = config.description;
         const author = (config as any).author;
-        await loggerInstance.info(`Blueprint metadata - Title: ${currentTitle ? `"${currentTitle}"` : 'none'}, Description: ${description ? `"${description.substring(0, 50)}${description.length > 50 ? '...' : ''}"` : 'none'}, Author: ${author ? (typeof author === 'string' ? `"${author}"` : `"${author.name}"${author.url ? ` (${author.url})` : ''}`) : 'none'}`);
+        const reference = (config as any).reference;
+        await loggerInstance.info(`Blueprint metadata - Title: ${currentTitle ? `"${currentTitle}"` : 'none'}, Description: ${description ? `"${description.substring(0, 50)}${description.length > 50 ? '...' : ''}"` : 'none'}, Author: ${author ? (typeof author === 'string' ? `"${author}"` : `"${author.name}"${author.url ? ` (${author.url})` : ''}`) : 'none'}, Reference: ${reference ? (typeof reference === 'string' ? `"${reference}"` : `"${reference.title || reference.name}"${reference.url ? ` (${reference.url})` : ''}`) : 'none'}`);
 
         await loggerInstance.info('--- Run Blueprint Summary ---');
         await loggerInstance.info(`Blueprint ID: ${currentConfigId}`);
