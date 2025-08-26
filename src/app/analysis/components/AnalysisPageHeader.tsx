@@ -485,14 +485,14 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
                 const url: string | undefined = typeof a === 'string' ? undefined : a.url;
                 const imageUrl: string | undefined = typeof a === 'string' ? undefined : a.image_url;
                 const content = (
-                  <span className="text-xs font-semibold text-foreground">
+                  <span className="text-sm text-foreground">
                     {imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={imageUrl} alt={name} className="h-5 w-5 rounded-full border border-border inline mr-1 align-text-bottom" />
                     ) : (
                       <Icon name="user" className="w-4 h-4 text-foreground inline mr-1 align-text-bottom" />
                     )}
-                    Author: <span className="font-bold">{name}</span>
+                    By: <span className="font-bold">{name}</span>
                   </span>
                 );
                 return (
