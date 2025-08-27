@@ -42,7 +42,9 @@ async function actionUpdateRunMetadata(runIdentifier: string, options: UpdateMet
     // Try to load blueprint by name from GitHub
     logger.info(`No --config provided. Attempting to fetch blueprint '${configId}' from GitHub...`);
     const githubToken = process.env.GITHUB_TOKEN;
-    const remote = await fetchBlueprintContentByName(configId, githubToken, logger as unknown as SimpleLogger).catch(() => null);
+    const blueprintNameForGithub = configId.replace(/__/g, '/');
+    logger.info(`Resolved configId to GitHub path: '${configId}' -> '${blueprintNameForGithub}'`);
+    const remote = await fetchBlueprintContentByName(blueprintNameForGithub, githubToken, logger as unknown as SimpleLogger).catch(() => null);
     if (remote) {
       updatedConfig = await loadAndValidateConfig({
         configContent: remote.content,
@@ -50,7 +52,7 @@ async function actionUpdateRunMetadata(runIdentifier: string, options: UpdateMet
         fileType: remote.fileType,
         isRemote: true,
       });
-      logger.info(`Loaded blueprint '${configId}' from GitHub.`);
+      logger.info(`Loaded blueprint '${blueprintNameForGithub}' from GitHub.`);
     } else {
       logger.error(`Blueprint '${configId}' not found on GitHub and no --config provided. Cannot update metadata.`);
       process.exit(1);

@@ -4,8 +4,6 @@ import React from 'react';
 import dynamic from 'next/dynamic';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import PromptContextDisplay from './PromptContextDisplay';
-import { ConversationMessage } from '@/types/shared';
 import Icon from '@/components/ui/icon';
 // import { usePreloadIcons } from '@/components/ui/use-preload-icons';
 import ReactMarkdown from 'react-markdown';
@@ -17,19 +15,11 @@ import RemarkGfmPlugin from 'remark-gfm';
 interface PromptInfoProps {
   description: string | undefined;
   citation: string | undefined;
-  promptContext: string | ConversationMessage[] | undefined;
-  systemPrompt: string | null;
-  variantIndex: number;
-  hideConversation?: boolean;
 }
 
 const PromptInfo: React.FC<PromptInfoProps> = ({ 
   description, 
-  citation, 
-  promptContext, 
-  systemPrompt,
-  variantIndex,
-  hideConversation = false,
+  citation
 }) => {
   const [isOpen, setIsOpen] = React.useState(false);
 
@@ -43,7 +33,7 @@ const PromptInfo: React.FC<PromptInfoProps> = ({
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <Icon name="message-square" className="h-4 w-4 text-muted-foreground" />
-                Prompt & Context Details
+                Prompt Details
               </CardTitle>
               <Icon name="chevron-down" className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} />
             </div>
@@ -77,33 +67,9 @@ const PromptInfo: React.FC<PromptInfoProps> = ({
               </div>
             )}
 
-            {/* System Prompt Section */}
-            <div className="space-y-2">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                System Prompt (Variant {variantIndex})
-              </h4>
-              {systemPrompt && systemPrompt !== '[No System Prompt]' ? (
-                <div className="p-3 rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/30">
-                  <pre className="text-xs text-blue-900 dark:text-blue-100 whitespace-pre-wrap font-mono leading-relaxed">
-                    {systemPrompt}
-                  </pre>
-                </div>
-              ) : (
-                <div className="p-3 rounded-md bg-muted/50 border border-border/50">
-                  <p className="text-xs text-muted-foreground italic">No system prompt was used for this variant</p>
-                </div>
-              )}
-            </div>
+            {/* System Prompt intentionally omitted */}
             
-            {/* Prompt Context Section */}
-            {!hideConversation && (
-              <div className="space-y-2">
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Conversation</h4>
-                <div className="p-3 rounded-md bg-muted/30 border border-border/50">
-                  <PromptContextDisplay promptContext={promptContext} />
-                </div>
-              </div>
-            )}
+            {/* Conversation thread is intentionally omitted here; it's shown alongside the model output. */}
           </CardContent>
         </CollapsibleContent>
       </Collapsible>

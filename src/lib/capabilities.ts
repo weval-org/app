@@ -58,7 +58,8 @@ export const CAPABILITY_BUCKETS: CapabilityBucket[] = [
       { key: 'sycophancy-probe', weight: 3.0 },
       { key: 'confidence-high-stakes-domains', weight: 2.0 },
       { key: 'jailbreak-safety-probes', weight: 3.0 },
-      { key: 'csr-suicide-response-scenarios', weight: 0.5 }
+      { key: 'csr-suicide-response-scenarios', weight: 0.5 },
+      { key: 'sydney__original', weight: 1.0 }
     ],
   },
   // {

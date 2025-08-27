@@ -110,7 +110,7 @@ const MODEL_NAME_NORMALIZATIONS: Record<string, string> = {
   'claude-3-7-sonnet-20250219': 'claude-3-7-sonnet',
   'claude-sonnet-4-20250514': 'claude-sonnet-4',
   'claude-opus-4-20250514': 'claude-opus-4',
-  'claude-opus-4.1': 'claude-opus-4',
+  // 'claude-opus-4.1': 'claude-opus-4',
   'claude-3-opus-20240229': 'claude-3-opus',
   
   

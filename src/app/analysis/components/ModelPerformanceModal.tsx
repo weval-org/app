@@ -10,7 +10,6 @@ import { CoverageResult } from '@/app/utils/types';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { EvaluationView } from '@/app/analysis/components/SharedEvaluationComponents';
 import { MobileModelPerformanceAnalysis, PromptPerformance as MobilePromptPerformance } from '@/app/analysis/components/MobileModelPerformanceAnalysis';
-import PromptContextDisplay from '@/app/analysis/components/PromptContextDisplay';
 import TemperatureTabbedEvaluation, { TempVariantBundle } from './TemperatureTabbedEvaluation';
 import { ConversationMessage } from '@/types/shared';
 import { useAnalysis } from '../context/AnalysisContext';
@@ -59,6 +58,7 @@ const ModelPerformanceModal: React.FC = () => {
     const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
     const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
     const [isLoadingModalData, setIsLoadingModalData] = useState(false);
+    const [historiesForPrompt, setHistoriesForPrompt] = useState<Record<string, any[]>>({});
 
     useEffect(() => {
         const checkMobile = () => setIsMobileView(window.innerWidth < 768);
@@ -248,6 +248,35 @@ const ModelPerformanceModal: React.FC = () => {
         ]).finally(() => setIsLoadingModalData(false));
     }, [isOpen, data, selectedPromptId, currentVariantModelId, fetchModalResponse, fetchEvaluationDetails]);
 
+    // Lazily fetch conversation histories for all matching temps for the selected prompt
+    useEffect(() => {
+        if (!isOpen || !data || !selectedPromptId || !currentVariantModelId) return;
+        try {
+            const clickedParsed = parseModelIdForDisplay(currentVariantModelId);
+            const matchingModelIds = data.effectiveModels.filter((m) => {
+                const p = parseModelIdForDisplay(m);
+                return (
+                    p.baseId === clickedParsed.baseId &&
+                    (p.systemPromptIndex ?? 0) === (clickedParsed.systemPromptIndex ?? 0)
+                );
+            });
+            const baseUrl = `/api/comparison/${encodeURIComponent(data.configId)}/${encodeURIComponent(data.runLabel)}/${encodeURIComponent(data.timestamp)}`;
+            matchingModelIds.forEach(async (mId) => {
+                const cacheKey = `${selectedPromptId}:${mId}`;
+                if (historiesForPrompt[cacheKey]) return;
+                try {
+                    const url = `${baseUrl}/modal-data/${encodeURIComponent(selectedPromptId)}/${encodeURIComponent(mId)}`;
+                    const resp = await fetch(url);
+                    if (!resp.ok) return;
+                    const json = await resp.json();
+                    if (Array.isArray(json.history)) {
+                        setHistoriesForPrompt(prev => ({ ...prev, [cacheKey]: json.history }));
+                    }
+                } catch {}
+            });
+        } catch {}
+    }, [isOpen, data, selectedPromptId, currentVariantModelId, historiesForPrompt]);
+
     // Build temperature bundles for the selected system variant
     const tempVariants: TempVariantBundle[] = useMemo(() => {
         if (
@@ -279,6 +308,8 @@ const ModelPerformanceModal: React.FC = () => {
             const cov = getCachedEvaluation(selectedPromptId, mId) || allCoverageScores[selectedPromptId]?.[mId];
             const cachedResp = getCachedResponse(selectedPromptId, mId);
             const resp = cachedResp !== null ? cachedResp : allFinalAssistantResponses[selectedPromptId]?.[mId];
+            const histKey = `${selectedPromptId}:${mId}`;
+            const genHist = historiesForPrompt[histKey];
             if (
                 cov &&
                 !('error' in cov) &&
@@ -289,12 +320,13 @@ const ModelPerformanceModal: React.FC = () => {
                     temperature: temp,
                     assessments: cov.pointAssessments || [],
                     modelResponse: resp,
+                    generatedHistory: Array.isArray(genHist) ? genHist : undefined,
                 });
             }
         });
 
         if (perTempBundles.length === 0) {
-            // Fallback to whatever current variant we have
+            // Fallback to whatever current variant we have as a single variant (no tabs)
             if (
                 currentVariantPerformance &&
                 !('error' in currentVariantPerformance) &&
@@ -302,85 +334,34 @@ const ModelPerformanceModal: React.FC = () => {
                 !('error' in currentVariantPerformance.coverageResult) &&
                 currentVariantPerformance.response
             ) {
-                return [
-                    {
-                        temperature: null,
-                        assessments: (getCachedEvaluation(selectedPromptId, currentVariantModelId)?.pointAssessments) || currentVariantPerformance.coverageResult.pointAssessments || [],
-                        modelResponse: currentVariantPerformance.response,
-                    },
-                ];
+                const parsed = parseModelIdForDisplay(currentVariantModelId);
+                const histKey = `${selectedPromptId}:${currentVariantModelId}`;
+                const genHist = historiesForPrompt[histKey];
+                return [{
+                    temperature: typeof parsed.temperature === 'number' ? parsed.temperature : 0,
+                    assessments: (getCachedEvaluation(selectedPromptId, currentVariantModelId)?.pointAssessments) || currentVariantPerformance.coverageResult.pointAssessments || [],
+                    modelResponse: currentVariantPerformance.response,
+                    generatedHistory: Array.isArray(genHist) ? genHist : undefined,
+                }];
             }
             return [];
         }
 
-        // Sort by temperature ascending
+        // Sort by temperature ascending and dedupe identical temperatures
         perTempBundles.sort((a, b) => (a.temperature ?? 0) - (b.temperature ?? 0));
-
-        // Build aggregate assessments by averaging across temps
-        const first = perTempBundles[0];
-        const pointCount = first.assessments.length;
-        const aggregatedAssessments = first.assessments.map((a) => ({ ...a }));
-        for (let i = 0; i < pointCount; i++) {
-            const vals: number[] = [];
-            perTempBundles.forEach((v) => {
-                const val = v.assessments[i].coverageExtent;
-                if (typeof val === 'number' && !isNaN(val)) vals.push(val);
-            });
-            if (vals.length) {
-                const mean = vals.reduce((s, v) => s + v, 0) / vals.length;
-                let sd: number | null = null;
-                if (vals.length >= 2) {
-                    const variance = vals.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / vals.length;
-                    sd = Math.sqrt(variance);
-                }
-                aggregatedAssessments[i].coverageExtent = mean;
-                (aggregatedAssessments[i] as any).stdDev = sd ?? undefined;
-                (aggregatedAssessments[i] as any).sampleCount = vals.length;
+        const seen = new Set<number>();
+        const deduped: TempVariantBundle[] = [];
+        perTempBundles.forEach(b => {
+            const t = b.temperature ?? 0;
+            if (!seen.has(t)) {
+                seen.add(t);
+                deduped.push(b);
             }
-        }
-        const aggregateBundle: TempVariantBundle = {
-            temperature: null,
-            assessments: aggregatedAssessments,
-            modelResponse: perTempBundles.map(b => `\n[T ${b.temperature}]\n${b.modelResponse}`).join('\n\n')
-        };
+        });
+        return deduped;
+    }, [selectedPromptId, data, allCoverageScores, allFinalAssistantResponses, currentVariantModelId, currentVariantPerformance, isLoadingModalData, getCachedEvaluation, getCachedResponse, historiesForPrompt]);
 
-        return [aggregateBundle, ...perTempBundles];
-    }, [selectedPromptId, data, allCoverageScores, allFinalAssistantResponses, currentVariantModelId, currentVariantPerformance, isLoadingModalData, getCachedEvaluation, getCachedResponse]);
-
-    const { effectiveSystemPrompt, conversationContext } = useMemo(() => {
-        if (!selectedPromptId || !config || !data?.promptContexts || !currentVariantModelId) return { effectiveSystemPrompt: null, conversationContext: null };
-
-        const context = data.promptContexts[selectedPromptId];
-        let conversationContextValue: string | ConversationMessage[] | null | undefined = context;
-        let effectiveSystemPromptValue: string | null = null;
-        
-        if (Array.isArray(context) && context.length > 0 && context[0].role === 'system') {
-            effectiveSystemPromptValue = context[0].content;
-            conversationContextValue = context.slice(1);
-        } else {
-            const promptConfig = config.prompts.find(p => p.id === selectedPromptId);
-            if (promptConfig?.system) {
-                effectiveSystemPromptValue = promptConfig.system;
-                            } else {
-                    const parsed = parseModelIdForDisplay(currentVariantModelId);
-                    if (config.systems && typeof parsed.systemPromptIndex === 'number' && config.systems[parsed.systemPromptIndex]) {
-                        effectiveSystemPromptValue = config.systems[parsed.systemPromptIndex];
-                    } else if (config.systems && typeof parsed.systemPromptIndex === 'number' && config.systems[parsed.systemPromptIndex] === null) {
-                        effectiveSystemPromptValue = '[No System Prompt]';
-                    }
-                }
-            }
-
-            // Fallback: try to pull from stored modelSystemPrompts in result data
-            if (!effectiveSystemPromptValue) {
-                effectiveSystemPromptValue = (data as any).modelSystemPrompts?.[currentVariantModelId] ?? null;
-                if (effectiveSystemPromptValue === undefined) {
-                    effectiveSystemPromptValue = null;
-                }
-            }
-
-            return { effectiveSystemPrompt: effectiveSystemPromptValue, conversationContext: conversationContextValue };
-    }, [selectedPromptId, currentVariantModelId, config, data?.promptContexts]);
+    // System prompt and prompt context are no longer displayed in this modal header area
 
     const getScoreColor = (rank: 'excellent' | 'good' | 'poor' | 'error') => {
         switch (rank) {
@@ -477,18 +458,15 @@ const ModelPerformanceModal: React.FC = () => {
                                 )}
                                 <div className="mb-4 pb-4 border-b">
                                     <div className="mb-4">
-                                        <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-                                            The Prompt
-                                            {openPromptSimilarityModal && selectedPromptId && (
-                                                <button
-                                                    onClick={() => openPromptSimilarityModal(selectedPromptId)}
-                                                    className="ml-2 text-xs font-normal underline underline-offset-2 text-muted-foreground hover:text-primary"
-                                                    title="View semantic similarity matrix between models for this prompt"
-                                                >
-                                                    View similarity
-                                                </button>
-                                            )}
-                                        </h3>
+                                        {openPromptSimilarityModal && selectedPromptId && (
+                                            <button
+                                                onClick={() => openPromptSimilarityModal(selectedPromptId)}
+                                                className="ml-2 text-xs font-normal underline underline-offset-2 text-muted-foreground hover:text-primary"
+                                                title="View semantic similarity matrix between models for this prompt"
+                                            >
+                                                View and compare model embeddings & similarities
+                                            </button>
+                                        )}
                                         {config.prompts.find(p => p.id === selectedPromptId)?.description && (
                                             <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground border-l-4 border-primary/20 pl-4 py-1 mb-4">
                                                 <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{config.prompts.find(p => p.id === selectedPromptId)?.description}</ReactMarkdown>
@@ -500,13 +478,7 @@ const ModelPerformanceModal: React.FC = () => {
                                                 <span>Source: {config.prompts.find(p => p.id === selectedPromptId)?.citation}</span>
                                             </div>
                                         )}
-                                        {effectiveSystemPrompt && (
-                                            <div className="p-2 rounded-md bg-sky-100/50 dark:bg-sky-900/30 text-xs text-sky-800 dark:text-sky-200 ring-1 ring-sky-200 dark:ring-sky-800 mb-4">
-                                                <p className="font-semibold text-sky-900 dark:text-sky-300">System Prompt:</p>
-                                                <p className="whitespace-pre-wrap font-mono">{effectiveSystemPrompt}</p>
-                                            </div>
-                                        )}
-                                        <PromptContextDisplay promptContext={conversationContext ?? undefined} />
+                                        {/* System prompt and conversation thread omitted; history is shown with the model output */}
                                     </div>
                                 </div>
                                 {currentVariantPerformance.coverageResult && !('error' in currentVariantPerformance.coverageResult) && currentVariantPerformance.response ? (

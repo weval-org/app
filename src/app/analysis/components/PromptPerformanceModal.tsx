@@ -169,101 +169,35 @@ const PromptPerformanceModal: React.FC = () => {
             <DialogContent className="w-[95vw] max-w-[95vw] h-[95vh] flex flex-col p-0">
                 <DialogHeader className="p-4 md:p-6 border-b flex-shrink-0">
                     <DialogTitle className="text-xl font-semibold text-foreground">
-                        Prompt: <code>{promptId}</code>
-                    </DialogTitle>
-                </DialogHeader>
-
-                <div className="flex-1 flex flex-col min-h-0">
-                    <div className='p-4 md:p-6 border-b'>
-                        <div className="flex items-center justify-between gap-3 mb-2">
-                            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">The Prompt</h3>
-                            <div className="flex items-center gap-2">
-                                {openPromptSimilarityModal && (
+                        Prompt: <code>{promptId}</code>{openPromptSimilarityModal && (
                                     <button
                                         type="button"
                                         onClick={() => openPromptSimilarityModal(promptId)}
-                                        className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-border hover:bg-muted/50 text-foreground"
+                                        className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-border hover:bg-muted/50 text-foreground ml-2"
                                         title="View semantic similarity matrix between models for this prompt"
                                     >
-                                        View similarity
+                                        View and compare model embeddings & similarities
                                     </button>
                                 )}
-                                <button
-                                    type="button"
-                                    onClick={togglePromptDetails}
-                                    className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-border hover:bg-muted/50 text-foreground"
-                                    title={isPromptDetailsExpanded ? 'Hide details' : 'Show details'}
-                                >
-                                    <Icon name="chevrons-up-down" className={`w-3.5 h-3.5 transition-transform ${isPromptDetailsExpanded ? 'rotate-180' : ''}`} />
-                                    {isPromptDetailsExpanded ? 'Hide details' : 'Show details'}
-                                </button>
+                    </DialogTitle>
+                </DialogHeader>
+
+                <div className="p-4 md:p-6 flex-1 min-h-0">
+                    {isLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                            <div className="text-center">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                                <p className="text-muted-foreground">Loading prompt evaluation details...</p>
                             </div>
                         </div>
-
-                        {!isPromptDetailsExpanded && (
-                            <div className="text-xs text-muted-foreground">
-                                <span className="mr-1">Prompt ID:</span>
-                                <code className="bg-muted px-1 py-0.5 rounded">{promptId}</code>
-                            </div>
-                        )}
-
-                        {isPromptDetailsExpanded && (
-                            <div className="mt-2 max-h-[28vh] md:max-h-[26vh] lg:max-h-[22vh] overflow-y-auto custom-scrollbar pr-1">
-                                {promptConfig?.description && (
-                                    <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground border-l-4 border-primary/20 pl-4 py-1 mb-4">
-                                        <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{promptConfig.description}</ReactMarkdown>
-                                    </div>
-                                )}
-                                {promptConfig?.citation && (
-                                    <div className="flex items-start space-x-1.5 text-xs text-muted-foreground/90 italic border-l-2 border-border pl-3 py-2 mb-4">
-                                        <Icon name="quote" className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                                        <span>Source: {promptConfig.citation}</span>
-                                    </div>
-                                )}
-                                {effectiveSystemPrompt && (
-                                    <div className="mb-4">
-                                        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                                            {hasSystemVariants ? 'Base System Prompt' : 'System Prompt'}
-                                        </h4>
-                                        <div className="p-3 rounded-md bg-green-50 dark:bg-green-900/40 ring-1 ring-green-200 dark:ring-green-800 text-sm text-green-900 dark:text-green-200 whitespace-pre-wrap">
-                                            {effectiveSystemPrompt}
-                                        </div>
-                                    </div>
-                                )}
-                                {hasSystemVariants && config?.systems && (
-                                    <div className="mb-4">
-                                        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">All System Prompt Variants</h4>
-                                        <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar pr-1">
-                                            {config.systems.map((sp: string | null, idx: number) => (
-                                                <div key={idx} className="p-2 rounded-md bg-muted/30 dark:bg-muted/20 ring-1 ring-border text-xs whitespace-pre-wrap">
-                                                    <span className="font-semibold mr-1">Variant {idx}:</span>
-                                                    {sp === null ? '[No System Prompt]' : sp}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                                <PromptContextDisplay promptContext={conversationContext || undefined} />
-                            </div>
-                        )}
-                    </div>
-                    <div className="p-4 md:p-6 flex-1 min-h-0">
-                        {isLoading ? (
-                            <div className="flex items-center justify-center py-8">
-                                <div className="text-center">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-                                    <p className="text-muted-foreground">Loading prompt evaluation details...</p>
-                                </div>
-                            </div>
-                        ) : (
-                            <KeyPointCoverageTable
-                                data={enhancedData!}
-                                promptId={promptId}
-                                displayedModels={canonicalModels}
-                                hideHeader={true}
-                            />
-                        )}
-                    </div>
+                    ) : (
+                        <KeyPointCoverageTable
+                            data={enhancedData!}
+                            promptId={promptId}
+                            displayedModels={canonicalModels}
+                            hideHeader={true}
+                        />
+                    )}
                 </div>
             </DialogContent>
         </Dialog>

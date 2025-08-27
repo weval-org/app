@@ -6,7 +6,7 @@ import { EvaluationView } from '@/app/analysis/components/SharedEvaluationCompon
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export interface TempVariantBundle {
-  temperature: number | null; // null for aggregate
+  temperature: number | null; // per-temperature entry
   assessments: PointAssessment[];
   modelResponse: string;
   // Optional aggregated transcript of generated assistant turns for this variant/temp
@@ -18,7 +18,7 @@ export interface TempVariantBundle {
 }
 
 interface TemperatureTabbedEvaluationProps {
-  variants: TempVariantBundle[]; // first element should be aggregate
+  variants: TempVariantBundle[]; // list of per-temperature variants; no aggregate
   idealResponse?: string;
   expandedLogs: Record<number, boolean>;
   toggleLogExpansion: (idx: number) => void;
@@ -26,9 +26,9 @@ interface TemperatureTabbedEvaluationProps {
 }
 
 /**
- * Renders aggregate + per-temperature variants with automatic tab controls.
- * If only one real temperature sample is provided, tabs are hidden and we
- * simply render the single EvaluationView.
+ * Renders per-temperature variants with automatic tab controls.
+ * If only a single temperature is provided, tabs are hidden and we
+ * simply render that single EvaluationView.
  */
 const TemperatureTabbedEvaluation: React.FC<TemperatureTabbedEvaluationProps> = ({
   variants,
@@ -41,28 +41,23 @@ const TemperatureTabbedEvaluation: React.FC<TemperatureTabbedEvaluationProps> = 
     return null;
   }
 
-  const aggregateBundle = variants[0];
-  const tempBundles = variants.slice(1); // remaining are real temps
+  const tempBundles = variants;
+  const [activeIdx, setActiveIdx] = useState<number>(0);
 
-  const [active, setActive] = useState<'agg' | number>('agg');
-
-  const activeBundle = active === 'agg'
-    ? aggregateBundle
-    : tempBundles.find(v => v.temperature === active) || aggregateBundle;
+  const activeBundle = tempBundles[activeIdx] || tempBundles[0];
 
   return (
     <>
-      {tempBundles.length > 0 && (
+      {tempBundles.length > 1 && (
         <Tabs
-          value={active === 'agg' ? 'agg' : active.toString()}
-          onValueChange={v => setActive(v === 'agg' ? 'agg' : Number(v))}
+          value={activeIdx.toString()}
+          onValueChange={v => setActiveIdx(Number(v))}
           className="my-2"
         >
           <TabsList>
-            <TabsTrigger value="agg">Aggregate</TabsTrigger>
-            {tempBundles.map(tb => (
-              <TabsTrigger key={tb.temperature ?? 'x'} value={(tb.temperature ?? 0).toString()}>
-                T {tb.temperature}
+            {tempBundles.map((tb, idx) => (
+              <TabsTrigger key={`${idx}`} value={idx.toString()}>
+                {tb.temperature === null ? 'All' : `T ${tb.temperature}`}
               </TabsTrigger>
             ))}
           </TabsList>

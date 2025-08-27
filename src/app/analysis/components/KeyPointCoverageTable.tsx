@@ -23,21 +23,32 @@ interface ModelCardProps {
     promptResponses: Record<string, string>;
     idealResponse?: string;
     historiesForPrompt?: Record<string, any>;
+    requestHistory?: (modelId: string) => void;
 }
 
-const ModelCard: React.FC<ModelCardProps> = ({ modelId, promptCoverageScores, promptResponses, idealResponse, historiesForPrompt }) => {
+const ModelCard: React.FC<ModelCardProps> = ({ modelId, promptCoverageScores, promptResponses, idealResponse, historiesForPrompt, requestHistory }) => {
     const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
 
     const toggleLogExpansion = (index: number) => {
         setExpandedLogs(prev => ({ ...prev, [index]: !prev[index] }));
     };
 
-    const tempVariants: TempVariantBundle[] = useMemo(() => {
+    // Determine temperature-variant model IDs that share baseId and systemPromptIndex
+    const relatedIds = useMemo(() => {
         const parsed = parseModelIdForDisplay(modelId);
-        const relatedIds = Object.keys(promptCoverageScores).filter(mId => {
+        return Object.keys(promptCoverageScores).filter(mId => {
             const p = parseModelIdForDisplay(mId);
             return p.baseId === parsed.baseId && (p.systemPromptIndex ?? 0) === (parsed.systemPromptIndex ?? 0);
         });
+    }, [modelId, promptCoverageScores]);
+
+    // Prefetch conversation histories for all temperature variants so tabs have content
+    useEffect(() => {
+        if (!requestHistory) return;
+        relatedIds.forEach(id => requestHistory(id));
+    }, [requestHistory, relatedIds]);
+
+    const tempVariants: TempVariantBundle[] = useMemo(() => {
 
         const bundles: TempVariantBundle[] = [];
         relatedIds.forEach(mId => {
@@ -73,57 +84,9 @@ const ModelCard: React.FC<ModelCardProps> = ({ modelId, promptCoverageScores, pr
 
         if (bundles.length === 0) return [];
         bundles.sort((a, b) => (a.temperature ?? 0) - (b.temperature ?? 0));
-
-        const first = bundles[0];
-        const pointCount = first.assessments.length;
-        const aggregated = first.assessments.map(a => ({ ...a }));
-        for (let i = 0; i < pointCount; i++) {
-            const vals: number[] = [];
-            bundles.forEach(b => {
-                const v = b.assessments[i].coverageExtent;
-                if (typeof v === 'number' && !isNaN(v)) vals.push(v);
-            });
-            if (vals.length) {
-                const mean = vals.reduce((s, v) => s + v, 0) / vals.length;
-                let sd: number | null = null;
-                if (vals.length >= 2) {
-                    const variance = vals.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / vals.length;
-                    sd = Math.sqrt(variance);
-                }
-                aggregated[i].coverageExtent = mean;
-                (aggregated[i] as any).stdDev = sd ?? undefined;
-                (aggregated[i] as any).sampleCount = vals.length;
-            }
-        }
-
-        // Aggregate bundle: only include a transcript if all temps share the same one
-        let aggregateGeneratedTranscript: string | undefined = undefined;
-        let aggregateGeneratedHistory: any[] | undefined = undefined;
-        try {
-            const transcripts = bundles.map(b => b.generatedTranscript).filter(Boolean) as string[];
-            const allSame = transcripts.length > 0 && transcripts.every(t => t === transcripts[0]);
-            if (allSame) aggregateGeneratedTranscript = transcripts[0];
-            const histories = bundles.map(b => b.generatedHistory).filter(Boolean) as any[][];
-            const allSameHist = histories.length > 0 && histories.every(h => JSON.stringify(h) === JSON.stringify(histories[0]));
-            if (allSameHist) aggregateGeneratedHistory = histories[0];
-        } catch {}
-
-        const aggregateBundle: TempVariantBundle = {
-            temperature: null,
-            assessments: aggregated,
-            modelResponse: bundles.map(b => `\n[T ${b.temperature}]\n${b.modelResponse}`).join('\n\n'),
-            generatedTranscript: aggregateGeneratedTranscript,
-            generatedHistory: aggregateGeneratedHistory,
-            perTemperatureOutputs: bundles.length > 1 ? bundles.map(b => ({
-                temperature: (b.temperature ?? 0) as number,
-                generatedHistory: b.generatedHistory,
-                generatedTranscript: b.generatedTranscript,
-                modelResponse: b.modelResponse,
-            })) : undefined,
-        };
-
-        return [aggregateBundle, ...bundles];
-    }, [modelId, promptCoverageScores, promptResponses, historiesForPrompt]);
+        // Return only real per-temperature bundles; no synthetic aggregate
+        return bundles;
+    }, [relatedIds, promptCoverageScores, promptResponses, historiesForPrompt]);
 
     if (tempVariants.length === 0) {
         return (
@@ -369,6 +332,7 @@ const ModelView: React.FC<{
                         promptResponses={promptResponses}
                         idealResponse={promptResponses[IDEAL_MODEL_ID]}
                         historiesForPrompt={historiesForPrompt}
+                        requestHistory={requestHistory}
                     />
                  ) : (
                     <div className="flex items-center justify-center h-full p-8 bg-muted/30 rounded-lg">
@@ -430,10 +394,17 @@ const KeyPointCoverageTable: React.FC<KeyPointCoverageTableProps> = ({
     (async () => {
       try {
         const resp = await fetch(`${baseUrl}/modal-data/${encodeURIComponent(promptId)}/${encodeURIComponent(modelId)}`);
-        if (!resp.ok) return;
+        if (!resp.ok) {
+          // Mark as loaded with no history to avoid perpetual "loading" state
+          setHistoriesForPrompt(prev => ({ ...prev, [modelId]: [] }));
+          return;
+        }
         const json = await resp.json();
         if (Array.isArray(json.history)) {
           setHistoriesForPrompt(prev => ({ ...prev, [modelId]: json.history }));
+        } else {
+          // Loaded successfully but no history available
+          setHistoriesForPrompt(prev => ({ ...prev, [modelId]: [] }));
         }
       } catch {}
     })();

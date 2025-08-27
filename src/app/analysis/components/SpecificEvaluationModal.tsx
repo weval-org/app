@@ -299,8 +299,7 @@ const SpecificEvaluationModal: React.FC = () => {
         }
     }, [modalData]);
 
-    // Temperature tab state ("agg" or number)
-    const [activeTemp, setActiveTemp] = useState<'agg' | number>('agg');
+    // Temperature selection handled by TemperatureTabbedEvaluation; local state not needed
 
     // Build variant bundle and temperature groupings before any early returns to keep hook order stable
     const variantBundle: ModelEvaluationVariant | null = React.useMemo(() => {
@@ -312,28 +311,15 @@ const SpecificEvaluationModal: React.FC = () => {
 
     const tempVariants: TempVariantBundle[] = React.useMemo(() => {
         if (!variantBundle) return [];
-        const arr: TempVariantBundle[] = [
-            { 
-                temperature: null, 
-                assessments: variantBundle.assessments, 
-                modelResponse: variantBundle.modelResponse, 
-                generatedTranscript: (variantBundle as any).generatedTranscript, 
-                generatedHistory: (variantBundle as any).generatedHistory,
-                perTemperatureOutputs: tempsList.length > 1 ? tempsList.map((t) => {
-                    const v = variantBundle.perTempMap?.get(t);
-                    return {
-                        temperature: t as number,
-                        generatedHistory: (v as any)?.generatedHistory,
-                        generatedTranscript: (v as any)?.generatedTranscript,
-                        modelResponse: v?.modelResponse
-                    };
-                }) : undefined
-            }
-        ];
+        const arr: TempVariantBundle[] = [];
         tempsList.forEach((t) => {
             const v = variantBundle.perTempMap?.get(t);
             if (v) arr.push({ temperature: t, assessments: v.assessments, modelResponse: v.modelResponse, generatedTranscript: (v as any).generatedTranscript, generatedHistory: (v as any).generatedHistory });
         });
+        if (arr.length === 0) {
+            // Single variant fallback
+            arr.push({ temperature: 0, assessments: variantBundle.assessments, modelResponse: variantBundle.modelResponse, generatedTranscript: (variantBundle as any).generatedTranscript, generatedHistory: (variantBundle as any).generatedHistory });
+        }
         return arr;
     }, [variantBundle, tempsList]);
 
@@ -374,7 +360,6 @@ const SpecificEvaluationModal: React.FC = () => {
             setHistoriesForPrompt({});
             setExpandedLogs({});
             setSelectedVariantIndex(0);
-            setActiveTemp('agg');
         }
     }, [isOpen]);
 
@@ -434,11 +419,7 @@ const SpecificEvaluationModal: React.FC = () => {
     const variantKeys = Array.from(modalData.variantEvaluations.keys()).sort((a,b) => a-b);
     const hasMultipleVariants = variantKeys.length > 1;
 
-    const displayedVariant: ModelEvaluationVariant | null = (activeTemp === 'agg' || !variantBundle)
-        ? variantBundle
-        : variantBundle.perTempMap?.get(activeTemp) || null;
-
-    if (!displayedVariant && !isStillLoading) {
+    if (!variantBundle && !isStillLoading) {
         return (
             <Dialog open={isOpen} onOpenChange={closeModelEvaluationDetailModal}>
                 <DialogContent>
@@ -500,14 +481,12 @@ const SpecificEvaluationModal: React.FC = () => {
                         )}
 
                         <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 space-y-4">
-                            <PromptInfo
-                                description={modalData.promptDescription}
-                                citation={modalData.promptCitation}
-                                promptContext={modalData.promptContext}
-                                systemPrompt={displayedVariant!.systemPrompt}
-                                variantIndex={selectedVariantIndex}
-                                hideConversation={Boolean((variantBundle as any)?.generatedHistory) || Boolean((variantBundle as any)?.perTempMap)}
-                            />
+                            {(modalData.promptDescription || modalData.promptCitation) && (
+                                <PromptInfo
+                                    description={modalData.promptDescription}
+                                    citation={modalData.promptCitation}
+                                />
+                            )}
 
                             <TemperatureTabbedEvaluation
                                 variants={tempVariants}
@@ -569,14 +548,12 @@ const SpecificEvaluationModal: React.FC = () => {
                     
                     <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
                         <div className="p-4 md:p-6 space-y-6">
-                            <PromptInfo
-                                description={modalData.promptDescription}
-                                citation={modalData.promptCitation}
-                                promptContext={modalData.promptContext}
-                                systemPrompt={displayedVariant!.systemPrompt}
-                                variantIndex={selectedVariantIndex}
-                                hideConversation={Boolean((variantBundle as any)?.generatedHistory) || Boolean((variantBundle as any)?.perTempMap)}
-                            />
+                            {(modalData.promptDescription || modalData.promptCitation) && (
+                                <PromptInfo
+                                    description={modalData.promptDescription}
+                                    citation={modalData.promptCitation}
+                                />
+                            )}
 
                             <TemperatureTabbedEvaluation
                                 variants={tempVariants}
