@@ -18,6 +18,7 @@ export interface PromptPerformance {
 
 interface MobileModelPerformanceAnalysisProps {
     modelId: string;
+    effectiveModelId?: string;
     modelDisplayName: string;
     promptPerformances: PromptPerformance[];
     allCoverageScores: AllCoverageScores;
@@ -28,6 +29,7 @@ interface MobileModelPerformanceAnalysisProps {
 
 export const MobileModelPerformanceAnalysis: React.FC<MobileModelPerformanceAnalysisProps> = ({
     modelId,
+    effectiveModelId,
     modelDisplayName,
     promptPerformances,
     allCoverageScores,
@@ -84,7 +86,7 @@ export const MobileModelPerformanceAnalysis: React.FC<MobileModelPerformanceAnal
                         <MobilePromptDetail
                             promptId={selectedPromptPerformance.promptId}
                             promptText={selectedPromptPerformance.promptText}
-                            modelId={modelId}
+                            modelId={effectiveModelId || modelId}
                             modelDisplayName={modelDisplayName}
                             coverageResult={selectedPromptPerformance.coverageResult}
                             response={selectedPromptPerformance.response || ''}

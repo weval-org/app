@@ -9,7 +9,7 @@ import { getModelDisplayLabel, parseModelIdForDisplay, resolveModelId, findModel
 import { CoverageResult } from '@/app/utils/types';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { EvaluationView } from '@/app/analysis/components/SharedEvaluationComponents';
-import { MobileModelPerformanceAnalysis, PromptPerformance as MobilePromptPerformance } from '@/app/analysis/components/MobileModelPerformanceAnalysis';
+// Removed mobile-only component usage; unified layout will be used for all viewports
 import TemperatureTabbedEvaluation, { TempVariantBundle } from './TemperatureTabbedEvaluation';
 import { ConversationMessage } from '@/types/shared';
 import { useAnalysis } from '../context/AnalysisContext';
@@ -42,13 +42,15 @@ const ModelPerformanceModal: React.FC = () => {
         analysisStats,
         fetchModalResponse,
         fetchEvaluationDetails,
+        fetchEvaluationDetailsBatchForPrompt,
+        fetchPromptResponses,
         getCachedResponse,
         getCachedEvaluation,
         openPromptSimilarityModal,
     } = useAnalysis();
 
     const [expandedResponse, setExpandedResponse] = useState<Record<string, boolean>>({});
-    const [isMobileView, setIsMobileView] = useState(false);
+    // No mobile-only rendering; unified layout
 
     // Preload icons used in this modal
     // usePreloadIcons(['quote', 'alert-triangle']);
@@ -58,14 +60,10 @@ const ModelPerformanceModal: React.FC = () => {
     const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
     const [selectedPromptId, setSelectedPromptId] = useState<string | null>(null);
     const [isLoadingModalData, setIsLoadingModalData] = useState(false);
+    const [evalRefreshKey, setEvalRefreshKey] = useState(0);
     const [historiesForPrompt, setHistoriesForPrompt] = useState<Record<string, any[]>>({});
 
-    useEffect(() => {
-        const checkMobile = () => setIsMobileView(window.innerWidth < 768);
-        checkMobile();
-        window.addEventListener('resize', checkMobile);
-        return () => window.removeEventListener('resize', checkMobile);
-    }, []);
+    
 
     // No explicit abort logic; rely on unmounting and idempotent fetch handling
 
@@ -195,6 +193,9 @@ const ModelPerformanceModal: React.FC = () => {
         });
     }, [promptPerformances]);
 
+    // Enhance promptPerformances for mobile with cached detailed evaluations/responses
+    // Unified data path; no separate mobile dataset
+
     // Do not auto-select a prompt; wait for user click to avoid unnecessary fetching
     useEffect(() => {
         if (sortedPrompts.length === 0 && selectedPromptId !== null) {
@@ -234,7 +235,7 @@ const ModelPerformanceModal: React.FC = () => {
         
         console.log('🎯 ModelPerformanceModal: Returning valid performance data');
         return { coverageResult, response };
-    }, [selectedPromptId, allCoverageScores, allFinalAssistantResponses, currentVariantModelId, getCachedResponse, isLoadingModalData]);
+    }, [selectedPromptId, allCoverageScores, allFinalAssistantResponses, currentVariantModelId, getCachedResponse, isLoadingModalData, evalRefreshKey]);
 
     const idealResponse = selectedPromptId && allFinalAssistantResponses ? allFinalAssistantResponses[selectedPromptId]?.[IDEAL_MODEL_ID] : null;
 
@@ -247,6 +248,21 @@ const ModelPerformanceModal: React.FC = () => {
             fetchEvaluationDetails(selectedPromptId, currentVariantModelId),
         ]).finally(() => setIsLoadingModalData(false));
     }, [isOpen, data, selectedPromptId, currentVariantModelId, fetchModalResponse, fetchEvaluationDetails]);
+
+    // Batch load prompt-level details and responses so temps/assessments are complete
+    useEffect(() => {
+        if (!isOpen || !data || !selectedPromptId) return;
+        (async () => {
+            try {
+                await Promise.all([
+                    fetchEvaluationDetailsBatchForPrompt(selectedPromptId),
+                    fetchPromptResponses(selectedPromptId),
+                ]);
+            } finally {
+                setEvalRefreshKey(k => k + 1);
+            }
+        })();
+    }, [isOpen, data, selectedPromptId, fetchEvaluationDetailsBatchForPrompt, fetchPromptResponses]);
 
     // Lazily fetch conversation histories for all matching temps for the selected prompt
     useEffect(() => {
@@ -359,7 +375,7 @@ const ModelPerformanceModal: React.FC = () => {
             }
         });
         return deduped;
-    }, [selectedPromptId, data, allCoverageScores, allFinalAssistantResponses, currentVariantModelId, currentVariantPerformance, isLoadingModalData, getCachedEvaluation, getCachedResponse, historiesForPrompt]);
+    }, [selectedPromptId, data, allCoverageScores, allFinalAssistantResponses, currentVariantModelId, currentVariantPerformance, isLoadingModalData, getCachedEvaluation, getCachedResponse, historiesForPrompt, evalRefreshKey]);
 
     // System prompt and prompt context are no longer displayed in this modal header area
 
@@ -389,19 +405,7 @@ const ModelPerformanceModal: React.FC = () => {
 
     if (!isOpen || !modelId || !data) return null;
 
-    if (isMobileView && allCoverageScores && allFinalAssistantResponses) {
-        return (
-            <MobileModelPerformanceAnalysis
-                modelId={modelId}
-                modelDisplayName={modelDisplayName}
-                promptPerformances={promptPerformances as MobilePromptPerformance[]}
-                allCoverageScores={allCoverageScores}
-                allFinalAssistantResponses={allFinalAssistantResponses}
-                isOpen={isOpen}
-                onClose={closeModelPerformanceModal}
-            />
-        );
-    }
+    // Always render unified dialog
 
     return (
         <Dialog open={isOpen} onOpenChange={closeModelPerformanceModal}>

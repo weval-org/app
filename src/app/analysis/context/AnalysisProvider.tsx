@@ -170,15 +170,6 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
             const hasTempVariants = new Set(parsedModels.map(p => p.temperature)).size > 1;
             const hasSysVariants = new Set(parsedModels.map(p => p.systemPromptIndex)).size > 1;
 
-            // Debug logging
-            console.log(`[SENSITIVITY DEBUG] BaseId: ${baseId}`, {
-                modelIdsInGroup,
-                hasTempVariants,
-                hasSysVariants,
-                temperatures: [...new Set(parsedModels.map(p => p.temperature))],
-                systemPromptIndices: [...new Set(parsedModels.map(p => p.systemPromptIndex))]
-            });
-
             if (!hasTempVariants && !hasSysVariants) continue;
 
             promptIds.forEach(promptId => {
@@ -202,12 +193,6 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
                     for (const scores of scoresBySysPrompt.values()) {
                         if (scores.length > 1) {
                             const stdDev = calculateStandardDeviation(scores);
-                            console.log(`[SENSITIVITY DEBUG] Temp check for ${baseId}:${promptId}`, {
-                                scores,
-                                stdDev,
-                                threshold: PERM_SENSITIVITY_THRESHOLD,
-                                exceeds: stdDev !== null && stdDev > PERM_SENSITIVITY_THRESHOLD
-                            });
                             if (stdDev !== null && stdDev > PERM_SENSITIVITY_THRESHOLD) {
                                 sensitiveToTemp = true;
                                 break;
@@ -248,15 +233,6 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
                     sensitivityMap.set(key, 'temp');
                 } else if (sensitiveToSys) {
                     sensitivityMap.set(key, 'sys');
-                }
-
-                // Debug final result
-                if (sensitiveToTemp || sensitiveToSys) {
-                    console.log(`[SENSITIVITY DEBUG] Added sensitivity for ${key}:`, {
-                        sensitiveToTemp,
-                        sensitiveToSys,
-                        finalValue: sensitivityMap.get(key)
-                    });
                 }
             });
         }

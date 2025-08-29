@@ -344,7 +344,14 @@ export const EvaluationView: React.FC<{
                                         isMobile
                                     />
                                 ) : (
-                                    <p className="italic text-muted-foreground">No intermediary turns available.</p>
+                                    <div className="space-y-2">
+                                        <p className="italic text-muted-foreground">Loading intermediary turns…</p>
+                                        {modelResponse && (
+                                            <div className="prose prose-sm dark:prose-invert max-w-none">
+                                                <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{modelResponse}</ReactMarkdown>
+                                            </div>
+                                        )}
+                                    </div>
                                 )}
                             </TabsContent>
                             <TabsContent value="ideal-response" className="pt-3">
@@ -368,7 +375,14 @@ export const EvaluationView: React.FC<{
                                     isMobile
                                 />
                             ) : (
-                                <p className="italic text-muted-foreground">No intermediary turns available.</p>
+                                <div className="space-y-2">
+                                    <p className="italic text-muted-foreground">Loading intermediary turns…</p>
+                                    {modelResponse && (
+                                        <div className="prose prose-sm dark:prose-invert max-w-none">
+                                            <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{modelResponse}</ReactMarkdown>
+                                        </div>
+                                    )}
+                                </div>
                             )}
                         </div>
                     )}
@@ -428,7 +442,14 @@ export const EvaluationView: React.FC<{
                                     isMobile={false}
                                 />
                             ) : (
-                                <p className="italic text-muted-foreground">No intermediary turns available.</p>
+                                <div className="space-y-2">
+                                    <p className="italic text-muted-foreground">Loading intermediary turns…</p>
+                                    {modelResponse && (
+                                        <div className="prose prose-sm dark:prose-invert max-w-none">
+                                            <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{modelResponse}</ReactMarkdown>
+                                        </div>
+                                    )}
+                                </div>
                             )}
                         </TabsContent>
                         <TabsContent value="ideal-response" className="flex-grow overflow-y-auto custom-scrollbar pr-2">
@@ -452,7 +473,14 @@ export const EvaluationView: React.FC<{
                                 isMobile={false}
                             />
                         ) : (
-                            <p className="italic text-muted-foreground">No intermediary turns available.</p>
+                            <div className="space-y-2">
+                                <p className="italic text-muted-foreground">Loading intermediary turns…</p>
+                                {modelResponse && (
+                                    <div className="prose prose-sm dark:prose-invert max-w-none">
+                                        <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{modelResponse}</ReactMarkdown>
+                                    </div>
+                                )}
+                            </div>
                         )}
                     </div>
                 )}

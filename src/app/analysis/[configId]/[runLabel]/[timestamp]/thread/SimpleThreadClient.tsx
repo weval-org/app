@@ -44,10 +44,40 @@ const PADDING = 24;
 
 function estimateHeight(text: string, extra: number = 0): number {
   const maxCharsPerLine = 52;
-  const lines = Math.max(1, Math.ceil((text || '').length / maxCharsPerLine));
-  const lineHeight = 14;
-  const topBottom = 18;
-  return Math.min(300, topBottom + lines * lineHeight + 8 + extra);
+  const hardBreaks = (text.match(/\n/g) || []).length;
+  const softLines = Math.max(1, Math.ceil((text || '').length / maxCharsPerLine));
+  const lines = Math.max(softLines, hardBreaks + 1);
+  const lineHeight = 16; // matches NodeBox line-height
+  const topBottom = 22;
+  return Math.min(360, topBottom + lines * lineHeight + 8 + extra);
+}
+
+function estimateNodeHeight(n: NodeData): number {
+  // Base text height + UI chrome for generated assistant nodes
+  let extra = 0;
+  if (n.role === 'assistant' && !n.hardcoded) {
+    // Header row (role + coverage + base label)
+    extra += 28;
+    try {
+      const bases = new Set<string>();
+      const sysSet = new Set<number>();
+      const tempsSet = new Set<number>();
+      n.modelIds.forEach((mid) => {
+        const p = parseModelIdForDisplay(mid);
+        bases.add(p.baseId);
+        if (typeof p.systemPromptIndex === 'number') sysSet.add(p.systemPromptIndex);
+        if (typeof p.temperature === 'number') tempsSet.add(p.temperature);
+      });
+      if (bases.size > 1) {
+        // base tabs row
+        extra += 24;
+      }
+      // Rough chip rows for sys/temp selectors
+      const chipRows = Math.min(3, sysSet.size + Math.ceil(tempsSet.size / 6));
+      extra += chipRows * 18;
+    } catch {}
+  }
+  return estimateHeight(n.text, extra);
 }
 
 const SimpleThreadClient: React.FC = () => {
@@ -56,6 +86,11 @@ const SimpleThreadClient: React.FC = () => {
   const [edges, setEdges] = useState<Edge[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedPromptIds, setSelectedPromptIds] = useState<Set<string>>(new Set());
+  // Coverage filter (percentage 0..100)
+  const [minPct, setMinPct] = useState<number>(0);
+  const [maxPct, setMaxPct] = useState<number>(100);
+  // Collapse simple linear chains by default
+  const [collapseSimpleChains, setCollapseSimpleChains] = useState<boolean>(true);
 
   const promptIds = useMemo(() => data?.promptIds || [], [data?.promptIds]);
   const availablePromptIds = useMemo(() => {
@@ -204,10 +239,67 @@ const SimpleThreadClient: React.FC = () => {
 
   if (!data) return null;
 
-  // Group nodes by column and compute layout
+  // Compute per-node average coverage (0..100, null if no scores) for assistant nodes
+  const nodeCoveragePctById = useMemo(() => {
+    const map = new Map<string, number | null>();
+    try {
+      const coverage = (data as any)?.evaluationResults?.llmCoverageScores as Record<string, Record<string, any>> | undefined;
+      if (!coverage) return map;
+      for (const n of nodesByKey.values()) {
+        if (n.role !== 'assistant' || n.hardcoded) {
+          map.set(n.id, null);
+          continue;
+        }
+        let sum = 0;
+        let count = 0;
+        for (const pid of n.promptIds) {
+          const perModel = coverage[pid] || {};
+          for (const mid of n.modelIds) {
+            const r = perModel[mid as string];
+            const v = r && typeof r.avgCoverageExtent === 'number' ? r.avgCoverageExtent : null;
+            if (v !== null && !isNaN(v)) {
+              sum += v;
+              count += 1;
+            }
+          }
+        }
+        map.set(n.id, count > 0 ? Math.round((sum / count) * 100) : null);
+      }
+    } catch {}
+    return map;
+  }, [nodesByKey, data]);
+
+  // Visible node IDs according to coverage filter (applies only to generated assistant nodes)
+  const visibleNodeIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const n of nodesByKey.values()) {
+      if (n.role === 'assistant' && !n.hardcoded) {
+        const val = nodeCoveragePctById.get(n.id);
+        const pct: number | null = (val === undefined ? null : val);
+        const show = pct !== null && pct >= minPct && pct <= maxPct;
+        if (!show) continue;
+      }
+      set.add(n.id);
+    }
+    return set;
+  }, [nodesByKey, nodeCoveragePctById, minPct, maxPct]);
+
+  const hiddenAssistantCount = useMemo(() => {
+    let total = 0; let visible = 0;
+    for (const n of nodesByKey.values()) {
+      if (n.role === 'assistant' && !n.hardcoded) {
+        total += 1;
+        if (visibleNodeIds.has(n.id)) visible += 1;
+      }
+    }
+    return Math.max(0, total - visible);
+  }, [nodesByKey, visibleNodeIds]);
+
+  // Group nodes by column (visible-only)
   const columns = useMemo(() => {
     const map = new Map<number, NodeData[]>();
     for (const n of nodesByKey.values()) {
+      if (!visibleNodeIds.has(n.id)) continue;
       if (!map.has(n.idx)) map.set(n.idx, []);
       map.get(n.idx)!.push(n);
     }
@@ -215,19 +307,195 @@ const SimpleThreadClient: React.FC = () => {
       arr.sort((a, b) => a.role.localeCompare(b.role) || a.text.localeCompare(b.text));
     }
     return Array.from(map.entries()).sort((a, b) => a[0] - b[0]);
-  }, [nodesByKey]);
+  }, [nodesByKey, visibleNodeIds]);
+
+  // Build id->column index map and adjacency from filtered edges
+  const nodeIdxById = useMemo(() => {
+    const m = new Map<string, number>();
+    columns.forEach(([idx, arr]) => { arr.forEach(n => m.set(n.id, idx)); });
+    return m;
+  }, [columns]);
+
+  const outEdgesMap = useMemo(() => {
+    const m = new Map<string, string[]>();
+    edges.forEach(e => {
+      if (!visibleNodeIds.has(e.from) || !visibleNodeIds.has(e.to)) return;
+      const arr = m.get(e.from) || [];
+      arr.push(e.to);
+      m.set(e.from, arr);
+    });
+    return m;
+  }, [edges, visibleNodeIds]);
+
+  const inEdgesMap = useMemo(() => {
+    const m = new Map<string, string[]>();
+    edges.forEach(e => {
+      if (!visibleNodeIds.has(e.from) || !visibleNodeIds.has(e.to)) return;
+      const arr = m.get(e.to) || [];
+      arr.push(e.from);
+      m.set(e.to, arr);
+    });
+    return m;
+  }, [edges, visibleNodeIds]);
+
+  // Determine which columns to keep when collapsing: keep columns with >1 nodes or endpoints/branching
+  // Precompute edges limited to visible nodes (used in both modes)
+  const filteredEdges = useMemo(() => {
+    return edges.filter((e) => visibleNodeIds.has(e.from) && visibleNodeIds.has(e.to));
+  }, [edges, visibleNodeIds]);
+
+  const { displayColumns, bridgedEdges, collapsedTurnCount } = useMemo(() => {
+    if (!collapseSimpleChains) {
+      return { displayColumns: columns, bridgedEdges: filteredEdges, collapsedTurnCount: 0 } as const;
+    }
+    // Mark kept columns
+    const kept: boolean[] = columns.map(() => false);
+    const idxList = columns.map(([idx]) => idx);
+    const idxToPos = new Map<number, number>();
+    idxList.forEach((v, i) => idxToPos.set(v, i));
+    let collapsedCount = 0;
+
+    columns.forEach(([cIdx, arr], pos) => {
+      if (arr.length > 1) { kept[pos] = true; return; }
+      if (arr.length === 0) { kept[pos] = true; return; }
+      // For single node, keep if branching or terminal (inDeg!=1 or outDeg!=1)
+      const n = arr[0];
+      const inDeg = (inEdgesMap.get(n.id) || []).length;
+      const outDeg = (outEdgesMap.get(n.id) || []).length;
+      kept[pos] = !(inDeg === 1 && outDeg === 1);
+    });
+
+    // Ensure first/last columns visible
+    if (kept.length > 0) { kept[0] = true; kept[kept.length - 1] = true; }
+
+    const displayColumns = columns.filter((_, i) => kept[i]);
+    const keptIdxSet = new Set(displayColumns.map(([idx]) => idx));
+
+    // Count collapsed turns = number of hidden singleton columns
+    collapsedCount = columns.reduce((acc, [_, arr], i) => acc + (!kept[i] && arr.length === 1 ? 1 : 0), 0);
+
+    // Bridge edges from each kept column to the next kept column to the right
+    const keptPositions = displayColumns.map(([idx]) => idx);
+    const keptPosSet = new Set(keptPositions);
+    const bridged: Edge[] = [];
+    const maxPos = keptPositions.length;
+    for (let k = 0; k < maxPos - 1; k++) {
+      const fromColIdx = keptPositions[k];
+      const toColIdx = keptPositions[k + 1];
+      const fromNodes = columns[idxToPos.get(fromColIdx)!][1];
+      // BFS from each start node until reach any node in toColIdx
+      for (const start of fromNodes) {
+        const queue: string[] = [...(outEdgesMap.get(start.id) || [])];
+        const visited = new Set<string>();
+        visited.add(start.id);
+        while (queue.length) {
+          const cur = queue.shift()!;
+          if (visited.has(cur)) continue;
+          visited.add(cur);
+          const cIdx = nodeIdxById.get(cur);
+          if (cIdx === undefined) continue;
+          if (cIdx === toColIdx) {
+            bridged.push({ from: start.id, to: cur });
+            // Do not expand further once we reach the next kept column for this path
+            continue;
+          }
+          // Only traverse forward if between from and next kept
+          if (cIdx > fromColIdx && cIdx < toColIdx) {
+            const outs = outEdgesMap.get(cur) || [];
+            for (const nxt of outs) queue.push(nxt);
+          }
+        }
+      }
+    }
+
+    // Fallback: if no bridged edges found (e.g., small graphs), use filteredEdges
+    const useEdges = bridged.length > 0 ? bridged : filteredEdges;
+    return { displayColumns, bridgedEdges: useEdges, collapsedTurnCount: collapsedCount } as const;
+  }, [collapseSimpleChains, columns, filteredEdges, inEdgesMap, outEdgesMap, nodeIdxById]);
+
+  // Build visual columns by inserting a synthetic collapsed node column between kept columns that hide >0 turns.
+  const { visualColumns, visualEdges } = useMemo(() => {
+    if (!collapseSimpleChains) {
+      return { visualColumns: displayColumns, visualEdges: filteredEdges } as const;
+    }
+    // Map kept column indices to their position in displayColumns
+    const keptIdxList = displayColumns.map(([idx]) => idx);
+    const idxToPos = new Map<number, number>();
+    keptIdxList.forEach((v, i) => idxToPos.set(v, i));
+
+    // Determine gaps and create synthetic nodes
+    const syntheticColumns: Array<[number, NodeData[]]> = [];
+    const gapInfos: Array<{ leftIdx: number; rightIdx: number; nodeId: string }> = [];
+    for (let k = 0; k < displayColumns.length - 1; k++) {
+      const leftIdx = displayColumns[k][0];
+      const rightIdx = displayColumns[k + 1][0];
+      const hidden = (nodeIdxById.size > 0 ? ((leftIdx < rightIdx ? rightIdx - leftIdx : 0) - 1) : 0);
+      // More accurate hidden count using original columns array positions
+      // Find positions in original columns array
+      // columns is array of [idx, arr] sorted
+      // Compute original positions
+      const origPosLeft = columns.findIndex(([idx]) => idx === leftIdx);
+      const origPosRight = columns.findIndex(([idx]) => idx === rightIdx);
+      const hiddenTurns = origPosRight > origPosLeft ? (origPosRight - origPosLeft - 1) : 0;
+      if (hiddenTurns > 0) {
+        const nodeId = `collapsed-${k}`;
+        const collapsedNode: NodeData = {
+          id: nodeId,
+          idx: (leftIdx + rightIdx) / 2,
+          role: 'system',
+          text: `${hiddenTurns} message${hiddenTurns === 1 ? '' : 's'} collapsed — click to expand`,
+          hardcoded: true,
+          modelIds: new Set<string>(),
+          promptIds: new Set<string>(),
+        };
+        syntheticColumns.push([collapsedNode.idx, [collapsedNode]]);
+        gapInfos.push({ leftIdx, rightIdx, nodeId });
+      }
+    }
+
+    // Interleave original kept columns with synthetic gap columns, maintaining order by idx
+    const combined: Array<[number, NodeData[]]> = [...displayColumns, ...syntheticColumns].sort((a, b) => a[0] - b[0]);
+
+    // Rewrite edges to route through collapsed node when crossing a gap
+    const leftIdsByIdx = new Map<number, Set<string>>();
+    const rightIdsByIdx = new Map<number, Set<string>>();
+    for (let i = 0; i < displayColumns.length - 1; i++) {
+      const lIdx = displayColumns[i][0];
+      const rIdx = displayColumns[i + 1][0];
+      leftIdsByIdx.set(lIdx, new Set(displayColumns[i][1].map(n => n.id)));
+      rightIdsByIdx.set(rIdx, new Set(displayColumns[i + 1][1].map(n => n.id)));
+    }
+
+    const gapByPair = new Map<string, string>();
+    gapInfos.forEach(g => gapByPair.set(`${g.leftIdx}->${g.rightIdx}`, g.nodeId));
+
+    const rewritten: Edge[] = [];
+    bridgedEdges.forEach(e => {
+      const fromCol = nodeIdxById.get(e.from);
+      const toCol = nodeIdxById.get(e.to);
+      if (fromCol === undefined || toCol === undefined) { rewritten.push(e); return; }
+      const key = `${fromCol}->${toCol}`;
+      const collapsedId = gapByPair.get(key);
+      if (collapsedId) {
+        rewritten.push({ from: e.from, to: collapsedId });
+        rewritten.push({ from: collapsedId, to: e.to });
+      } else {
+        rewritten.push(e);
+      }
+    });
+
+    return { visualColumns: combined, visualEdges: rewritten } as const;
+  }, [collapseSimpleChains, displayColumns, filteredEdges, bridgedEdges, nodeIdxById, columns]);
 
   const positioned = useMemo(() => {
     const nodePos = new Map<string, { x: number; y: number; w: number; h: number }>();
     let maxWidth = PADDING;
     let maxHeight = 0;
-    columns.forEach(([, arr], colOrder) => {
+    visualColumns.forEach(([, arr], colOrder) => {
       const x = PADDING + colOrder * (BOX_WIDTH + BOX_H_PAD);
       let y = PADDING;
       for (const n of arr) {
-        const isGenerated = n.role === 'assistant' && !n.hardcoded;
-        const extra = isGenerated ? 42 : 0; // space for model header/tabs
-        const h = estimateHeight(n.text, extra);
+        const h = estimateNodeHeight(n);
         nodePos.set(n.id, { x, y, w: BOX_WIDTH, h });
         y += h + BOX_V_GAP;
         if (y > maxHeight) maxHeight = y;
@@ -240,7 +508,30 @@ const SimpleThreadClient: React.FC = () => {
       width: maxWidth + PADDING,
       height: Math.max(maxHeight + PADDING, 320),
     };
-  }, [columns]);
+  }, [visualColumns]);
+
+  // Use bridged edges when collapsing
+  const effectiveEdges = useMemo(() => collapseSimpleChains ? visualEdges : filteredEdges, [collapseSimpleChains, visualEdges, filteredEdges]);
+
+  // Collapsed spans metadata for clickable markers between kept columns
+  const collapsedSpans = useMemo(() => {
+    const spans: Array<{ order: number; hidden: number; midX: number }> = [];
+    if (!collapseSimpleChains) return spans;
+    const idxToPos = new Map<number, number>();
+    columns.forEach(([idx], pos) => idxToPos.set(idx, pos));
+    for (let k = 0; k < displayColumns.length - 1; k++) {
+      const fromIdx = displayColumns[k][0];
+      const toIdx = displayColumns[k + 1][0];
+      const hidden = (idxToPos.get(toIdx)! - idxToPos.get(fromIdx)!) - 1;
+      if (hidden > 0) {
+        const xLeft = PADDING + k * (BOX_WIDTH + BOX_H_PAD);
+        const xRight = PADDING + (k + 1) * (BOX_WIDTH + BOX_H_PAD);
+        const midX = (xLeft + BOX_WIDTH + xRight) / 2;
+        spans.push({ order: k, hidden, midX });
+      }
+    }
+    return spans;
+  }, [collapseSimpleChains, displayColumns, columns]);
 
   const legend = (
     <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -255,6 +546,81 @@ const SimpleThreadClient: React.FC = () => {
       <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground">Conversation Graph (simple)</div>
         {legend}
+      </div>
+
+      {/* Coverage filter controls */}
+      <div className="rounded border p-2 bg-card/50">
+        <div className="text-xs font-semibold text-muted-foreground mb-1">Coverage filter</div>
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Range sliders */}
+          <div className="flex items-center gap-2">
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={minPct}
+              onChange={(e) => {
+                const val = Math.max(0, Math.min(100, Number(e.target.value)));
+                setMinPct(Math.min(val, maxPct));
+              }}
+            />
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={maxPct}
+              onChange={(e) => {
+                const val = Math.max(0, Math.min(100, Number(e.target.value)));
+                setMaxPct(Math.max(val, minPct));
+              }}
+            />
+          </div>
+          <label className="flex items-center gap-1 text-[11px]">
+            <span>Min</span>
+            <input
+              type="number"
+              className="h-6 w-16 border border-border rounded px-1 bg-background"
+              value={minPct}
+              min={0}
+              max={100}
+              onChange={(e) => {
+                const val = Math.max(0, Math.min(100, Number(e.target.value)));
+                setMinPct(Math.min(val, maxPct));
+              }}
+            />
+            <span>%</span>
+          </label>
+          <label className="flex items-center gap-1 text-[11px]">
+            <span>Max</span>
+            <input
+              type="number"
+              className="h-6 w-16 border border-border rounded px-1 bg-background"
+              value={maxPct}
+              min={0}
+              max={100}
+              onChange={(e) => {
+                const val = Math.max(0, Math.min(100, Number(e.target.value)));
+                setMaxPct(Math.max(val, minPct));
+              }}
+            />
+            <span>%</span>
+          </label>
+          <span className="text-[11px] text-muted-foreground">
+            Hidden {hiddenAssistantCount} assistant response{hiddenAssistantCount === 1 ? '' : 's'}
+          </span>
+          <label className="flex items-center gap-1 text-[11px] ml-2">
+            <input
+              type="checkbox"
+              className="h-3.5 w-3.5"
+              checked={collapseSimpleChains}
+              onChange={(e) => setCollapseSimpleChains(e.target.checked)}
+            />
+            Collapse simple chains
+          </label>
+          {collapseSimpleChains && (
+            <span className="text-[11px] text-muted-foreground">Collapsed {collapsedTurnCount} turn{collapsedTurnCount === 1 ? '' : 's'}</span>
+          )}
+        </div>
       </div>
 
       {/* Prompt selector */}
@@ -286,7 +652,7 @@ const SimpleThreadClient: React.FC = () => {
         <svg width={positioned.width} height={positioned.height}>
           {/* Edges */}
           <g>
-            {edges.map((e, i) => {
+            {effectiveEdges.map((e, i) => {
               const a = positioned.nodePos.get(e.from);
               const b = positioned.nodePos.get(e.to);
               if (!a || !b) return null;
@@ -302,9 +668,11 @@ const SimpleThreadClient: React.FC = () => {
             })}
           </g>
 
+          {/* No separate markers; collapsed represented as real nodes */}
+
           {/* Nodes */}
           <g>
-            {Array.from(nodesByKey.values()).map((n) => {
+            {visualColumns.flatMap(([, arr]) => arr).map((n) => {
               const pos = positioned.nodePos.get(n.id);
               if (!pos) return null;
               let fill = '#bbdefb';
@@ -333,18 +701,25 @@ const SimpleThreadClient: React.FC = () => {
               const anyModel = isGenerated ? Array.from(n.modelIds)[0] : null;
               const anyPrompt = Array.from(n.promptIds)[0] || '';
 
+              const isCollapsedNode = n.id.startsWith('collapsed-');
               return (
                 <g key={n.id} transform={`translate(${pos.x}, ${pos.y})`}>
-                  <rect rx={6} ry={6} width={pos.w} height={pos.h} fill={fill} stroke={stroke} strokeDasharray={strokeDasharray} />
+                  <rect rx={6} ry={6} width={pos.w} height={pos.h} fill={isCollapsedNode ? '#f1f1f1' : fill} stroke={isCollapsedNode ? '#999' : stroke} strokeDasharray={isCollapsedNode ? '4 2' : strokeDasharray} />
                   <foreignObject x={8} y={6} width={pos.w - 16} height={pos.h - 12}>
                     <NodeBox
                       n={n}
                       displayText={displayText}
                       data={data}
                       openModelEvaluationDetailModal={openModelEvaluationDetailModal}
+                      coveragePct={nodeCoveragePctById.get(n.id) ?? null}
                     />
                   </foreignObject>
-                  {isGenerated && anyModel && (
+                  {isCollapsedNode && (
+                    <a onClick={() => setCollapseSimpleChains(false)}>
+                      <rect width={pos.w} height={pos.h} fill="transparent" cursor="pointer" />
+                    </a>
+                  )}
+                  {!isCollapsedNode && isGenerated && anyModel && (
                     <a onClick={() => openModelEvaluationDetailModal({ promptId: anyPrompt, modelId: anyModel })}>
                       <rect width={pos.w} height={pos.h} fill="transparent" cursor="pointer" />
                     </a>
@@ -369,7 +744,8 @@ const NodeBox: React.FC<{
   displayText: string;
   data: any;
   openModelEvaluationDetailModal: (args: { promptId: string; modelId: string }) => void;
-}> = ({ n, displayText, data, openModelEvaluationDetailModal }) => {
+  coveragePct: number | null;
+}> = ({ n, displayText, data, openModelEvaluationDetailModal, coveragePct }) => {
   const isGenerated = n.role === 'assistant' && !n.hardcoded;
   const anyModel = isGenerated ? Array.from(n.modelIds)[0] : null;
   const anyPrompt = Array.from(n.promptIds)[0] || '';
@@ -430,6 +806,11 @@ const NodeBox: React.FC<{
         <div style={{ fontWeight: 600, opacity: 0.6 }}>{n.role}</div>
         {isGenerated && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {coveragePct !== null && (
+              <span className={`${getHybridScoreColorClass((coveragePct as number) / 100)} text-[11px] px-1.5 py-0.5 rounded-sm font-semibold`} title={`Avg coverage: ${coveragePct}%`}>
+                {coveragePct}%
+              </span>
+            )}
             {headerScorePct !== null && (
               <span className={`${getHybridScoreColorClass(headerScorePct / 100)} text-[11px] px-1.5 py-0.5 rounded-sm font-semibold`}>{headerScorePct}%</span>
             )}

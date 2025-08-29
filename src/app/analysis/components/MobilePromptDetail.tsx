@@ -87,6 +87,7 @@ export const MobilePromptDetail: React.FC<MobilePromptDetailProps> = ({
     }
 
     const assessments = coverageResult.pointAssessments || [];
+    const hasAnyText = Array.isArray(assessments) && assessments.some(a => !!a.keyPointText);
 
     return (
         <div className="h-full flex flex-col min-h-0">
@@ -117,6 +118,11 @@ export const MobilePromptDetail: React.FC<MobilePromptDetailProps> = ({
                     toggleLogExpansion={toggleLogExpansion}
                     isMobile={true}
                 />
+                {!hasAnyText && (
+                    <div className="mt-2 text-xs text-muted-foreground">
+                        Loading detailed criteria…
+                    </div>
+                )}
             </div>
         </div>
     );

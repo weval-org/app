@@ -12,6 +12,10 @@ interface MobileModelDetailProps {
     coverageResult: CoverageResult | undefined;
     response: string;
     idealResponse?: string;
+    configId?: string;
+    runLabel?: string;
+    timestamp?: string;
+    promptId?: string;
     onBack: () => void;
 }
 
@@ -20,13 +24,41 @@ export const MobileModelDetail: React.FC<MobileModelDetailProps> = ({
     coverageResult,
     response,
     idealResponse,
+    configId,
+    runLabel,
+    timestamp,
+    promptId,
     onBack
 }) => {
     const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
+    const [history, setHistory] = useState<any[] | null>(null);
+    const [historyLoaded, setHistoryLoaded] = useState<boolean>(false);
     
     const toggleLogExpansion = (index: number) => {
         setExpandedLogs(prev => ({ ...prev, [index]: !prev[index] }));
     };
+
+    // Fetch conversation history lazily on mobile detail view
+    React.useEffect(() => {
+        if (!configId || !runLabel || !timestamp || !promptId || historyLoaded) return;
+        (async () => {
+            try {
+                const baseUrl = `/api/comparison/${encodeURIComponent(configId)}/${encodeURIComponent(runLabel)}/${encodeURIComponent(timestamp)}`;
+                const resp = await fetch(`${baseUrl}/modal-data/${encodeURIComponent(promptId)}/${encodeURIComponent(modelId)}`);
+                if (!resp.ok) {
+                    setHistory([]);
+                    setHistoryLoaded(true);
+                    return;
+                }
+                const json = await resp.json();
+                if (Array.isArray(json.history)) setHistory(json.history);
+            } catch {
+                setHistory([]);
+            } finally {
+                setHistoryLoaded(true);
+            }
+        })();
+    }, [configId, runLabel, timestamp, promptId, modelId, historyLoaded]);
 
     if (!coverageResult || 'error' in coverageResult) {
         return (
@@ -80,6 +112,7 @@ export const MobileModelDetail: React.FC<MobileModelDetailProps> = ({
                     expandedLogs={expandedLogs}
                     toggleLogExpansion={toggleLogExpansion}
                     isMobile={true}
+                    generatedHistory={Array.isArray(history) && history.length ? (history as any) : undefined}
                 />
             </div>
         </div>

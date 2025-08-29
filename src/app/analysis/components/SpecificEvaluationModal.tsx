@@ -38,7 +38,6 @@ const SpecificEvaluationModal: React.FC = () => {
     } = useAnalysis();
 
     const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
-    const [isMobileView, setIsMobileView] = useState(false);
     const [selectedVariantIndex, setSelectedVariantIndex] = useState(0);
     const [historiesForPrompt, setHistoriesForPrompt] = useState<Record<string, any>>({});
     // Track whether we've kicked off batch loads for this open cycle (ref to avoid re-render loops)
@@ -54,16 +53,7 @@ const SpecificEvaluationModal: React.FC = () => {
     // Extract modal data from context
     const { isOpen, promptId, modelId } = modelEvaluationModal;
 
-    // Mobile detection
-    useEffect(() => {
-        const checkMobile = () => {
-            setIsMobileView(window.innerWidth < 768);
-        };
-        
-        checkMobile();
-        window.addEventListener('resize', checkMobile);
-        return () => window.removeEventListener('resize', checkMobile);
-    }, []);
+    // No mobile-only rendering; unified layout
 
     // Kick off scoped loads when modal opens (only needed variants + IDEAL)
     useEffect(() => {
@@ -396,7 +386,7 @@ const SpecificEvaluationModal: React.FC = () => {
     if (isStillLoading) {
         return (
             <Dialog open={isOpen} onOpenChange={closeModelEvaluationDetailModal}>
-                <DialogContent className={isMobileView ? "w-[100vw] h-[100vh] max-w-none p-0 m-0 rounded-none border-0 bg-background flex items-center justify-center" : "w-[95vw] max-w-[95vw] h-[95vh] flex flex-col p-0"}>
+                <DialogContent className="w-[95vw] max-w-[95vw] h-[95vh] flex flex-col p-0">
                     <DialogHeader>
                         <DialogTitle></DialogTitle>
                     </DialogHeader>
@@ -430,79 +420,7 @@ const SpecificEvaluationModal: React.FC = () => {
         );
     }
 
-    // Mobile: Use dedicated full-screen mobile experience
-    if (isMobileView) {
-        return (
-            <Dialog open={isOpen} onOpenChange={closeModelEvaluationDetailModal}>
-                <DialogContent className="w-[100vw] h-[100vh] max-w-none p-0 m-0 rounded-none border-0 bg-background flex flex-col overflow-hidden">
-                    <DialogTitle className="sr-only">Specific Evaluation Details - Mobile View</DialogTitle>
-                    
-                    <div className="h-full flex flex-col min-h-0">
-                        <div className="flex items-center gap-3 p-4 border-b bg-card flex-shrink-0">
-                            <div className="flex-1 min-w-0">
-                                <h2 className="font-semibold text-lg truncate">{displayModelName}</h2>
-                                {modalData.promptDescription && (
-                                    <p className="text-sm text-muted-foreground truncate">{modalData.promptDescription}</p>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* System Prompt Variant Selection (Mobile) */}
-                        {hasMultipleVariants && (
-                            <div className="px-4 py-3 border-b bg-muted/30">
-                                <div className="space-y-2">
-                                    <p className="text-sm font-semibold text-foreground">System Prompt Variant:</p>
-                                    <RadioGroup
-                                        value={selectedVariantIndex.toString()}
-                                        onValueChange={(value) => setSelectedVariantIndex(parseInt(value, 10))}
-                                        className="flex flex-col space-y-1"
-                                    >
-                                        {variantKeys.map((sysIndex) => {
-                                            const score = modalData.variantScores?.[sysIndex];
-                                            return (
-                                                <div key={sysIndex} className="flex items-center space-x-3">
-                                                    <RadioGroupItem value={sysIndex.toString()} id={`mobile-variant-${sysIndex}`} />
-                                                    <Label htmlFor={`mobile-variant-${sysIndex}`} className="text-sm cursor-pointer flex-1">
-                                                        <div className="flex items-center gap-2">
-                                                            <span>Variant {sysIndex}</span>
-                                                            {score !== null && score !== undefined && (
-                                                                <span className={`px-1.5 py-0.5 rounded-sm text-xs font-semibold ${getHybridScoreColorClass(score)}`}>
-                                                                    {(score * 100).toFixed(0)}%
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </Label>
-                                                </div>
-                                            );
-                                        })}
-                                    </RadioGroup>
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 space-y-4">
-                            {(modalData.promptDescription || modalData.promptCitation) && (
-                                <PromptInfo
-                                    description={modalData.promptDescription}
-                                    citation={modalData.promptCitation}
-                                />
-                            )}
-
-                            <TemperatureTabbedEvaluation
-                                variants={tempVariants}
-                                idealResponse={modalData.idealResponse}
-                                expandedLogs={expandedLogs}
-                                toggleLogExpansion={toggleLogExpansion}
-                                isMobile={isMobileView}
-                            />
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
-        );
-    }
-
-    // Desktop: Use existing responsive layout
+    // Unified responsive layout
     return (
         <Dialog open={isOpen} onOpenChange={closeModelEvaluationDetailModal}>
             <DialogContent className="w-[95vw] max-w-[95vw] h-[95vh] flex flex-col p-0 overflow-hidden">

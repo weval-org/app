@@ -88,6 +88,10 @@ export const MobileKeyPointAnalysis: React.FC<MobileKeyPointAnalysisProps> = ({
                             coverageResult={promptCoverageScores[selectedModelId]}
                             response={promptResponses[selectedModelId] || ''}
                             idealResponse={idealResponse}
+                            configId={data.configId}
+                            runLabel={data.runLabel}
+                            timestamp={data.timestamp}
+                            promptId={promptId}
                             onBack={handleBackToList}
                         />
                     )}
