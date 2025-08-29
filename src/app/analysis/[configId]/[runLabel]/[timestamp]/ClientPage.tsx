@@ -183,7 +183,7 @@ export const ClientPage: React.FC = () => {
             )}
             <Button asChild variant="outline" size="sm" className="px-3 py-1.5 text-xs">
                 <Link href={`/analysis/${configId}/${runLabel}/${timestamp}/thread`}>
-                    <Icon name="git-branch" className="w-4 h-4 mr-2" />
+                    <Icon name="git-merge" className="w-4 h-4 mr-2" />
                     Dialog Tree
                 </Link>
             </Button>
