@@ -806,13 +806,10 @@ const NodeBox: React.FC<{
         <div style={{ fontWeight: 600, opacity: 0.6 }}>{n.role}</div>
         {isGenerated && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {coveragePct !== null && (
-              <span className={`${getHybridScoreColorClass((coveragePct as number) / 100)} text-[11px] px-1.5 py-0.5 rounded-sm font-semibold`} title={`Avg coverage: ${coveragePct}%`}>
-                {coveragePct}%
+            {(headerScorePct !== null || coveragePct !== null) && (
+              <span className={`${getHybridScoreColorClass(((headerScorePct ?? coveragePct) as number) / 100)} text-[11px] px-1.5 py-0.5 rounded-sm font-semibold`} title={`Coverage: ${headerScorePct ?? coveragePct}%`}>
+                {headerScorePct ?? coveragePct}%
               </span>
-            )}
-            {headerScorePct !== null && (
-              <span className={`${getHybridScoreColorClass(headerScorePct / 100)} text-[11px] px-1.5 py-0.5 rounded-sm font-semibold`}>{headerScorePct}%</span>
             )}
             <span style={{ fontWeight: 600 }}>{headerBase}</span>
           </div>
