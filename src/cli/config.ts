@@ -1,4 +1,4 @@
-interface CliConfig {
+export interface CliConfig {
   errorHandler: (error: Error) => void
   logger: {
     info: (msg: string) => void

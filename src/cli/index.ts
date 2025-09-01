@@ -41,6 +41,7 @@ import { cloneRunCommand } from './commands/clone-run';
 import { updateRunMetadataCommand } from './commands/update-run-metadata';
 import { demoExampleWithFixturesCommand } from './commands/demo-example-with-fixtures';
 import { prepMacroCommand } from './commands/prep-macro';
+import { litRoundCommand } from './commands/lit-round';
 import { backfillArticleCommand } from './commands/backfill-article';
 
 let isTerminating = false
@@ -122,6 +123,7 @@ cli.addCommand(generateVibesIndexCommand);
 cli.addCommand(generateCompassIndexCommand);
 cli.addCommand(demoExampleWithFixturesCommand);
 cli.addCommand(prepMacroCommand);
+cli.addCommand(litRoundCommand);
 
 cli.parseAsync(process.argv).catch(err => {
   console.error('CLI Error:', err); 
