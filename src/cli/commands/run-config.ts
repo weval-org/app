@@ -53,6 +53,7 @@ import { EnhancedComparisonConfigInfo, EnhancedRunInfo } from '../../app/utils/h
 import { WevalResult } from '../../types/shared';
 import { listConfigIds, listRunsForConfig } from '../../lib/storageService';
 import { calculateAverageHybridScoreForRun, calculatePerModelScoreStatsForRun } from '../utils/summaryCalculationUtils';
+// Consumer deck flow is handled inside the pipeline for clean separation.
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
@@ -644,8 +645,8 @@ async function runBlueprint(config: ComparisonConfig, options: RunOptions & { fi
 
         try {
             mainSpinner.text = `Executing comparison pipeline for blueprint ID: ${currentConfigId}, runLabel: ${finalRunLabel}. Caching: ${options.cache ?? false}`;
-            
-            // Pass the string-only list of model IDs to the pipeline
+
+            // Pass the string-only list of model IDs to the pipeline (pipeline handles consumer models itself)
             const pipelineConfig = { ...config, models: modelIdsToRun };
 
             const genRetries = options.genRetries !== undefined ? parseInt(String(options.genRetries), 10) : undefined;

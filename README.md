@@ -381,6 +381,40 @@ Notes:
 - Excludes the IDEAL model from peers.
 - “Coverage” is the rubric score; similarity is not included in NDeltas.
 
+### Consumer deck mode (manual ingestion) and Bulk mode (optional)
+
+When a blueprint includes at least one consumer-access model (model IDs prefixed with `consumer:`), the pipeline can collect responses via a short-lived localhost UI using a single, copy/paste “deck” per system variant, then proceed with evaluation like a normal run.
+
+What it does:
+- Builds a single “macro deck” per system variant (global `<system>` at the top, followed by `<prompt id="…">` blocks), opens a local UI, and asks you to paste the resulting `<responses>` blob.
+- For system permutations (e.g., `system: [null, "be bold"]`), you will step through each variant with a deck and paste once per variant. Results save under effective IDs like `consumer:foo[sp_idx:0]`, `consumer:foo[sp_idx:1]`.
+- Coverage and embeddings are computed per prompt slice. Consumer variants appear in similarity dendrograms and Macro Coverage tabs.
+
+Usage (no new flags needed):
+```bash
+pnpm cli run-config local --config path/to/blueprint.yml --eval-method all
+# or
+pnpm cli run-config github --name <blueprint-name> --eval-method all
+```
+
+Environment variables:
+- `CONSUMER_TIMEOUT_MIN` (default `30`): minutes to keep the local UI open before continuing without pasted responses.
+- `BULK_MODE`: controls bulk behavior for API models when any `consumer:*` model is present.
+  - `on`: force bulk for API models (one deck call per model×system×temperature, then parse slices).
+  - `off`: disable bulk; API models run per-prompt as usual.
+  - unset (default): bulk is enabled if any `consumer:*` model exists.
+
+Example (disable bulk explicitly):
+```bash
+BULK_MODE=off pnpm cli run-config github --name my-blueprint --eval-method all
+```
+
+Notes:
+- The deck UI is local-only (127.0.0.1), single-use per step, and closes automatically on submit.
+- Copy button copies the exact deck; you can also download it.
+- If a consumer app does not have a native system prompt, the global `<system>` is included in the deck to approximate system-variant behavior.
+- For perfect parity across all models in a run, use bulk mode so API models also receive the same deck protocol.
+
 ### `generate-vibes-index`
 
 Precomputes a global "vibes" index so the `/vibes` page can instantly suggest models that feel like a chosen target while also factoring in coverage.

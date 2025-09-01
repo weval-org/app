@@ -7,6 +7,11 @@ import { saveResult as saveResultToStorage } from '@/lib/storageService';
 import { toSafeTimestamp } from '@/lib/timestampUtils';
 import { generateExecutiveSummary as generateExecutiveSummary } from './executive-summary-service';
 import { generateAllResponses } from './comparison-pipeline-service.non-stream';
+import { buildDeckXml, parseResponsesXml, validateResponses } from '@/cli/services/consumer-deck';
+import { startConsumerUIServer } from '@/cli/services/consumer-ui-server';
+import crypto from 'crypto';
+import { exec } from 'child_process';
+import { getModelResponse } from './llm-service';
 import type { FixtureSet } from '@/lib/fixtures-service';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
@@ -197,8 +202,198 @@ export async function executeComparisonPipeline(
 ): Promise<{ data: FinalComparisonOutputV2, fileName: string | null }> {
     logger.info(`[PipelineService] Starting comparison pipeline for configId: '${config.id || config.configId}' runLabel: '${runLabel}'`);
     
-    // Step 1: Generate all model responses if not provided
-    const allResponsesMap = existingResponsesMap ?? await generateAllResponses(config, logger, useCache, undefined, genOptions, runLabel, fixturesCtx);
+    // Step 0: If consumer:* models exist and no existingResponsesMap provided, collect consumer responses first, then generate API ones
+    let allResponsesMap: Map<string, PromptResponseData>;
+    if (existingResponsesMap) {
+        allResponsesMap = existingResponsesMap;
+    } else {
+        const modelIds = (config.models || []).map(m => typeof m === 'string' ? m : (m as any).id);
+        const consumerModels = modelIds.filter(id => typeof id === 'string' && (id as string).startsWith('consumer:')) as string[];
+        const apiModels = modelIds.filter(id => !(typeof id === 'string' && (id as string).startsWith('consumer:')));
+
+        if (consumerModels.length === 0) {
+            // No consumer models → normal generation
+            allResponsesMap = await generateAllResponses(config, logger, useCache, undefined, genOptions, runLabel, fixturesCtx);
+        } else {
+            // For system permutations, step the user through each variant with a dedicated deck (global <system>)
+            const sysVariants: (string | null)[] = Array.isArray(config.systems) && config.systems.length > 0
+                ? config.systems
+                : [config.system ?? null];
+
+            const consumerSlicesBySysIdx: Map<number, Map<string, string>> = new Map();
+            for (let sysIdx = 0; sysIdx < sysVariants.length; sysIdx++) {
+                const sysText = sysVariants[sysIdx] ?? null;
+                const deckXml = buildDeckXml(config, { systemPrompt: sysText });
+                const token = crypto.randomBytes(16).toString('hex');
+                let submittedMap: Map<string, string> | null = null;
+                const ui = await startConsumerUIServer({
+                    deckXml,
+                    token,
+                    variantLabel: `System Variant ${sysIdx}${sysText ? ' · ' + (sysText.substring(0, 40) + (sysText.length > 40 ? '…' : '')) : ' · [No System]'}`,
+                    onSubmit: async (responsesXml: string) => {
+                        try {
+                            const map = parseResponsesXml(responsesXml);
+                            const expectedIds = (config.prompts || []).map(p => p.id);
+                            const v = validateResponses(expectedIds, map);
+                            if (!v.ok) return { ok: false, error: `Missing: [${v.missing.join(', ')}] Extra: [${v.extra.join(', ')}]` };
+                            submittedMap = map;
+                            return { ok: true };
+                        } catch (e: any) {
+                            return { ok: false, error: e?.message || 'Parse error' };
+                        }
+                    },
+                    onClose: () => {}
+                });
+                const url = ui.url;
+                logger.info(`[PipelineService] Consumer deck UI available at: ${url}`);
+                try { exec(`${process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open'} ${url}`); } catch {}
+
+                const timeoutMs = process.env.CONSUMER_TIMEOUT_MIN ? (parseInt(process.env.CONSUMER_TIMEOUT_MIN, 10) * 60 * 1000) : (30 * 60 * 1000);
+                const consumerSlices = await new Promise<Map<string, string>>((resolve) => {
+                    const timer = setTimeout(async () => {
+                        try { await ui.close(); } catch {}
+                        logger.warn(`[PipelineService] Consumer UI timeout for system variant ${sysIdx}. Proceeding without consumer responses.`);
+                        resolve(new Map());
+                    }, timeoutMs);
+                    const iv = setInterval(async () => {
+                        if (submittedMap) {
+                            clearTimeout(timer);
+                            clearInterval(iv);
+                            try { await ui.close(); } catch {}
+                            resolve(submittedMap!);
+                        }
+                    }, 250);
+                });
+                consumerSlicesBySysIdx.set(sysIdx, consumerSlices);
+            }
+
+            const bulkMode = (process.env.BULK_MODE || '').toLowerCase() === 'on' || ((process.env.BULK_MODE || '').toLowerCase() !== 'off' && apiModels.length > 0 && consumerModels.length > 0);
+            let apiMap: Map<string, PromptResponseData>;
+            if (!bulkMode) {
+                // Standard per-prompt generation for API models
+                const apiOnlyConfig = { ...config, models: apiModels } as ComparisonConfig;
+                apiMap = await generateAllResponses(apiOnlyConfig, logger, useCache, undefined, genOptions, runLabel, fixturesCtx);
+            } else {
+                logger.info('[PipelineService] BULK MODE enabled for API models. Generating one deck call per model×system variant.');
+                // Build empty map
+                apiMap = new Map<string, PromptResponseData>();
+                // Ensure entries for prompts
+                for (const prompt of config.prompts) {
+                    apiMap.set(prompt.id, {
+                        promptId: prompt.id,
+                        promptText: prompt.promptText,
+                        initialMessages: prompt.messages!,
+                        idealResponseText: (prompt as any).idealResponse || null,
+                        modelResponses: {}
+                    });
+                }
+                const sysVariants: (string | null)[] = Array.isArray(config.systems) && config.systems.length > 0
+                    ? config.systems
+                    : [config.system ?? null];
+                const temperatures: number[] = Array.isArray(config.temperatures) && config.temperatures.length > 0
+                    ? config.temperatures
+                    : (config.temperature !== undefined && config.temperature !== null ? [config.temperature] : [0.0]);
+                for (let sysIdx = 0; sysIdx < sysVariants.length; sysIdx++) {
+                    const sysText = sysVariants[sysIdx] ?? null;
+                    const deckXml = buildDeckXml(config, { systemPrompt: sysText });
+                    for (const modelId of apiModels) {
+                        for (const temp of temperatures) {
+                            const effectiveId = sysVariants.length > 1
+                                ? `${modelId}[temp:${Number(temp).toFixed(1)}][sp_idx:${sysIdx}]`
+                                : `${modelId}[temp:${Number(temp).toFixed(1)}]`;
+                            try {
+                                const resp = await getModelResponse({
+                                    modelId: modelId as string,
+                                    messages: [{ role: 'user', content: deckXml }],
+                                    temperature: temp,
+                                    useCache,
+                                    timeout: genOptions?.genTimeoutMs,
+                                    retries: genOptions?.genRetries,
+                                });
+                                const slices = parseResponsesXml(resp || '');
+                                for (const prompt of config.prompts) {
+                                    const pr = apiMap.get(prompt.id)!;
+                                    const text = slices.get(prompt.id) || '';
+                                    if (text) {
+                                        pr.modelResponses[effectiveId] = {
+                                            finalAssistantResponseText: text,
+                                            fullConversationHistory: [ { role: 'user', content: deckXml } as any, { role: 'assistant', content: text } as any ],
+                                            hasError: false,
+                                            systemPromptUsed: sysText ?? null,
+                                        } as any;
+                                    } else {
+                                        pr.modelResponses[effectiveId] = {
+                                            finalAssistantResponseText: '<<error>>missing deck slice<</error>>',
+                                            fullConversationHistory: [ { role: 'user', content: deckXml } as any, { role: 'assistant', content: '<<error>>missing deck slice<</error>>' } as any ],
+                                            hasError: true,
+                                            errorMessage: 'missing deck slice',
+                                            systemPromptUsed: sysText ?? null,
+                                        } as any;
+                                    }
+                                }
+                            } catch (e: any) {
+                                logger.error(`[PipelineService] Bulk deck call failed for ${modelId} (sys ${sysIdx}, temp ${temp}): ${e?.message || e}`);
+                                for (const prompt of config.prompts) {
+                                    const pr = apiMap.get(prompt.id)!;
+                                    pr.modelResponses[effectiveId] = {
+                                        finalAssistantResponseText: '<<error>>bulk call failed<</error>>',
+                                        fullConversationHistory: [ { role: 'user', content: deckXml } as any, { role: 'assistant', content: '<<error>>bulk call failed<</error>>' } as any ],
+                                        hasError: true,
+                                        errorMessage: e?.message || 'bulk call failed',
+                                        systemPromptUsed: sysText ?? null,
+                                    } as any;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Merge into a unified map
+            const merged = new Map(apiMap);
+            for (const prompt of config.prompts) {
+                const promptId = prompt.id;
+                if (!merged.has(promptId)) {
+                    merged.set(promptId, {
+                        promptId,
+                        promptText: prompt.promptText,
+                        initialMessages: prompt.messages!,
+                        idealResponseText: (prompt as any).idealResponse || null,
+                        modelResponses: {}
+                    });
+                }
+                const pr = merged.get(promptId)!;
+                for (const consumerId of consumerModels) {
+                    const sysCount = Array.isArray(config.systems) && config.systems.length > 0 ? config.systems.length : 1;
+                    const emitForSysIdx = (effId: string, bodyText: string) => {
+                        if (bodyText) {
+                            pr.modelResponses[effId] = {
+                                finalAssistantResponseText: bodyText,
+                                fullConversationHistory: [...(prompt.messages || []) as any, { role: 'assistant', content: bodyText }],
+                                hasError: false,
+                                systemPromptUsed: (prompt as any).system ?? config.system ?? null,
+                            } as any;
+                        } else {
+                            pr.modelResponses[effId] = {
+                                finalAssistantResponseText: '<<error>>missing consumer response<</error>>',
+                                fullConversationHistory: [...(prompt.messages || []) as any, { role: 'assistant', content: '<<error>>missing consumer response<</error>>' }],
+                                hasError: true,
+                                errorMessage: 'missing consumer response',
+                                systemPromptUsed: (prompt as any).system ?? config.system ?? null,
+                            } as any;
+                        }
+                    };
+                    for (let i = 0; i < sysCount; i++) {
+                        const slice = consumerSlicesBySysIdx.get(i) || new Map<string, string>();
+                        const text = slice.get(promptId) || '';
+                        const effId = sysCount > 1 ? `${consumerId}[sp_idx:${i}]` : consumerId;
+                        emitForSysIdx(effId, text);
+                    }
+                }
+            }
+            allResponsesMap = merged;
+        }
+    }
     
     // Step 2: Prepare for evaluation
     const evaluationInputs: EvaluationInput[] = [];

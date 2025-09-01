@@ -12,6 +12,10 @@ import { generateExecutiveSummary } from './executive-summary-service';
 import { EmbeddingEvaluator } from '@/cli/evaluators/embedding-evaluator';
 import { LLMCoverageEvaluator } from '@/cli/evaluators/llm-coverage-evaluator';
 import { FixtureSet, pickFixtureValue } from '@/lib/fixtures-service';
+import { buildDeckXml, parseResponsesXml, validateResponses } from '@/cli/services/consumer-deck';
+import { startConsumerUIServer } from '@/cli/services/consumer-ui-server';
+import crypto from 'crypto';
+import { exec } from 'child_process';
 
 export type ProgressCallback = (completed: number, total: number) => Promise<void>;
 
@@ -61,8 +65,15 @@ export async function generateAllResponses(
     const systemPromptsToRun = (config.systems?.length) ? config.systems : [config.system];
 
     // Convert models to string IDs for processing
-    const modelIds = config.models.map(m => typeof m === 'string' ? m : m.id);
+    let modelIds = config.models.map(m => typeof m === 'string' ? m : m.id);
     
+    // Skip consumer:* models here (manual ingestion handled in pipeline step 0)
+    const consumerIds = modelIds.filter(id => typeof id === 'string' && (id as string).startsWith('consumer:')) as string[];
+    if (consumerIds.length > 0) {
+        logger.info(`[PipelineService] Detected consumer models in generator. Skipping API generation for: ${consumerIds.join(', ')}`);
+        modelIds = modelIds.filter(id => !(typeof id === 'string' && (id as string).startsWith('consumer:')));
+    }
+
     // Create per-model limiters upfront (see detailed explanation above)
     modelIds.forEach(modelId => {
         // 1 is best for testability, but no harm in higher for non test env
@@ -504,8 +515,113 @@ export async function executeComparisonPipeline(
 ): Promise<{ data: FinalComparisonOutputV2, fileName: string | null }> {
     logger.info(`[PipelineService] Starting comparison pipeline for configId: '${(config as any).id || (config as any).configId}' runLabel: '${runLabel}'`);
 
-    // Step 1: Generate all model responses if not provided
-    const allResponsesMap = existingResponsesMap ?? await generateAllResponses(config, logger, useCache, undefined, genOptions);
+    // Step 0: Acquire consumer:* responses (deck UI) and generate API responses
+    let allResponsesMap: Map<string, PromptResponseData>;
+    if (existingResponsesMap) {
+        allResponsesMap = existingResponsesMap;
+    } else {
+        const modelIds = (config.models || []).map(m => typeof m === 'string' ? m : (m as any).id);
+        const consumerModels = modelIds.filter(id => typeof id === 'string' && (id as string).startsWith('consumer:')) as string[];
+        const apiModels = modelIds.filter(id => !(typeof id === 'string' && (id as string).startsWith('consumer:')));
+
+        if (consumerModels.length === 0) {
+            // No consumer models → normal generation for all models
+            allResponsesMap = await generateAllResponses(config, logger, useCache, undefined, genOptions);
+        } else {
+            // Build deck XML for prompts
+            const deckXml = buildDeckXml(config);
+            const token = crypto.randomBytes(16).toString('hex');
+            let submittedMap: Map<string, string> | null = null;
+            const ui = await startConsumerUIServer({
+                deckXml,
+                token,
+                onSubmit: async (responsesXml: string) => {
+                    try {
+                        const map = parseResponsesXml(responsesXml);
+                        const expectedIds = (config.prompts || []).map(p => p.id);
+                        const v = validateResponses(expectedIds, map);
+                        if (!v.ok) {
+                            return { ok: false, error: `Missing: [${v.missing.join(', ')}] Extra: [${v.extra.join(', ')}]` };
+                        }
+                        submittedMap = map;
+                        return { ok: true };
+                    } catch (e: any) {
+                        return { ok: false, error: e?.message || 'Parse error' };
+                    }
+                },
+                onClose: () => {}
+            });
+            const url = ui.url;
+            logger.info(`[PipelineService] Consumer deck UI available at: ${url}`);
+            try { exec(`${process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open'} ${url}`); } catch {}
+
+            // Timeout (30 minutes default)
+            const timeoutMs = process.env.CONSUMER_TIMEOUT_MIN ? (parseInt(process.env.CONSUMER_TIMEOUT_MIN, 10) * 60 * 1000) : (30 * 60 * 1000);
+            const uiDone = new Promise<Map<string, string>>((resolve, reject) => {
+                const timer = setTimeout(async () => {
+                    try { await ui.close(); } catch {}
+                    logger.warn('[PipelineService] Consumer UI timeout elapsed. Proceeding without consumer responses.');
+                    resolve(new Map());
+                }, timeoutMs);
+                // Monkey-patch close to capture when submit succeeds
+                (ui as any).close = (original => async () => {
+                    clearTimeout(timer);
+                    await original();
+                })((ui as any).close);
+                // Poll for submittedMap becoming non-null, then close
+                const iv = setInterval(async () => {
+                    if (submittedMap) {
+                        clearInterval(iv);
+                        try { await ui.close(); } catch {}
+                        resolve(submittedMap!);
+                    }
+                }, 250);
+            });
+            // Wait for consumer response first so the user can leave
+            const consumerSlices = await uiDone;
+
+            // Now generate API responses (only for API models)
+            const apiOnlyConfig = { ...config, models: apiModels } as ComparisonConfig;
+            const apiMap = await generateAllResponses(apiOnlyConfig, logger, useCache, undefined, genOptions);
+
+            // Merge
+            const merged = new Map(apiMap);
+            for (const prompt of config.prompts) {
+                const promptId = prompt.id;
+                if (!merged.has(promptId)) {
+                    merged.set(promptId, {
+                        promptId,
+                        promptText: prompt.promptText,
+                        initialMessages: prompt.messages!,
+                        idealResponseText: (prompt as any).idealResponse || null,
+                        modelResponses: {}
+                    });
+                }
+                const pr = merged.get(promptId)!;
+                for (const consumerId of consumerModels) {
+                    const text = consumerSlices.get(promptId) || '';
+                    if (text) {
+                        pr.modelResponses[consumerId] = {
+                            finalAssistantResponseText: text,
+                            fullConversationHistory: [...(prompt.messages || []) as any, { role: 'assistant', content: text }],
+                            hasError: false,
+                            systemPromptUsed: (prompt as any).system ?? config.system ?? null,
+                        } as any;
+                    } else {
+                        pr.modelResponses[consumerId] = {
+                            finalAssistantResponseText: '<<error>>missing consumer response<</error>>',
+                            fullConversationHistory: [...(prompt.messages || []) as any, { role: 'assistant', content: '<<error>>missing consumer response<</error>>' }],
+                            hasError: true,
+                            errorMessage: 'missing consumer response',
+                            systemPromptUsed: (prompt as any).system ?? config.system ?? null,
+                        } as any;
+                    }
+                }
+            }
+            allResponsesMap = merged;
+            logger.info('[PipelineService] Merged API and consumer responses.');
+        }
+    }
 
     // Step 2: Prepare for evaluation
     const evaluationInputs: any[] = [];
