@@ -40,7 +40,7 @@ export default function DetailedBlueprintCard({ blueprint: bp }: DetailedBluepri
                 <div className="flex items-center mb-2">
                     <Icon name="folder-open" className="w-6 h-6 mr-2.5 text-primary flex-shrink-0" />
                     {latestRunInstanceUrl ? (
-                      <Link href={latestRunInstanceUrl} title={`View latest run: ${bp.title || bp.configTitle}`}>
+                      <Link href={latestRunInstanceUrl} title={`View latest run: ${bp.title || bp.configTitle}`} className="min-w-0 truncate">
                         <h3 className="font-semibold text-lg md:text-xl text-primary truncate hover:underline">
                             {bp.title || bp.configTitle}
                         </h3>

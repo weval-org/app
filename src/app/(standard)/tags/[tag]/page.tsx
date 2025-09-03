@@ -99,7 +99,7 @@ export default async function TaggedBlueprintsPage({ params }: { params: Promise
         <div className="max-w-[1800px] mx-auto">
           <AnalysisPageHeader isSticky={false} />
 
-        <main className="max-w-4xl mx-auto mt-6 md:mt-8">
+        <main className="max-w-7xl mx-auto mt-6 md:mt-8 px-4 sm:px-6 lg:px-8">
           {filteredConfigs.length === 0 && (
             <div className="text-center py-12 bg-card/50 dark:bg-card/40 rounded-lg shadow-md">
               <Icon name="tag" className="w-12 h-12 mx-auto mb-4 text-muted-foreground dark:text-muted-foreground" />
