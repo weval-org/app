@@ -69,15 +69,23 @@ export const ClientPage: React.FC = () => {
         if (currentPromptId || !data?.evaluationResults?.llmCoverageScores || !data.promptIds || displayedModels.filter(m => m !== IDEAL_MODEL_ID).length === 0) {
           return null;
         }
+        const approach = (data as any)?.generationApproach as { mode?: string; bulkMode?: boolean } | undefined;
         return (
-          <CoverageHeatmapCanvas
-            allCoverageScores={data.evaluationResults.llmCoverageScores as any} 
-            promptIds={data.promptIds}
-            models={displayedModels.filter(m => m !== IDEAL_MODEL_ID)}
-            width={100}
-            height={40}
-            className="rounded-md border border-border dark:border-border shadow-sm"
-          />
+          <div className="flex items-center gap-3">
+            <CoverageHeatmapCanvas
+              allCoverageScores={data.evaluationResults.llmCoverageScores as any} 
+              promptIds={data.promptIds}
+              models={displayedModels.filter(m => m !== IDEAL_MODEL_ID)}
+              width={100}
+              height={40}
+              className="rounded-md border border-border dark:border-border shadow-sm"
+            />
+            {approach && (
+              <div className="text-xs text-muted-foreground border rounded px-2 py-1">
+                <span className="font-semibold">Deck Mode:</span> {approach.mode || (approach.bulkMode ? 'deck' : 'per_prompt')}
+              </div>
+            )}
+          </div>
         );
     }, [currentPromptId, data, displayedModels]);
 

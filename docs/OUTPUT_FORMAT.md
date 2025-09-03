@@ -125,6 +125,8 @@ Each run produces a bundle of artefacts under `live/blueprints/[configId]/[runLa
 - `coverage/[promptId]/[modelId].json` – per-prompt × model rubric evaluations
 - `histories/[promptId]/[modelId].json` – full conversation history for this prompt×model, including generated assistant turns when `assistant: null` is used and the implicit final assistant if the last message is a user. Shape:
 
+Note: `[modelId]` in file names uses a safe filename derived from the effective model id (special characters such as `:` and `/` are replaced) to ensure portable paths.
+
 ```json
 {
   "history": [
@@ -140,9 +142,24 @@ Each run produces a bundle of artefacts under `live/blueprints/[configId]/[runLa
 
 ## 4. Legacy Monolithic File
 
-For backward compatibility, the original monolithic file `[runLabel]_[timestamp]_comparison.json` is still written in the same folder.
+For backward compatibility, the original monolithic file `[runLabel]_[timestamp]_comparison.json` is still written in the same config directory, as a sibling of the run artefacts folder:
+
+```
+live/blueprints/[configId]/[runLabel]_[timestamp]_comparison.json
+live/blueprints/[configId]/[runLabel]_[timestamp]/... (artefacts)
+```
 
 Sandbox runs additionally write a compatibility copy under:
 - `live/blueprints/sandbox-<runId>/sandbox-run_<timestamp>_comparison.json`
 
 This allows standard comparison endpoints to work in Sandbox result pages.
+
+## 5. Per‑Config Summary
+
+Each blueprint maintains a lightweight rolling summary used by the UI:
+
+```
+live/blueprints/[configId]/summary.json
+```
+
+This excludes bulky per-prompt matrices and histories and includes recent run metadata plus aggregated per-model scores for quick dashboard rendering.

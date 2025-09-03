@@ -1217,34 +1217,55 @@ async function deleteS3Objects(keys: string[]): Promise<boolean> {
  */
 export async function deleteConfigData(configId: string): Promise<number> {
   if (storageProvider === 's3' && s3Client && s3BucketName) {
-    const prefix = path.join(MULTI_DIR, configId, ''); // Ensure trailing slash
-    let allKeys: string[] = [];
-    let continuationToken: string | undefined = undefined;
+    // Support deletion from both legacy and new layouts
+    const prefixes = [
+      path.join(MULTI_DIR, configId, ''),
+      path.join(LIVE_DIR, 'blueprints', configId, ''),
+    ];
 
+    let allKeys: string[] = [];
     try {
-      console.log(`[StorageService] Listing objects for deletion in S3 prefix: s3://${s3BucketName}/${prefix}`);
-      do {
-        const listCommand = new ListObjectsV2Command({
-          Bucket: s3BucketName,
-          Prefix: prefix,
-          ContinuationToken: continuationToken,
-        });
-        const response: import('@aws-sdk/client-s3').ListObjectsV2CommandOutput = await s3Client.send(listCommand);
-        if (response.Contents) {
-          allKeys.push(...response.Contents.map(obj => obj.Key).filter(Boolean) as string[]);
+      for (const prefix of prefixes) {
+        let continuationToken: string | undefined = undefined;
+        let scannedForPrefix = 0;
+        console.log(`[StorageService] Listing objects for deletion in S3 prefix: s3://${s3BucketName}/${prefix}`);
+        do {
+          const listCommand = new ListObjectsV2Command({
+            Bucket: s3BucketName,
+            Prefix: prefix,
+            ContinuationToken: continuationToken,
+          });
+          const response: import('@aws-sdk/client-s3').ListObjectsV2CommandOutput = await s3Client.send(listCommand);
+          const keys = (response.Contents || []).map(obj => obj.Key).filter(Boolean) as string[];
+          if (keys.length > 0) {
+            allKeys.push(...keys);
+            scannedForPrefix += keys.length;
+          }
+          continuationToken = response.NextContinuationToken;
+        } while (continuationToken);
+
+        if (scannedForPrefix === 0) {
+          console.log(`[StorageService] No objects found for prefix '${prefix}' in S3.`);
+        } else {
+          console.log(`[StorageService] Found ${scannedForPrefix} S3 objects under prefix '${prefix}'.`);
         }
-        continuationToken = response.NextContinuationToken;
-      } while (continuationToken);
+      }
 
       if (allKeys.length === 0) {
-        console.log(`[StorageService] No objects found for configId '${configId}' in S3. Nothing to delete.`);
+        console.log(`[StorageService] No objects found for configId '${configId}' across legacy and new prefixes. Nothing to delete.`);
         return 0;
       }
 
-      console.log(`[StorageService] Found ${allKeys.length} S3 objects to delete for configId '${configId}'.`);
+      console.log(`[StorageService] Found ${allKeys.length} total S3 objects to delete for configId '${configId}'.`);
       const success = await deleteS3Objects(allKeys);
       if (success) {
         console.log(`[StorageService] Successfully deleted ${allKeys.length} S3 objects for configId '${configId}'.`);
+        // Best-effort: clear any cached artefacts for this config
+        try {
+          const cachePathForConfig = path.join(CACHE_DIR, configId);
+          await fs.rm(cachePathForConfig, { recursive: true, force: true });
+          console.log(`[StorageService] Cleared cache directory for configId '${configId}': ${cachePathForConfig}`);
+        } catch {}
         return allKeys.length;
       } else {
         console.error(`[StorageService] Failed to delete some or all S3 objects for configId '${configId}'.`);
@@ -1255,22 +1276,41 @@ export async function deleteConfigData(configId: string): Promise<number> {
       return -1;
     }
   } else if (storageProvider === 'local') {
-    const localConfigDir = path.join(process.cwd(), RESULTS_DIR, MULTI_DIR, configId);
-    try {
-      // Check if directory exists before attempting to read and remove
+    // Support deletion from both legacy and new layouts
+    const legacyDir = path.join(process.cwd(), RESULTS_DIR, MULTI_DIR, configId);
+    const newDir = path.join(process.cwd(), RESULTS_DIR, LIVE_DIR, 'blueprints', configId);
+
+    const deleteDirIfExists = async (dirPath: string, label: string): Promise<number> => {
       try {
-        await fs.access(localConfigDir);
-      } catch (e) {
-        console.log(`[StorageService] Local directory for configId '${configId}' not found at ${localConfigDir}. Nothing to delete.`);
+        await fs.access(dirPath);
+      } catch {
+        console.log(`[StorageService] ${label} directory not found at ${dirPath}. Nothing to delete for this path.`);
         return 0;
       }
+      const files = await fs.readdir(dirPath, { recursive: true } as any).catch(async () => await fs.readdir(dirPath));
+      await fs.rm(dirPath, { recursive: true, force: true });
+      console.log(`[StorageService] Successfully deleted ${label} directory for configId '${configId}': ${dirPath} (contained ${(files as any[]).length} files/items).`);
+      return (files as any[]).length;
+    };
 
-      const files = await fs.readdir(localConfigDir); // To count files before removing directory
-      await fs.rm(localConfigDir, { recursive: true, force: true });
-      console.log(`[StorageService] Successfully deleted local directory for configId '${configId}': ${localConfigDir} (contained ${files.length} files/items).`);
-      return files.length;
+    try {
+      const legacyCount = await deleteDirIfExists(legacyDir, 'legacy');
+      const newCount = await deleteDirIfExists(newDir, 'live');
+      const total = legacyCount + newCount;
+
+      // Best-effort: clear any cached artefacts for this config
+      try {
+        const cachePathForConfig = path.join(CACHE_DIR, configId);
+        await fs.rm(cachePathForConfig, { recursive: true, force: true });
+        console.log(`[StorageService] Cleared cache directory for configId '${configId}': ${cachePathForConfig}`);
+      } catch {}
+
+      if (total === 0) {
+        console.log(`[StorageService] No local files or directories found for configId '${configId}' in either legacy or live paths.`);
+      }
+      return total;
     } catch (error) {
-      console.error(`[StorageService] Error deleting local directory for configId '${configId}' at ${localConfigDir}:`, error);
+      console.error(`[StorageService] Error deleting local directories for configId '${configId}':`, error);
       return -1;
     }
   } else {

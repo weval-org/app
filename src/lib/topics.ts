@@ -136,6 +136,14 @@ export const TOPICS = [
   'Vocational Training & Skilled Trades',
   'West Africa',
   'Western Europe',
+
+  // OECD capability indicators:
+  'Language',
+  'Social interaction',
+  'Problem solving',
+  'Creativity',
+  'Metacognition and critical thinking',
+  'Knowledge, learning and memory'
 ] as const;
 
 export type Topic = typeof TOPICS[number]; 
