@@ -74,7 +74,15 @@ export const BlueprintCanonicalSchema = {
       },
     },
     embeddingModel: { type: 'string' },
-    system: { type: ['string', 'null'] },
+    system: {
+      oneOf: [
+        { type: ['string', 'null'] },
+        {
+          type: 'array',
+          items: { type: ['string', 'null'] }
+        }
+      ]
+    },
     systems: { type: 'array', items: { type: ['string', 'null'] } },
     tools: { type: 'array', items: { type: 'object' } },
     toolUse: { type: 'object' },
