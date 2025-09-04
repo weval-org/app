@@ -16,16 +16,19 @@ export interface CapabilityDimension {
     | 'argumentation'
     | 'efficiency';
   weight: number;
+  invert?: boolean;
 }
 
 export interface CapabilityTopic {
   key: Topic;
   weight: number;
+  invert?: boolean;
 }
 
 export interface CapabilityConfig {
   key: string; // Config ID like 'uk-clinical-scenarios'
   weight: number;
+  invert?: boolean;
 }
 
 export interface CapabilityBucket {
@@ -35,6 +38,9 @@ export interface CapabilityBucket {
   icon: string;
   dimensions: CapabilityDimension[];
   topics: CapabilityTopic[];
+  // Preferred names
+  blueprints?: CapabilityConfig[];
+  // Back-compat alias for older field name
   configs?: CapabilityConfig[];
 }
 
@@ -49,7 +55,7 @@ export const CAPABILITY_BUCKETS: CapabilityBucket[] = [
     ],
     topics: [
     ],
-    configs: [
+    blueprints: [
       { key: 'uk-clinical-scenarios', weight: 0.5 },
       { key: 'stanford-hai-mental-health-safety-eval', weight: 3.0 },
       { key: 'mental-health', weight: 1.0 },
@@ -59,7 +65,11 @@ export const CAPABILITY_BUCKETS: CapabilityBucket[] = [
       { key: 'confidence-high-stakes-domains', weight: 2.0 },
       { key: 'jailbreak-safety-probes', weight: 3.0 },
       { key: 'csr-suicide-response-scenarios', weight: 0.5 },
-      { key: 'sydney__original', weight: 1.0 }
+      { key: 'sydney__original', weight: 1.0 },
+      { key: 'compass__cautious', weight: 0.8 },
+      { key: 'compass__risk-averse', weight: 0.8 },
+      { key: 'compass__confident', weight: 0.6, invert: true },
+      { key: 'compass__risk-seeking', weight: 0.8, invert: true }
     ],
   },
   // {

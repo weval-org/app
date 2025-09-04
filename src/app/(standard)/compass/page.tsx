@@ -33,34 +33,17 @@ type Point = {
   maker: string;
 };
 
-export default function CompassPage() {
-  const [compass, setCompass] = React.useState<CompassIndex | null>(null);
-  const [loading, setLoading] = React.useState<boolean>(true);
-  const [error, setError] = React.useState<string | null>(null);
-  const [viewMode, setViewMode] = React.useState<'sliders' | 'spider'>('sliders');
+type CompassChartProps = {
+  compass: CompassIndex;
+  xAxisId: string;
+  yAxisId: string;
+  makerColorMap: Record<string, string>;
+  width?: number;
+  height?: number;
+};
 
-  React.useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const res = await fetch('/api/compass');
-        if (mounted) {
-          if (res.ok) {
-            const json: CompassIndex = await res.json();
-            console.log('Compass data loaded:', json);
-            setCompass(json);
-          } else {
-            setError('Failed to load compass data');
-          }
-        }
-      } catch (e: any) {
-        if (mounted) setError(e?.message || 'Failed to load');
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    })();
-    return () => { mounted = false; };
-  }, []);
+const CompassChart = ({ compass, xAxisId, yAxisId, makerColorMap, width = 900, height = 520 }: CompassChartProps) => {
+  const [hover, setHover] = React.useState<Point | null>(null);
 
   const points = React.useMemo<Point[]>(() => {
     if (!compass) return [];
@@ -70,10 +53,10 @@ export default function CompassPage() {
       Object.keys(axisData).forEach(modelId => allModelIds.add(modelId));
     });
 
-    const info = compass.axes?.['abstraction'];
-    const inter = compass.axes?.['proactivity'];
+    const info = compass.axes?.[xAxisId];
+    const inter = compass.axes?.[yAxisId];
     if (!info || !inter) {
-      console.warn('Axis data for scatter plot not found. Need "abstraction" and "proactivity".', {
+      console.warn(`Axis data for scatter plot not found. Need "${xAxisId}" and "${yAxisId}".`, {
         availableAxes: Object.keys(compass.axes || {}),
       });
       return [];
@@ -118,9 +101,176 @@ export default function CompassPage() {
       x: scale(p.x, xMin, xMax),
       y: scale(p.y, yMin, yMax),
     }));
-    console.log('Processed points for scatter plot:', finalPoints);
+    console.log(`Processed points for scatter plot (${xAxisId}, ${yAxisId}):`, finalPoints);
     return finalPoints;
-  }, [compass]);
+  }, [compass, xAxisId, yAxisId]);
+
+  const xAxis = compass?.axisMetadata?.[xAxisId];
+  const yAxis = compass?.axisMetadata?.[yAxisId];
+
+  const pad = 36;
+
+  const centerX = width / 2;
+  const centerY = height / 2;
+  const xToPx = (v: number) => centerX + v * ((width - pad * 2) / 2);
+  const yToPx = (v: number) => centerY - v * ((height - pad * 2) / 2);
+
+  return (
+    <div className="relative">
+      <svg width={width} height={height} className="w-full h-auto bg-card rounded-md border" viewBox={`0 0 ${width} ${height}`}>
+        {/* Crosshairs centered */}
+        <line x1={centerX} y1={pad} x2={centerX} y2={height - pad} stroke="hsl(var(--border))" strokeWidth={1} />
+        <line x1={pad} y1={centerY} x2={width - pad} y2={centerY} stroke="hsl(var(--border))" strokeWidth={1} />
+        
+        {/* Side labels */}
+        {yAxis && <>
+          <text x={centerX} y={pad - 12} textAnchor="middle" fontSize={14} className="fill-foreground font-semibold">{yAxis.positivePole}</text>
+          <text x={centerX} y={height - pad + 20} textAnchor="middle" fontSize={14} className="fill-foreground font-semibold">{yAxis.negativePole}</text>
+        </>}
+        {xAxis && <>
+          <text x={pad - 24} y={centerY} textAnchor="middle" dominantBaseline="middle" fontSize={14} className="fill-foreground font-semibold" transform={`rotate(-90, ${pad - 24}, ${centerY})`}>{xAxis.negativePole}</text>
+          <text x={width - pad + 24} y={centerY} textAnchor="middle" dominantBaseline="middle" fontSize={14} className="fill-foreground font-semibold" transform={`rotate(90, ${width - pad + 24}, ${centerY})`}>{xAxis.positivePole}</text>
+        </>}
+
+        {/* Points */}
+        {points.map(p => {
+          const x = p.x;
+          const y = p.y;
+          const valid = p.xValid && p.yValid;
+          const r = 8;
+
+          if (x === null || y === null) {
+            return null;
+          }
+          
+          const color = makerColorMap[p.maker] || makerColorMap.UNKNOWN;
+          const fill = color;
+          const opacity = valid ? 1.0 : 0.4;
+
+          const px = xToPx(Math.max(-1, Math.min(1, x)));
+          const py = yToPx(Math.max(-1, Math.min(1, y)));
+          return (
+            <g key={p.id}
+               onMouseEnter={() => setHover(p)}
+               onMouseLeave={() => setHover(null)}
+               opacity={hover && hover.id !== p.id ? 0.3 : 1}
+               className="transition-opacity"
+            >
+              <circle cx={px} cy={py} r={r} fill={fill} fillOpacity={opacity} stroke="hsl(var(--card-foreground))" strokeOpacity={0.2} />
+              <text x={px > centerX ? px - r - 4 : px + r + 4} y={py + 4} textAnchor={px > centerX ? 'end' : 'start'} fontSize={11} fontWeight="500" className="fill-foreground pointer-events-none">{getModelDisplayLabel(p.id, { hideProvider: true, prettifyModelName: true })}</text>
+            </g>
+          );
+        })}
+        {/* Hover tooltip */}
+        {hover && (() => {
+          const x = hover.x;
+          const y = hover.y;
+          if (x === null || y === null) return null;
+          const px = xToPx(Math.max(-1, Math.min(1, x)));
+          const py = yToPx(Math.max(-1, Math.min(1, y)));
+
+          const boxW = 180;
+          const boxH = 58;
+          const xPos = px > centerX ? px - boxW - 15 : px + 15;
+          const yPos = py - boxH / 2;
+          
+          const info = [
+            `${xAxis ? `${xAxis.positivePole} ↔ ${xAxis.negativePole}` : 'X-Axis'}: ${x.toFixed(2)}`,
+            `${yAxis ? `${yAxis.positivePole} ↔ ${yAxis.negativePole}` : 'Y-Axis'}: ${y.toFixed(2)}`,
+            `Contributing runs: ${hover.runs}`,
+          ];
+
+          return (
+            <g className="pointer-events-none" transform={`translate(${xPos}, ${yPos})`}>
+              <rect x="0" y="0" width={boxW} height={boxH} rx="4" fill="hsla(var(--popover), 0.9)" stroke="hsl(var(--border))" />
+              {info.map((line, i) => (
+                <text key={line} x="10" y={20 + i * 15} fontSize="11" className="fill-muted-foreground">{line}</text>
+              ))}
+            </g>
+          );
+        })()}
+      </svg>
+    </div>
+  );
+};
+
+type CompassSectionProps = {
+  title: string;
+  description: string;
+  compass: CompassIndex;
+  xAxisId: string;
+  yAxisId: string;
+  makerColorMap: Record<string, string>;
+};
+
+const CompassSection = ({ title, description, compass, xAxisId, yAxisId, makerColorMap }: CompassSectionProps) => {
+  if (!compass.axisMetadata?.[xAxisId] || !compass.axisMetadata?.[yAxisId]) {
+    return null;
+  }
+
+  return (
+    <div className="pt-6">
+      <div className="space-y-1 mb-4">
+        <h2 className="text-xl font-semibold">{title}</h2>
+        <p className="text-muted-foreground">{description}</p>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="lg:col-span-3">
+          <CompassChart
+            compass={compass}
+            xAxisId={xAxisId}
+            yAxisId={yAxisId}
+            makerColorMap={makerColorMap}
+          />
+        </div>
+        <div className="lg:col-span-1">
+          <Card>
+            <CardHeader>
+              <CardTitle>Legend</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {Object.entries(makerColorMap).map(([maker, color]) => (
+                <div key={maker} className="flex items-center space-x-2">
+                  <div className="w-4 h-4 rounded-full" style={{ backgroundColor: color }}></div>
+                  <span className="text-sm capitalize">{maker.toLowerCase()}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default function CompassPage() {
+  const [compass, setCompass] = React.useState<CompassIndex | null>(null);
+  const [loading, setLoading] = React.useState<boolean>(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [viewMode, setViewMode] = React.useState<'sliders' | 'spider'>('sliders');
+
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch('/api/compass');
+        if (mounted) {
+          if (res.ok) {
+            const json: CompassIndex = await res.json();
+            console.log('Compass data loaded:', json);
+            setCompass(json);
+          } else {
+            setError('Failed to load compass data');
+          }
+        }
+      } catch (e: any) {
+        if (mounted) setError(e?.message || 'Failed to load');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   const explorerModels = React.useMemo(() => {
     if (!compass?.axes || !compass?.axisMetadata) return [];
@@ -148,8 +298,6 @@ export default function CompassPage() {
     return models as { id: string, maker: string }[];
   }, [compass]);
 
-  const [hover, setHover] = React.useState<Point | null>(null);
-
   const axisRanges = React.useMemo(() => {
     if (!compass?.axes || !compass?.axisMetadata) return {};
     const ranges: Record<string, { min: number; max: number }> = {};
@@ -166,18 +314,6 @@ export default function CompassPage() {
     return ranges;
   }, [compass]);
 
-  const xAxis = compass?.axisMetadata?.['abstraction'];
-  const yAxis = compass?.axisMetadata?.['proactivity'];
-
-  const width = 900;
-  const height = 520;
-  const pad = 36;
-
-  const centerX = width / 2;
-  const centerY = height / 2;
-  const xToPx = (v: number) => centerX + v * ((width - pad * 2) / 2);
-  const yToPx = (v: number) => centerY - v * ((height - pad * 2) / 2);
-
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="space-y-1">
@@ -188,101 +324,26 @@ export default function CompassPage() {
       {loading && <div className="text-sm text-muted-foreground">Loading index…</div>}
       {error && <div className="text-sm text-red-600">{error}</div>}
       
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <div className="lg:col-span-3">
-          {/* Scatter */}
-          <div className="relative">
-            <svg width={width} height={height} className="w-full h-auto bg-card rounded-md border" viewBox={`0 0 ${width} ${height}`}>
-              {/* Crosshairs centered */}
-              <line x1={centerX} y1={pad} x2={centerX} y2={height - pad} stroke="hsl(var(--border))" strokeWidth={1} />
-              <line x1={pad} y1={centerY} x2={width - pad} y2={centerY} stroke="hsl(var(--border))" strokeWidth={1} />
-              
-              {/* Side labels */}
-              {yAxis && <>
-                <text x={centerX} y={pad - 12} textAnchor="middle" fontSize={14} className="fill-foreground font-semibold">{yAxis.positivePole}</text>
-                <text x={centerX} y={height - pad + 20} textAnchor="middle" fontSize={14} className="fill-foreground font-semibold">{yAxis.negativePole}</text>
-              </>}
-              {xAxis && <>
-                <text x={pad - 24} y={centerY} textAnchor="middle" dominantBaseline="middle" fontSize={14} className="fill-foreground font-semibold" transform={`rotate(-90, ${pad - 24}, ${centerY})`}>{xAxis.negativePole}</text>
-                <text x={width - pad + 24} y={centerY} textAnchor="middle" dominantBaseline="middle" fontSize={14} className="fill-foreground font-semibold" transform={`rotate(90, ${width - pad + 24}, ${centerY})`}>{xAxis.positivePole}</text>
-              </>}
-
-              {/* Points */}
-              {points.map(p => {
-                const x = p.x;
-                const y = p.y;
-                const valid = p.xValid && p.yValid;
-                const r = 8; // was pointSize
-
-                if (x === null || y === null) {
-                  return null;
-                }
-                
-                const color = makerColorMap[p.maker] || makerColorMap.UNKNOWN;
-                const fill = color;
-                const opacity = valid ? 1.0 : 0.4;
-
-                const px = xToPx(Math.max(-1, Math.min(1, x)));
-                const py = yToPx(Math.max(-1, Math.min(1, y)));
-                return (
-                  <g key={p.id}
-                     onMouseEnter={() => setHover(p)}
-                     onMouseLeave={() => setHover(null)}
-                     opacity={hover && hover.id !== p.id ? 0.3 : 1}
-                     className="transition-opacity"
-                  >
-                    <circle cx={px} cy={py} r={r} fill={fill} fillOpacity={opacity} stroke="hsl(var(--card-foreground))" strokeOpacity={0.2} />
-                    <text x={px > centerX ? px - r - 4 : px + r + 4} y={py + 4} textAnchor={px > centerX ? 'end' : 'start'} fontSize={11} fontWeight="500" className="fill-foreground pointer-events-none">{getModelDisplayLabel(p.id, { hideProvider: true, prettifyModelName: true })}</text>
-                  </g>
-                );
-              })}
-              {/* Hover tooltip */}
-              {hover && (() => {
-                const x = hover.x;
-                const y = hover.y;
-                if (x === null || y === null) return null;
-                const px = xToPx(Math.max(-1, Math.min(1, x)));
-                const py = yToPx(Math.max(-1, Math.min(1, y)));
-
-                const boxW = 180;
-                const boxH = 58;
-                const xPos = px > centerX ? px - boxW - 15 : px + 15;
-                const yPos = py - boxH / 2;
-                
-                const info = [
-                  `${xAxis ? `${xAxis.positivePole} ↔ ${xAxis.negativePole}` : 'X-Axis'}: ${x.toFixed(2)}`,
-                  `${yAxis ? `${yAxis.positivePole} ↔ ${yAxis.negativePole}` : 'Y-Axis'}: ${y.toFixed(2)}`,
-                  `Contributing runs: ${hover.runs}`,
-                ];
-
-                return (
-                  <g className="pointer-events-none" transform={`translate(${xPos}, ${yPos})`}>
-                    <rect x="0" y="0" width={boxW} height={boxH} rx="4" fill="hsla(var(--popover), 0.9)" stroke="hsl(var(--border))" />
-                    {info.map((line, i) => (
-                      <text key={line} x="10" y={20 + i * 15} fontSize="11" className="fill-muted-foreground">{line}</text>
-                    ))}
-                  </g>
-                );
-              })()}
-            </svg>
-          </div>
-        </div>
-        <div className="lg:col-span-1">
-          <Card>
-            <CardHeader>
-              <CardTitle>Legend</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {Object.entries(makerColorMap).map(([maker, color]) => (
-                <div key={maker} className="flex items-center space-x-2">
-                  <div className="w-4 h-4 rounded-full" style={{ backgroundColor: color }}></div>
-                  <span className="text-sm capitalize">{maker.toLowerCase()}</span>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+      {compass && (
+        <>
+          <CompassSection
+            title="Risk & Humility"
+            description="How models balance risk-taking with epistemic humility."
+            compass={compass}
+            xAxisId="risk-level"
+            yAxisId="epistemic-humility"
+            makerColorMap={makerColorMap}
+          />
+          <CompassSection
+            title="Style & Proactivity"
+            description="How models balance figurative language with proactivity."
+            compass={compass}
+            xAxisId="abstraction"
+            yAxisId="proactivity"
+            makerColorMap={makerColorMap}
+          />
+        </>
+      )}
 
       <div className="mt-12">
         <div className="space-y-1 mb-6">

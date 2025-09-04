@@ -185,9 +185,13 @@ const CapabilityLeaderboardDisplay: React.FC<{
         })}
       </div>
       
-      {/* Dev Mode Sliders */}
-      {rawData && (
-        <DevModeCapabilitySliders rawData={rawData} />
+      {/* Dev Mode link to dedicated tuning page */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="mt-8 text-center">
+          <Link href="/capability-tuning" className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground underline">
+            <Icon name="sliders-horizontal" className="w-3 h-3" /> Open Capability Tuning
+          </Link>
+        </div>
       )}
     </div>
   );

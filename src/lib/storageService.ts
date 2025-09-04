@@ -33,7 +33,7 @@ import {
     TopicChampion
 } from '@/cli/utils/summaryCalculationUtils';
 import { fromSafeTimestamp, toSafeTimestamp } from '@/lib/timestampUtils';
-import { ModelSummary } from '@/types/shared';
+// ModelSummary is imported below with other shared types to avoid duplication
 import { SearchableBlueprintSummary } from '@/cli/types/cli_types';
 import {
     RESULTS_DIR,
@@ -45,8 +45,9 @@ import {
     MODEL_CARDS_DIR
 } from '@/cli/constants';
 import { getConfig } from '@/cli/config';
-import { WevalResult } from '../types/shared';
+// WevalResult is imported below with other shared types to avoid duplication
 import pLimit from '@/lib/pLimit';
+import { WevalResult, ModelSummary, ModelRunPerformance, PainPointsSummary, RedlinesAnnotation } from '@/types/shared';
 
 const storageProvider = process.env.STORAGE_PROVIDER || (['development', 'test'].includes(process.env.NODE_ENV || '') ? 'local' : 's3');
 
@@ -1951,13 +1952,13 @@ export async function getVibesIndex(): Promise<VibesIndexContent | null> {
 }
 
 // --- Macro Canvas Artefacts (index, mappings, tiles) ---
+// Minimal storage context for modules that need direct access to primitives (e.g., macro storage helpers)
 export function getStorageContext() {
   return {
     storageProvider,
     s3Client,
     s3BucketName,
     RESULTS_DIR,
-    LIVE_DIR,
     streamToString,
     streamToBuffer,
   } as const;
@@ -2801,3 +2802,198 @@ export async function clearResultCache(configId: string, fileName: string): Prom
     console.warn(`[StorageService] Failed to clear cache for ${fileName}:`, err);
   }
 }
+
+export async function savePainPointsSummary(
+  summary: PainPointsSummary,
+): Promise<void> {
+  const filePath = 'live/summaries/pain_points.json';
+  const localPath = path.join(RESULTS_DIR, filePath);
+
+  if (storageProvider === 's3' && s3Client && s3BucketName) {
+    try {
+      await s3Client.send(
+        new PutObjectCommand({
+          Bucket: s3BucketName,
+          Key: filePath,
+          Body: JSON.stringify(summary, null, 2),
+          ContentType: 'application/json',
+        }),
+      );
+      console.log(`[StorageService] Pain Points summary saved to S3: ${filePath}`);
+    } catch (err) {
+      console.error(
+        `[StorageService] Error saving Pain Points summary to S3:`,
+        err,
+      );
+    }
+  } else if (storageProvider === 'local') {
+    try {
+      await fs.mkdir(path.dirname(localPath), { recursive: true });
+      await fs.writeFile(localPath, JSON.stringify(summary, null, 2), 'utf-8');
+      console.log(`[StorageService] Pain Points summary saved locally to ${localPath}`);
+    } catch (err) {
+      console.error(
+        `[StorageService] Error saving Pain Points summary locally:`,
+        err,
+      );
+    }
+  } else {
+    console.warn(
+      '[StorageService] No valid storage provider for savePainPointsSummary.',
+    );
+  }
+}
+
+export async function getPainPointsSummary(): Promise<PainPointsSummary | null> {
+  const filePath = 'live/summaries/pain_points.json';
+  const localPath = path.join(RESULTS_DIR, filePath);
+  let fileContent: string | null = null;
+
+  if (storageProvider === 's3' && s3Client && s3BucketName) {
+    try {
+      const { Body } = await s3Client.send(
+        new GetObjectCommand({ Bucket: s3BucketName, Key: filePath }),
+      );
+      if (Body) fileContent = await streamToString(Body as Readable);
+    } catch (err: any) {
+      if (err.name === 'NoSuchKey') return null;
+      console.error(
+        '[StorageService] Error fetching Pain Points summary from S3:',
+        err,
+      );
+      return null;
+    }
+  } else if (storageProvider === 'local') {
+    try {
+      if (fsSync.existsSync(localPath))
+        fileContent = await fs.readFile(localPath, 'utf-8');
+      else return null;
+    } catch (err) {
+      console.error(
+        '[StorageService] Error fetching Pain Points summary locally:',
+        err,
+      );
+      return null;
+    }
+  }
+
+  if (!fileContent) return null;
+  try {
+    return JSON.parse(fileContent) as PainPointsSummary;
+  } catch (err) {
+    console.error('[StorageService] Error parsing Pain Points summary:', err);
+    return null;
+  }
+}
+
+// --- Redlines (Span Critique) Artefacts ---
+export async function saveRedlinesAnnotation(ann: RedlinesAnnotation): Promise<void> {
+  const runBase = `${ann.runLabel}_${ann.timestamp}`;
+  const key = path.join(LIVE_DIR, 'painpoints', 'annotations', ann.configId, runBase, ann.promptId, `${getSafeModelId(ann.modelId)}.json`);
+  const localPath = path.join(RESULTS_DIR, key);
+  const body = JSON.stringify(ann, null, 2);
+  if (storageProvider === 's3' && s3Client && s3BucketName) {
+    await s3Client.send(new PutObjectCommand({ Bucket: s3BucketName, Key: key, Body: body, ContentType: 'application/json' }));
+  } else {
+    await fs.mkdir(path.dirname(localPath), { recursive: true });
+    await fs.writeFile(localPath, body, 'utf-8');
+  }
+
+
+}
+
+
+
+
+
+// --- Redlines single-feed (experimental, simple) ---
+interface RedlinesFeedContent { items: RedlinesAnnotation[]; lastUpdated: string }
+const REDLINES_FEED_KEY = path.join(LIVE_DIR, 'painpoints', 'redlines.json');
+
+export async function getRedlinesFeed(): Promise<RedlinesFeedContent | null> {
+  const localPath = path.join(RESULTS_DIR, REDLINES_FEED_KEY);
+  let body: string | null = null;
+  if (storageProvider === 's3' && s3Client && s3BucketName) {
+    try {
+      const { Body } = await s3Client.send(new GetObjectCommand({ Bucket: s3BucketName, Key: REDLINES_FEED_KEY }));
+      if (Body) body = await streamToString(Body as Readable);
+    } catch (err: any) {
+      if (err?.name === 'NoSuchKey') return null;
+      console.error('[StorageService] Error fetching Redlines feed from S3:', err);
+      return null;
+    }
+  } else {
+    try {
+      if (fsSync.existsSync(localPath)) body = await fs.readFile(localPath, 'utf-8'); else return null;
+    } catch (err) {
+      console.error('[StorageService] Error fetching Redlines feed locally:', err);
+      return null;
+    }
+  }
+  if (!body) return null;
+  try { return JSON.parse(body) as RedlinesFeedContent } catch (e) { console.error('[StorageService] Error parsing Redlines feed:', e); return null; }
+}
+
+export async function saveRedlinesFeed(content: RedlinesFeedContent): Promise<void> {
+  const localPath = path.join(RESULTS_DIR, REDLINES_FEED_KEY);
+  const body = JSON.stringify(content, null, 2);
+  if (storageProvider === 's3' && s3Client && s3BucketName) {
+    await s3Client.send(new PutObjectCommand({ Bucket: s3BucketName, Key: REDLINES_FEED_KEY, Body: body, ContentType: 'application/json' }));
+  } else {
+    await fs.mkdir(path.dirname(localPath), { recursive: true });
+    await fs.writeFile(localPath, body, 'utf-8');
+  }
+}
+
+export async function saveConfigRedlinesFeed(configId: string, content: RedlinesFeedContent): Promise<void> {
+  const configRedlinesKey = path.join(LIVE_DIR, 'painpoints', 'configs', configId, 'redlines.json');
+  const localPath = path.join(RESULTS_DIR, configRedlinesKey);
+  const body = JSON.stringify(content, null, 2);
+  if (storageProvider === 's3' && s3Client && s3BucketName) {
+    await s3Client.send(new PutObjectCommand({ Bucket: s3BucketName, Key: configRedlinesKey, Body: body, ContentType: 'application/json' }));
+  } else {
+    await fs.mkdir(path.dirname(localPath), { recursive: true });
+    await fs.writeFile(localPath, body, 'utf-8');
+  }
+}
+
+export async function getConfigRedlinesFeed(configId: string): Promise<RedlinesFeedContent | null> {
+  const configRedlinesKey = path.join(LIVE_DIR, 'painpoints', 'configs', configId, 'redlines.json');
+  const localPath = path.join(RESULTS_DIR, configRedlinesKey);
+  let body: string | null = null;
+  if (storageProvider === 's3' && s3Client && s3BucketName) {
+    try {
+      const { Body } = await s3Client.send(new GetObjectCommand({ Bucket: s3BucketName, Key: configRedlinesKey }));
+      if (Body) body = await streamToString(Body as Readable);
+    } catch (err: any) {
+      if (err?.name === 'NoSuchKey') return null;
+      console.error('[StorageService] Error fetching config Redlines feed from S3:', err);
+      return null;
+    }
+  } else {
+    try {
+      if (fsSync.existsSync(localPath)) body = await fs.readFile(localPath, 'utf-8'); else return null;
+    } catch (err) {
+      console.error('[StorageService] Error fetching config Redlines feed locally:', err);
+      return null;
+    }
+  }
+  if (!body) return null;
+  try { return JSON.parse(body) as RedlinesFeedContent } catch (e) { console.error('[StorageService] Error parsing config Redlines feed:', e); return null; }
+}
+
+export async function appendRedlinesFeed(entry: RedlinesAnnotation, maxItems: number = 10000): Promise<void> {
+  const current = (await getRedlinesFeed()) || { items: [], lastUpdated: new Date().toISOString() };
+  const key = `${entry.configId}|${entry.runLabel}|${entry.timestamp}|${entry.promptId}|${entry.modelId}|${entry.responseHash}`;
+  const seen = new Set(current.items.map(i => `${i.configId}|${i.runLabel}|${i.timestamp}|${i.promptId}|${i.modelId}|${i.responseHash}`));
+  if (!seen.has(key)) {
+    current.items.unshift(entry);
+    if (current.items.length > maxItems) current.items.length = maxItems;
+  }
+  current.lastUpdated = new Date().toISOString();
+  await saveRedlinesFeed(current);
+}
+
+// --- Macro Canvas Artefacts (index, mappings, tiles) ---
+
+export const MACRO_DIR = path.join(LIVE_DIR, 'macro');

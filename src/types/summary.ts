@@ -62,6 +62,7 @@ export interface CapabilityRawData {
   modelDimensions: Record<string, Record<string, number>>; // modelId -> dimension -> normalized_score (0-1)
   modelTopics: Record<string, Record<string, number>>;     // modelId -> topic -> score (0-1)
   modelConfigs: Record<string, Record<string, number>>;    // modelId -> configId -> score (0-1)
+  modelAxes?: Record<string, Record<string, number>>;      // modelId -> compassAxis -> value (0-1)
   qualifyingModels: string[]; // Models that meet the minimum thresholds globally
   capabilityQualifyingModels?: Record<string, string[]>; // capabilityId -> qualifying models for that capability
 }

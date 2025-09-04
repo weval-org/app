@@ -18,6 +18,8 @@
     "test:preference": "tsx src/cli/preference-test.ts",
     "test:self-preference": "tsx src/cli/self-preference-test.ts",
     "cli": "tsx --no-cache -r dotenv/config src/cli/index.ts",
+    "cli:generate-pain-points": "pnpm cli generate-pain-points",
+    "cli:annotate-pain-points": "pnpm cli annotate-pain-points",
     "prep-macro": "pnpm cli prep-macro",
     "cli:backfill-summary": "pnpm cli backfill-summary",
     "cli:repair-run": "pnpm cli repair-run",

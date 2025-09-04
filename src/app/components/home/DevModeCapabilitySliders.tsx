@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { CapabilityRawData, CapabilityLeaderboard, CapabilityScoreInfo } from './types';
 import { CAPABILITY_BUCKETS, CapabilityConfig } from '@/lib/capabilities';
 import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
@@ -10,19 +10,22 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 
 interface DevModeCapabilitySlidersProps {
   rawData: CapabilityRawData;
+  hideToggle?: boolean; // when true, always show sliders (no show/hide control)
 }
 
 interface SliderWeights {
   [capabilityId: string]: {
     dimensions: Record<string, number>;
     topics: Record<string, number>;
-    configs: Record<string, number>;
+    blueprints: Record<string, number>;
   };
 }
 
-const DevModeCapabilitySliders: React.FC<DevModeCapabilitySlidersProps> = ({ rawData }) => {
+const DevModeCapabilitySliders: React.FC<DevModeCapabilitySlidersProps> = ({ rawData, hideToggle }) => {
   const [showDevMode, setShowDevMode] = useState(false);
-  
+  const alwaysOpen = !!hideToggle;
+  const [expanded, setExpanded] = useState<Record<string, Set<string>>>({}); // bucketId -> set(modelId)
+
   // Initialize weights from current capability definitions
   const [weights, setWeights] = useState<SliderWeights>(() => {
     const capabilityWeights: SliderWeights = {};
@@ -30,7 +33,7 @@ const DevModeCapabilitySliders: React.FC<DevModeCapabilitySlidersProps> = ({ raw
     CAPABILITY_BUCKETS.forEach(bucket => {
       const dimensions: Record<string, number> = {};
       const topics: Record<string, number> = {};
-      const configs: Record<string, number> = {};
+      const blueprints: Record<string, number> = {};
       
       bucket.dimensions.forEach(dim => {
         dimensions[dim.key] = dim.weight;
@@ -40,87 +43,92 @@ const DevModeCapabilitySliders: React.FC<DevModeCapabilitySlidersProps> = ({ raw
         topics[topic.key] = topic.weight;
       });
       
-      bucket.configs?.forEach(config => {
-        configs[config.key] = config.weight;
+      (bucket.blueprints || bucket.configs)?.forEach(config => {
+        blueprints[config.key] = config.weight;
       });
+
       
-      capabilityWeights[bucket.id] = { dimensions, topics, configs };
+      capabilityWeights[bucket.id] = { dimensions, topics, blueprints };
     });
     
     return capabilityWeights;
   });
 
-  // Calculate dynamic leaderboards based on current weights
-  const dynamicLeaderboards = useMemo((): CapabilityLeaderboard[] => {
-    return CAPABILITY_BUCKETS.map(bucket => {
-      const modelScores: CapabilityScoreInfo[] = [];
-      
-      // Use per-capability qualifying models if available, otherwise fall back to global list
-      const capabilityQualifyingModels = rawData.capabilityQualifyingModels?.[bucket.id] || rawData.qualifyingModels;
-      
+  // Calculate dynamic leaderboards and per-model contribution breakdowns
+  const dynamicData = useMemo((): { leaderboards: CapabilityLeaderboard[]; breakdowns: Record<string, Record<string, { items: Array<{ kind: 'dimension' | 'topic' | 'blueprint'; key: string; raw: number; weight: number; effective: number; contribution: number }>; totalWeight: number; finalScore: number }>> } => {
+    const leaderboards: CapabilityLeaderboard[] = [];
+    const breakdowns: Record<string, Record<string, any>> = {};
 
-      
+    CAPABILITY_BUCKETS.forEach(bucket => {
+      const modelScores: CapabilityScoreInfo[] = [];
+      const perModel: Record<string, any> = {};
+
+      const capabilityQualifyingModels = rawData.capabilityQualifyingModels?.[bucket.id] || rawData.qualifyingModels;
+
       capabilityQualifyingModels.forEach(modelId => {
         let totalScore = 0;
         let totalWeight = 0;
         let contributingDimensions = 0;
-        
-        // Add dimension scores
+        const items: Array<{ kind: 'dimension' | 'topic' | 'blueprint'; key: string; raw: number; weight: number; effective: number; contribution: number }> = [];
+
+        // Dimensions
         bucket.dimensions.forEach(dim => {
-          const modelDimScore = rawData.modelDimensions[modelId]?.[dim.key];
-          if (modelDimScore !== undefined) {
+          const raw = rawData.modelDimensions[modelId]?.[dim.key];
+          if (raw !== undefined) {
             const weight = weights[bucket.id]?.dimensions[dim.key] || dim.weight;
-            totalScore += modelDimScore * weight;
+            const effective = dim.invert ? (1 - raw) : raw;
+            const contribution = effective * weight;
+            totalScore += contribution;
             totalWeight += weight;
             contributingDimensions++;
+            items.push({ kind: 'dimension', key: dim.key, raw, weight, effective, contribution });
           }
         });
-        
-        // Add topic scores
+
+        // Topics
         bucket.topics.forEach(topic => {
-          const modelTopicScore = rawData.modelTopics[modelId]?.[topic.key];
-          if (modelTopicScore !== undefined) {
+          const raw = rawData.modelTopics[modelId]?.[topic.key];
+          if (raw !== undefined) {
             const weight = weights[bucket.id]?.topics[topic.key] || topic.weight;
-            totalScore += modelTopicScore * weight;
+            const effective = topic.invert ? (1 - raw) : raw;
+            const contribution = effective * weight;
+            totalScore += contribution;
             totalWeight += weight;
+            items.push({ kind: 'topic', key: topic.key, raw, weight, effective, contribution });
           }
         });
-        
-        // Add config scores
-        bucket.configs?.forEach(config => {
-          const modelConfigScore = rawData.modelConfigs[modelId]?.[config.key];
-          if (modelConfigScore !== undefined) {
-            const weight = weights[bucket.id]?.configs[config.key] || config.weight;
-            totalScore += modelConfigScore * weight;
+
+        // Blueprints
+        (bucket.blueprints || bucket.configs)?.forEach(config => {
+          const raw = rawData.modelConfigs[modelId]?.[config.key];
+          if (raw !== undefined) {
+            const weight = weights[bucket.id]?.blueprints[config.key] || config.weight;
+            const effective = config.invert ? (1 - raw) : raw;
+            const contribution = effective * weight;
+            totalScore += contribution;
             totalWeight += weight;
+            items.push({ kind: 'blueprint', key: config.key, raw, weight, effective, contribution });
           }
         });
-        
+
         if (totalWeight > 0) {
           const finalScore = totalScore / totalWeight;
-          
-          // Trust the qualification from backfill - no need to re-check thresholds!
-          // rawData.qualifyingModels already contains only the models that passed
-          
           modelScores.push({
             modelId,
             averageScore: finalScore,
-            contributingRuns: Math.round(totalWeight * 4), // Rough estimate for display
+            contributingRuns: Math.round(totalWeight * 4),
             contributingDimensions,
           });
+          perModel[modelId] = { items, totalWeight, finalScore };
         }
       });
-      
-      // Sort by score and take top 10
-      modelScores.sort((a, b) => b.averageScore - a.averageScore);
-      
 
-      
-      return {
-        ...bucket,
-        leaderboard: modelScores.slice(0, 10),
-      };
+      modelScores.sort((a, b) => b.averageScore - a.averageScore);
+      leaderboards.push({ ...bucket, leaderboard: modelScores.slice(0, 10) });
+      breakdowns[bucket.id] = perModel;
     });
+
+    return { leaderboards, breakdowns };
   }, [rawData, weights]);
 
   const resetWeights = () => {
@@ -129,7 +137,7 @@ const DevModeCapabilitySliders: React.FC<DevModeCapabilitySlidersProps> = ({ raw
     CAPABILITY_BUCKETS.forEach(bucket => {
       const dimensions: Record<string, number> = {};
       const topics: Record<string, number> = {};
-      const configs: Record<string, number> = {};
+      const blueprints: Record<string, number> = {};
       
       bucket.dimensions.forEach(dim => {
         dimensions[dim.key] = dim.weight;
@@ -139,11 +147,11 @@ const DevModeCapabilitySliders: React.FC<DevModeCapabilitySlidersProps> = ({ raw
         topics[topic.key] = topic.weight;
       });
       
-      bucket.configs?.forEach(config => {
-        configs[config.key] = config.weight;
+      (bucket.blueprints || bucket.configs)?.forEach(config => {
+        blueprints[config.key] = config.weight;
       });
       
-      capabilityWeights[bucket.id] = { dimensions, topics, configs };
+      capabilityWeights[bucket.id] = { dimensions, topics, blueprints };
     });
     
     setWeights(capabilityWeights);
@@ -162,14 +170,15 @@ const DevModeCapabilitySliders: React.FC<DevModeCapabilitySlidersProps> = ({ raw
         </h3>
       </div>
       
-      <Collapsible open={showDevMode} onOpenChange={setShowDevMode}>
-        <CollapsibleTrigger asChild>
-          <Button variant="outline" size="sm" className="mb-4">
-            <Icon name={showDevMode ? "chevron-up" : "chevron-down"} className="w-4 h-4 mr-2" />
-            {showDevMode ? 'Hide' : 'Show'} Weight Sliders
-          </Button>
-        </CollapsibleTrigger>
-        
+      <Collapsible open={alwaysOpen ? true : showDevMode} onOpenChange={alwaysOpen ? undefined : setShowDevMode}>
+        {!alwaysOpen && (
+          <CollapsibleTrigger asChild>
+            <Button variant="outline" size="sm" className="mb-4">
+              <Icon name={showDevMode ? "chevron-up" : "chevron-down"} className="w-4 h-4 mr-2" />
+              {showDevMode ? 'Hide' : 'Show'} Weight Sliders
+            </Button>
+          </CollapsibleTrigger>
+        )}
         <CollapsibleContent>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Sliders Panel */}
@@ -322,13 +331,13 @@ const DevModeCapabilitySliders: React.FC<DevModeCapabilitySlidersProps> = ({ raw
                        </div>
                      </div>
                      
-                     {/* Configs for this capability */}
-                     {bucket.configs && bucket.configs.length > 0 && (
+                     {/* Blueprints for this capability */}
+                     {(bucket.blueprints || bucket.configs) && (bucket.blueprints || bucket.configs)!.length > 0 && (
                        <div>
-                         <h6 className="text-xs font-medium text-muted-foreground mb-2">Specific Evaluations</h6>
+                         <h6 className="text-xs font-medium text-muted-foreground mb-2">Specific Evaluations (Blueprints)</h6>
                          <div className="space-y-2">
-                           {bucket.configs.map(config => {
-                             const weight = weights[bucket.id]?.configs[config.key] || config.weight;
+                           {(bucket.blueprints || bucket.configs)!.map(config => {
+                             const weight = weights[bucket.id]?.blueprints[config.key] || config.weight;
                              
                              // Get top 3 models for this config
                              const configScores = Object.entries(rawData.modelConfigs)
@@ -375,8 +384,8 @@ const DevModeCapabilitySliders: React.FC<DevModeCapabilitySlidersProps> = ({ raw
                                      ...prev,
                                      [bucket.id]: {
                                        ...prev[bucket.id],
-                                       configs: {
-                                         ...prev[bucket.id]?.configs,
+                                       blueprints: {
+                                         ...prev[bucket.id]?.blueprints,
                                          [config.key]: parseFloat(e.target.value)
                                        }
                                      }
@@ -389,38 +398,72 @@ const DevModeCapabilitySliders: React.FC<DevModeCapabilitySlidersProps> = ({ raw
                          </div>
                        </div>
                      )}
+
                   </div>
                 ))}
               </div>
             </div>
             
             {/* Live Leaderboards */}
-            <div className="space-y-4">
+            <div className="space-y-4 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-2rem)] overflow-auto pr-1">
               <h4 className="font-semibold text-sm">Live Results</h4>
               <div className="grid grid-cols-1 gap-4">
-                {dynamicLeaderboards.map((bucket) => (
+                {dynamicData.leaderboards.map((bucket) => (
                   <div key={bucket.id} className="border rounded-lg p-3 bg-background">
                     <div className="flex items-center gap-2 mb-3">
                       <Icon name={bucket.icon as any} className="w-4 h-4 text-primary" />
                       <h5 className="font-medium text-sm">{bucket.label}</h5>
                     </div>
                     <ol className="space-y-1 list-decimal list-inside">
-                      {bucket.leaderboard.slice(0, 5).map((model) => (
-                        <li key={model.modelId} className="text-xs">
-                          <div className="inline-flex justify-between items-center w-full">
-                            <span className="font-medium truncate">
-                              {getModelDisplayLabel(model.modelId, {
-                                hideProvider: true,
-                                hideModelMaker: true,
-                                prettifyModelName: true,
-                              })}
-                            </span>
-                            <span className="font-semibold ml-2">
-                              {(model.averageScore * 100).toFixed(0)}%
-                            </span>
-                          </div>
-                        </li>
-                      ))}
+                      {bucket.leaderboard.slice(0, 5).map((model) => {
+                        const breakdown = dynamicData.breakdowns[bucket.id]?.[model.modelId];
+                        const isOpen = expanded[bucket.id]?.has(model.modelId) || false;
+                        const toggle = () => {
+                          setExpanded(prev => {
+                            const setForBucket = new Set(prev[bucket.id] || []);
+                            if (setForBucket.has(model.modelId)) setForBucket.delete(model.modelId); else setForBucket.add(model.modelId);
+                            return { ...prev, [bucket.id]: setForBucket };
+                          });
+                        };
+                        return (
+                          <li key={model.modelId} className="text-xs">
+                            <button onClick={toggle} className="w-full inline-flex justify-between items-center gap-2 hover:text-foreground">
+                              <span className="inline-flex items-center gap-1 min-w-0">
+                                <Icon name={isOpen ? 'chevron-down' : 'chevron-right'} className="w-3 h-3 flex-shrink-0" />
+                                <span className="font-medium truncate">
+                                  {getModelDisplayLabel(model.modelId, {
+                                    hideProvider: true,
+                                    hideModelMaker: true,
+                                    prettifyModelName: true,
+                                  })}
+                                </span>
+                              </span>
+                              <span className="font-semibold ml-2">
+                                {(model.averageScore * 100).toFixed(0)}%
+                              </span>
+                            </button>
+                            {breakdown && isOpen && (
+                              <div className="mt-1 text-[10px] text-muted-foreground border-t pt-1 space-y-0.5">
+                                {breakdown.items.map((item: any, idx: number) => {
+                                  const pct = breakdown.totalWeight > 0 ? (item.contribution / breakdown.totalWeight) * 100 : 0;
+                                  const kindLabel = item.kind === 'blueprint' ? 'bp' : item.kind === 'dimension' ? 'dim' : 'topic';
+                                  return (
+                                    <div key={idx} className="flex justify-between gap-2">
+                                      <span className="truncate">
+                                        {kindLabel}:{' '}
+                                        <span className="font-mono">{item.key}</span>
+                                      </span>
+                                      <span className="font-mono">
+                                        +{(item.contribution * 100).toFixed(1)}% ({pct.toFixed(0)}%)
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </li>
+                        );
+                      })}
                     </ol>
                   </div>
                 ))}

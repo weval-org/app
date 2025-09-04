@@ -345,7 +345,9 @@ export const EvaluationView: React.FC<{
                                     />
                                 ) : (
                                     <div className="space-y-2">
-                                        <p className="italic text-muted-foreground">Loading intermediary turns…</p>
+                                        {!modelResponse && (
+                                            <p className="italic text-muted-foreground">Loading intermediary turns…</p>
+                                        )}
                                         {modelResponse && (
                                             <div className="prose prose-sm dark:prose-invert max-w-none">
                                                 <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{modelResponse}</ReactMarkdown>
@@ -376,7 +378,9 @@ export const EvaluationView: React.FC<{
                                 />
                             ) : (
                                 <div className="space-y-2">
-                                    <p className="italic text-muted-foreground">Loading intermediary turns…</p>
+                                    {!modelResponse && (
+                                        <p className="italic text-muted-foreground">Loading intermediary turns…</p>
+                                    )}
                                     {modelResponse && (
                                         <div className="prose prose-sm dark:prose-invert max-w-none">
                                             <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{modelResponse}</ReactMarkdown>
@@ -443,7 +447,9 @@ export const EvaluationView: React.FC<{
                                 />
                             ) : (
                                 <div className="space-y-2">
-                                    <p className="italic text-muted-foreground">Loading intermediary turns…</p>
+                                    {!modelResponse && (
+                                        <p className="italic text-muted-foreground">Loading intermediary turns…</p>
+                                    )}
                                     {modelResponse && (
                                         <div className="prose prose-sm dark:prose-invert max-w-none">
                                             <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{modelResponse}</ReactMarkdown>
@@ -474,7 +480,9 @@ export const EvaluationView: React.FC<{
                             />
                         ) : (
                             <div className="space-y-2">
-                                <p className="italic text-muted-foreground">Loading intermediary turns…</p>
+                                {!modelResponse && (
+                                    <p className="italic text-muted-foreground">Loading intermediary turns…</p>
+                                )}
                                 {modelResponse && (
                                     <div className="prose prose-sm dark:prose-invert max-w-none">
                                         <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{modelResponse}</ReactMarkdown>

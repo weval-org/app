@@ -136,29 +136,21 @@ export function calculateHeadlineStats(
   logger?: SimpleLogger,
 ): HeadlineStats {
   const testTaggedConfigs = new Set<string>();
-  const compassTaggedConfigs = new Set<string>();
   allConfigs.forEach((config) => {
     const tags = config.tags || [];
     if (tags.includes('test')) {
       testTaggedConfigs.add(config.id || config.configId);
-    }
-    if (tags.some(t => typeof t === 'string' && t.startsWith('_compass'))) {
-      compassTaggedConfigs.add(config.id || config.configId);
     }
   });
 
   if (testTaggedConfigs.size > 0) {
     console.log(`[calculateHeadlineStats] Found ${testTaggedConfigs.size} configs with "test" tag. Excluding them from calculations.`);
   }
-  if (compassTaggedConfigs.size > 0) {
-    console.log(`[calculateHeadlineStats] Found ${compassTaggedConfigs.size} configs with "_compass" tag. Excluding them from calculations.`);
-  }
 
   const filteredConfigs = allConfigs.filter(config => {
     const tags = config.tags || [];
     const isTest = tags.includes('test');
-    const isCompass = tags.some(t => typeof t === 'string' && t.startsWith('_compass'));
-    return !(isTest || isCompass);
+    return !isTest;
   });
 
   if (filteredConfigs.length === 0) {
@@ -504,10 +496,10 @@ export function calculateHeadlineStats(
     })
     .sort((a, b) => b.overallAverageHybridScore - a.overallAverageHybridScore);
 
-  // Build config model scores ONLY for configs referenced in capability definitions
+  // Build config model scores ONLY for configs/blueprints referenced in capability definitions
   const referencedConfigIds = new Set<string>();
   CAPABILITY_BUCKETS.forEach(bucket => {
-    bucket.configs?.forEach(config => {
+    (bucket.blueprints || bucket.configs)?.forEach(config => {
       referencedConfigIds.add(config.key);
     });
   });
@@ -679,7 +671,7 @@ export function calculateCapabilityLeaderboards(
       }
 
       CAPABILITY_BUCKETS.forEach(bucket => {
-        const matchingConfig = bucket.configs?.find(c => c.key === configId);
+        const matchingConfig = (bucket.blueprints || bucket.configs)?.find(c => c.key === configId);
         if (matchingConfig) {
           // For config contributions, we don't have explicit run details, so we create a synthetic runId
           // This assumes the config score represents the latest run from that config

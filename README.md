@@ -441,6 +441,45 @@ Notes:
 - Operates on base model IDs (variants collapsed via baseId parsing).
 - Excludes the IDEAL model from similarity.
 
+### `generate-pain-points`
+
+Generates a summary of the worst model completions ("Pain Points") by scanning the latest runs of all blueprints. It identifies completions with very low rubric scores and aggregates them into a single file for review on the `/pain-points` page.
+
+```bash
+pnpm cli generate-pain-points
+```
+
+- `--min <number>`: Minimum score for a completion to be considered a pain point. **Default: 0.1**.
+- `--max <number>`: Maximum score for a completion to be considered a pain point. **Default: 0.5**.
+- `--limit <number>`: Maximum number of pain points to include in the summary. **Default: 500**.
+- `--threshold <number>`: Legacy alias for `--max`.
+- `--dry-run`: Log what would be generated without saving the summary file.
+- `-v, --verbose`: Enable verbose logging.
+
+### `annotate-pain-points` (Redlines)
+
+Annotates a selected subset of Pain Points with span-level critiques ("Redlines") that highlight exact text spans which violate or satisfy rubric points. Results are viewable at the dedicated Redlines page.
+
+```bash
+pnpm cli annotate-pain-points --min 0.2 --max 0.4 --min-len 200 --max-len 1000 --limit 50 --pluck-from-config-max 10
+```
+
+- `--min <number>`: Minimum coverage score. **Default: 0.2**
+- `--max <number>`: Maximum coverage score. **Default: 0.4**
+- `--min-len <number>`: Minimum response length. **Default: 200**
+- `--max-len <number>`: Maximum response length. **Default: 1000**
+- `--limit <number>`: Maximum items to annotate. **Default: 50**
+- `--pluck-from-config-max <number>`: Maximum items to take from each config. **Default: 10**
+- `--concurrency <number>`: Parallelism. **Default: 4**
+- `--model <id>`: LLM to use. **Default: `openrouter:google/gemini-2.5-flash`**
+- `--temperature <number>`: LLM temperature. **Default: 0.1**
+- `--ignore-tags <tags>`: Comma-separated list of blueprint tags to ignore. Also ignores tags starting with `_` and the tag `test` by default.
+- `--dry-run`: Show selections without annotating.
+- `-v, --verbose`: Verbose selection logging.
+
+UI:
+- Redlines are viewable on the main `/redlines` feed and on per-config `/redlines/{configId}` pages.
+
 ### `demo-example-with-fixtures`
 
 Run an example blueprint with its fixtures and print the result to stdout without saving.

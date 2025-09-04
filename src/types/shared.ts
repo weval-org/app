@@ -306,6 +306,47 @@ export interface ModelSummary {
   lastUpdated: string;
 }
 
+export interface PainPoint {
+    configId: string;
+    configTitle: string;
+    runLabel: string;
+    timestamp: string;
+    promptId: string;
+    promptContext: any; // string | ConversationMessage[]
+    modelId: string;
+    responseText: string;
+    coverageScore: number;
+    failedCriteria: {
+        criterion: string;
+        score: number | null;
+        weight: number;
+        reflection: string | null;
+    }[];
+}
+
+export interface PainPointsSummary {
+    painPoints: PainPoint[];
+    generatedAt: string;
+}
+
+export interface RedlinesAnnotation {
+    configId: string;
+    runLabel: string;
+    timestamp: string;
+    promptId: string;
+    modelId: string;
+    responseHash: string;
+    responseText: string;
+    
+    // XML-based format fields
+    annotatedResponse: string; // Response text with inline <praise>/<deficit> tags
+    additionalIssues: Array<{ content: string; point?: string }>; // Deficits not tied to specific spans
+    
+    rubricPoints: string[];
+    llm: { modelId: string; temperature: number };
+    createdAt: string;
+}
+
 export interface RunLabelStats {
     totalRuns: number;
     latestRunTimestamp: string;

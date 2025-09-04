@@ -63,7 +63,7 @@ export async function actionGenerateVibesIndex(options: { dryRun?: boolean; verb
         });
         // Accumulate capability scores for buckets that reference this config
         try {
-          const matchingBuckets = CAPABILITY_BUCKETS.filter(b => b.configs?.some(c => c.key === runData.configId));
+          const matchingBuckets = CAPABILITY_BUCKETS.filter(b => (b.blueprints || b.configs)?.some(c => c.key === runData.configId));
           if (matchingBuckets.length > 0) {
             perModel.forEach((stats, fullId) => {
               if (fullId === IDEAL_MODEL_ID) return;
@@ -71,7 +71,7 @@ export async function actionGenerateVibesIndex(options: { dryRun?: boolean; verb
               const val = stats.hybrid.average; // 0..1 or null
               if (val === null || val === undefined || !isFinite(val)) return;
               for (const bucket of matchingBuckets) {
-                const weight = bucket.configs!.find(c => c.key === runData.configId)!.weight || 1;
+                const weight = (bucket.blueprints || bucket.configs)!.find(c => c.key === runData.configId)!.weight || 1;
                 if (!capabilityAccum.has(baseId)) capabilityAccum.set(baseId, new Map());
                 const inner = capabilityAccum.get(baseId)!;
                 const rec = inner.get(bucket.id) || { weightedSum: 0, weightSum: 0, contributingRuns: 0 };

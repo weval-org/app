@@ -43,6 +43,8 @@ import { demoExampleWithFixturesCommand } from './commands/demo-example-with-fix
 import { prepMacroCommand } from './commands/prep-macro';
 import { litRoundCommand } from './commands/lit-round';
 import { backfillArticleCommand } from './commands/backfill-article';
+import { generatePainPointsCommand } from './commands/generate-pain-points';
+import { annotatePainPointsCommand } from './commands/annotate-pain-points';
 
 let isTerminating = false
 const cleanup = () => {
@@ -124,6 +126,8 @@ cli.addCommand(generateCompassIndexCommand);
 cli.addCommand(demoExampleWithFixturesCommand);
 cli.addCommand(prepMacroCommand);
 cli.addCommand(litRoundCommand);
+cli.addCommand(generatePainPointsCommand);
+cli.addCommand(annotatePainPointsCommand);
 
 cli.parseAsync(process.argv).catch(err => {
   console.error('CLI Error:', err); 
