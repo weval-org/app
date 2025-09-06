@@ -20,6 +20,8 @@ import {
 import {
   EnhancedComparisonConfigInfo,
   EnhancedRunInfo,
+  AllCoverageScores,
+  PerModelScoreStats,
 } from '@/app/utils/homepageDataUtils';
 import type { CapabilityLeaderboard, CapabilityRawData } from '../types/summary';
 import type { AggregateStatsData } from '@/app/components/home/types';
@@ -48,20 +50,21 @@ import { getConfig } from '@/cli/config';
 // WevalResult is imported below with other shared types to avoid duplication
 import pLimit from '@/lib/pLimit';
 import { WevalResult, ModelSummary, ModelRunPerformance, PainPointsSummary, RedlinesAnnotation } from '@/types/shared';
+import { TopicChampionInfo } from '@/app/components/home/types';
 
 const storageProvider = process.env.STORAGE_PROVIDER || (['development', 'test'].includes(process.env.NODE_ENV || '') ? 'local' : 's3');
 
 // Define and export the new summary structure type
 export interface HomepageSummaryFileContent {
   configs: EnhancedComparisonConfigInfo[];
-  headlineStats: AggregateStatsData | null;
+  headlineStats: any; // Consider creating a specific type for this
   driftDetectionResult: PotentialDriftInfo | null;
-  topicChampions?: Record<string, TopicChampion[]>;
-  capabilityLeaderboards?: CapabilityLeaderboard[];
-  capabilityRawData?: CapabilityRawData;
-  modelCardMappings?: Record<string, string>; // Maps model IDs to their card patterns (e.g. "openai:gpt-4o-2024-11-20" -> "gpt-4o")
   lastUpdated: string;
-  fileSizeKB?: number; // File size in KB for debugging purposes
+  capabilityLeaderboards?: CapabilityLeaderboard[] | null;
+  topicChampions?: Record<string, TopicChampionInfo[]> | null;
+  capabilityRawData?: CapabilityRawData | null;
+  modelCardMappings?: Record<string, string>; // model variant -> card base model
+  fileSizeKB?: number;
 }
 
 // --- New Types for Latest Runs Summary ---
@@ -114,7 +117,7 @@ if (storageProvider === 's3') {
 
 export const streamToString = (stream: Readable): Promise<string> =>
   new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
+    const chunks: any[] = [];
     stream.on('data', (chunk) => chunks.push(chunk));
     stream.on('error', reject);
     stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
@@ -146,17 +149,27 @@ function getSafeModelId(modelId: string): string {
 // Helper types for serialization
 type SerializableScoreMap = Record<string, { average: number | null; stddev: number | null }>;
 
-interface SerializableEnhancedRunInfo extends Omit<EnhancedRunInfo, 'perModelScores' | 'perModelHybridScores'> {
-  perModelScores?: Record<string, any>;
-  perModelHybridScores?: SerializableScoreMap;
+interface SerializableEnhancedRunInfo extends Omit<EnhancedRunInfo, 'perModelScores'> {
+    perModelScores?: Record<string, PerModelScoreStats>;
+    perModelHybridScores?: Record<string, { average: number | null, stddev?: number | null }>;
 }
 
 interface SerializableEnhancedComparisonConfigInfo extends Omit<EnhancedComparisonConfigInfo, 'runs'> {
   runs: SerializableEnhancedRunInfo[];
 }
 
-interface SerializableHomepageSummaryFileContent extends Omit<HomepageSummaryFileContent, 'configs'> {
-  configs: SerializableEnhancedComparisonConfigInfo[];
+interface SerializableCapabilityRawData {
+    modelDimensions: Record<string, Record<string, number>>;
+    modelTopics: Record<string, Record<string, number>>;
+    modelConfigs: Record<string, Record<string, number>>;
+    modelAxes?: Record<string, Record<string, number>>;
+    qualifyingModels: string[];
+    capabilityQualifyingModels?: Record<string, string[]>;
+}
+
+interface SerializableHomepageSummaryFileContent extends Omit<HomepageSummaryFileContent, 'configs' | 'capabilityRawData'> {
+    configs: (Omit<EnhancedComparisonConfigInfo, 'runs'> & { runs: SerializableEnhancedRunInfo[] })[];
+    capabilityRawData?: SerializableCapabilityRawData;
 }
 
 // --- New Serializable Types for Latest Runs Summary ---
@@ -255,7 +268,7 @@ export async function saveHomepageSummary(summaryData: HomepageSummaryFileConten
   const serializableConfigs = summaryData.configs.map(config => ({
     ...config,
     runs: config.runs.map(run => {
-      const serializableRun: SerializableEnhancedRunInfo = { ...run };
+      const serializableRun: SerializableEnhancedRunInfo = { ...run, perModelScores: undefined };
       
       // Handle the new perModelScores (Map -> object)
       if (run.perModelScores) {
@@ -276,9 +289,23 @@ export async function saveHomepageSummary(summaryData: HomepageSummaryFileConten
     }),
   }));
 
+  // Serialize capabilityRawData if it exists
+  let serializableCapabilityRawData: SerializableCapabilityRawData | undefined = undefined;
+  if (summaryData.capabilityRawData) {
+    serializableCapabilityRawData = {
+        modelDimensions: summaryData.capabilityRawData.modelDimensions,
+        modelTopics: summaryData.capabilityRawData.modelTopics,
+        modelConfigs: summaryData.capabilityRawData.modelConfigs,
+        modelAxes: summaryData.capabilityRawData.modelAxes,
+        qualifyingModels: summaryData.capabilityRawData.qualifyingModels,
+        capabilityQualifyingModels: summaryData.capabilityRawData.capabilityQualifyingModels,
+    };
+  }
+
   const serializableSummary: SerializableHomepageSummaryFileContent = {
     ...summaryData,
     configs: serializableConfigs,
+    capabilityRawData: serializableCapabilityRawData,
   };
 
   const fileContent = JSON.stringify(serializableSummary, null, 2);
@@ -1724,9 +1751,32 @@ export interface VibesIndexContent {
 }
 
 // --- Compass Index Types and Storage Functions ---
+export interface CompassExemplar {
+  promptId: string;
+  promptText: string; // The actual prompt for context
+  modelId: string;
+  modelResponse: string;
+  coverageScore: number;
+  axisScore: number; // how strongly this response exhibits the pole characteristic
+  configId: string;
+  runLabel: string;
+  timestamp: string;
+}
+
+export interface CompassComparisonPair {
+  promptText: string;
+  positiveExemplar: CompassExemplar;
+  negativeExemplar: CompassExemplar;
+}
+
+export interface CompassAxisExemplars {
+  comparisonPairs?: CompassComparisonPair[];
+}
+
 export interface CompassIndexContent {
   axes: Record<string, Record<string, { value: number | null; runs: number }>>;
   axisMetadata?: Record<string, { id: string; positivePole: string; negativePole: string }>;
+  exemplars?: Record<string, CompassAxisExemplars>; // bipolar axis id -> exemplars
   generatedAt: string;
 }
 

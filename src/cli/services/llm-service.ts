@@ -63,6 +63,9 @@ export async function getModelResponse(params: GetModelResponseParams): Promise<
         return base.length > 0 ? base : undefined;
     })();
 
+    const totalChars = (canonicalMessagesForHash || []).reduce((acc, msg) => acc + (msg.content?.length || 0), 0);
+    const heuristicTokenCount = Math.round(totalChars / 3);
+
     const canonicalKeyPayload = {
         modelId,
         messages: canonicalMessagesForHash,
@@ -111,7 +114,7 @@ export async function getModelResponse(params: GetModelResponseParams): Promise<
         try {
             const cachedResponse = await llmCache.get(cacheKey);
             if (cachedResponse) {
-                logger.info(`[LLM Service] Cache HIT for ${modelId}. Key: ${cacheKey.slice(0, 8)}...`);
+                logger.info(`[LLM Service] Cache HIT for ${modelId}. Tokens: ~${heuristicTokenCount}. Key: ${cacheKey.slice(0, 8)}...`);
                 return cachedResponse;
             }
         } catch (error) {
@@ -119,7 +122,7 @@ export async function getModelResponse(params: GetModelResponseParams): Promise<
         }
     }
     
-    logger.info(`[LLM Service] Cache MISS for ${modelId}. Key: ${cacheKey.slice(0, 8)}... Calling API...`);
+    logger.info(`[LLM Service] Cache MISS for ${modelId}. Tokens: ~${heuristicTokenCount}. Key: ${cacheKey.slice(0, 8)}... Calling API...`);
 
     const requestPayload: LLMApiCallOptions = {
         modelId,

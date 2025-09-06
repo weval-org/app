@@ -394,7 +394,7 @@ export async function executeComparisonPipeline(
 
     // Step 3: Run selected evaluation methods
     const evaluators: Evaluator[] = [
-        new EmbeddingEvaluator(logger),
+        new EmbeddingEvaluator(logger, useCache),
         new LLMCoverageEvaluator(logger, useCache),
     ];
 

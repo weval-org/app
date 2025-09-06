@@ -23,6 +23,8 @@ interface CloneOptions {
   fixtures?: string;
   fixturesStrict?: boolean;
   concurrency?: number | string;
+  requireExecutiveSummary?: boolean;
+  skipExecutiveSummary?: boolean;
 }
 
 function buildEffectiveId(baseModelId: string, temp: number | undefined, systems: (string | null | undefined)[] | undefined, spIdx: number): string {
@@ -151,6 +153,7 @@ async function actionCloneRun(sourceIdentifier: string, options: CloneOptions) {
   }
 
   let targetConfig: ComparisonConfig;
+  let blueprintPathForPipeline: string | undefined = options.config;
   if (!options.config) {
     // Try to load blueprint by name from GitHub (same behavior as run-config github)
     logger.info(`No --config provided. Attempting to fetch blueprint '${sourceConfigId}' from GitHub...`);
@@ -164,6 +167,7 @@ async function actionCloneRun(sourceIdentifier: string, options: CloneOptions) {
         isRemote: true,
       });
       logger.info(`Loaded blueprint '${sourceConfigId}' from GitHub.`);
+      blueprintPathForPipeline = remote.blueprintPath;
       
       // Log captured metadata for observability
       const title = targetConfig.title || targetConfig.configTitle;
@@ -384,9 +388,9 @@ async function actionCloneRun(sourceIdentifier: string, options: CloneOptions) {
     undefined,
     useCache,
     undefined,
-    options.config,
-    undefined,
-    undefined,
+    blueprintPathForPipeline,
+    options.requireExecutiveSummary,
+    options.skipExecutiveSummary,
     { genTimeoutMs, genRetries },
     prefilledCoverage
   );
@@ -427,6 +431,9 @@ export const cloneRunCommand = new Command('clone-run')
   .option('--update-summaries', 'Also update summaries (homepage, latest runs, model summaries) like run-config when STORAGE_PROVIDER=s3 or UPDATE_LOCAL_SUMMARY=true.')
   .option('--fixtures <nameOrPath>', 'Optional fixtures for generation of missing pairs. Local path or repo name (not fetched automatically in clone-run).')
   .option('--fixtures-strict', 'Error when a fixture for a prompt×model is missing instead of generating live.', false)
+  .option('--concurrency <number>', 'Concurrency for generating missing pairs and fetching coverage reuse.', '8')
+  .option('--require-executive-summary', 'Fail the entire run if executive summary generation fails (defaults to false).', false)
+  .option('--skip-executive-summary', 'Skip generating the executive summary for this run.', false)
   .action(actionCloneRun);
 
 

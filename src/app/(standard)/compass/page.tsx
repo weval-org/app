@@ -2,26 +2,37 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { extractMakerFromModelId, getModelDisplayLabel } from '@/app/utils/modelIdUtils';
+import { MAKER_COLORS } from '@/app/utils/makerColors';
+// import PolesSpectrum from './PolesSpectrum';
+import LinkedPolesSpectrum from './LinkedPolesSpectrum';
+
+type CompassExemplar = {
+  promptId: string;
+  promptText: string;
+  modelId: string;
+  modelResponse: string;
+  coverageScore: number;
+  axisScore: number;
+  configId: string;
+  runLabel: string;
+  timestamp: string;
+};
+
+type CompassAxisExemplars = {
+  mostPositivePole?: CompassExemplar;
+  mostNegativePole?: CompassExemplar;
+  differentiatingPromptId?: string;
+  varianceScore?: number;
+};
 
 type CompassIndex = {
   axes: Record<string, Record<string, { value: number | null; runs: number }>>;
   axisMetadata?: Record<string, { id:string; positivePole: string; negativePole: string }>;
+  exemplars?: Record<string, CompassAxisExemplars>;
   generatedAt: string;
 };
 
-const makerColorMap: Record<string, string> = {
-  OPENAI: '#10a37f',
-  ANTHROPIC: '#d97706',
-  GOOGLE: '#4285F4',
-  META: '#0c87ef',
-  MISTRALAI: '#ff7f0e',
-  DEEPSEEK: '#8B5CF6',
-  XAI: '#171717',
-  COHERE: '#db2777',
-  'Z-AI': '#0ea5e9', // for openrouter:z-ai/glm-4.5
-  MOONSHOT: '#5eead4',
-  UNKNOWN: '#9ca3af',
-};
+const makerColorMap: Record<string, string> = MAKER_COLORS;
 
 type Point = {
   id: string;
@@ -243,11 +254,239 @@ const CompassSection = ({ title, description, compass, xAxisId, yAxisId, makerCo
   );
 };
 
+type InteractiveCompassSectionProps = {
+  compass: CompassIndex;
+  makerColorMap: Record<string, string>;
+};
+
+const InteractiveCompassSection = ({ compass, makerColorMap }: InteractiveCompassSectionProps) => {
+  const [xAxisId, setXAxisId] = React.useState<string>('abstraction');
+  const [yAxisId, setYAxisId] = React.useState<string>('proactivity');
+
+  const availableAxes = React.useMemo(() => {
+    if (!compass.axisMetadata) return [];
+    return Object.values(compass.axisMetadata).filter(axis => 
+      compass.axes[axis.id] && Object.keys(compass.axes[axis.id]).length > 0
+    );
+  }, [compass]);
+
+  // Ensure default selections are valid
+  React.useEffect(() => {
+    if (availableAxes.length > 0) {
+      const validXAxis = availableAxes.find(axis => axis.id === xAxisId);
+      const validYAxis = availableAxes.find(axis => axis.id === yAxisId);
+      
+      if (!validXAxis) {
+        setXAxisId(availableAxes[0].id);
+      }
+      if (!validYAxis) {
+        setYAxisId(availableAxes[Math.min(1, availableAxes.length - 1)].id);
+      }
+    }
+  }, [availableAxes, xAxisId, yAxisId]);
+
+  const formatAxisName = (axisId: string) => {
+    return axisId
+      .replace(/_/g, ' ')
+      .replace(/-/g, ' ')
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
+
+  const currentXAxis = compass.axisMetadata?.[xAxisId];
+  const currentYAxis = compass.axisMetadata?.[yAxisId];
+
+  return (
+    <div className="pt-6">
+      <div className="space-y-1 mb-4">
+        <h2 className="text-xl font-semibold">Axis Comparison</h2>
+        <p className="text-muted-foreground">Compare models across any two behavioral dimensions.</p>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div>
+          <label className="block text-sm font-medium mb-2">Horizontal Axis</label>
+          <select 
+            value={xAxisId} 
+            onChange={(e) => setXAxisId(e.target.value)}
+            className="w-full p-2 border border-input bg-background rounded-md text-sm"
+          >
+            {availableAxes.map(axis => (
+              <option key={axis.id} value={axis.id}>
+                {formatAxisName(axis.id)} ({axis.negativePole} ↔ {axis.positivePole})
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-2">Vertical Axis</label>
+          <select 
+            value={yAxisId} 
+            onChange={(e) => setYAxisId(e.target.value)}
+            className="w-full p-2 border border-input bg-background rounded-md text-sm"
+          >
+            {availableAxes.map(axis => (
+              <option key={axis.id} value={axis.id}>
+                {formatAxisName(axis.id)} ({axis.negativePole} ↔ {axis.positivePole})
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {currentXAxis && currentYAxis && (
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="lg:col-span-3">
+            <CompassChart
+              compass={compass}
+              xAxisId={xAxisId}
+              yAxisId={yAxisId}
+              makerColorMap={makerColorMap}
+            />
+          </div>
+          <div className="lg:col-span-1">
+            <Card>
+              <CardHeader>
+                <CardTitle>Legend</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {Object.entries(makerColorMap).map(([maker, color]) => (
+                  <div key={maker} className="flex items-center space-x-2">
+                    <div className="w-4 h-4 rounded-full" style={{ backgroundColor: color }}></div>
+                    <span className="text-sm capitalize">{maker.toLowerCase()}</span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+type ExemplarsSectionProps = {
+  compass: CompassIndex;
+};
+
+const ExemplarsSection = ({ compass }: ExemplarsSectionProps) => {
+  if (!compass.exemplars || !compass.axisMetadata) {
+    return null;
+  }
+
+  const availableExemplars = Object.entries(compass.exemplars).filter(([axisId, exemplars]) => 
+    compass.axisMetadata?.[axisId] && (exemplars.mostPositivePole || exemplars.mostNegativePole)
+  );
+
+  if (availableExemplars.length === 0) {
+    return null;
+  }
+
+  const formatAxisName = (axisId: string) => {
+    return axisId
+      .replace(/_/g, ' ')
+      .replace(/-/g, ' ')
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
+
+  const truncateResponse = (text: string, maxLength: number = 300) => {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
+  };
+
+  return (
+    <div className="pt-6">
+      <div className="space-y-1 mb-6">
+        <h2 className="text-2xl font-semibold">Personality Exemplars</h2>
+        <p className="text-muted-foreground">
+          Real examples showing how different models exhibit distinct personality traits.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {availableExemplars.map(([axisId, exemplars]) => {
+          const axis = compass.axisMetadata![axisId];
+          const differentiatingPrompt = exemplars.differentiatingPromptId;
+          const variance = exemplars.varianceScore;
+          
+          return (
+            <Card key={axisId} className="h-fit">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span>{formatAxisName(axisId)}</span>
+                  {variance && (
+                    <span className="text-xs text-muted-foreground">
+                      Variance: {variance.toFixed(3)}
+                    </span>
+                  )}
+                </CardTitle>
+                <CardDescription>
+                  {axis.negativePole} ↔ {axis.positivePole}
+                  {differentiatingPrompt && (
+                    <div className="mt-1 text-xs">
+                      Most differentiating prompt: <code className="bg-muted px-1 rounded">{differentiatingPrompt}</code>
+                    </div>
+                  )}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {exemplars.mostNegativePole && (
+                  <div className="border-l-4 border-red-200 pl-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-semibold text-red-700">Most {axis.negativePole}</h4>
+                      <span className="text-xs text-muted-foreground">
+                        {(exemplars.mostNegativePole.coverageScore * 100).toFixed(1)}% coverage
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      <strong>Model:</strong> {getModelDisplayLabel(exemplars.mostNegativePole.modelId, { prettifyModelName: true, hideProvider: true })}
+                    </p>
+                    <div className="bg-muted p-3 rounded text-sm">
+                      <p className="font-medium mb-2">Prompt:</p>
+                      <p className="text-muted-foreground mb-3">{exemplars.mostNegativePole.promptText}</p>
+                      <p className="font-medium mb-2">Response:</p>
+                      <p>{truncateResponse(exemplars.mostNegativePole.modelResponse)}</p>
+                    </div>
+                  </div>
+                )}
+
+                {exemplars.mostPositivePole && (
+                  <div className="border-l-4 border-green-200 pl-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-semibold text-green-700">Most {axis.positivePole}</h4>
+                      <span className="text-xs text-muted-foreground">
+                        {(exemplars.mostPositivePole.coverageScore * 100).toFixed(1)}% coverage
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      <strong>Model:</strong> {getModelDisplayLabel(exemplars.mostPositivePole.modelId, { prettifyModelName: true, hideProvider: true })}
+                    </p>
+                    <div className="bg-muted p-3 rounded text-sm">
+                      <p className="font-medium mb-2">Prompt:</p>
+                      <p className="text-muted-foreground mb-3">{exemplars.mostPositivePole.promptText}</p>
+                      <p className="font-medium mb-2">Response:</p>
+                      <p>{truncateResponse(exemplars.mostPositivePole.modelResponse)}</p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 export default function CompassPage() {
   const [compass, setCompass] = React.useState<CompassIndex | null>(null);
   const [loading, setLoading] = React.useState<boolean>(true);
   const [error, setError] = React.useState<string | null>(null);
   const [viewMode, setViewMode] = React.useState<'sliders' | 'spider'>('sliders');
+  const [hoveredMaker, setHoveredMaker] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     let mounted = true;
@@ -326,22 +565,68 @@ export default function CompassPage() {
       
       {compass && (
         <>
-          <CompassSection
-            title="Risk & Humility"
-            description="How models balance risk-taking with epistemic humility."
+
+          <InteractiveCompassSection
             compass={compass}
-            xAxisId="risk-level"
-            yAxisId="epistemic-humility"
             makerColorMap={makerColorMap}
           />
-          <CompassSection
-            title="Style & Proactivity"
-            description="How models balance figurative language with proactivity."
-            compass={compass}
-            xAxisId="abstraction"
-            yAxisId="proactivity"
-            makerColorMap={makerColorMap}
-          />
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <div className="lg:col-span-3">
+              <div className="pt-6">
+                <div className="space-y-1 mb-4">
+                  <h2 className="text-xl font-semibold">Linked Spectra by Maker</h2>
+                  <p className="text-muted-foreground">Makers are averaged per axis and connected across spectra for visual traceability.</p>
+                </div>
+                <LinkedPolesSpectrum 
+                  compass={compass} 
+                  hoveredMaker={hoveredMaker}
+                  onMakerHover={setHoveredMaker}
+                />
+              </div>
+            </div>
+            <div className="lg:col-span-1">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Legend</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {Object.entries(makerColorMap)
+                    .filter(([maker]) => {
+                      // Only show makers that have models with data in the compass
+                      if (!compass?.axes) return false;
+                      return Object.values(compass.axes).some(axisData =>
+                        Object.keys(axisData).some(modelId => {
+                          const modelMaker = extractMakerFromModelId(modelId);
+                          const modelData = axisData[modelId];
+                          return modelMaker === maker && 
+                                 modelData && 
+                                 modelData.value !== null && 
+                                 typeof modelData.value === 'number' && 
+                                 modelData.runs >= 3;
+                        })
+                      );
+                    })
+                    .map(([maker, color]) => {
+                      const isHighlighted = hoveredMaker === null || hoveredMaker === maker;
+                      const opacity = isHighlighted ? 1 : 0.3;
+                      return (
+                        <div 
+                          key={maker} 
+                          className="flex items-center space-x-2 cursor-pointer hover:bg-muted/50 p-1 rounded transition-all duration-200"
+                          onMouseEnter={() => setHoveredMaker(maker)}
+                          onMouseLeave={() => setHoveredMaker(null)}
+                          style={{ opacity }}
+                        >
+                          <div className="w-4 h-4 rounded-full" style={{ backgroundColor: color }}></div>
+                          <span className="text-sm capitalize">{maker.toLowerCase()}</span>
+                        </div>
+                      );
+                    })}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
         </>
       )}
 
@@ -451,6 +736,7 @@ export default function CompassPage() {
 const SpiderChart = ({ model, compass, axisRanges }: { model: { id: string, maker: string }, compass: CompassIndex | null, axisRanges: Record<string, { min: number, max: number }> }) => {
   const chartSize = 200;
   const center = chartSize / 2;
+  const chartPadding = 36; // extra room so labels are not clipped
   const [hoveredAxis, setHoveredAxis] = React.useState<string | null>(null);
 
   const chartData = React.useMemo(() => {
@@ -499,7 +785,7 @@ const SpiderChart = ({ model, compass, axisRanges }: { model: { id: string, make
 
   return (
     <div className="relative w-full aspect-square flex items-center justify-center">
-      <svg viewBox={`0 0 ${chartSize} ${chartSize}`}>
+      <svg viewBox={`${-chartPadding} ${-chartPadding} ${chartSize + chartPadding * 2} ${chartSize + chartPadding * 2}`} preserveAspectRatio="xMidYMid meet">
         {/* Concentric circles */}
         {[0.25, 0.75, 1].map(r => (
           <circle key={r} cx={center} cy={center} r={(center * 0.8 / 2) * r * 2} fill="none" stroke="hsl(var(--border))" strokeWidth="0.5" />

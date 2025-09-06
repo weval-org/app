@@ -10,10 +10,12 @@ type Logger = ReturnType<typeof getConfig>['logger'];
 
 export class EmbeddingEvaluator implements Evaluator {
     private logger: Logger;
+    private useCache: boolean;
 
-    constructor(logger: Logger) {
+    constructor(logger: Logger, useCache: boolean = false) {
         this.logger = logger;
-        this.logger.info('[EmbeddingEvaluator] Initialized');
+        this.useCache = useCache;
+        this.logger.info(`[EmbeddingEvaluator] Initialized. Caching: ${this.useCache}`);
     }
 
     getMethodName(): EvaluationMethod { return 'embedding'; }
@@ -70,7 +72,7 @@ export class EmbeddingEvaluator implements Evaluator {
             embeddingTasks.push(limit(async () => {
                 try {
                     // Using the imported getEmbedding service function and passing the logger
-                    const embedding = await getEmbedding(text, embeddingModel, this.logger); // Pass this.logger
+                    const embedding = await getEmbedding(text, embeddingModel, this.logger, this.useCache); // Pass this.useCache
                     embeddingsMap.set(key, embedding);
                 } catch (error: any) {
                     this.logger.error(`[EmbeddingEvaluator] Failed to get embedding for key ${key}: ${error.message || String(error)}`);
