@@ -183,10 +183,10 @@ const BehavioralMap = React.memo(function BehavioralMap({ compass, traitDefiniti
           <div>
             <CardTitle className="flex items-center space-x-2">
               <Layers className="w-5 h-5 text-primary" />
-              <span>Behavioral Landscape</span>
+              <span>Axis Explorer</span>
             </CardTitle>
             <CardDescription>
-              Explore the personality space where AI models cluster and diverge
+              Explore the personality space where AI models cluster and diverge. Choose the axes via the dropdowns below.
             </CardDescription>
           </div>
         </div>

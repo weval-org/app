@@ -202,8 +202,13 @@ function normalizeModelBaseId(baseId: string): string {
     return `anthropic:${normalizedModelName}`;
   }
   
+  // Anthropic models
+  if (modelNameLower.includes('qwen')) {
+    return `qwen:${normalizedModelName}`;
+  }
+  
   // Google models
-  if (modelNameLower.includes('gemini') || modelNameLower.includes('palm')) {
+  if (modelNameLower.includes('gemini') || modelNameLower.includes('palm') || modelNameLower.includes('gemma')) {
     return `google:${normalizedModelName}`;
   }
   
@@ -441,7 +446,9 @@ export function getModelDisplayLabel(
               return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
             })
             .join(' ')
+            .replace(/gpt oss/i, 'GPT OSS')
             .replace('Gpt', 'GPT')
+            .replace('A3b', 'A3B')
             .replace('Glm', 'GLM');
     }
     

@@ -29,14 +29,11 @@ import {
   Info,
   Wind
 } from 'lucide-react';
-import { parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
 
-import PersonalityCard from './components/PersonalityCard';
 import TraitSpectrum from './components/TraitSpectrum';
-import ModelComparison from './components/ModelComparison';
 import BehavioralMap from './components/BehavioralMap';
-import InsightPanel from './components/InsightPanel';
 import ExemplarGallery from './components/ExemplarGallery';
+import KeyTakeaways from './components/KeyTakeaways';
 
 // More specific types based on our data structure
 interface CompassExemplar {
@@ -419,6 +416,15 @@ export default function Compass2ClientPage() {
 
         <div className="container mx-auto px-6 pb-12">
           <div className="space-y-8">
+            {/* Key Takeaways */}
+            {compass && (
+              <KeyTakeaways
+                compass={compass}
+                traitDefinitions={TRAIT_DEFINITIONS}
+                profiles={personalityProfiles}
+              />
+            )}
+
             {/* Behavioral Map */}
             {compass && (
               <BehavioralMap 

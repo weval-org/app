@@ -40,18 +40,6 @@ describe('actionGenerateCompassIndex', () => {
     mockSaveCompassIndex = saveCompassIndex as jest.Mock;
   });
 
-  const createMockCandidate = (promptId: string, modelId: string, axisScore: number) => ({
-    promptId,
-    promptText: `Prompt text for ${promptId}`,
-    modelId,
-    modelResponse: `Response from ${modelId} on ${promptId}`,
-    coverageScore: axisScore,
-    axisScore,
-    configId: 'test-config',
-    runLabel: 'test-run',
-    timestamp: new Date().toISOString(),
-  });
-
   it('should create high-contrast comparison pairs for exemplars', async () => {
     mockListConfigIds.mockResolvedValue(['extrovert-config', 'introvert-config']);
     mockListRunsForConfig.mockImplementation(configId => {

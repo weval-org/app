@@ -3,9 +3,10 @@ import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { BarChart3, TrendingUp, Users } from 'lucide-react';
+import { BarChart3, TrendingUp, Users, ArrowUpDown } from 'lucide-react';
 import { extractMakerFromModelId } from '@/app/utils/modelIdUtils';
 import { MAKER_COLORS } from '@/app/utils/makerColors';
+import { Button } from '@/components/ui/button';
 
 type CompassIndex = {
   axes: Record<string, Record<string, { value: number | null; runs: number }>>;
@@ -42,6 +43,8 @@ interface TraitSpectrumProps {
 type SpectrumData = {
   trait: string;
   definition: TraitDefinition;
+  positivePole: string;
+  negativePole: string;
   models: Array<{
     modelId: string;
     displayName: string;
@@ -63,9 +66,10 @@ type SpectrumData = {
 const TraitSpectrum = React.memo(function TraitSpectrum({ compass, traitDefinitions, profiles }: TraitSpectrumProps) {
   const [selectedTrait, setSelectedTrait] = React.useState<string>('epistemic-humility');
   const [viewMode, setViewMode] = React.useState<'models' | 'makers'>('makers');
+  const [sortOrder, setSortOrder] = React.useState<'desc' | 'asc'>('desc');
 
   const spectrumData = React.useMemo<SpectrumData[]>(() => {
-    if (!compass?.axes) return [];
+    if (!compass?.axes || !compass?.axisMetadata) return [];
 
     // Create profile lookup map for O(1) access
     const profileMap = new Map(profiles.map(p => [p.modelId, p]));
@@ -74,7 +78,8 @@ const TraitSpectrum = React.memo(function TraitSpectrum({ compass, traitDefiniti
 
     for (const [traitId, definition] of traitEntries) {
       const axisData = compass.axes[traitId];
-      if (!axisData) continue;
+      const axisMetadata = compass.axisMetadata[traitId];
+      if (!axisData || !axisMetadata) continue;
 
       const models: SpectrumData['models'] = [];
       const makerScores = new Map<string, { scores: number[]; models: string[] }>();
@@ -140,6 +145,8 @@ const TraitSpectrum = React.memo(function TraitSpectrum({ compass, traitDefiniti
       results.push({
         trait: traitId,
         definition,
+        positivePole: axisMetadata.positivePole,
+        negativePole: axisMetadata.negativePole,
         models,
         makerAverages,
         variance,
@@ -153,108 +160,115 @@ const TraitSpectrum = React.memo(function TraitSpectrum({ compass, traitDefiniti
   const selectedSpectrumData = spectrumData.find(d => d.trait === selectedTrait);
 
   const SpectrumVisualization = ({ data }: { data: SpectrumData }) => {
-    const items = viewMode === 'models' ? data.models : data.makerAverages;
+    const rawItems = viewMode === 'models' ? data.models : data.makerAverages;
     const { min, max } = data.range;
 
-    const normalizeScore = (score: number) => {
-      if (max - min < 1e-6) return 0.5; // Avoid division by zero if all scores are the same
-      return (score - min) / (max - min);
-    };
+    const items = React.useMemo(() => {
+      const sorted = [...rawItems].sort((a, b) => {
+        const scoreA = 'avgScore' in a ? a.avgScore : a.score;
+        const scoreB = 'avgScore' in b ? b.avgScore : b.score;
+        return sortOrder === 'desc' ? scoreB - scoreA : scoreA - scoreB;
+      });
+      return sorted;
+    }, [rawItems, sortOrder]);
+
+    const sortDescription = sortOrder === 'desc'
+      ? `sorted by most ${data.positivePole.toLowerCase()} to most ${data.negativePole.toLowerCase()}`
+      : `sorted by most ${data.negativePole.toLowerCase()} to most ${data.positivePole.toLowerCase()}`;
 
     return (
-      <div className="space-y-3">
+      <div className="space-y-4">
         {/* Spectrum Header */}
-        <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span className="flex items-center space-x-2">
-            <span>{data.definition.name}</span>
+        <div className="flex items-center justify-between text-sm text-muted-foreground border-b pb-2">
+          <h3 className="text-lg font-semibold flex items-center gap-2 text-foreground">
+            <data.definition.icon className="w-5 h-5" style={{ color: data.definition.color }} />
+            {data.definition.name}
+          </h3>
+          <div className="flex items-center gap-4">
             <Badge variant="outline" className="text-xs">
               σ = {data.variance.toFixed(2)}
             </Badge>
-          </span>
-          <span>Range: {(data.range.min * 100).toFixed(0)}% - {(data.range.max * 100).toFixed(0)}%</span>
+            <span>Range: {(data.range.min * 100).toFixed(0)}% - {(data.range.max * 100).toFixed(0)}%</span>
+          </div>
         </div>
 
+        {/* Sort Controls */}
+        <div className="flex items-center justify-between text-sm">
+          <p className="text-muted-foreground italic">{data.definition.name}: {sortDescription}</p>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+          >
+            <ArrowUpDown className="w-4 h-4 mr-2" />
+            Sort
+          </Button>
+        </div>
+        
         {/* Spectrum Bars */}
-        <div className="space-y-2">
-          {items.map((item, index) => {
-            const score = 'avgScore' in item ? item.avgScore : item.score;
-            const name = 'avgScore' in item ? item.maker : item.displayName;
-            const maker = 'avgScore' in item ? item.maker : item.maker;
-            const color = MAKER_COLORS[maker] || MAKER_COLORS.UNKNOWN;
-            const isTop3 = index < 3;
-            
-            return (
-              <Tooltip key={viewMode === 'models' ? (item as any).modelId : (item as any).maker}>
-                <TooltipTrigger asChild>
-                  <div className={`group cursor-pointer transition-all hover:shadow-sm ${
-                    isTop3 ? 'ring-1 ring-primary/20' : ''
-                  }`}>
-                    <div className="flex items-center space-x-3 p-2 rounded-lg hover:bg-muted/50">
-                      <div className="w-20 text-sm font-medium truncate capitalize">
-                        {name.toLowerCase()}
+        <table className="w-full border-separate" style={{ borderSpacing: '0 0.25rem' }}>
+          <thead>
+            <tr className="text-xs font-medium text-muted-foreground">
+              <th className="p-2 text-left font-medium w-auto">{viewMode === 'models' ? 'Model' : 'Maker'}</th>
+              <th className="p-2 font-medium">
+                <div className="flex justify-between">
+                  <span className="truncate">{data.negativePole}</span>
+                  <span className="truncate text-right">{data.positivePole}</span>
+                </div>
+              </th>
+              <th className="p-2 text-right font-medium w-auto">
+                {viewMode === 'models' ? 'Runs' : 'Models'}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => {
+              const score = 'avgScore' in item ? item.avgScore : item.score;
+              const name = 'avgScore' in item ? item.maker : item.displayName;
+              const maker = 'avgScore' in item ? item.maker : item.maker;
+              const color = MAKER_COLORS[maker] || MAKER_COLORS.UNKNOWN;
+              
+              return (
+                <tr key={viewMode === 'models' ? (item as any).modelId : (item as any).maker} className="group cursor-pointer transition-all">
+                  <td className="p-2 rounded-l-lg text-sm font-medium capitalize group-hover:bg-muted/50 whitespace-nowrap">
+                    {name.toLowerCase()}
+                  </td>
+                  <td className="p-2 group-hover:bg-muted/50 w-full">
+                    <div className="relative pt-4">
+                      <div
+                        className="absolute text-[10px] font-bold"
+                        style={{
+                          left: `${score * 100}%`,
+                          top: 0,
+                          transform: 'translateX(-50%)',
+                          color: color,
+                        }}
+                      >
+                        {(score * 100).toFixed(0)}
                       </div>
-                      
-                      <div className="flex-1 relative">
-                        <div className="w-full bg-muted rounded-full h-6 relative overflow-hidden">
+                      <div className="w-full h-1 relative bg-transparent bg-[repeating-linear-gradient(to_right,hsl(var(--border)),hsl(var(--border))_2px,transparent_2px,transparent_8px)]">
                           <div
-                            className="h-full rounded-full transition-all duration-700 flex items-center justify-end pr-2"
+                            className="absolute h-4 w-4 rounded-full transition-all duration-500"
                             style={{
-                              width: `${normalizeScore(score) * 100}%`,
+                              left: `calc(${score * 100}% - 8px)`,
+                              top: '50%',
+                              transform: 'translateY(-50%)',
                               backgroundColor: color,
-                              opacity: 0.8
+                              borderColor: 'hsl(var(--card))',
+                              borderWidth: '3px',
                             }}
-                          >
-                            <span className="text-xs font-medium text-white">
-                              {(score * 100).toFixed(0)}%
-                            </span>
-                          </div>
-                        </div>
+                          />
                       </div>
-                      
-                      <div className="w-16 text-xs text-muted-foreground text-right">
-                        {'count' in item ? `${item.count} models` : `${item.runs} runs`}
-                      </div>
-                      
-                      {isTop3 && (
-                        <Badge variant="secondary" className="text-xs">
-                          #{index + 1}
-                        </Badge>
-                      )}
                     </div>
-                  </div>
-                </TooltipTrigger>
-                
-                <TooltipContent side="left" className="max-w-xs">
-                  <div>
-                    <p className="font-semibold">{name}</p>
-                    <p className="text-xs text-muted-foreground mb-2">
-                      {data.definition.description}
-                    </p>
-                    
-                    {viewMode === 'makers' && 'models' in item && (
-                      <div className="space-y-1 text-xs">
-                        <p className="font-medium">Models:</p>
-                        {item.models.slice(0, 5).map(model => (
-                          <p key={model} className="text-muted-foreground">• {model}</p>
-                        ))}
-                        {item.models.length > 5 && (
-                          <p className="text-muted-foreground">... and {item.models.length - 5} more</p>
-                        )}
-                      </div>
-                    )}
-                    
-                    <div className="mt-2 pt-2 border-t text-xs">
-                      <p><span className="font-medium">Score:</span> {(score * 100).toFixed(1)}%</p>
-                      <p><span className="font-medium">Rank:</span> #{index + 1} of {items.length}</p>
-                    </div>
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-            );
-          })}
-          
-        </div>
-
+                  </td>
+                  <td className="p-2 rounded-r-lg text-xs text-muted-foreground text-right group-hover:bg-muted/50 whitespace-nowrap">
+                    {'count' in item ? `${item.count} models` : `${item.runs} runs`}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     );
   };
@@ -274,10 +288,12 @@ const TraitSpectrum = React.memo(function TraitSpectrum({ compass, traitDefiniti
           </div>
           
           <div className="flex items-center space-x-2">
+            <label htmlFor="trait-select" className="text-sm font-medium">Viewing Trait:</label>
             <select
+              id="trait-select"
               value={selectedTrait}
               onChange={(e) => setSelectedTrait(e.target.value)}
-              className="px-3 py-1 border border-input bg-background rounded-md text-sm"
+              className="px-3 py-2 border border-input bg-background rounded-md text-base font-semibold"
             >
               {spectrumData.map(data => (
                 <option key={data.trait} value={data.trait}>
@@ -285,36 +301,39 @@ const TraitSpectrum = React.memo(function TraitSpectrum({ compass, traitDefiniti
                 </option>
               ))}
             </select>
-            
-            <div className="flex border border-input rounded-md">
-              <button
-                onClick={() => setViewMode('makers')}
-                className={`px-3 py-1 text-sm rounded-l-md transition-colors ${
-                  viewMode === 'makers' 
-                    ? 'bg-primary text-primary-foreground' 
-                    : 'hover:bg-muted'
-                }`}
-              >
-                <Users className="w-4 h-4 mr-1 inline" />
-                Makers
-              </button>
-              <button
-                onClick={() => setViewMode('models')}
-                className={`px-3 py-1 text-sm rounded-r-md transition-colors ${
-                  viewMode === 'models' 
-                    ? 'bg-primary text-primary-foreground' 
-                    : 'hover:bg-muted'
-                }`}
-              >
-                <TrendingUp className="w-4 h-4 mr-1 inline" />
-                Models
-              </button>
-            </div>
           </div>
         </div>
       </CardHeader>
       
       <CardContent>
+        {/* View Mode Toggle */}
+        <div className="flex justify-end mb-4">
+          <div className="flex border border-input rounded-md">
+            <button
+              onClick={() => setViewMode('makers')}
+              className={`px-3 py-1 text-sm rounded-l-md transition-colors ${
+                viewMode === 'makers' 
+                  ? 'bg-primary text-primary-foreground' 
+                  : 'hover:bg-muted'
+              }`}
+            >
+              <Users className="w-4 h-4 mr-1 inline" />
+              Makers
+            </button>
+            <button
+              onClick={() => setViewMode('models')}
+              className={`px-3 py-1 text-sm rounded-r-md transition-colors ${
+                viewMode === 'models' 
+                  ? 'bg-primary text-primary-foreground' 
+                  : 'hover:bg-muted'
+              }`}
+            >
+              <TrendingUp className="w-4 h-4 mr-1 inline" />
+              Models
+            </button>
+          </div>
+        </div>
+
         {selectedSpectrumData ? (
           <SpectrumVisualization data={selectedSpectrumData} />
         ) : (
