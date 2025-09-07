@@ -12,6 +12,7 @@ type PersonalityProfile = {
   maker: string;
   displayName: string;
   dominantTraits: Array<{ trait: string; score: number; confidence: number }>;
+  allTraits: Array<{ trait: string; score: number; confidence: number; runs: number }>;
   overallScore: number;
   dataQuality: 'high' | 'medium' | 'low';
   totalRuns: number;

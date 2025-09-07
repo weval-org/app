@@ -20,6 +20,7 @@ type PersonalityProfile = {
   maker: string;
   displayName: string;
   dominantTraits: Array<{ trait: string; score: number; confidence: number }>;
+  allTraits: Array<{ trait: string; score: number; confidence: number; runs: number }>;
   overallScore: number;
   dataQuality: 'high' | 'medium' | 'low';
   totalRuns: number;
@@ -53,8 +54,8 @@ type Point = {
 };
 
 const BehavioralMap = React.memo(function BehavioralMap({ compass, traitDefinitions, profiles }: BehavioralMapProps) {
-  const [xAxisId, setXAxisId] = React.useState<string>('epistemic-humility');
-  const [yAxisId, setYAxisId] = React.useState<string>('agreeableness');
+  const [xAxisId, setXAxisId] = React.useState<string>('abstraction');
+  const [yAxisId, setYAxisId] = React.useState<string>('proactivity');
   const [hoveredPoint, setHoveredPoint] = React.useState<Point | null>(null);
 
   const availableAxes = React.useMemo(() => {
@@ -64,8 +65,24 @@ const BehavioralMap = React.memo(function BehavioralMap({ compass, traitDefiniti
     );
   }, [compass]);
 
+  // Ensure default selections are valid
+  React.useEffect(() => {
+    if (availableAxes.length > 0) {
+      const validXAxis = availableAxes.find(axis => axis.id === xAxisId);
+      const validYAxis = availableAxes.find(axis => axis.id === yAxisId);
+      
+      if (!validXAxis) {
+        setXAxisId(availableAxes[0].id);
+      }
+      if (!validYAxis) {
+        const yAxisCandidate = availableAxes.find(a => a.id !== (validXAxis ? xAxisId : availableAxes[0].id));
+        setYAxisId(yAxisCandidate?.id || availableAxes[Math.min(1, availableAxes.length - 1)].id);
+      }
+    }
+  }, [availableAxes, xAxisId, yAxisId]);
+
   const points = React.useMemo<Point[]>(() => {
-    if (!compass) return [];
+    if (!compass || !xAxisId || !yAxisId) return [];
 
     const xAxisData = compass.axes?.[xAxisId];
     const yAxisData = compass.axes?.[yAxisId];

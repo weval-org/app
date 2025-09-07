@@ -68,6 +68,7 @@ type PersonalityProfile = {
   maker: string;
   displayName: string;
   dominantTraits: Array<{ trait: string; score: number; confidence: number }>;
+  allTraits: Array<{ trait: string; score: number; confidence: number; runs: number }>;
   overallScore: number;
   dataQuality: 'high' | 'medium' | 'low';
   totalRuns: number;
@@ -250,74 +251,80 @@ export default function Compass2ClientPage() {
   const personalityProfiles = React.useMemo<PersonalityProfile[]>(() => {
     if (!compass?.axes || !compass?.axisMetadata) return [];
 
-    // Pre-compute all model IDs once
+    const profilesMap = new Map<string, {
+        modelId: string;
+        maker: string;
+        displayName: string;
+        traits: Array<{ trait: string; score: number; confidence: number; runs: number }>;
+        totalRuns: number;
+    }>();
+
+    // Initialize map with all models to ensure every model gets a profile object
     const allModelIds = new Set<string>();
-    const axesEntries = Object.entries(compass.axes);
-    for (const [, axisData] of axesEntries) {
-      for (const modelId of Object.keys(axisData)) {
-        allModelIds.add(modelId);
-      }
-    }
-
-    // Pre-compute axis metadata entries to avoid repeated Object.entries calls
-    const axisMetadataEntries = Object.entries(compass.axisMetadata);
-
-    const profiles: PersonalityProfile[] = [];
-    
-    for (const modelId of allModelIds) {
-      const maker = extractMakerFromModelId(modelId);
-      const displayName = getModelDisplayLabel(modelId, { prettifyModelName: true, hideProvider: true });
-      
-      // Calculate dominant traits more efficiently
-      const traits: Array<{ trait: string; score: number; confidence: number; runs: number }> = [];
-      let totalRuns = 0;
-      
-      for (const [axisId] of axisMetadataEntries) {
-        const axisData = compass.axes[axisId]?.[modelId];
-        if (axisData && axisData.value !== null && axisData.runs >= 3) {
-          const runs = axisData.runs;
-          traits.push({
-            trait: axisId,
-            score: axisData.value,
-            confidence: Math.min(runs / 10, 1),
-            runs
-          });
-          totalRuns += runs;
+    for (const axisData of Object.values(compass.axes)) {
+        for (const modelId of Object.keys(axisData)) {
+            allModelIds.add(modelId);
         }
-      }
-
-      if (traits.length === 0) continue;
-
-      // Calculate overall score more efficiently
-      const validTraits = traits.filter(t => t.confidence > 0.3);
-      const overallScore = validTraits.length > 0 
-        ? validTraits.reduce((sum, t) => sum + t.score, 0) / validTraits.length 
-        : 0;
-      
-      const dataQuality: 'high' | 'medium' | 'low' = 
-        totalRuns >= 30 ? 'high' : totalRuns >= 15 ? 'medium' : 'low';
-
-      // Get top 3 most distinctive traits (pre-sort once)
-      traits.sort((a, b) => {
-        const aDistance = Math.abs(a.score - 0.5) * a.confidence;
-        const bDistance = Math.abs(b.score - 0.5) * b.confidence;
-        return bDistance - aDistance;
-      });
-      
-      const dominantTraits = traits.slice(0, 3);
-
-      profiles.push({
-        modelId,
-        maker,
-        displayName,
-        dominantTraits,
-        overallScore,
-        dataQuality,
-        totalRuns
-      });
     }
-    
-    return profiles;
+
+    for (const modelId of allModelIds) {
+        profilesMap.set(modelId, {
+            modelId,
+            maker: extractMakerFromModelId(modelId),
+            displayName: getModelDisplayLabel(modelId, { prettifyModelName: true, hideProvider: true }),
+            traits: [],
+            totalRuns: 0,
+        });
+    }
+
+    // Populate traits by iterating through axes and their models
+    for (const [axisId, axisData] of Object.entries(compass.axes)) {
+        if (!compass.axisMetadata[axisId]) continue; // Only process axes with metadata
+
+        for (const [modelId, data] of Object.entries(axisData)) {
+            const profile = profilesMap.get(modelId);
+            if (profile && data && data.value !== null && (data.runs ?? 0) >= 3) {
+                const runs = data.runs;
+                profile.traits.push({
+                    trait: axisId,
+                    score: data.value,
+                    confidence: Math.min(runs / 10, 1),
+                    runs
+                });
+                profile.totalRuns += runs;
+            }
+        }
+    }
+
+    return Array.from(profilesMap.values())
+        .filter(p => p.traits.length > 0)
+        .map(p => {
+            const validTraits = p.traits.filter(t => t.confidence > 0.3);
+            const overallScore = validTraits.length > 0
+                ? validTraits.reduce((sum, t) => sum + t.score, 0) / validTraits.length
+                : 0;
+
+            const dataQuality: 'high' | 'medium' | 'low' =
+                p.totalRuns >= 30 ? 'high' : p.totalRuns >= 15 ? 'medium' : 'low';
+            
+            p.traits.sort((a, b) => {
+                const aDistance = Math.abs(a.score - 0.5) * a.confidence;
+                const bDistance = Math.abs(b.score - 0.5) * b.confidence;
+                return bDistance - aDistance;
+            });
+            const dominantTraits = p.traits.slice(0, 3);
+
+            return {
+                modelId: p.modelId,
+                maker: p.maker,
+                displayName: p.displayName,
+                dominantTraits,
+                allTraits: p.traits,
+                overallScore,
+                dataQuality,
+                totalRuns: p.totalRuns,
+            };
+        });
   }, [compass]);
 
   // Filter profiles based on search and maker selection (optimized with debouncing)

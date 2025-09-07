@@ -76,10 +76,14 @@ const TraitSpectrum = React.memo(function TraitSpectrum({ compass, traitDefiniti
       const axisData = compass.axes[traitId];
       if (!axisData) continue;
 
-      // Process individual models more efficiently
       const models: SpectrumData['models'] = [];
       const makerScores = new Map<string, { scores: number[]; models: string[] }>();
-      const scores: number[] = [];
+      
+      let sum = 0;
+      let sumSq = 0;
+      let min = Infinity;
+      let max = -Infinity;
+      let count = 0;
 
       for (const [modelId, data] of Object.entries(axisData)) {
         if ((data.runs || 0) < 3 || data.value === null) continue;
@@ -98,7 +102,12 @@ const TraitSpectrum = React.memo(function TraitSpectrum({ compass, traitDefiniti
         };
 
         models.push(model);
-        scores.push(score);
+
+        sum += score;
+        sumSq += score * score;
+        if (score < min) min = score;
+        if (score > max) max = score;
+        count++;
 
         // Accumulate maker data
         if (!makerScores.has(maker)) {
@@ -122,22 +131,10 @@ const TraitSpectrum = React.memo(function TraitSpectrum({ compass, traitDefiniti
         models: data.models
       })).sort((a, b) => b.avgScore - a.avgScore);
 
-      // Calculate statistics more efficiently
       let variance = 0;
-      if (scores.length > 1) {
-        const mean = scores.reduce((sum, score) => sum + score, 0) / scores.length;
-        let sumSquaredDiffs = 0;
-        for (const score of scores) {
-          sumSquaredDiffs += Math.pow(score - mean, 2);
-        }
-        variance = Math.sqrt(sumSquaredDiffs / scores.length);
-      }
-
-      // Calculate range more efficiently
-      let min = scores[0], max = scores[0];
-      for (let i = 1; i < scores.length; i++) {
-        if (scores[i] < min) min = scores[i];
-        if (scores[i] > max) max = scores[i];
+      if (count > 1) {
+          const mean = sum / count;
+          variance = Math.sqrt((sumSq / count) - (mean * mean));
       }
 
       results.push({
@@ -146,7 +143,7 @@ const TraitSpectrum = React.memo(function TraitSpectrum({ compass, traitDefiniti
         models,
         makerAverages,
         variance,
-        range: { min, max }
+        range: { min: min === Infinity ? 0 : min, max: max === -Infinity ? 0 : max }
       });
     }
 

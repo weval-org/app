@@ -9,6 +9,7 @@ type PersonalityProfile = {
   maker: string;
   displayName: string;
   dominantTraits: Array<{ trait: string; score: number; confidence: number }>;
+  allTraits: Array<{ trait: string; score: number; confidence: number; runs: number }>;
   overallScore: number;
   dataQuality: 'high' | 'medium' | 'low';
   totalRuns: number;
@@ -42,18 +43,31 @@ const InsightPanel = React.memo(function InsightPanel({ profiles, traitDefinitio
     if (profiles.length === 0) return [];
 
     const insights: Insight[] = [];
+    const traitsData = new Map<string, Array<{ profile: PersonalityProfile; score: number; confidence: number }>>();
 
-    // Find models with extreme traits
-    Object.entries(traitDefinitions).forEach(([traitId, definition]) => {
-      const traitScores = profiles.map(p => {
-        const trait = p.dominantTraits.find(t => t.trait === traitId);
-        return { profile: p, score: trait?.score || 0, confidence: trait?.confidence || 0 };
-      }).filter(t => t.confidence > 0.5);
+    // Group profiles by trait first
+    for (const profile of profiles) {
+      for (const trait of profile.allTraits) {
+        if (trait.confidence > 0.5) {
+          if (!traitsData.has(trait.trait)) {
+            traitsData.set(trait.trait, []);
+          }
+          traitsData.get(trait.trait)!.push({
+            profile,
+            score: trait.score,
+            confidence: trait.confidence,
+          });
+        }
+      }
+    }
 
-      if (traitScores.length === 0) return;
+    // Find models with extreme traits from pre-processed data
+    traitsData.forEach((traitScores, traitId) => {
+      const definition = traitDefinitions[traitId];
+      if (!definition || traitScores.length === 0) return;
 
       // Find highest scoring model for this trait
-      const highest = traitScores.reduce((max, curr) => 
+      const highest = traitScores.reduce((max, curr) =>
         curr.score > max.score ? curr : max
       );
 
@@ -69,7 +83,7 @@ const InsightPanel = React.memo(function InsightPanel({ profiles, traitDefinitio
       }
 
       // Find lowest scoring model for this trait
-      const lowest = traitScores.reduce((min, curr) => 
+      const lowest = traitScores.reduce((min, curr) =>
         curr.score < min.score ? curr : min
       );
 

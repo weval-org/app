@@ -60,9 +60,9 @@ function renderAnnotatedResponse(annotatedResponse: string) {
 export default async function ConfigRedlinesPage({
   params,
 }: {
-  params: { configId: string };
+  params: Promise<{ configId: string }>;
 }) {
-  const { configId } = params;
+  const { configId } = await params;
   
   const redlinesFeed = await getConfigRedlinesFeed(configId);
   
