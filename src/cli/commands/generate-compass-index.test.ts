@@ -18,7 +18,13 @@ jest.mock('../config', () => ({
 }));
 
 import { actionGenerateCompassIndex } from './generate-compass-index';
-import { getResultByFileName, listConfigIds, listRunsForConfig, saveCompassIndex } from '@/lib/storageService';
+import {
+  getResultByFileName,
+  listConfigIds,
+  listRunsForConfig,
+  saveCompassIndex,
+  CompassComparisonPair
+} from '@/lib/storageService';
 
 describe('actionGenerateCompassIndex', () => {
   let mockListConfigIds: jest.Mock;
@@ -131,15 +137,15 @@ describe('actionGenerateCompassIndex', () => {
     expect(extroversionExemplars.comparisonPairs).toHaveLength(2);
 
     // Find the pair for prompt1 and verify its contents (order-independent)
-    const pair1 = extroversionExemplars.comparisonPairs.find(p => p.promptText.includes('prompt1'));
+    const pair1 = extroversionExemplars.comparisonPairs.find((p: CompassComparisonPair) => p.promptText.includes('prompt1'));
     expect(pair1).toBeDefined();
-    expect(pair1.positiveExemplar.modelId).toBe('modelA'); // The champion on prompt1
-    expect(pair1.negativeExemplar.modelId).toBe('modelB'); // The best rival on prompt1
+    expect(pair1!.positiveExemplar.modelId).toBe('modelA'); // The champion on prompt1
+    expect(pair1!.negativeExemplar.modelId).toBe('modelB'); // The best rival on prompt1
 
     // Find the pair for prompt2 and verify its contents (order-independent)
-    const pair2 = extroversionExemplars.comparisonPairs.find(p => p.promptText.includes('prompt2'));
+    const pair2 = extroversionExemplars.comparisonPairs.find((p: CompassComparisonPair) => p.promptText.includes('prompt2'));
     expect(pair2).toBeDefined();
-    expect(pair2.positiveExemplar.modelId).toBe('modelB'); // The champion on prompt2
-    expect(pair2.negativeExemplar.modelId).toBe('modelA'); // The best rival on prompt2
+    expect(pair2!.positiveExemplar.modelId).toBe('modelB'); // The champion on prompt2
+    expect(pair2!.negativeExemplar.modelId).toBe('modelA'); // The best rival on prompt2
   });
 });

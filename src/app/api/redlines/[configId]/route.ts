@@ -3,10 +3,10 @@ import { getConfigRedlinesFeed } from '@/lib/storageService';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { configId: string } }
+  { params }: { params: Promise<{ configId: string }> }
 ) {
   try {
-    const { configId } = params;
+    const { configId } = await params;
     
     if (!configId) {
       return NextResponse.json({ error: 'configId is required' }, { status: 400 });

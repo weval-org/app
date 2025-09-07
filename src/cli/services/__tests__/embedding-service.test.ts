@@ -15,9 +15,10 @@ const mockLogger = {
   error: jest.fn(),
 };
 
-const mockCacheStore = new Map<string, number[]>();
-const mockGet = jest.fn((key) => mockCacheStore.get(key));
-const mockSet = jest.fn((key, value) => mockCacheStore.set(key, value));
+// Mock the cache service
+const mockCacheStore = new Map();
+const mockGet = jest.fn((key: string) => mockCacheStore.get(key));
+const mockSet = jest.fn((key: string, value: string) => mockCacheStore.set(key, value));
 
 mockedCache.getCache.mockReturnValue({
   get: mockGet,
