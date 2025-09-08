@@ -508,40 +508,42 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
             </div>
           )}
 
-          {/* Optional reference badge */}
-          {(data?.config as any)?.reference && (
+          {/* Optional references */}
+          {(data?.config as any)?.references && Array.isArray((data.config as any).references) && (data.config as any).references.length > 0 && (
             <div className="mt-2">
-              {(() => {
-                const r: any = (data.config as any).reference;
-                const title: string = typeof r === 'string' ? r : (r.title || r.name);
-                const url: string | undefined = typeof r === 'string' ? undefined : r.url;
-                const maxLength = 60; // Truncate at 60 characters
-                const displayTitle = title.length > maxLength ? `${title.substring(0, maxLength)}...` : title;
-                const content = (
-                  <span className="text-sm text-foreground">
-                    <Icon name="book-open" className="w-4 h-4 text-foreground inline mr-1 align-text-bottom" />
-                    Reference: <span className="font-bold">{displayTitle}</span>
-                  </span>
-                );
-                return (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="inline-flex items-center rounded-full bg-muted/60 px-2.5 py-1 border border-border/60">
-                          {url ? (
-                            <a href={url} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                              {content}
-                            </a>
-                          ) : content}
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p className="max-w-md">{title}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                );
-              })()}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center text-sm text-foreground mr-1">
+                  <Icon name="book-open" className="w-4 h-4 text-foreground inline mr-1.5 align-text-bottom" />
+                  <span>Reference{((data.config as any).references.length > 1 ? 's' : '')}:</span>
+                </div>
+                {(data.config as any).references.map((r: any, index: number) => {
+                    const title: string = typeof r === 'string' ? r : (r.title || r.name);
+                    const url: string | undefined = typeof r === 'string' ? undefined : r.url;
+                    const maxLength = 45; // Truncate at 45 characters
+                    const displayTitle = title.length > maxLength ? `${title.substring(0, maxLength)}...` : title;
+                    const content = (
+                        <span className="font-bold text-sm">{displayTitle}</span>
+                    );
+                    return (
+                        <TooltipProvider key={index}>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <span className="inline-flex items-center rounded-full bg-muted/60 px-2.5 py-1 border border-border/60 cursor-pointer">
+                                        {url ? (
+                                            <a href={url} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                                                {content}
+                                            </a>
+                                        ) : content}
+                                    </span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p className="max-w-md">{title}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    );
+                })}
+              </div>
             </div>
           )}
 

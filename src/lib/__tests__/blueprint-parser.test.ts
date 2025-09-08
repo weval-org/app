@@ -299,6 +299,70 @@ prompts:
         });
     });
 
+    describe('Header Field Normalization', () => {
+        test('should correctly parse author as a string', () => {
+            const yamlContent = `author: "Test Author"`;
+            const result = parseAndNormalizeBlueprint(yamlContent, 'yaml');
+            expect(result.author).toBe("Test Author");
+        });
+
+        test('should correctly parse author as an object', () => {
+            const yamlContent = `author:\n  name: "Test Author"\n  url: "https://example.com"`;
+            const result = parseAndNormalizeBlueprint(yamlContent, 'yaml');
+            expect(result.author).toEqual({ name: "Test Author", url: "https://example.com" });
+        });
+
+        test('should throw an error for invalid author object', () => {
+            const yamlContent = `author:\n  url: "https://example.com"`;
+            expect(() => parseAndNormalizeBlueprint(yamlContent, 'yaml')).toThrow("Invalid 'author' object: missing 'name' string.");
+        });
+
+        test('should correctly parse multiple citations/references', () => {
+            const yamlContent = `
+title: My Blueprint
+citations:
+  - title: "First reference"
+    url: "https://example.com/1"
+  - "Second reference"
+  - name: "Third reference"
+`;
+            const result = parseAndNormalizeBlueprint(yamlContent, 'yaml');
+            expect((result as any).references).toEqual([
+                { title: 'First reference', url: 'https://example.com/1' },
+                { title: 'Second reference', url: undefined },
+                { title: 'Third reference', url: undefined }
+            ]);
+            expect((result as any).citation).toBeUndefined();
+            expect((result as any).citations).toBeUndefined();
+            expect((result as any).reference).toBeUndefined();
+        });
+
+        test('should correctly parse single string citation into references array', () => {
+            const yamlContent = `
+title: My Blueprint
+citation: "My only reference"
+`;
+            const result = parseAndNormalizeBlueprint(yamlContent, 'yaml');
+            expect((result as any).references).toEqual([{ title: 'My only reference', url: undefined }]);
+        });
+
+        test('should correctly parse single object reference into references array', () => {
+            const yamlContent = `
+title: My Blueprint
+reference:
+  name: "My only reference object"
+  url: "https://example.com/obj"
+`;
+            const result = parseAndNormalizeBlueprint(yamlContent, 'yaml');
+            expect((result as any).references).toEqual([{ title: 'My only reference object', url: 'https://example.com/obj' }]);
+        });
+
+        test('should throw an error for invalid reference object in array', () => {
+            const yamlContent = `references:\n  - url: "https://example.com"`;
+            expect(() => parseAndNormalizeBlueprint(yamlContent, 'yaml')).toThrow("Invalid 'reference'/'citation' object: missing 'title' or 'name' string.");
+        });
+    });
+
     describe('Error Handling', () => {
         test.each([
             ['Invalid JSON syntax', `{"id": "json-fail", "prompts": [}`, 'json', 'Failed to parse JSON blueprint'],

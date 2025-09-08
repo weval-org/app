@@ -330,26 +330,32 @@ export function parseAndNormalizeBlueprint(content: string, fileType: 'json' | '
         }
     }
     
-    // Normalize reference/citation (support both as aliases)
-    const referenceValue = (finalConfig as any).reference || (finalConfig as any).citation;
+    // Normalize reference/citation (support both as aliases, singular and plural)
+    const referenceValue = (finalConfig as any).reference || (finalConfig as any).citation || (finalConfig as any).references || (finalConfig as any).citations;
     if (referenceValue !== undefined) {
-        if (typeof referenceValue === 'string') {
-            (finalConfig as any).reference = referenceValue;
-        } else if (referenceValue && typeof referenceValue === 'object') {
-            const title = referenceValue.title || referenceValue.name;
-            if (typeof title !== 'string' || title.trim() === '') {
-                throw new Error("Invalid 'reference'/'citation' object: missing 'title' or 'name' string.");
+        const references = Array.isArray(referenceValue) ? referenceValue : [referenceValue];
+        const normalizedReferences = references.map((ref: any) => {
+            if (typeof ref === 'string') {
+                return { title: ref };
+            } else if (ref && typeof ref === 'object' && !Array.isArray(ref)) {
+                const title = ref.title || ref.name;
+                if (typeof title !== 'string' || title.trim() === '') {
+                    throw new Error("Invalid 'reference'/'citation' object: missing 'title' or 'name' string.");
+                }
+                return {
+                    title: title,
+                    url: ref.url
+                };
+            } else {
+                throw new Error("Invalid 'reference'/'citation' field: must be a string, an object with 'title'/'name', or an array of these.");
             }
-            // Normalize to use 'title' field consistently
-            (finalConfig as any).reference = {
-                title: title,
-                url: referenceValue.url
-            };
-        } else {
-            throw new Error("Invalid 'reference'/'citation' field: must be a string or an object with 'title'/'name'.");
-        }
-        // Remove citation alias to avoid duplication
+        });
+        (finalConfig as any).references = normalizedReferences;
+        
+        // Remove old fields to avoid duplication
         delete (finalConfig as any).citation;
+        delete (finalConfig as any).citations;
+        delete (finalConfig as any).reference;
     }
     
     // Clean up header aliases and old fields

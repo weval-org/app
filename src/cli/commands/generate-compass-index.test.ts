@@ -41,9 +41,9 @@ describe('actionGenerateCompassIndex', () => {
   });
 
   it('should create high-contrast comparison pairs for exemplars', async () => {
-    mockListConfigIds.mockResolvedValue(['extrovert-config', 'introvert-config']);
+    mockListConfigIds.mockResolvedValue(['compass__extroverted', 'compass__introverted']);
     mockListRunsForConfig.mockImplementation(configId => {
-      if (configId === 'extrovert-config' || configId === 'introvert-config') {
+      if (configId === 'compass__extroverted' || configId === 'compass__introverted') {
         return Promise.resolve([{ fileName: 'latest.json' }]);
       }
       return Promise.resolve([]);
@@ -110,8 +110,8 @@ describe('actionGenerateCompassIndex', () => {
     };
 
     mockGetResultByFileName.mockImplementation((configId, fileName) => {
-      if (configId === 'extrovert-config') return Promise.resolve(extrovertRunData);
-      if (configId === 'introvert-config') return Promise.resolve(introvertRunData);
+      if (configId === 'compass__extroverted') return Promise.resolve(extrovertRunData);
+      if (configId === 'compass__introverted') return Promise.resolve(introvertRunData);
       return Promise.resolve(null);
     });
 

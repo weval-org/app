@@ -229,52 +229,79 @@ export function GlobalConfigCard({ blueprint, onUpdate, isEditable, isAdvancedMo
                         </div>
                     </div>
 
-                    {/* Reference attribution */}
+                    {/* References */}
                     <div>
-                        <label className="text-sm font-semibold text-foreground" htmlFor="blueprint-reference">Reference (optional)</label>
-                        <p className="text-xs text-muted-foreground mb-1.5">Credit a source paper, dataset, or other reference this blueprint is based on.</p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                            <Input
-                                id="blueprint-reference"
-                                type="text"
-                                placeholder="Title or citation"
-                                value={typeof (blueprint as any).reference === 'string' ? (blueprint as any).reference : ((blueprint as any).reference?.title || '')}
-                                onChange={(e) => {
-                                    const current = (blueprint as any).reference;
-                                    const next = produce(blueprint, draft => {
-                                        const value = e.target.value;
-                                        if (!value) {
-                                            (draft as any).reference = undefined;
-                                        } else if (typeof current === 'string' || current === undefined) {
-                                            (draft as any).reference = { title: value };
-                                        } else {
-                                            (draft as any).reference = { ...current, title: value };
-                                        }
-                                    });
-                                    onUpdate(next);
-                                }}
-                                className="text-sm"
-                                readOnly={!isEditable}
-                            />
-                            <Input
-                                type="url"
-                                placeholder="URL (optional)"
-                                value={typeof (blueprint as any).reference === 'string' ? '' : ((blueprint as any).reference?.url || '')}
-                                onChange={(e) => {
-                                    const next = produce(blueprint, draft => {
-                                        const val = e.target.value;
-                                        if (!(draft as any).reference || typeof (draft as any).reference === 'string') {
-                                            (draft as any).reference = { title: ((draft as any).reference && typeof (draft as any).reference === 'string') ? (draft as any).reference : 'Reference', url: val };
-                                        } else {
-                                            (draft as any).reference.url = val;
-                                        }
-                                        if ((draft as any).reference && !(draft as any).reference.url) delete (draft as any).reference.url;
-                                    });
-                                    onUpdate(next);
-                                }}
-                                className="text-sm"
-                                readOnly={!isEditable}
-                            />
+                        <label className="text-sm font-semibold text-foreground">References (optional)</label>
+                        <p className="text-xs text-muted-foreground mb-1.5">Credit source papers, datasets, or other references this blueprint is based on.</p>
+                        <div className="space-y-3">
+                            {((blueprint as any).references || []).map((ref: any, index: number) => (
+                                <div key={index} className="flex items-center gap-2">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 flex-grow">
+                                        <Input
+                                            type="text"
+                                            placeholder="Title or citation"
+                                            value={ref.title || ''}
+                                            onChange={(e) => {
+                                                const next = produce(blueprint, draft => {
+                                                    if (!(draft as any).references) (draft as any).references = [];
+                                                    (draft as any).references[index].title = e.target.value;
+                                                });
+                                                onUpdate(next);
+                                            }}
+                                            className="text-sm"
+                                            readOnly={!isEditable}
+                                        />
+                                        <Input
+                                            type="url"
+                                            placeholder="URL (optional)"
+                                            value={ref.url || ''}
+                                            onChange={(e) => {
+                                                const next = produce(blueprint, draft => {
+                                                    if (!(draft as any).references) (draft as any).references = [];
+                                                    (draft as any).references[index].url = e.target.value;
+                                                });
+                                                onUpdate(next);
+                                            }}
+                                            className="text-sm"
+                                            readOnly={!isEditable}
+                                        />
+                                    </div>
+                                    {isEditable && (
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => {
+                                                const next = produce(blueprint, draft => {
+                                                    (draft as any).references.splice(index, 1);
+                                                });
+                                                onUpdate(next);
+                                            }}
+                                            className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                        >
+                                            <Icon name="trash" className="h-4 w-4" />
+                                        </Button>
+                                    )}
+                                </div>
+                            ))}
+                            {isEditable && (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                        const next = produce(blueprint, draft => {
+                                            if (!(draft as any).references) (draft as any).references = [];
+                                            (draft as any).references.push({ title: '', url: '' });
+                                        });
+                                        onUpdate(next);
+                                    }}
+                                    className="w-full"
+                                >
+                                    <Icon name="plus" className="h-3 w-3 mr-1" />
+                                    Add Reference
+                                </Button>
+                            )}
                         </div>
                     </div>
                     

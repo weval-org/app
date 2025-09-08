@@ -27,41 +27,17 @@ export const BlueprintCanonicalSchema = {
         }
       ]
     },
-    reference: {
-      oneOf: [
-        { type: 'string' },
-        {
-          type: 'object',
-          properties: {
-            title: { type: 'string' },
-            name: { type: 'string' }, // alias for title
-            url: { type: 'string' },
-          },
-          anyOf: [
-            { required: ['title'] },
-            { required: ['name'] }
-          ],
-          additionalProperties: true,
-        }
-      ]
-    },
-    citation: {
-      oneOf: [
-        { type: 'string' },
-        {
-          type: 'object',
-          properties: {
-            title: { type: 'string' },
-            name: { type: 'string' }, // alias for title
-            url: { type: 'string' },
-          },
-          anyOf: [
-            { required: ['title'] },
-            { required: ['name'] }
-          ],
-          additionalProperties: true,
-        }
-      ]
+    references: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string' },
+          url: { type: 'string' },
+        },
+        required: ['title'],
+        additionalProperties: true,
+      },
     },
     tags: { type: 'array', items: { type: 'string' } },
     models: {
@@ -101,42 +77,6 @@ export const BlueprintCanonicalSchema = {
         messages: { type: 'array', items: { $ref: '#/$defs/message' } },
         idealResponse: { type: 'string' },
         system: { type: ['string', 'null'] },
-        citation: {
-          oneOf: [
-            { type: 'string' },
-            {
-              type: 'object',
-              properties: {
-                title: { type: 'string' },
-                name: { type: 'string' }, // alias for title
-                url: { type: 'string' },
-              },
-              anyOf: [
-                { required: ['title'] },
-                { required: ['name'] }
-              ],
-              additionalProperties: true,
-            }
-          ]
-        },
-        reference: {
-          oneOf: [
-            { type: 'string' },
-            {
-              type: 'object',
-              properties: {
-                title: { type: 'string' },
-                name: { type: 'string' }, // alias for title
-                url: { type: 'string' },
-              },
-              anyOf: [
-                { required: ['title'] },
-                { required: ['name'] }
-              ],
-              additionalProperties: true,
-            }
-          ]
-        },
         weight: { type: 'number', minimum: 0.1, maximum: 10 },
         points: { $ref: '#/$defs/pointBlock' },
         should_not: { $ref: '#/$defs/pointBlock' },

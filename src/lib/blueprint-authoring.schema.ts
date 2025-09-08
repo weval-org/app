@@ -29,42 +29,10 @@ export const BlueprintAuthoringSchema = {
             }
           ]
         },
-        reference: {
-          oneOf: [
-            { type: 'string' },
-            {
-              type: 'object',
-              properties: {
-                title: { type: 'string' },
-                name: { type: 'string' }, // alias for title
-                url: { type: 'string' },
-              },
-              anyOf: [
-                { required: ['title'] },
-                { required: ['name'] }
-              ],
-              additionalProperties: true,
-            }
-          ]
-        },
-        citation: {
-          oneOf: [
-            { type: 'string' },
-            {
-              type: 'object',
-              properties: {
-                title: { type: 'string' },
-                name: { type: 'string' }, // alias for title
-                url: { type: 'string' },
-              },
-              anyOf: [
-                { required: ['title'] },
-                { required: ['name'] }
-              ],
-              additionalProperties: true,
-            }
-          ]
-        },
+        reference: { "$ref": "#/$defs/referenceField" },
+        citation: { "$ref": "#/$defs/referenceField" },
+        references: { "$ref": "#/$defs/referenceField" },
+        citations: { "$ref": "#/$defs/referenceField" },
         tags: { type: 'array', items: { type: 'string' } },
         models: {
           type: 'array',
@@ -88,6 +56,33 @@ export const BlueprintAuthoringSchema = {
     },
   ],
   $defs: {
+    referenceItem: {
+      oneOf: [
+        { type: 'string' },
+        {
+          type: 'object',
+          properties: {
+            title: { type: 'string' },
+            name: { type: 'string' }, // alias for title
+            url: { type: 'string' },
+          },
+          anyOf: [
+            { required: ['title'] },
+            { required: ['name'] }
+          ],
+          additionalProperties: true,
+        }
+      ]
+    },
+    referenceField: {
+        oneOf: [
+            { "$ref": "#/$defs/referenceItem" },
+            { 
+                type: 'array',
+                items: { "$ref": "#/$defs/referenceItem" }
+            }
+        ]
+    },
     promptList: {
       type: 'array',
       items: { $ref: '#/$defs/prompt' },
