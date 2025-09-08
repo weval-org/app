@@ -46,7 +46,8 @@ export async function actionGenerateCompassIndex(options: { verbose?: boolean; c
   // axis -> exemplar candidates
   const axisToExemplars = new Map<string, AxisExemplarCandidates>();
 
-  const configIds = await listConfigIds();
+  const configIds = (await listConfigIds()).filter(id => id.startsWith('compass__'));
+  
   await Promise.all(configIds.map(configId => limiter(async () => {
     try {
       // We only need latest run per config for this aggregation
@@ -61,10 +62,9 @@ export async function actionGenerateCompassIndex(options: { verbose?: boolean; c
         runData.effectiveModels = runData.effectiveModels.filter(m => !m.includes('cohere/command-a'));
       }
 
-      // Identify compass axes for this config via tags like _compass:axisId
-      const tags = (runData.config?.tags || []).filter(Boolean);
-      const axisTags = tags.filter(t => t.startsWith('_compass:'));
-      if (axisTags.length === 0) return;
+      // The axis ID is derived from the config ID itself, e.g., "compass__proactive" -> "proactive"
+      const axisId = configId.substring('compass__'.length);
+      const axisTags = [`_compass:${axisId}`];
 
       // Per-model composite from this run using compass weights (sim/cov)
       const perModel = computePerModelComposite(runData.evaluationResults, runData.effectiveModels, runData.promptIds);

@@ -107,8 +107,8 @@ const BehavioralMap = React.memo(function BehavioralMap({ compass, traitDefiniti
       const yRaw = (yRec && typeof yRec.value === 'number') ? yRec.value : null;
       const xRuns = xRec?.runs ?? 0;
       const yRuns = yRec?.runs ?? 0;
-      const xValid = xRuns >= 3 && xRaw !== null;
-      const yValid = yRuns >= 3 && yRaw !== null;
+      const xValid = xRaw !== null;
+      const yValid = yRaw !== null;
       
       const point: Point = {
         id,

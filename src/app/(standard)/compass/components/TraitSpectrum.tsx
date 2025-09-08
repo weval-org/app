@@ -91,7 +91,7 @@ const TraitSpectrum = React.memo(function TraitSpectrum({ compass, traitDefiniti
       let count = 0;
 
       for (const [modelId, data] of Object.entries(axisData)) {
-        if ((data.runs || 0) < 3 || data.value === null) continue;
+        if (data.value === null) continue;
 
         const profile = profileMap.get(modelId);
         const maker = extractMakerFromModelId(modelId);
@@ -230,8 +230,8 @@ const TraitSpectrum = React.memo(function TraitSpectrum({ compass, traitDefiniti
               
               return (
                 <tr key={viewMode === 'models' ? (item as any).modelId : (item as any).maker} className="group cursor-pointer transition-all">
-                  <td className="p-2 rounded-l-lg text-sm font-medium capitalize group-hover:bg-muted/50 whitespace-nowrap">
-                    {name.toLowerCase()}
+                  <td className="p-2 rounded-l-lg text-sm font-medium group-hover:bg-muted/50 whitespace-nowrap">
+                    {maker} / {name}
                   </td>
                   <td className="p-2 group-hover:bg-muted/50 w-full">
                     <div className="relative pt-4">

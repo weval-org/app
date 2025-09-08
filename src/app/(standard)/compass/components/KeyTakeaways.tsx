@@ -111,7 +111,7 @@ const KeyTakeaways = React.memo(function KeyTakeaways({ compass, traitDefinition
       const models: Array<{ modelId: string; displayName: string; score: number }> = [];
 
       for (const [modelId, data] of Object.entries(axisData)) {
-        if ((data.runs || 0) < 3 || data.value === null) continue;
+        if (data.value === null) continue;
 
         const profile = profileMap.get(modelId);
         models.push({
@@ -121,7 +121,7 @@ const KeyTakeaways = React.memo(function KeyTakeaways({ compass, traitDefinition
         });
       }
 
-      if (models.length < 6) continue;
+      if (models.length < 1) continue;
 
       models.sort((a, b) => b.score - a.score);
 

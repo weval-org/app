@@ -258,7 +258,7 @@ const ModelComparison = React.memo(function ModelComparison({
           profile,
           score: axisData?.value || 0,
           runs: axisData?.runs || 0,
-          valid: (axisData?.runs || 0) >= 3 && axisData?.value !== null
+          valid: axisData?.value !== null
         };
       });
 
