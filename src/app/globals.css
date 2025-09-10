@@ -213,6 +213,22 @@
   }
 }
 
+@layer components {
+  /* A utility to make Tailwind's typography plugin inherit its parent's color */
+  .prose-inherit {
+    --tw-prose-body: inherit;
+    --tw-prose-headings: inherit;
+    --tw-prose-lead: inherit;
+    --tw-prose-links: inherit;
+    --tw-prose-bold: inherit;
+    --tw-prose-counters: inherit;
+    --tw-prose-bullets: inherit;
+    --tw-prose-quotes: inherit;
+    --tw-prose-captions: inherit;
+    --tw-prose-code: inherit;
+  }
+}
+
 /* Add custom class for forcing white background on inputs in light mode */
 .light .blueprint-input {
   @apply bg-white;
