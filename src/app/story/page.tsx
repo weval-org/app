@@ -9,11 +9,14 @@ import { useStoryOrchestrator, type Message } from './hooks/useStoryOrchestrator
 import { ControlSignalHelpers } from '@/app/api/story/utils/control-signals';
 import { sanitizeCtaText } from '@/app/api/story/utils/validation';
 import { QuickRunFallback } from './components/QuickRunFallback';
+import { QuickRunResults } from './components/QuickRunResults';
+import { Bot, User, XCircle, RefreshCcw } from 'lucide-react';
 
 export default function StoryPage() {
   const [story, setStory] = useState('');
   const [composer, setComposer] = useState('');
   const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
   
   const {
     messages,
@@ -29,8 +32,8 @@ export default function StoryPage() {
     sendMessage,
     sendCta,
     runQuickTest,
-    suggestQuickTest,
     clearErrors,
+    resetChat,
   } = useStoryOrchestrator();
 
   // Hide the "Suggest quick test" button if we've already suggested it or shown quick results
@@ -56,6 +59,13 @@ export default function StoryPage() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Autofocus composer when chat starts
+  useEffect(() => {
+    if (phase === 'chat') {
+      composerRef.current?.focus();
+    }
+  }, [phase]);
 
   // Persistence
   const STORAGE_KEY = 'story_session_v1';
@@ -84,9 +94,30 @@ export default function StoryPage() {
     await sendMessage(content);
   };
 
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      onSend();
+    }
+  };
+
+  const onReset = () => {
+    if (window.confirm('Are you sure you want to clear this conversation and start over?')) {
+      resetChat();
+    }
+  };
+
   return (
-    <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-semibold mb-4">Your Story</h1>
+    <div className="container mx-auto py-8 flex flex-col h-[calc(100vh-100px)]">
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-3xl font-semibold">Your Story</h1>
+        {phase === 'chat' && (
+          <Button variant="ghost" size="sm" onClick={onReset}>
+            <RefreshCcw className="mr-2 h-4 w-4" />
+            Start Over
+          </Button>
+        )}
+      </div>
       {phase === 'intro' ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
@@ -114,9 +145,9 @@ export default function StoryPage() {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
           <div className="lg:col-span-2">
-            <Card className="p-0 h-[70vh] flex flex-col">
+            <Card className="p-0 h-full flex flex-col">
               <div ref={scrollerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
                 {messages.map((m, i) => {
                   const cleanText = m.role === 'assistant' ? ControlSignalHelpers.cleanText(m.content) : m.content;
@@ -124,36 +155,15 @@ export default function StoryPage() {
                   const quickResult = m.role === 'assistant' ? ControlSignalHelpers.extractQuickResult(m.content) : null;
                   
                   return (
-                    <div key={i} className={cn('max-w-[80%]', m.role === 'user' ? 'ml-auto text-right' : 'mr-auto text-left')}>
+                    <div key={i} className={cn('flex items-start gap-3 max-w-[85%]', m.role === 'user' ? 'ml-auto flex-row-reverse' : 'mr-auto')}>
+                      <div className="rounded-full border p-2 bg-background flex-shrink-0">
+                        {m.role === 'user' ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+                      </div>
                       <div className={cn('rounded-md p-3', m.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-card text-card-foreground border')}>
                         {!quickResult ? (
                           cleanText
                         ) : (
-                          <div className="text-left space-y-3">
-                            {(quickResult.prompts || []).map((pr: any, idx: number) => (
-                              <details key={idx} className="border rounded">
-                                <summary className="cursor-pointer px-3 py-2 text-sm font-medium">{pr.promptText}</summary>
-                                <div className="px-3 pb-3 pt-1 space-y-3">
-                                  {(pr.models || []).map((m: any, midx: number) => (
-                                    <div key={midx} className="border rounded p-2">
-                                      <div className="text-xs text-muted-foreground mb-1">{m.modelId}</div>
-                                      <div className="text-sm whitespace-pre-wrap max-h-40 overflow-auto">{(m.response || '').slice(0, 800)}{(m.response || '').length > 800 ? '…' : ''}</div>
-                                      {Array.isArray(m.points) && m.points.length > 0 && (
-                                        <ul className="mt-2 text-sm grid gap-1">
-                                          {m.points.map((pt: any, pidx: number) => (
-                                            <li key={pidx} className="flex items-center justify-between gap-3">
-                                              <span className="truncate">{pt.text}</span>
-                                              <span className="text-xs tabular-nums">{pt.score === null || pt.score === undefined ? 'N/A' : `${pt.score}%`}</span>
-                                            </li>
-                                          ))}
-                                        </ul>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              </details>
-                            ))}
-                          </div>
+                          <QuickRunResults result={quickResult} />
                         )}
                         {m.role === 'assistant' && ctas.length > 0 && (
                           <div className="mt-3 flex flex-wrap gap-2">
@@ -174,30 +184,35 @@ export default function StoryPage() {
               </div>
               <div className="border-t p-3 flex gap-2 items-end">
                 <Textarea
+                  ref={composerRef}
                   value={composer}
                   onChange={e => setComposer(e.target.value)}
-                  placeholder={pending ? 'Please wait…' : 'Type your message'}
+                  onKeyDown={onKeyDown}
+                  placeholder={pending ? 'Assistant is typing…' : 'Type your message, or shift+enter for new line'}
                   className="min-h-[60px]"
                   disabled={pending}
                 />
                 <Button onClick={onSend} disabled={!canSend}>Send</Button>
               </div>
               {chatError && (
-                <div className="px-4 pb-3 text-sm text-destructive">{chatError}</div>
+                <div className="px-4 pb-3 text-sm text-destructive flex items-center gap-2">
+                  <XCircle className="h-4 w-4" />
+                  <span>{chatError}</span>
+                </div>
               )}
             </Card>
           </div>
           <div className="lg:col-span-1">
-            <Card className="p-4 h-[70vh] overflow-y-auto">
+            <Card className="p-4 h-full overflow-y-auto">
               <h2 className="text-lg font-medium mb-2">Emerging Test Outline</h2>
               {createPending && (
-                <div className="text-sm text-muted-foreground animate-pulse">Creating outline…</div>
+                <div className="text-sm text-muted-foreground animate-pulse p-4 text-center">Creating outline…</div>
               )}
               {createError && (
-                <div className="text-sm text-destructive mb-2">{createError}</div>
+                <div className="text-sm text-destructive mb-2 rounded border border-destructive/50 bg-destructive/10 p-3">{createError}</div>
               )}
               {!outlineObj && !createPending && !createError && (
-                <p className="text-sm text-muted-foreground">We’ll propose a simple list of prompts and expectations here once ready.</p>
+                <p className="text-sm text-muted-foreground p-4 text-center">We’ll propose a simple list of prompts and expectations here once ready.</p>
               )}
               {outlineObj && (
                 <div className="space-y-3">
@@ -209,29 +224,29 @@ export default function StoryPage() {
                   </div>
                   <div className="space-y-3">
                     {(outlineObj.prompts || []).slice(0, 8).map((p: any) => (
-                      <div key={p.id} className="border rounded p-2">
+                      <Card key={p.id} className="p-3">
                         <div className="font-medium text-sm">{p.promptText}</div>
                         {Array.isArray(p.points) && p.points.length > 0 && (
-                          <ul className="list-disc pl-5 mt-1 text-sm">
+                          <ul className="list-disc pl-5 mt-2 text-sm text-muted-foreground space-y-1">
                             {(Array.isArray(p.points[0]) ? p.points[0] : p.points).slice(0, 5).map((pt: any, idx: number) => (
                               <li key={idx}>{typeof pt === 'string' ? pt : (pt?.text || String(pt))}</li>
                             ))}
                           </ul>
                         )}
-                      </div>
+                      </Card>
                     ))}
                   </div>
                   <div className="pt-2">
                     <div className="flex items-center gap-2 flex-wrap">
-                      {showSuggestQuick && (
-                        <Button size="sm" onClick={suggestQuickTest}>
-                          Ask for a quick test
-                        </Button>
-                      )}
                       <Button size="sm" variant="secondary" disabled={!outlineObj || quickRunPending} onClick={runQuickTest}>
                         Run a quick test
                       </Button>
-                      {quickRunPending && <div className="text-xs text-muted-foreground">Running quick test…</div>}
+                      {quickRunPending && (
+                        <div className="text-xs text-muted-foreground flex items-center gap-2 p-2 rounded-md bg-muted">
+                           <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-primary"></div>
+                           <span>Running quick test…</span>
+                        </div>
+                      )}
                       {quickRunError && (
                         <QuickRunFallback 
                           onRetry={runQuickTest}
