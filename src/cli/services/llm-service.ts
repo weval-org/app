@@ -136,11 +136,11 @@ export async function getModelResponse(params: GetModelResponseParams): Promise<
     const apiCall = async () => {
         const response: ModelResponse = await dispatch(requestPayload);
 
-        // This is a simplistic check. You might want to refine it based on actual API responses.
-        if (response.error || (response.responseText && response.responseText.trim() === '')) {
+        // Treat any missing or empty response as an error for resilience.
+        if (response.error || !response.responseText || response.responseText.trim() === '') {
             throw new Error(response.error || 'Empty response from model');
         }
-        return response.responseText || '';
+        return response.responseText;
     };
 
     try {

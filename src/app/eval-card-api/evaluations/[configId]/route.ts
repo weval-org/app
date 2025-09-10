@@ -24,7 +24,11 @@ export async function GET(
         const serializableRuns = configSummary.runs.map(run => ({
             ...run,
             perModelScores: run.perModelScores ? Object.fromEntries(run.perModelScores) : {},
-            perModelHybridScores: run.perModelHybridScores ? Object.fromEntries(run.perModelHybridScores) : {},
+            perModelHybridScores: run.perModelHybridScores
+                ? (run.perModelHybridScores instanceof Map
+                    ? Object.fromEntries(run.perModelHybridScores)
+                    : run.perModelHybridScores)
+                : {},
         }));
         
         const serializableSummary = {

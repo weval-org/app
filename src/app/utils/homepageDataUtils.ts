@@ -34,6 +34,10 @@ export interface EnhancedRunInfo {
   totalModelsAttempted?: number;
   hybridScoreStats?: { average: number | null; stddev: number | null };
   perModelScores?: Map<string, PerModelScoreStats>;
+  // Back-compat and API convenience: hybrid score map per model
+  perModelHybridScores?:
+    | Map<string, { average: number | null; stddev?: number | null }>
+    | Record<string, { average: number | null; stddev?: number | null }>;
   tags?: string[];
   allCoverageScores?: AllCoverageScores | null;
   models?: string[];

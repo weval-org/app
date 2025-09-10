@@ -149,7 +149,7 @@ function getSafeModelId(modelId: string): string {
 // Helper types for serialization
 type SerializableScoreMap = Record<string, { average: number | null; stddev: number | null }>;
 
-interface SerializableEnhancedRunInfo extends Omit<EnhancedRunInfo, 'perModelScores'> {
+interface SerializableEnhancedRunInfo extends Omit<EnhancedRunInfo, 'perModelScores' | 'perModelHybridScores'> {
     perModelScores?: Record<string, PerModelScoreStats>;
     perModelHybridScores?: Record<string, { average: number | null, stddev?: number | null }>;
 }
@@ -268,23 +268,34 @@ export async function saveHomepageSummary(summaryData: HomepageSummaryFileConten
   const serializableConfigs = summaryData.configs.map(config => ({
     ...config,
     runs: config.runs.map(run => {
-      const serializableRun: SerializableEnhancedRunInfo = { ...run, perModelScores: undefined };
-      
+      const { perModelScores, perModelHybridScores, ...restOfRun } = run;
+      const serializableRun: SerializableEnhancedRunInfo = { ...restOfRun };
+
       // Handle the new perModelScores (Map -> object)
-      if (run.perModelScores) {
-        serializableRun.perModelScores = Object.fromEntries(run.perModelScores);
+      if (perModelScores instanceof Map) {
+        serializableRun.perModelScores = Object.fromEntries(perModelScores);
         // For backward compatibility, also create the old hybrid score field from the new data
         serializableRun.perModelHybridScores = Object.fromEntries(
-          Array.from(run.perModelScores.entries()).map(([modelId, scores]) => [
+          Array.from(perModelScores.entries()).map(([modelId, scores]) => [
             modelId,
             scores.hybrid
           ])
         );
-      } else if ((run as any).perModelHybridScores instanceof Map) {
-        // If we only have the old format, just serialize that.
-        serializableRun.perModelHybridScores = Object.fromEntries((run as any).perModelHybridScores);
+      } else if ((perModelHybridScores as any) instanceof Map) {
+        // If we only have the old format as a Map, just serialize that, ensuring stddev key exists
+        serializableRun.perModelHybridScores = Object.fromEntries(
+          Array.from((perModelHybridScores as Map<string, { average: number | null; stddev?: number | null }>).entries()).map(([modelId, score]) => [
+            modelId,
+            { average: score.average, stddev: score.stddev ?? null }
+          ])
+        );
+      } else if (perModelHybridScores && typeof perModelHybridScores === 'object') {
+        serializableRun.perModelHybridScores = Object.fromEntries(
+          Object.entries(perModelHybridScores as Record<string, { average: number | null; stddev?: number | null }>).
+            map(([modelId, score]) => [modelId, { average: score.average, stddev: score.stddev ?? null }])
+        );
       }
-      
+
       return serializableRun;
     }),
   }));
@@ -422,7 +433,7 @@ export async function saveConfigSummary(configId: string, summaryData: EnhancedC
   // Prepare data for serialization: convert Maps to objects
   const serializableRuns: SerializableEnhancedRunInfo[] = summaryData.runs.map((run: EnhancedRunInfo) => {
     // Exclude the bulky heatmap data from the summary file
-    const { perModelScores, allCoverageScores, ...restOfRun } = run;
+    const { perModelScores, perModelHybridScores, allCoverageScores, ...restOfRun } = run;
     const serializableRun: SerializableEnhancedRunInfo = { ...restOfRun };
 
     if (perModelScores instanceof Map) {
@@ -433,8 +444,10 @@ export async function saveConfigSummary(configId: string, summaryData: EnhancedC
           scores.hybrid
         ])
       );
-    } else if ((run as any).perModelHybridScores instanceof Map) {
-      serializableRun.perModelHybridScores = Object.fromEntries((run as any).perModelHybridScores);
+    } else if ((perModelHybridScores as any) instanceof Map) {
+      serializableRun.perModelHybridScores = Object.fromEntries((perModelHybridScores as Map<string, { average: number | null; stddev?: number | null }>));
+    } else if (perModelHybridScores && typeof perModelHybridScores === 'object') {
+      serializableRun.perModelHybridScores = perModelHybridScores as Record<string, { average: number | null; stddev?: number | null }>;
     }
 
     return serializableRun;
@@ -1506,7 +1519,7 @@ export async function saveLatestRunsSummary(summaryData: LatestRunsSummaryFileCo
     const s3Key = path.join(LIVE_DIR, 'aggregates', 'latest_runs_summary.json');
     const localPath = path.join(RESULTS_DIR, s3Key);
     const serializableRuns: SerializableLatestRunSummaryItem[] = summaryData.runs.map(run => {
-        const { perModelScores, ...restOfRun } = run;
+        const { perModelScores, perModelHybridScores, ...restOfRun } = run;
         const serializableRun: SerializableLatestRunSummaryItem = { ...restOfRun };
 
         if (perModelScores instanceof Map) {
@@ -1517,8 +1530,18 @@ export async function saveLatestRunsSummary(summaryData: LatestRunsSummaryFileCo
                     scores.hybrid,
                 ])
             );
-        } else if ((run as any).perModelHybridScores instanceof Map) {
-            serializableRun.perModelHybridScores = Object.fromEntries((run as any).perModelHybridScores);
+        } else if ((perModelHybridScores as any) instanceof Map) {
+            serializableRun.perModelHybridScores = Object.fromEntries(
+                Array.from((perModelHybridScores as Map<string, { average: number | null; stddev?: number | null }>)).map(([modelId, score]) => [
+                    modelId,
+                    { average: score.average, stddev: score.stddev ?? null }
+                ])
+            );
+        } else if (perModelHybridScores && typeof perModelHybridScores === 'object') {
+            serializableRun.perModelHybridScores = Object.fromEntries(
+                Object.entries(perModelHybridScores as Record<string, { average: number | null; stddev?: number | null }>).
+                    map(([modelId, score]) => [modelId, { average: score.average, stddev: score.stddev ?? null }])
+            );
         }
 
         return serializableRun;
