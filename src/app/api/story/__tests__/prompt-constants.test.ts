@@ -2,54 +2,56 @@ import { ORCHESTRATOR_SYSTEM_PROMPT, CREATOR_SYSTEM_PROMPT, UPDATER_SYSTEM_PROMP
 
 describe('Story API - Prompt Constants', () => {
   describe('ORCHESTRATOR_SYSTEM_PROMPT', () => {
-    it('should contain key orchestrator instructions', () => {
-      expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain('Weval Guide');
-      expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain('<ready_to_begin/>');
+    it('should contain key instructions for the new architecture', () => {
+      // Core Identity & Role
+      expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain('You are Weval Guide');
+      expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain('translate it into actionable instructions');
+
+      // Key Technical Tags
+      expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain('<SYSTEM_STATUS>');
+      expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain('<USER_MESSAGE>');
+      expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain('<USER_RESPONSE>');
+      expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain('<SYSTEM_INSTRUCTIONS>');
       expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain('<cta>');
-      expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain('<BLUEPRINT_YAML>');
-      expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain('<update_eval/>');
+
+      // Key Commands
+      expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain('CREATE_OUTLINE');
+      expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain('UPDATE_OUTLINE');
+      expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain('NO_OP');
+      
+      // Interaction Flow
+      expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain('1-2 user replies');
     });
 
-    it('should include urgency override instructions', () => {
-      expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain('Urgency Override');
-      expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain('immediately create');
-      expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain('skip clarifying questions');
+    it('should NOT contain obsolete signals from the old architecture', () => {
+      expect(ORCHESTRATOR_SYSTEM_PROMPT).not.toContain('<ready_to_begin/>');
+      expect(ORCHESTRATOR_SYSTEM_PROMPT).not.toContain('<update_eval/>');
+      expect(ORCHESTRATOR_SYSTEM_PROMPT).not.toContain('<BLUEPRINT_YAML>');
+      expect(ORCHESTRATOR_SYSTEM_PROMPT).not.toContain('Urgency Override');
     });
 
-    it('should specify two-turn maximum for normal flow', () => {
-      expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain('at most two user turns');
+    it('should contain instructions for handling urgent/vague requests', () => {
+      expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain('URGENT/VAGUE REQUESTS');
+      expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain("do not ask clarifying questions");
+      expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain("you must invent a specific, interesting area of concern");
     });
   });
 
   describe('CREATOR_SYSTEM_PROMPT', () => {
-    it('should contain creator-specific instructions', () => {
+    it('should contain key instructions for the creator agent', () => {
       expect(CREATOR_SYSTEM_PROMPT).toContain('expert in AI evaluation');
-      expect(CREATOR_SYSTEM_PROMPT).toContain('Weval blueprint format');
-      expect(CREATOR_SYSTEM_PROMPT).toContain('self-contained');
-      expect(CREATOR_SYSTEM_PROMPT).toContain('<JSON>');
-    });
-
-    it('should limit to 1-5 prompts', () => {
-      expect(CREATOR_SYSTEM_PROMPT).toContain('1–5 prompts maximum');
-    });
-
-    it('should emphasize plain language', () => {
+      expect(CREATOR_SYSTEM_PROMPT).toContain('Create 1-3 self-contained prompts');
       expect(CREATOR_SYSTEM_PROMPT).toContain('plain language');
-      expect(CREATOR_SYSTEM_PROMPT).toContain('users can understand');
+      expect(CREATOR_SYSTEM_PROMPT).toContain('<JSON>');
     });
   });
 
   describe('UPDATER_SYSTEM_PROMPT', () => {
-    it('should contain updater-specific instructions', () => {
-      expect(UPDATER_SYSTEM_PROMPT).toContain('blueprint editor');
-      expect(UPDATER_SYSTEM_PROMPT).toContain('<CURRENT_JSON>');
-      expect(UPDATER_SYSTEM_PROMPT).toContain('<GUIDANCE>');
-      expect(UPDATER_SYSTEM_PROMPT).toContain('Preserve existing content');
-    });
-
-    it('should emphasize targeted modifications', () => {
-      expect(UPDATER_SYSTEM_PROMPT).toContain('targeted modifications');
-      expect(UPDATER_SYSTEM_PROMPT).toContain('unless guidance clearly asks');
+    it('should contain key instructions for the updater agent', () => {
+      expect(UPDATER_SYSTEM_PROMPT).toContain('expert Weval blueprint editor');
+      expect(UPDATER_SYSTEM_PROMPT).toContain('Apply the change described in the \'guidance\'');
+      expect(UPDATER_SYSTEM_PROMPT).toContain('Preserve all existing content');
+      expect(UPDATER_SYSTEM_PROMPT).toContain('<JSON>');
     });
   });
 });

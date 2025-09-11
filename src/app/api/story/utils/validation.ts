@@ -4,6 +4,7 @@
  */
 
 import { z } from 'zod';
+import { ConversationMessage } from '@/types/shared';
 
 // Constants for validation
 export const LIMITS = {
@@ -15,14 +16,17 @@ export const LIMITS = {
 } as const;
 
 // Zod schemas for runtime validation
-export const messageSchema = z.object({
+const messageSchema = z.object({
+  id: z.string().optional(),
   role: z.enum(['user', 'assistant']),
-  content: z.string().min(LIMITS.MIN_MESSAGE_LENGTH).max(LIMITS.MAX_MESSAGE_LENGTH),
+  content: z.string(),
+  ctas: z.array(z.string()).optional(),
 });
 
 export const chatRequestSchema = z.object({
-  messages: z.array(messageSchema).min(1).max(LIMITS.MAX_MESSAGES_IN_CONTEXT),
-  blueprintYaml: z.string().optional(),
+  messages: z.array(messageSchema).min(1),
+  blueprintYaml: z.string().nullable().optional(),
+  quickRunResult: z.any().nullable().optional(), // Allow this new field
 });
 
 export const createRequestSchema = z.object({
@@ -60,7 +64,7 @@ export function sanitizeUserInput(input: string): string {
     .replace(/vbscript:/gi, '')
     .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '') // Remove event handlers like onclick="..."
     // Preserve legitimate tags used by our system but escape dangerous ones
-    .replace(/<(?!\/?(cta|ready_to_begin|update_eval|quick_result|JSON|BLUEPRINT_YAML|CURRENT_JSON|GUIDANCE)\b)[^>]*>/gi, '')
+    .replace(/<(?!\/?(cta)\b)[^>]*>/gi, '')
     // Trim whitespace and limit length
     .trim()
     .slice(0, LIMITS.MAX_MESSAGE_LENGTH);
@@ -69,18 +73,23 @@ export function sanitizeUserInput(input: string): string {
 /**
  * Validate and sanitize a message array
  */
-export function validateAndSanitizeMessages(messages: any[]): { role: 'user' | 'assistant'; content: string }[] {
+export function validateAndSanitizeMessages(messages: unknown[]): ConversationMessage[] {
   if (!Array.isArray(messages)) return [];
   
   return messages
     .slice(-LIMITS.MAX_MESSAGES_IN_CONTEXT) // Prevent memory issues
     .map(m => {
       if (!m || typeof m !== 'object') return null;
-      const role = m.role === 'user' || m.role === 'assistant' ? m.role : null;
-      const content = typeof m.content === 'string' ? sanitizeUserInput(m.content) : '';
-      return role && content.length >= LIMITS.MIN_MESSAGE_LENGTH ? { role, content } : null;
+      const message = m as { role?: unknown; content?: unknown };
+      const role = message.role === 'user' || message.role === 'assistant' ? message.role : null;
+      const content = typeof message.content === 'string' ? sanitizeUserInput(message.content) : '';
+      
+      if (role && content.length >= LIMITS.MIN_MESSAGE_LENGTH) {
+        return { role, content } as ConversationMessage;
+      }
+      return null;
     })
-    .filter((m): m is NonNullable<typeof m> => m !== null);
+    .filter((m): m is ConversationMessage => m !== null);
 }
 
 /**

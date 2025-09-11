@@ -1,6 +1,6 @@
 import { getConfig } from '../config';
-import { dispatchMakeApiCall as dispatch } from '../../lib/llm-clients/client-dispatcher';
-import { LLMApiCallResult as ModelResponse, LLMApiCallOptions } from '../../lib/llm-clients/types';
+import { dispatchMakeApiCall as dispatch, dispatchStreamApiCall } from '../../lib/llm-clients/client-dispatcher';
+import { LLMApiCallResult as ModelResponse, LLMApiCallOptions, StreamChunk } from '../../lib/llm-clients/types';
 import { getCache, generateCacheKey } from '../../lib/cache-service';
 import { ConversationMessage } from '../../types/shared';
 
@@ -20,6 +20,8 @@ export interface GetModelResponseParams {
     timeout?: number;
     retries?: number;
 }
+
+export type StreamModelResponseParams = Omit<GetModelResponseParams, 'useCache' | 'retries'>;
 
 // Legacy alias for backward compatibility
 export type GetModelResponseOptions = GetModelResponseParams;
@@ -171,4 +173,36 @@ export async function getModelResponse(params: GetModelResponseParams): Promise<
         logger.error(`[LLM Service] API call failed after all retries for model ${modelId}. Error: ${error.message}`);
         throw error; // Re-throw the final error
     }
+}
+
+export async function* streamModelResponse(
+  params: Omit<GetModelResponseParams, 'useCache' | 'retries'>
+): AsyncGenerator<StreamChunk, void, undefined> {
+  const { messages, modelId, systemPrompt, temperature, maxTokens, timeout } = params;
+  const { logger } = getConfig();
+
+  const finalMessages: ConversationMessage[] | undefined = messages;
+
+  const requestPayload: LLMApiCallOptions = {
+      modelId,
+      messages: finalMessages?.map(m => ({ role: m.role, content: m.content ?? '' })),
+      systemPrompt,
+      temperature,
+      maxTokens,
+      stream: true,
+      ...(typeof timeout === 'number' && isFinite(timeout) ? { timeout } : {}),
+  };
+
+  logger.info(`[LLM Service] Starting stream for ${modelId}...`);
+  
+  try {
+    const stream = dispatchStreamApiCall(requestPayload);
+    for await (const chunk of stream) {
+      yield chunk;
+    }
+  } catch (err: any) {
+    const errorMsg = err.message || 'An unknown error occurred during the stream.';
+    logger.error(`[llm-service] failed to stream response: ${errorMsg}`);
+    yield { type: 'error', error: `Sorry, there was a problem communicating with the model. Please try again.\n\nDetails: ${errorMsg}` };
+  }
 } 

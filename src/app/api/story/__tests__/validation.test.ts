@@ -5,7 +5,6 @@ import {
   sanitizeCtaText,
   LIMITS 
 } from '../utils/validation';
-import { CONTROL_PATTERNS } from '../utils/control-signals';
 
 describe('Story API - Input Validation', () => {
   describe('sanitizeUserInput', () => {
@@ -27,10 +26,10 @@ describe('Story API - Input Validation', () => {
       expect(sanitized).toBe('Button');
     });
 
-    it('should preserve legitimate control signals', () => {
+    it('should preserve only CTA tags', () => {
       const input = 'Please <cta>run test</cta> and <ready_to_begin/>';
       const sanitized = sanitizeUserInput(input);
-      expect(sanitized).toBe('Please <cta>run test</cta> and <ready_to_begin/>');
+      expect(sanitized).toBe('Please <cta>run test</cta> and');
     });
 
     it('should remove dangerous HTML but keep text', () => {
@@ -170,20 +169,6 @@ describe('Story API - Input Validation', () => {
       expect(sanitizeCtaText(null as any)).toBe('');
       expect(sanitizeCtaText(undefined as any)).toBe('');
       expect(sanitizeCtaText(123 as any)).toBe('');
-    });
-  });
-
-  describe('Pattern matching', () => {
-    it('should match control patterns case-insensitively', () => {
-      expect(CONTROL_PATTERNS.READY_TO_BEGIN.test('<ready_to_begin/>')).toBe(true);
-      expect(CONTROL_PATTERNS.READY_TO_BEGIN.test('<READY_TO_BEGIN/>')).toBe(true);
-      expect(CONTROL_PATTERNS.UPDATE_EVAL.test('<update_eval/>')).toBe(true);
-      expect(CONTROL_PATTERNS.UPDATE_EVAL.test('<UPDATE_EVAL/>')).toBe(true);
-    });
-
-    it('should match JSON blocks case-insensitively', () => {
-      expect(CONTROL_PATTERNS.JSON_BLOCK.test('<JSON>{"test": true}</JSON>')).toBe(true);
-      expect(CONTROL_PATTERNS.JSON_BLOCK.test('<json>{"test": true}</json>')).toBe(true);
     });
   });
 });

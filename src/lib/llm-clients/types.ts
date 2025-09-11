@@ -17,6 +17,7 @@ export interface LLMApiCallOptions {
     presencePenalty?: number;
     frequencyPenalty?: number;
     stop?: string | string[];
+    stream?: boolean;
     // Reasoning parameters
     reasoningEffort?: 'low' | 'medium' | 'high';
     thinkingBudget?: number;

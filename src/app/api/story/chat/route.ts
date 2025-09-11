@@ -3,18 +3,57 @@ import { configure } from '@/cli/config';
 import { getLogger } from '@/utils/logger';
 import { ORCHESTRATOR_SYSTEM_PROMPT } from '../utils/prompt-constants';
 import { ConversationMessage } from '@/types/shared';
-import { resilientLLMCall, validateStoryResponse } from '../utils/llm-resilience';
 import { chatRequestSchema, validateAndSanitizeMessages } from '../utils/validation';
-import { CONTROL_SIGNALS } from '../utils/control-signals';
-import { storyCircuitBreakers } from '../utils/circuit-breaker';
+import { streamModelResponse } from '@/cli/services/llm-service';
+import { resilientLLMCall, FALLBACK_MODELS } from '../utils/llm-resilience';
+
+export const runtime = 'nodejs';
 
 type ChatRequestBody = {
     messages: ConversationMessage[];
-    blueprintYaml?: string; // hidden context to pass in
+    // System status context
+    blueprintYaml?: string; 
+    quickRunResult?: object;
+    // flag to disable streaming for simple calls
+    noStream?: boolean; 
+    // Dev-only: add an artificial delay (ms) between streamed chunks to visualize streaming
+    debugStreamDelayMs?: number;
 };
 
+// Builds the structured prompt for the orchestrator
+function buildOrchestratorPrompt(messages: ConversationMessage[], blueprintYaml?: string, quickRunResult?: object): ConversationMessage[] {
+    const history = messages.slice(-12);
+    const lastMessage = history[history.length - 1];
+
+    let systemStatus = '';
+    if (blueprintYaml) {
+        systemStatus += `The user is working on the following evaluation outline:\n\n${blueprintYaml}\n\n`;
+    }
+    if (quickRunResult) {
+        systemStatus += `The user just ran a quick test. Here is a summary of the results:\n\n${JSON.stringify(quickRunResult, null, 2)}`;
+    }
+
+    if (lastMessage?.role === 'user') {
+        // Last message is from the user, so we modify it.
+        const modifiedMessage = {
+            ...lastMessage,
+            content: `<SYSTEM_STATUS>\n${systemStatus.trim()}\n</SYSTEM_STATUS>\n<USER_MESSAGE>\n${lastMessage.content}\n</USER_MESSAGE>`
+        };
+        // Replace the last message with the modified one.
+        return [...history.slice(0, -1), modifiedMessage];
+    } else {
+        // Last message is from the assistant, or history is empty.
+        // This is a system-triggered event. Append a new user message with status only.
+        const systemUserMessage = {
+            role: 'user' as const,
+            content: `<SYSTEM_STATUS>\n${systemStatus.trim()}\n</SYSTEM_STATUS>\n<USER_MESSAGE>\n</USER_MESSAGE>`
+        };
+        return [...history, systemUserMessage];
+    }
+}
+
 export async function POST(req: NextRequest) {
-    const logger = await getLogger('story:chat');
+    const logger = await getLogger('story:chat:stream');
     configure({
         logger: {
             info: (m) => logger.info(m),
@@ -22,53 +61,74 @@ export async function POST(req: NextRequest) {
             error: (m) => logger.error(m),
             success: (m) => logger.info(m),
         },
-        errorHandler: (err) => logger.error(`[story:chat] error: ${err?.message || err}`),
+        errorHandler: (err) => logger.error(`[story:chat:stream] error: ${err?.message || err}`),
     });
 
     try {
-        const body = await req.json();
+        const body: ChatRequestBody = await req.json();
         const validationResult = chatRequestSchema.safeParse(body);
         
         if (!validationResult.success) {
-            logger.warn(`[story:chat] validation failed: ${validationResult.error.message}`);
-            return NextResponse.json({ error: 'Invalid request format' }, { status: 400 });
+            logger.warn(`[story:chat:stream] validation failed: ${validationResult.error.message}`);
+            return new Response(JSON.stringify({ error: 'Invalid request format' }), { status: 400 });
         }
 
-        const { messages: rawMessages, blueprintYaml } = validationResult.data;
+        const { messages: rawMessages, blueprintYaml, quickRunResult } = validationResult.data;
         const messages = validateAndSanitizeMessages(rawMessages);
 
         if (messages.length === 0) {
-            return NextResponse.json({ error: 'No valid messages provided' }, { status: 400 });
+            return new Response(JSON.stringify({ error: 'No valid messages provided' }), { status: 400 });
         }
 
-        // Keep a short context window (last 12 turns) for cost/perf
-        const trimmed = messages.slice(-12);
-        const hiddenCtx = blueprintYaml ? [{ role: 'user', content: `${CONTROL_SIGNALS.BLUEPRINT_YAML_START}${blueprintYaml}${CONTROL_SIGNALS.BLUEPRINT_YAML_END}` } as ConversationMessage] : [];
-        const finalMsgs = hiddenCtx.concat(trimmed);
-
-        const reply = await storyCircuitBreakers.chat.execute(() =>
-            resilientLLMCall({
+        const finalMsgs = buildOrchestratorPrompt(messages, blueprintYaml ?? undefined, quickRunResult);
+        
+        // Handle non-streaming case for quick run follow-up
+        if (body.noStream) {
+            logger.info('[story:chat] Handling non-streaming request');
+            const reply = await resilientLLMCall({
                 messages: finalMsgs,
                 systemPrompt: ORCHESTRATOR_SYSTEM_PROMPT,
                 temperature: 0.2,
                 useCache: false,
-                maxRetries: 1,
-                backoffMs: 1000,
-            })
-        );
-
-        if (!validateStoryResponse(reply, 'chat')) {
-            throw new Error('Invalid response format from orchestrator');
+            });
+            return NextResponse.json({ reply });
         }
 
-        if (process.env.NODE_ENV === 'development') {
-            logger.info(`[story:chat] tokens~=n/a len=${reply.length}`);
-        }
+        const llmStream = streamModelResponse({
+            messages: finalMsgs,
+            modelId: FALLBACK_MODELS[0], // Use the primary model for orchestration
+            systemPrompt: ORCHESTRATOR_SYSTEM_PROMPT,
+            temperature: 0.2,
+        });
 
-        return NextResponse.json({ reply });
+        const stream = new ReadableStream({
+            async start(controller) {
+                const encoder = new TextEncoder();
+                const rawDelay = (process.env.NODE_ENV === 'development')
+                    ? (Number(body.debugStreamDelayMs) || Number(process.env.DEBUG_STREAM_DELAY_MS) || 0)
+                    : 0;
+                const delay = Number.isFinite(rawDelay) && rawDelay > 0 ? rawDelay : 0;
+                for await (const chunk of llmStream) {
+                    if (chunk.type === 'content') {
+                        if (delay > 0) {
+                            await new Promise((r) => setTimeout(r, delay));
+                        }
+                        controller.enqueue(encoder.encode(chunk.content));
+                    }
+                }
+                controller.close();
+            },
+        });
+
+        return new Response(stream, {
+            headers: {
+                'Content-Type': 'text/plain; charset=utf-8',
+            },
+        });
+
     } catch (err: any) {
-        logger.error(`[story:chat] failed: ${err?.message || err}`);
-        return NextResponse.json({ error: 'Failed to get assistant reply.' }, { status: 500 });
+        logger.error(`[story:chat:stream] failed: ${err?.message || err}`);
+        return new Response(JSON.stringify({ error: 'Failed to get assistant reply.' }), { status: 500 });
     }
 }
 

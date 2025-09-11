@@ -37,7 +37,8 @@
     "prepare": "pnpm exec husky || true",
     "pre-commit": "lint-staged",
     "update-snapshots": "jest --updateSnapshot",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf .next"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.850.0",

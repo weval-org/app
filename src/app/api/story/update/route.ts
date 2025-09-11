@@ -4,11 +4,12 @@ import { getLogger } from '@/utils/logger';
 import { UPDATER_SYSTEM_PROMPT } from '../utils/prompt-constants';
 import { parseWevalConfigFromResponse } from '@/app/sandbox/utils/json-response-parser';
 import { resilientLLMCall, validateStoryResponse } from '../utils/llm-resilience';
+import { z } from 'zod';
 
-type UpdateRequestBody = {
-  currentJson: any; // existing blueprint object
-  guidance: string; // short textual guidance
-};
+const updateRequestSchema = z.object({
+  currentJson: z.any(),
+  guidance: z.string().min(5),
+});
 
 export async function POST(req: NextRequest) {
   const logger = await getLogger('story:update');
@@ -23,15 +24,17 @@ export async function POST(req: NextRequest) {
   });
 
   try {
-    const body = (await req.json()) as UpdateRequestBody;
-    const currentJson = body?.currentJson;
-    const guidance = (body?.guidance || '').trim();
-    if (!currentJson || !guidance) {
-      return NextResponse.json({ error: 'currentJson and guidance are required' }, { status: 400 });
+    const body = await req.json();
+    const validationResult = updateRequestSchema.safeParse(body);
+    
+    if (!validationResult.success) {
+      return NextResponse.json({ error: 'Invalid request: currentJson and guidance are required.' }, { status: 400 });
     }
+    
+    const { currentJson, guidance } = validationResult.data;
 
     const messages = [
-      { role: 'user' as const, content: `<CURRENT_JSON>${JSON.stringify(currentJson)}</CURRENT_JSON>\n<GUIDANCE>${guidance}</GUIDANCE>` },
+      { role: 'user' as const, content: JSON.stringify({ currentJson, guidance }) },
     ];
 
     logger.info(`[story:update][payload] guidance.len=${guidance.length} current.size=${JSON.stringify(currentJson).length}`);
