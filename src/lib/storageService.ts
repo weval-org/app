@@ -20,19 +20,16 @@ import {
 import {
   EnhancedComparisonConfigInfo,
   EnhancedRunInfo,
-  AllCoverageScores,
   PerModelScoreStats,
 } from '@/app/utils/homepageDataUtils';
 import type { CapabilityLeaderboard, CapabilityRawData } from '../types/summary';
-import type { AggregateStatsData } from '@/app/components/home/types';
 import type { PotentialDriftInfo } from '../types/summary';
 import { ComparisonDataV2 as FetchedComparisonData } from '@/app/utils/types';
 import {
     calculateHeadlineStats,
     calculatePotentialModelDrift,
     calculatePerModelScoreStatsForRun,
-    calculateAverageHybridScoreForRun,
-    TopicChampion
+    calculateAverageHybridScoreForRun
 } from '@/cli/utils/summaryCalculationUtils';
 import { fromSafeTimestamp, toSafeTimestamp } from '@/lib/timestampUtils';
 // ModelSummary is imported below with other shared types to avoid duplication
@@ -47,9 +44,8 @@ import {
     MODEL_CARDS_DIR
 } from '@/cli/constants';
 import { getConfig } from '@/cli/config';
-// WevalResult is imported below with other shared types to avoid duplication
 import pLimit from '@/lib/pLimit';
-import { WevalResult, ModelSummary, ModelRunPerformance, PainPointsSummary, RedlinesAnnotation } from '@/types/shared';
+import { ModelSummary, PainPointsSummary, RedlinesAnnotation } from '@/types/shared';
 import { TopicChampionInfo } from '@/app/components/home/types';
 
 const storageProvider = process.env.STORAGE_PROVIDER || (['development', 'test'].includes(process.env.NODE_ENV || '') ? 'local' : 's3');
@@ -113,6 +109,25 @@ if (storageProvider === 's3') {
       // Warn if other S3 vars are set but region is missing, as client creation will fail or use default region which might be wrong.
       console.warn("[StorageService] S3 configuration variables (bucket/keys) found, but APP_S3_REGION is missing. S3 client not initialized.");
   }
+}
+
+// Expose minimal getters so other modules (and helpers below) can reference configured storage
+export function getStorageProvider(): 's3' | 'local' {
+  return (storageProvider === 's3' ? 's3' : 'local');
+}
+
+export function getS3Client(): S3Client {
+  if (!s3Client) {
+    throw new Error('S3 client is not initialized. Ensure APP_S3_REGION (and credentials) are set when STORAGE_PROVIDER=s3.');
+  }
+  return s3Client;
+}
+
+export function getBucketName(): string {
+  if (!s3BucketName) {
+    throw new Error('S3 bucket name is not configured (APP_S3_BUCKET_NAME).');
+  }
+  return s3BucketName;
 }
 
 export const streamToString = (stream: Readable): Promise<string> =>
@@ -3070,3 +3085,83 @@ export async function appendRedlinesFeed(entry: RedlinesAnnotation, maxItems: nu
 // --- Macro Canvas Artefacts (index, mappings, tiles) ---
 
 export const MACRO_DIR = path.join(LIVE_DIR, 'macro');
+
+/**
+ * Saves an arbitrary JSON object to a specified path in the configured storage provider.
+ * This is a generic utility for saving JSON files like status trackers.
+ *
+ * @param filePath The full path (including filename) where the JSON should be saved.
+ * @param data The JSON-serializable object to save.
+ */
+export async function saveJsonFile(filePath: string, data: object): Promise<void> {
+    // Use CLI logger if available; otherwise fall back to console in serverless contexts
+    const logger = (() => {
+        try { return getConfig().logger; } catch { return { info: console.log, error: console.error }; }
+    })();
+    const content = JSON.stringify(data, null, 2);
+    const provider = getStorageProvider();
+
+    if (provider === 's3') {
+        const s3Client = getS3Client();
+        const bucketName = getBucketName();
+        try {
+            await s3Client.send(new PutObjectCommand({
+                Bucket: bucketName,
+                Key: filePath,
+                Body: content,
+                ContentType: 'application/json',
+            }));
+            if (process.env.DEBUG) {
+                logger.info(`[StorageService] Generic JSON file saved to S3: ${filePath}`);
+            }
+        } catch (error) {
+            const message = (error as any)?.message ? String((error as any).message) : String(error);
+            logger.error(`[StorageService] Error saving generic JSON file to S3 at ${filePath}: ${message}`);
+            throw error;
+        }
+    } else {
+        const localPath = path.join(RESULTS_DIR, filePath);
+        try {
+            await fs.mkdir(path.dirname(localPath), { recursive: true });
+            await fs.writeFile(localPath, content);
+            if (process.env.DEBUG) {
+                logger.info(`[StorageService] Generic JSON file saved to local disk: ${localPath}`);
+            }
+        } catch (error) {
+            const message = (error as any)?.message ? String((error as any).message) : String(error);
+            logger.error(`[StorageService] Error saving generic JSON file to local disk at ${localPath}: ${message}`);
+            throw error;
+        }
+    }
+}
+
+/**
+ * Reads and parses a JSON file from the configured storage provider.
+ * @param filePath The full path/key relative to the storage root (e.g. 'live/blueprints/..' or 'api-runs/...').
+ * @returns Parsed JSON object or null if not found.
+ */
+export async function getJsonFile<T = any>(filePath: string): Promise<T | null> {
+  if (getStorageProvider() === 's3') {
+    try {
+      const client = getS3Client();
+      const bucket = getBucketName();
+      const { Body } = await client.send(new GetObjectCommand({ Bucket: bucket, Key: filePath }));
+      if (!Body) return null;
+      const text = await streamToString(Body as Readable);
+      return JSON.parse(text) as T;
+    } catch (err: any) {
+      if (err?.name === 'NoSuchKey') return null;
+      // Propagate other errors so callers can decide how to handle
+      throw err;
+    }
+  } else {
+    const localPath = path.join(RESULTS_DIR, filePath);
+    try {
+      const content = await fs.readFile(localPath, 'utf-8');
+      return JSON.parse(content) as T;
+    } catch (err: any) {
+      if (err?.code === 'ENOENT') return null;
+      throw err;
+    }
+  }
+}

@@ -17,7 +17,6 @@ describe('artefact read/write round-trip', () => {
   const runLabel = 'testrun';
   const timestamp = '2024-01-01T00-00-00Z';
   const fileName = `${runLabel}_${timestamp}_comparison.json`;
-  const runBase = `${runLabel}_${timestamp}`;
 
   // minimal sample data
   const sampleData: any = {

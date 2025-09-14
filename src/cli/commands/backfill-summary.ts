@@ -269,8 +269,16 @@ async function actionBackfillSummary(options: { verbose?: boolean; configId?: st
                     await saveConfigSummary(configId, finalConfigSummary);
                 }
 
-                // Add the completed summary to our list for the homepage summary generation
-                allConfigsForHomepage.push(finalConfigSummary);
+                // Add the completed summary to our list for the homepage summary generation,
+                // ONLY if it's not a run from the public API.
+                const isPublicApiRun = finalConfigSummary.tags?.includes('_public_api');
+                if (!isPublicApiRun) {
+                    allConfigsForHomepage.push(finalConfigSummary);
+                } else {
+                    if (options.verbose) {
+                        logger.info(`  Excluding config ${configId} from homepage summary because it has the '_public_api' tag.`);
+                    }
+                }
             }
         }
 
@@ -311,6 +319,7 @@ async function actionBackfillSummary(options: { verbose?: boolean; configId?: st
             logger.info(`Headline stats will be calculated based on all ${allConfigsForHomepage.length} configs (excluding 'test' tag).`);
 
             const headlineStats = calculateHeadlineStats(allConfigsForHomepage, modelDimensionGrades, topicModelScores, logger);
+
             const driftDetectionResult = calculatePotentialModelDrift(allConfigsForHomepage);
             const topicChampions = calculateTopicChampions(topicModelScores);
 
