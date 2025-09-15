@@ -5,9 +5,9 @@ export const dynamic = 'force-dynamic'; // defaults to auto
 
 export async function GET(
     request: Request,
-    { params }: { params: { configId: string } }
+    { params }: { params: Promise<{ configId: string }> }
 ) {
-    const { configId } = params;
+    const { configId } = await params;
 
     if (!configId) {
         return NextResponse.json({ error: 'Config ID is required.' }, { status: 400 });
