@@ -129,9 +129,9 @@ function transformWevalResult(wevalResult: WevalResult) {
 
 export async function GET(
     request: Request,
-    { params }: { params: { configId: string, runLabel: string, timestamp: string } }
+    { params }: { params: Promise<{ configId: string, runLabel: string, timestamp: string }> }
 ) {
-    const { configId, runLabel, timestamp } = params;
+    const { configId, runLabel, timestamp } = await params;
     
     if (!configId || !runLabel || !timestamp) {
         return NextResponse.json({ error: 'Config ID, Run Label, and Timestamp are required.' }, { status: 400 });
