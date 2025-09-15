@@ -1,5 +1,6 @@
 import ApiRunView from './ApiRunView';
 
-export default function ApiRunPage({ params }: { params: { runId: string } }) {
-    return <ApiRunView runId={params.runId} />;
+export default async function ApiRunPage({ params }: { params: Promise<{ runId: string }> }) {
+    const { runId } = await params;
+    return <ApiRunView runId={runId} />;
 }
