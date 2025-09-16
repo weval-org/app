@@ -514,6 +514,7 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
         openPromptDetailModal,
         closePromptDetailModal,
         fetchModalResponse: lazyResponseData.fetchModalResponse,
+        fetchModalResponseBatch: lazyResponseData.fetchModalResponseBatch,
         fetchModelResponses: lazyResponseData.fetchModelResponses,
         fetchPromptResponses: lazyResponseData.fetchPromptResponses,
         fetchEvaluationDetails: lazyResponseData.fetchEvaluationDetails,

@@ -739,7 +739,8 @@ export async function saveResult(configId: string, fileNameWithTimestamp: string
       if (clone.config?.prompts) {
         clone.config.prompts = clone.config.prompts.map((p: any) => ({ 
           id: p.id,
-          ...(typeof p.weight === 'number' ? { weight: p.weight } : {})
+          ...(typeof p.weight === 'number' ? { weight: p.weight } : {}),
+          ...(p.render_as ? { render_as: p.render_as } : {})
         }));
       }
 

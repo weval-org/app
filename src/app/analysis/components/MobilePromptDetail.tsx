@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { EvaluationView } from './SharedEvaluationComponents';
 import { CoverageResult } from '@/app/utils/types';
 import Icon from '@/components/ui/icon';
+import { RenderAsType } from '@/app/components/ResponseRenderer';
 
 interface MobilePromptDetailProps {
     promptId: string;
@@ -18,6 +19,7 @@ interface MobilePromptDetailProps {
     score: number | null;
     rank: 'excellent' | 'good' | 'poor' | 'error';
     onBack: () => void;
+    renderAs?: RenderAsType;
 }
 
 const getPerformanceBadge = (rank: 'excellent' | 'good' | 'poor' | 'error', score: number | null) => {
@@ -48,7 +50,8 @@ export const MobilePromptDetail: React.FC<MobilePromptDetailProps> = ({
     idealResponse,
     score,
     rank,
-    onBack
+    onBack,
+    renderAs,
 }) => {
     const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
     
@@ -117,6 +120,7 @@ export const MobilePromptDetail: React.FC<MobilePromptDetailProps> = ({
                     expandedLogs={expandedLogs}
                     toggleLogExpansion={toggleLogExpansion}
                     isMobile={true}
+                    renderAs={renderAs}
                 />
                 {!hasAnyText && (
                     <div className="mt-2 text-xs text-muted-foreground">

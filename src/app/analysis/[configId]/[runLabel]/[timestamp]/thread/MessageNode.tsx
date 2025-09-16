@@ -1,7 +1,7 @@
 'use client';
 import React, { useState } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
-import ReactMarkdown from 'react-markdown';
+import ResponseRenderer from '@/app/components/ResponseRenderer';
 import { parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -69,7 +69,7 @@ const MessageNode: React.FC<NodeProps> = ({ data }) => {
             </CardHeader>
             <CardContent className="p-2 text-xs overflow-y-auto">
                  <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <ReactMarkdown>{text}</ReactMarkdown>
+                    <ResponseRenderer content={text} />
                 </div>
             </CardContent>
             {Array.isArray(responses) && responses.length > 1 && (

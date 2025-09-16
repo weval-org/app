@@ -6,6 +6,8 @@ import { MobilePromptList } from './MobilePromptList';
 import { MobilePromptDetail } from './MobilePromptDetail';
 import { AllCoverageScores, AllFinalAssistantResponses } from '@/app/analysis/types';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
+import { PromptConfig } from '@/cli/types/cli_types';
+import { RenderAsType } from '@/app/components/ResponseRenderer';
 
 export interface PromptPerformance {
     promptId: string;
@@ -14,6 +16,7 @@ export interface PromptPerformance {
     response: string | undefined;
     score: number | null;
     rank: 'excellent' | 'good' | 'poor' | 'error';
+    renderAs?: RenderAsType;
 }
 
 interface MobileModelPerformanceAnalysisProps {
@@ -94,6 +97,7 @@ export const MobileModelPerformanceAnalysis: React.FC<MobileModelPerformanceAnal
                             score={selectedPromptPerformance.score}
                             rank={selectedPromptPerformance.rank}
                             onBack={handleBackToList}
+                            renderAs={selectedPromptPerformance.renderAs}
                         />
                     )}
                 </div>

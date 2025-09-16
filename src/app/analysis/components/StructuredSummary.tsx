@@ -13,7 +13,7 @@ import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
 import Icon from '@/components/ui/icon';
 import dynamic from 'next/dynamic';
 import { usePreloadIcons } from '@/components/ui/use-preload-icons';
-import ReactMarkdown from 'react-markdown';
+import ResponseRenderer from '@/app/components/ResponseRenderer';
 import RemarkGfmPlugin from 'remark-gfm';
 import { parseModelIdForDisplay } from '../../utils/modelIdUtils';
 
@@ -499,9 +499,7 @@ export const StructuredSummary: React.FC<StructuredSummaryProps> = ({ insights }
                     key={index}
                     className="text-muted-foreground bg-muted/20 dark:bg-slate-800/20 rounded-md p-3 border-l-2 border-border prose prose-sm dark:prose-invert max-w-none"
                   >
-                    <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
-                      {item}
-                    </ReactMarkdown>
+                    <ResponseRenderer content={item} />
                   </div>
                 ))}
               </div>

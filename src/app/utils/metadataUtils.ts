@@ -3,8 +3,8 @@ import { fromSafeTimestamp } from '@/lib/timestampUtils';
 
 // Props type for generateMetadata function - params and searchParams as Promises
 export type GenerateMetadataProps = {
-  params: Promise<{ [key: string]: string | string[] | undefined }>;
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+  params: { [key: string]: string | string[] | undefined } | Promise<{ [key: string]: string | string[] | undefined }>;
+  searchParams: { [key: string]: string | string[] | undefined } | Promise<{ [key: string]: string | string[] | undefined }>;
 };
 
 // Generic function to generate metadata for analysis-like pages

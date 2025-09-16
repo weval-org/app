@@ -17,6 +17,7 @@ import { ConversationMessage } from '@/types/shared';
 import RemarkGfmPlugin from 'remark-gfm';
 import ConversationHistory from '@/app/analysis/components/ConversationHistory';
 import TemperatureHistoryGroup from '@/app/analysis/components/TemperatureHistoryGroup';
+import ResponseRenderer, { RenderAsType } from '@/app/components/ResponseRenderer';
 
 const getScoreColor = (score?: number): string => {
     if (score === undefined || score === null || isNaN(score)) return 'bg-slate-500';
@@ -197,7 +198,8 @@ export const EvaluationView: React.FC<{
     generatedHistory?: ConversationMessage[];
     // Optional: for aggregate view: sequential per-temperature outputs
     generatedHistoryByTemp?: Array<{ temperature: number; history?: ConversationMessage[]; transcript?: string; text?: string }>;
-}> = ({ assessments, modelResponse, idealResponse, expandedLogs, toggleLogExpansion, isMobile = false, generatedTranscript, generatedHistory, generatedHistoryByTemp }) => {
+    renderAs?: RenderAsType;
+}> = ({ assessments, modelResponse, idealResponse, expandedLogs, toggleLogExpansion, isMobile = false, generatedTranscript, generatedHistory, generatedHistoryByTemp, renderAs }) => {
     const [expandedAssessments, setExpandedAssessments] = useState<Set<number>>(new Set());
     const [activeTab, setActiveTab] = useState('model-response');
 
@@ -332,7 +334,7 @@ export const EvaluationView: React.FC<{
                             </TabsList>
                             <TabsContent value="model-response" className="pt-3">
                                 {generatedHistory && generatedHistory.length ? (
-                                    <ConversationHistory history={generatedHistory} isMobile />
+                                    <ConversationHistory history={generatedHistory} isMobile renderAs={renderAs} />
                                 ) : (generatedHistoryByTemp && generatedHistoryByTemp.length > 0) ? (
                                     <TemperatureHistoryGroup
                                         entries={generatedHistoryByTemp.map(e => ({
@@ -342,6 +344,7 @@ export const EvaluationView: React.FC<{
                                             text: e.text,
                                         }))}
                                         isMobile
+                                        renderAs={renderAs}
                                     />
                                 ) : (
                                     <div className="space-y-2">
@@ -350,7 +353,7 @@ export const EvaluationView: React.FC<{
                                         )}
                                         {modelResponse && (
                                             <div className="prose prose-sm dark:prose-invert max-w-none">
-                                                <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{modelResponse}</ReactMarkdown>
+                                                <ResponseRenderer content={modelResponse} renderAs={renderAs} />
                                             </div>
                                         )}
                                     </div>
@@ -358,14 +361,14 @@ export const EvaluationView: React.FC<{
                             </TabsContent>
                             <TabsContent value="ideal-response" className="pt-3">
                                 <div className="prose prose-sm dark:prose-invert max-w-none">
-                                    <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{idealResponse}</ReactMarkdown>
+                                    <ResponseRenderer content={idealResponse} renderAs={renderAs} />
                                 </div>
                             </TabsContent>
                         </Tabs>
                     ) : (
                         <div className="pt-1">
                             {generatedHistory && generatedHistory.length ? (
-                                <ConversationHistory history={generatedHistory} isMobile />
+                                <ConversationHistory history={generatedHistory} isMobile renderAs={renderAs} />
                             ) : (generatedHistoryByTemp && generatedHistoryByTemp.length > 0) ? (
                                 <TemperatureHistoryGroup
                                     entries={generatedHistoryByTemp.map(e => ({
@@ -375,6 +378,7 @@ export const EvaluationView: React.FC<{
                                         text: e.text,
                                     }))}
                                     isMobile
+                                    renderAs={renderAs}
                                 />
                             ) : (
                                 <div className="space-y-2">
@@ -383,7 +387,7 @@ export const EvaluationView: React.FC<{
                                     )}
                                     {modelResponse && (
                                         <div className="prose prose-sm dark:prose-invert max-w-none">
-                                            <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{modelResponse}</ReactMarkdown>
+                                            <ResponseRenderer content={modelResponse} renderAs={renderAs} />
                                         </div>
                                     )}
                                 </div>
@@ -434,7 +438,7 @@ export const EvaluationView: React.FC<{
                         </TabsList>
                         <TabsContent value="model-response" className="flex-grow overflow-y-auto custom-scrollbar pr-2">
                             {generatedHistory && generatedHistory.length ? (
-                                <ConversationHistory history={generatedHistory} isMobile={false} />
+                                <ConversationHistory history={generatedHistory} isMobile={false} renderAs={renderAs} />
                             ) : (generatedHistoryByTemp && generatedHistoryByTemp.length > 0) ? (
                                 <TemperatureHistoryGroup
                                     entries={generatedHistoryByTemp.map(e => ({
@@ -444,6 +448,7 @@ export const EvaluationView: React.FC<{
                                         text: e.text,
                                     }))}
                                     isMobile={false}
+                                    renderAs={renderAs}
                                 />
                             ) : (
                                 <div className="space-y-2">
@@ -452,7 +457,7 @@ export const EvaluationView: React.FC<{
                                     )}
                                     {modelResponse && (
                                         <div className="prose prose-sm dark:prose-invert max-w-none">
-                                            <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{modelResponse}</ReactMarkdown>
+                                            <ResponseRenderer content={modelResponse} renderAs={renderAs} />
                                         </div>
                                     )}
                                 </div>
@@ -460,14 +465,14 @@ export const EvaluationView: React.FC<{
                         </TabsContent>
                         <TabsContent value="ideal-response" className="flex-grow overflow-y-auto custom-scrollbar pr-2">
                             <div className="prose prose-sm dark:prose-invert max-w-none">
-                                <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{idealResponse}</ReactMarkdown>
+                                <ResponseRenderer content={idealResponse} renderAs={renderAs} />
                             </div>
                         </TabsContent>
                     </Tabs>
                 ) : (
                     <div className="flex-grow overflow-y-auto custom-scrollbar pr-2">
                         {generatedHistory && generatedHistory.length ? (
-                            <ConversationHistory history={generatedHistory} isMobile={false} />
+                            <ConversationHistory history={generatedHistory} isMobile={false} renderAs={renderAs} />
                         ) : (generatedHistoryByTemp && generatedHistoryByTemp.length > 0) ? (
                             <TemperatureHistoryGroup
                                 entries={generatedHistoryByTemp.map(e => ({
@@ -477,6 +482,7 @@ export const EvaluationView: React.FC<{
                                     text: e.text,
                                 }))}
                                 isMobile={false}
+                                renderAs={renderAs}
                             />
                         ) : (
                             <div className="space-y-2">
@@ -485,7 +491,7 @@ export const EvaluationView: React.FC<{
                                 )}
                                 {modelResponse && (
                                     <div className="prose prose-sm dark:prose-invert max-w-none">
-                                        <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{modelResponse}</ReactMarkdown>
+                                        <ResponseRenderer content={modelResponse} renderAs={renderAs} />
                                     </div>
                                 )}
                             </div>

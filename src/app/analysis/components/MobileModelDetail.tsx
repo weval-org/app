@@ -6,6 +6,7 @@ import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import { CoverageResult } from '@/app/utils/types';
 import { EvaluationView } from './SharedEvaluationComponents';
 import Icon from '@/components/ui/icon';
+import { RenderAsType } from '@/app/components/ResponseRenderer';
 
 interface MobileModelDetailProps {
     modelId: string;
@@ -17,6 +18,7 @@ interface MobileModelDetailProps {
     timestamp?: string;
     promptId?: string;
     onBack: () => void;
+    renderAs?: RenderAsType;
 }
 
 export const MobileModelDetail: React.FC<MobileModelDetailProps> = ({
@@ -28,7 +30,8 @@ export const MobileModelDetail: React.FC<MobileModelDetailProps> = ({
     runLabel,
     timestamp,
     promptId,
-    onBack
+    onBack,
+    renderAs,
 }) => {
     const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
     const [history, setHistory] = useState<any[] | null>(null);
@@ -113,6 +116,7 @@ export const MobileModelDetail: React.FC<MobileModelDetailProps> = ({
                     toggleLogExpansion={toggleLogExpansion}
                     isMobile={true}
                     generatedHistory={Array.isArray(history) && history.length ? (history as any) : undefined}
+                    renderAs={renderAs}
                 />
             </div>
         </div>

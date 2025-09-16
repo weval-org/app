@@ -46,6 +46,11 @@
           "items": { "type": "number" },
           "description": "An array of temperature settings to run for each model."
         },
+        "render_as": {
+            "type": "string",
+            "enum": ["markdown", "html", "plaintext"],
+            "description": "Sets the default rendering mode for all prompts in the blueprint. Can be overridden at the prompt level. Defaults to 'markdown'."
+        },
         "prompts": {
           "$ref": "#/definitions/promptList"
         }
@@ -170,6 +175,11 @@
           "type": "array",
           "items": { "$ref": "#/definitions/pointItem" },
           "description": "A list of rubric points defining what a response should not contain."
+        },
+        "render_as": {
+            "type": "string",
+            "enum": ["markdown", "html", "plaintext"],
+            "description": "Sets the rendering mode for this prompt's output, overriding any global setting."
         }
       },
       "oneOf": [

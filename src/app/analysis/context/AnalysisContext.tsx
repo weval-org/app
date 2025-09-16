@@ -110,6 +110,7 @@ export interface AnalysisContextType {
     fetchEvaluationDetails: (promptId: string, modelId: string) => Promise<any | null>;
     fetchEvaluationDetailsBatchForPrompt: (promptId: string) => Promise<Record<string, any> | null>;
     fetchEvaluationDetailsBatchForModel: (modelId: string) => Promise<Record<string, any> | null>;
+    fetchModalResponseBatch?: (pairs: {promptId: string, modelId: string}[]) => Promise<void>;
     getCachedResponse: (promptId: string, modelId: string) => string | null;
     getCachedEvaluation: (promptId: string, modelId: string) => any | null;
     isLoadingResponse: (promptId: string, modelId: string) => boolean;

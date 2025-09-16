@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import ReactMarkdown from 'react-markdown';
+import ResponseRenderer from '@/app/components/ResponseRenderer';
 import RemarkGfmPlugin from 'remark-gfm';
 
 export function ArticleClient({
@@ -52,9 +52,7 @@ export function ArticleClient({
         )}
       </header>
       <div onClick={handleClick}>
-        <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
-          {content}
-        </ReactMarkdown>
+        <ResponseRenderer content={content} />
       </div>
     </article>
   );

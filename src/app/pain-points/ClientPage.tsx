@@ -5,7 +5,7 @@ import { PainPointsSummary, PainPoint } from '@/types/shared';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import ReactMarkdown from 'react-markdown';
+import ResponseRenderer from '@/app/components/ResponseRenderer';
 import remarkGfm from 'remark-gfm';
 import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import Link from 'next/link';
@@ -144,21 +144,21 @@ const PainPointItem = ({ point }: { point: PainPoint }) => {
               <div>
                 <h3 className="font-semibold mb-2">Prompt</h3>
                 <div className="prose prose-sm dark:prose-invert bg-muted rounded p-4">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {Array.isArray(point.promptContext)
-                      ? point.promptContext
-                          .map((m) => `**${m.role}:**\n\n${m.content}`)
-                          .join('\n\n---\n\n')
-                      : String(point.promptContext)}
-                  </ReactMarkdown>
+                  <ResponseRenderer
+                    content={
+                      Array.isArray(point.promptContext)
+                        ? point.promptContext
+                            .map((m) => `**${m.role}:**\n\n${m.content}`)
+                            .join('\n\n---\n\n')
+                        : String(point.promptContext)
+                    }
+                  />
                 </div>
               </div>
               <div>
                 <h3 className="font-semibold mb-2">Model Response</h3>
                 <div className="prose prose-sm dark:prose-invert bg-muted rounded p-4">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {point.responseText}
-                  </ReactMarkdown>
+                  <ResponseRenderer content={point.responseText} />
                 </div>
               </div>
               <div>

@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import PromptContextDisplay from './PromptContextDisplay';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import Icon from '@/components/ui/icon';
+import ResponseRenderer from '@/app/components/ResponseRenderer';
 // import { usePreloadIcons } from '@/components/ui/use-preload-icons';
 
 import ReactMarkdown from 'react-markdown';
@@ -443,7 +444,8 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
     return {
       promptContext,
       promptDescription: promptConfig?.description,
-      promptCitation: promptConfig?.citation
+      promptCitation: promptConfig?.citation,
+      renderAs: promptConfig?.render_as || 'markdown',
     };
   }, [currentPromptId, data.promptContexts, data.config.prompts]);
 
@@ -552,9 +554,7 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
             <div className="mt-4 space-y-4">
               {promptData.promptDescription && (
                 <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground border-l-4 border-primary/20 pl-4 py-1">
-                  <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
-                    {promptData.promptDescription}
-                  </ReactMarkdown>
+                  <ResponseRenderer content={promptData.promptDescription} renderAs={promptData.renderAs} />
                 </div>
               )}
               
@@ -577,9 +577,7 @@ const AnalysisPageHeader: React.FC<AnalysisPageHeaderProps> = ({
           {/* General description and config info for both views */}
           {!isInSinglePromptView && hasDescription && (
             <div className="mt-3 text-sm text-foreground prose prose-sm dark:prose-invert max-w-none">
-              <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
-                {description!}
-              </ReactMarkdown>
+              <ResponseRenderer content={description!} />
             </div>
           )}
 

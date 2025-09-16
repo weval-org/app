@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
 import { prettifyTag, normalizeTag } from '@/app/utils/tagUtils';
 import Icon from '@/components/ui/icon';
-import ReactMarkdown from 'react-markdown';
+import ResponseRenderer from '@/app/components/ResponseRenderer';
 import RemarkGfmPlugin from 'remark-gfm';
 
 export const SimpleAnalysisHeader: React.FC = () => {
@@ -36,9 +36,7 @@ export const SimpleAnalysisHeader: React.FC = () => {
             {description && (
                 <div className="max-w-none">
                     <div className="prose prose-sm dark:prose-invert max-w-none text-foreground/90 leading-relaxed">
-                        <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
-                            {description}
-                        </ReactMarkdown>
+                        <ResponseRenderer content={description} />
                     </div>
                 </div>
             )}

@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { BlueprintSummaryInfo } from '@/app/utils/blueprintSummaryUtils';
 import { normalizeTag, prettifyTag } from '@/app/utils/tagUtils';
 import Icon from '@/components/ui/icon';
-import ReactMarkdown from 'react-markdown';
+import ResponseRenderer from '@/app/components/ResponseRenderer';
 import RemarkGfmPlugin from 'remark-gfm';
 
 const getHybridScoreColor = (score: number | null | undefined): string => {
@@ -87,21 +87,7 @@ export default function DetailedBlueprintCard({ blueprint: bp }: DetailedBluepri
                     <div className="text-xs text-muted-foreground dark:text-muted-foreground mb-3 leading-relaxed line-clamp-4 pr-4 group-hover:text-foreground/80 dark:group-hover:text-foreground/80">
                         <Icon name="info" className="w-3 h-3 mr-1 inline-block relative -top-px opacity-70"/> 
                         <div className="inline">
-                          <ReactMarkdown
-                            components={{
-                              p: ({ children }) => <span>{children}</span>,
-                              strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-                              em: ({ children }) => <em>{children}</em>,
-                              h1: ({ children }) => <span className="font-semibold">{children}</span>,
-                              h2: ({ children }) => <span className="font-semibold">{children}</span>,
-                              h3: ({ children }) => <span className="font-semibold">{children}</span>,
-                              h4: ({ children }) => <span className="font-semibold">{children}</span>,
-                              h5: ({ children }) => <span className="font-semibold">{children}</span>,
-                              h6: ({ children }) => <span className="font-semibold">{children}</span>,
-                            }}
-                          >
-                            {bp.description}
-                          </ReactMarkdown>
+                          <ResponseRenderer content={bp.description} />
                         </div>
                     </div>
                 )}

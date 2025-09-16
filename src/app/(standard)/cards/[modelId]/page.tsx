@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 import Icon, { type IconName } from '@/components/ui/icon';
-import ReactMarkdown from 'react-markdown';
+import ResponseRenderer from '@/app/components/ResponseRenderer';
 import RemarkGfmPlugin from 'remark-gfm';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 
@@ -217,9 +217,7 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
                       <ul className="space-y-2">
                         {modelCard.analyticalSummary.strengths.slice(0, 3).map((strength, i) => (
                           <li key={i} className="text-sm text-foreground pl-3 border-l-2 border-green-500/30 leading-relaxed prose prose-sm max-w-none">
-                            <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
-                              {strength}
-                            </ReactMarkdown>
+                            <ResponseRenderer content={strength} />
                           </li>
                         ))}
                       </ul>
@@ -236,9 +234,7 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
                       <ul className="space-y-2">
                         {modelCard.analyticalSummary.weaknesses.slice(0, 3).map((weakness, i) => (
                           <li key={i} className="text-sm text-foreground pl-3 border-l-2 border-orange-500/30 leading-relaxed prose prose-sm max-w-none">
-                            <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
-                              {weakness}
-                            </ReactMarkdown>
+                            <ResponseRenderer content={weakness} />
                           </li>
                         ))}
                       </ul>
@@ -255,9 +251,7 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
                       <ul className="space-y-2">
                         {modelCard.analyticalSummary.patterns.slice(0, 2).map((pattern, i) => (
                           <li key={i} className="text-sm text-foreground pl-3 border-l-2 border-blue-500/30 leading-relaxed prose prose-sm max-w-none">
-                            <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
-                              {pattern}
-                            </ReactMarkdown>
+                            <ResponseRenderer content={pattern} />
                           </li>
                         ))}
                       </ul>
@@ -274,9 +268,7 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
                       <ul className="space-y-2">
                         {modelCard.analyticalSummary.risks.slice(0, 2).map((risk, i) => (
                           <li key={i} className="text-sm text-foreground pl-3 border-l-2 border-red-500/30 leading-relaxed prose prose-sm max-w-none">
-                            <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
-                              {risk}
-                            </ReactMarkdown>
+                            <ResponseRenderer content={risk} />
                           </li>
                         ))}
                       </ul>

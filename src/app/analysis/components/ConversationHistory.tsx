@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
+import ResponseRenderer from '@/app/components/ResponseRenderer';
 import RemarkGfmPlugin from 'remark-gfm';
 import { cn } from '@/lib/utils';
 import { ConversationMessage } from '@/types/shared';
 import { Button } from '@/components/ui/button';
+import { RenderAsType } from '@/app/components/ResponseRenderer';
 
 // Minimum number of hidden messages required to use collapse mode.
 // If collapsing would hide fewer than or equal to this count, show the full history.
@@ -19,6 +20,7 @@ interface ConversationHistoryProps {
     initiallyCollapsed?: boolean;
     headCount?: number;
     tailCount?: number;
+    renderAs?: RenderAsType;
 }
 
 /**
@@ -34,6 +36,7 @@ const ConversationHistory: React.FC<ConversationHistoryProps> = ({
     initiallyCollapsed = true,
     headCount = 1,
     tailCount = 1,
+    renderAs,
 }) => {
     const [collapsed, setCollapsed] = useState(initiallyCollapsed);
 
@@ -107,14 +110,14 @@ const ConversationHistory: React.FC<ConversationHistoryProps> = ({
         if (transcript) {
             return (
                 <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{transcript}</ReactMarkdown>
+                    <ResponseRenderer content={transcript} renderAs={renderAs} />
                 </div>
             );
         }
         if (text) {
             return (
                 <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{text}</ReactMarkdown>
+                    <ResponseRenderer content={text} renderAs={renderAs} />
                 </div>
             );
         }
@@ -133,7 +136,10 @@ const ConversationHistory: React.FC<ConversationHistoryProps> = ({
                 <p className="italic text-muted-foreground">[assistant: null — to be generated]</p>
             ) : (
                 <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{msg.content}</ReactMarkdown>
+                    <ResponseRenderer
+                        content={msg.content}
+                        renderAs={msg.role === 'assistant' ? renderAs : 'markdown'}
+                    />
                 </div>
             )}
         </div>

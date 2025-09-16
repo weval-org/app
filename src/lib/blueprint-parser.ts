@@ -4,6 +4,8 @@ import { ConversationMessage } from '@/types/shared';
 import { createHash } from 'crypto';
 import stableStringify from 'json-stable-stringify';
 
+const ALLOWED_RENDER_AS_VALUES = ['markdown', 'html', 'plaintext'];
+
 /**
  * Internal interface for building normalized point objects during parsing.
  * This represents the object variant of SinglePointDefinition being constructed.
@@ -282,7 +284,7 @@ export function parseAndNormalizeBlueprint(content: string, fileType: 'json' | '
             typeof firstDoc === 'object' &&
             !Array.isArray(firstDoc) &&
             // Heuristic: if it has config-like keys and not prompt-like keys, it's a config.
-            (firstDoc.models || firstDoc.id || firstDoc.title || firstDoc.system || firstDoc.evaluationConfig || firstDoc.configId || firstDoc.configTitle || firstDoc.point_defs || firstDoc.defs) &&
+            (firstDoc.models || firstDoc.id || firstDoc.title || firstDoc.system || firstDoc.evaluationConfig || firstDoc.configId || firstDoc.configTitle || firstDoc.point_defs || firstDoc.defs || firstDoc.render_as) &&
             !(firstDoc.prompt || firstDoc.messages || firstDoc.should || firstDoc.ideal || firstDoc.points);
 
         if (firstDocIsConfig || (typeof firstDoc === 'object' && !Array.isArray(firstDoc) && firstDoc.point_defs || firstDoc.defs)) {
@@ -363,6 +365,14 @@ export function parseAndNormalizeBlueprint(content: string, fileType: 'json' | '
     delete (finalConfig as any).configTitle;
     delete (finalConfig as any).systemPrompt;
 
+    // Validate global render_as if it exists
+    const globalRenderAs = (finalConfig as any).render_as;
+    if (globalRenderAs) {
+        if (typeof globalRenderAs !== 'string' || !ALLOWED_RENDER_AS_VALUES.includes(globalRenderAs)) {
+            throw new Error(`Invalid global 'render_as' value. Must be one of: ${ALLOWED_RENDER_AS_VALUES.join(', ')}.`);
+        }
+    }
+
     // Normalize models
     if (finalConfig.models) {
         if (!Array.isArray(finalConfig.models)) {
@@ -431,6 +441,17 @@ export function parseAndNormalizeBlueprint(content: string, fileType: 'json' | '
             console.log(`🏋️  [BLUEPRINT PARSER] Prompt "${p.id || 'unknown'}" has weight: ${rawWeight}`);
         }
         
+        // Normalize render_as with global fallback and validation
+        const promptRenderAs = p.render_as;
+        if (promptRenderAs) {
+            if (typeof promptRenderAs !== 'string' || !ALLOWED_RENDER_AS_VALUES.includes(promptRenderAs)) {
+                throw new Error(`Invalid 'render_as' value on prompt '${p.id || 'unknown'}'. Must be one of: ${ALLOWED_RENDER_AS_VALUES.join(', ')}.`);
+            }
+            finalPrompt.render_as = promptRenderAs as 'markdown' | 'html' | 'plaintext';
+        } else {
+            finalPrompt.render_as = globalRenderAs || 'markdown';
+        }
+
         // Consolidate all possible point sources
         const pointsSource = p.should || p.points || p.expect || p.expects || p.expectations;
         if (pointsSource) {

@@ -3,9 +3,13 @@
 import nextDynamic from 'next/dynamic';
 import Link from 'next/link';
 import CoverageHeatmapCanvas from '@/app/analysis/components/CoverageHeatmapCanvas';
-import { BlueprintSummaryInfo } from '@/app/utils/blueprintSummaryUtils';
+import type { BlueprintSummaryInfo } from '@/app/utils/blueprintSummaryUtils';
 import ReactMarkdown from 'react-markdown';
 import RemarkGfmPlugin from 'remark-gfm';
+import Icon from '@/components/ui/icon';
+import { Button } from '@/components/ui/button';
+// 'Blueprint' isn't a shared type; we render from BlueprintSummaryInfo
+import ResponseRenderer from '@/app/components/ResponseRenderer';
 
 const getHybridScoreColor = (score: number | null | undefined): string => {
   if (score === null || score === undefined || isNaN(score)) return 'text-muted-foreground dark:text-muted-foreground';
@@ -55,22 +59,7 @@ export default function FeaturedBlueprintsSection({ featuredBlueprints }: Featur
               
               {bp.description && (
                 <div className="text-sm text-foreground/80 dark:text-muted-foreground leading-relaxed flex-grow mb-4 line-clamp-4">
-                  <ReactMarkdown
-                    components={{
-                      p: ({ children }) => <span>{children}</span>,
-                      strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-                      em: ({ children }) => <em>{children}</em>,
-                      h1: ({ children }) => <span className="font-semibold">{children}</span>,
-                      h2: ({ children }) => <span className="font-semibold">{children}</span>,
-                      h3: ({ children }) => <span className="font-semibold">{children}</span>,
-                      h4: ({ children }) => <span className="font-semibold">{children}</span>,
-                      h5: ({ children }) => <span className="font-semibold">{children}</span>,
-                      h6: ({ children }) => <span className="font-semibold">{children}</span>,
-                      a: ({ children }) => <span className="text-primary">{children}</span>, // Strip links, keep styling
-                    }}
-                  >
-                    {bp.description}
-                  </ReactMarkdown>
+                  <ResponseRenderer content={bp.description} />
                 </div>
               )}
 

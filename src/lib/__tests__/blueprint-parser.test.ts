@@ -248,7 +248,7 @@ prompts:
 `;
             const result = parseAndNormalizeBlueprint(yamlContent, 'yaml');
             const prompt = result.prompts[0];
-            expect(prompt.id).toBe('hash-a123cf388be1');
+            expect(prompt.id).toBe('hash-d35001ad5740');
         });
 
         test('should correctly parse prompt-level description and citation in YAML', () => {
@@ -296,6 +296,58 @@ prompts:
             expect(prompt.citation).toBe('https://www.youtube.com/watch?v=example');
             expect(prompt.idealResponse).toBe('Beejamrut is an organic bio-fertilizer.');
             expect(prompt.points).toHaveLength(1);
+        });
+    });
+
+    describe('render_as Normalization', () => {
+        test('should apply global render_as to all prompts', () => {
+            const yamlContent = `
+render_as: html
+---
+- prompt: "Prompt 1"
+- prompt: "Prompt 2"
+`;
+            const result = parseAndNormalizeBlueprint(yamlContent, 'yaml');
+            expect(result.prompts[0].render_as).toBe('html');
+            expect(result.prompts[1].render_as).toBe('html');
+        });
+
+        test('should allow prompt-level render_as to override global setting', () => {
+            const yamlContent = `
+render_as: html
+---
+- prompt: "Prompt 1"
+  render_as: plaintext
+- prompt: "Prompt 2"
+`;
+            const result = parseAndNormalizeBlueprint(yamlContent, 'yaml');
+            expect(result.prompts[0].render_as).toBe('plaintext');
+            expect(result.prompts[1].render_as).toBe('html');
+        });
+
+        test('should default to markdown when no render_as is specified', () => {
+            const yamlContent = `
+- prompt: "Prompt 1"
+`;
+            const result = parseAndNormalizeBlueprint(yamlContent, 'yaml');
+            expect(result.prompts[0].render_as).toBe('markdown');
+        });
+
+        test('should throw an error for an invalid global render_as value', () => {
+            const yamlContent = `
+render_as: invalid_value
+---
+- prompt: "Prompt 1"
+`;
+            expect(() => parseAndNormalizeBlueprint(yamlContent, 'yaml')).toThrow("Invalid global 'render_as' value. Must be one of: markdown, html, plaintext.");
+        });
+
+        test('should throw an error for an invalid prompt-level render_as value', () => {
+            const yamlContent = `
+- prompt: "Prompt 1"
+  render_as: invalid_value
+`;
+            expect(() => parseAndNormalizeBlueprint(yamlContent, 'yaml')).toThrow("Invalid 'render_as' value on prompt");
         });
     });
 

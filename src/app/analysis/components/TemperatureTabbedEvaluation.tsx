@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { PointAssessment } from '@/app/utils/types';
 import { EvaluationView } from '@/app/analysis/components/SharedEvaluationComponents';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { RenderAsType } from '@/app/components/ResponseRenderer';
 
 export interface TempVariantBundle {
   temperature: number | null; // per-temperature entry
@@ -23,6 +24,7 @@ interface TemperatureTabbedEvaluationProps {
   expandedLogs: Record<number, boolean>;
   toggleLogExpansion: (idx: number) => void;
   isMobile?: boolean;
+  renderAs?: RenderAsType;
 }
 
 /**
@@ -36,6 +38,7 @@ const TemperatureTabbedEvaluation: React.FC<TemperatureTabbedEvaluationProps> = 
   expandedLogs,
   toggleLogExpansion,
   isMobile = false,
+  renderAs,
 }) => {
   if (!variants || variants.length === 0) {
     return null;
@@ -79,6 +82,7 @@ const TemperatureTabbedEvaluation: React.FC<TemperatureTabbedEvaluationProps> = 
           transcript: o.generatedTranscript,
           text: o.modelResponse,
         }))}
+        renderAs={renderAs}
       />
     </>
   );

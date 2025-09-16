@@ -111,6 +111,7 @@ export interface WevalPromptConfig {
      * Defaults to 1.0. Valid range: [0.1, 10].
      */
     weight?: number;
+    render_as?: 'markdown' | 'html' | 'plaintext';
 }
 
 // --- Tool-use (trace-only) types ---
@@ -161,6 +162,7 @@ export interface WevalConfig {
     toolUse?: ToolUsePolicy;
     // Optional static context for prompts (e.g., frozen corpus). Shape is user-defined.
     context?: Record<string, unknown>;
+    render_as?: 'markdown' | 'html' | 'plaintext';
 }
 
 export interface WevalResult {

@@ -99,6 +99,43 @@ export function useLazyResponseData(configId: string, runLabel: string, timestam
     return promise;
   }, [baseUrl, responseCache, loading]);
 
+  const fetchModalResponseBatch = useCallback(async (pairs: {promptId: string, modelId: string}[]): Promise<void> => {
+    const keys = pairs.map(p => `${p.promptId}:${p.modelId}`);
+    setLoading(prev => new Set([...prev, ...keys]));
+    
+    try {
+        const response = await fetch(`${baseUrl}/batch-responses`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pairs })
+        });
+
+        if (!response.ok) {
+            console.error('Failed to fetch batch responses:', response.statusText);
+            return;
+        }
+
+        const data: Record<string, string> = await response.json();
+
+        setResponseCache(prev => {
+            const newCache = new Map(prev);
+            for (const key in data) {
+                newCache.set(key, data[key]);
+            }
+            return newCache;
+        });
+
+    } catch (error) {
+        console.error('Error fetching batch responses:', error);
+    } finally {
+        setLoading(prev => {
+            const newSet = new Set(prev);
+            keys.forEach(key => newSet.delete(key));
+            return newSet;
+        });
+    }
+  }, [baseUrl]);
+
   // Fetch per-prompt similarities (embedding distances) lazily
   const fetchPerPromptSimilarities = useCallback(async (promptId: string): Promise<PerPromptSimilarityPayload | null> => {
     if (promptSimilarityCache.has(promptId)) {
@@ -383,6 +420,7 @@ export function useLazyResponseData(configId: string, runLabel: string, timestam
     fetchEvaluationDetails,
     fetchEvaluationDetailsBatchForPrompt,
     fetchEvaluationDetailsBatchForModel,
+    fetchModalResponseBatch,
     getCachedResponse,
     getCachedEvaluation,
     isLoading,

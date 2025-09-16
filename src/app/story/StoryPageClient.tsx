@@ -13,7 +13,7 @@ import { QuickRunResults } from './components/QuickRunResults';
 import { Bot, User, XCircle, RefreshCcw } from 'lucide-react';
 import { GuidedStepHeader } from './components/GuidedStepHeader';
 import Icon from '@/components/ui/icon';
-import ReactMarkdown from 'react-markdown';
+import ResponseRenderer from '@/app/components/ResponseRenderer';
 import RemarkGfmPlugin from 'remark-gfm';
 
 export default function StoryPageClient() {
@@ -187,7 +187,7 @@ export default function StoryPageClient() {
                             "prose prose-sm max-w-none prose-inherit",
                             m.role === 'assistant' && 'dark:prose-invert'
                           )}>
-                            <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{cleanText}</ReactMarkdown>
+                            <ResponseRenderer content={cleanText} />
                           </div>
                           {m.role === 'assistant' && ctas.length > 0 && (
                             <div className="mt-3 flex flex-wrap gap-2">

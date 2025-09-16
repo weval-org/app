@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
+import ResponseRenderer from '@/app/components/ResponseRenderer';
 import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
 import { parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
 import SpecificEvaluationModal from '@/app/analysis/components/SpecificEvaluationModal';
@@ -863,7 +863,7 @@ const NodeBox: React.FC<{
 
       {/* Response text rendered as Markdown */}
       <div style={{ fontSize: 12 }}>
-        <ReactMarkdown>{displayText}</ReactMarkdown>
+        <ResponseRenderer content={displayText} />
       </div>
     </div>
   );

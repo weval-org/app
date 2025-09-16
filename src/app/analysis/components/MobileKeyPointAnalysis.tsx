@@ -6,6 +6,7 @@ import { MobileModelList } from './MobileModelList';
 import { MobileModelDetail } from './MobileModelDetail';
 import { ComparisonDataV2 as ImportedComparisonDataV2, CoverageResult } from '@/app/utils/types';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
+import { RenderAsType } from '@/app/components/ResponseRenderer';
 
 interface MobileKeyPointAnalysisProps {
     data: ImportedComparisonDataV2;
@@ -45,6 +46,11 @@ export const MobileKeyPointAnalysis: React.FC<MobileKeyPointAnalysisProps> = ({
     }, [evaluationResults, promptId]);
 
     const idealResponse = promptResponses[IDEAL_MODEL_ID];
+
+    const renderAs = React.useMemo(() => {
+        const promptConfig = config.prompts?.find(p => p.id === promptId);
+        return promptConfig?.render_as as RenderAsType | undefined;
+    }, [config.prompts, promptId]);
 
     const handleModelSelect = (modelId: string) => {
         setSelectedModelId(modelId);
@@ -93,6 +99,7 @@ export const MobileKeyPointAnalysis: React.FC<MobileKeyPointAnalysisProps> = ({
                             timestamp={data.timestamp}
                             promptId={promptId}
                             onBack={handleBackToList}
+                            renderAs={renderAs}
                         />
                     )}
                 </div>

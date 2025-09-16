@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { ConversationMessage } from '@/types/shared';
 import { cn } from '@/lib/utils';
 import Icon from '@/components/ui/icon';
-import ReactMarkdown from 'react-markdown';
+import ResponseRenderer from '@/app/components/ResponseRenderer';
 
 const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
 
@@ -30,9 +30,7 @@ const PromptContextDisplay: React.FC<PromptContextDisplayProps> = ({ promptConte
     if (typeof promptContext === 'string') {
         return (
             <div className="mt-2 prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap text-sm p-3 bg-muted/50 rounded-md border">
-                <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
-                    {promptContext}
-                </ReactMarkdown>
+                <ResponseRenderer content={promptContext} />
             </div>
         );
     }
@@ -55,9 +53,7 @@ const PromptContextDisplay: React.FC<PromptContextDisplayProps> = ({ promptConte
                         {msg.content === null ? (
                             <span className="italic text-muted-foreground">[assistant: null — to be generated]</span>
                         ) : (
-                            <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
-                                {msg.content}
-                            </ReactMarkdown>
+                            <ResponseRenderer content={msg.content} />
                         )}
                     </div>
                 </div>

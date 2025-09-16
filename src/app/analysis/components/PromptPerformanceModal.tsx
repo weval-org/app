@@ -9,6 +9,7 @@ import PromptContextDisplay from '@/app/analysis/components/PromptContextDisplay
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import Icon from '@/components/ui/icon';
 import { usePreloadIcons } from '@/components/ui/use-preload-icons';
+import { RenderAsType } from '@/app/components/ResponseRenderer';
 
 const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
 const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
@@ -196,6 +197,7 @@ const PromptPerformanceModal: React.FC = () => {
                             promptId={promptId}
                             displayedModels={canonicalModels}
                             hideHeader={true}
+                            renderAs={promptConfig?.render_as as RenderAsType}
                         />
                     )}
                 </div>

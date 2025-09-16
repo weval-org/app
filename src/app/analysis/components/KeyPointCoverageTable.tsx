@@ -14,6 +14,7 @@ import TemperatureTabbedEvaluation, { TempVariantBundle } from './TemperatureTab
 import { SharedModelCard, ModelSummary } from './SharedModelCard';
 import { MobileKeyPointAnalysis } from './MobileKeyPointAnalysis';
 import Icon from '@/components/ui/icon';
+import { RenderAsType } from '@/app/components/ResponseRenderer';
 
 // --- Components adapted from SharedEvaluationComponents ---
 
@@ -24,9 +25,10 @@ interface ModelCardProps {
     idealResponse?: string;
     historiesForPrompt?: Record<string, any>;
     requestHistory?: (modelId: string) => void;
+    renderAs?: RenderAsType;
 }
 
-const ModelCard: React.FC<ModelCardProps> = ({ modelId, promptCoverageScores, promptResponses, idealResponse, historiesForPrompt, requestHistory }) => {
+const ModelCard: React.FC<ModelCardProps> = ({ modelId, promptCoverageScores, promptResponses, idealResponse, historiesForPrompt, requestHistory, renderAs }) => {
     const [expandedLogs, setExpandedLogs] = useState<Record<number, boolean>>({});
 
     const toggleLogExpansion = (index: number) => {
@@ -113,6 +115,7 @@ const ModelCard: React.FC<ModelCardProps> = ({ modelId, promptCoverageScores, pr
                     expandedLogs={expandedLogs}
                     toggleLogExpansion={toggleLogExpansion}
                     isMobile={false}
+                    renderAs={renderAs}
                 />
             </CardContent>
         </Card>
@@ -191,7 +194,8 @@ const ModelView: React.FC<{
     promptSimilarities: Record<string, Record<string, number>> | null;
     historiesForPrompt?: Record<string, any>;
     requestHistory?: (modelId: string) => void;
-}> = ({ displayedModels, promptCoverageScores, promptResponses, systemPrompts, promptSimilarities, historiesForPrompt, requestHistory }) => {
+    renderAs?: RenderAsType;
+}> = ({ displayedModels, promptCoverageScores, promptResponses, systemPrompts, promptSimilarities, historiesForPrompt, requestHistory, renderAs }) => {
 
     displayedModels = displayedModels.filter(modelId => {
         const parsed = parseModelIdForDisplay(modelId);
@@ -333,6 +337,7 @@ const ModelView: React.FC<{
                         idealResponse={promptResponses[IDEAL_MODEL_ID]}
                         historiesForPrompt={historiesForPrompt}
                         requestHistory={requestHistory}
+                        renderAs={renderAs}
                     />
                  ) : (
                     <div className="flex items-center justify-center h-full p-8 bg-muted/30 rounded-lg">
@@ -349,6 +354,7 @@ interface KeyPointCoverageTableProps {
   promptId: string;
   displayedModels: string[]; // List of effective model IDs to display
   hideHeader?: boolean;
+  renderAs?: RenderAsType;
 }
 
 const KeyPointCoverageTable: React.FC<KeyPointCoverageTableProps> = ({
@@ -356,6 +362,7 @@ const KeyPointCoverageTable: React.FC<KeyPointCoverageTableProps> = ({
   promptId,
   displayedModels,
   hideHeader = false,
+  renderAs,
 }) => {
   const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
   const [historiesForPrompt, setHistoriesForPrompt] = useState<Record<string, any>>({});
@@ -422,6 +429,7 @@ const KeyPointCoverageTable: React.FC<KeyPointCoverageTableProps> = ({
             promptSimilarities={promptSimilarities}
             historiesForPrompt={historiesForPrompt}
             requestHistory={requestHistory}
+            renderAs={renderAs}
         />
       </div>
       

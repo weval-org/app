@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import Icon from '@/components/ui/icon';
-import ReactMarkdown from 'react-markdown';
+import ResponseRenderer from '@/app/components/ResponseRenderer';
 import RemarkGfmPlugin from 'remark-gfm';
 
 interface MarkdownAccordionProps {
@@ -91,7 +91,7 @@ export const MarkdownAccordion: React.FC<MarkdownAccordionProps> = ({ content })
   if (sections.length === 0) {
     return (
         <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground">
-            <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{content}</ReactMarkdown>
+            <ResponseRenderer content={content} />
         </div>
     );
   }
@@ -100,9 +100,7 @@ export const MarkdownAccordion: React.FC<MarkdownAccordionProps> = ({ content })
     <div className="text-sm">
       {preamble && (
                       <div className="pb-4 prose prose-sm dark:prose-invert max-w-none text-muted-foreground">
-            <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
-                {preamble}
-            </ReactMarkdown>
+            <ResponseRenderer content={preamble} />
           </div>
       )}
       {sections.map((section, index) => (
@@ -115,9 +113,7 @@ export const MarkdownAccordion: React.FC<MarkdownAccordionProps> = ({ content })
           </CollapsibleTrigger>
           <CollapsibleContent className="pb-4 pt-1 pl-4">
             <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground">
-                <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
-                    {section.content}
-                </ReactMarkdown>
+                <ResponseRenderer content={section.content} />
             </div>
           </CollapsibleContent>
         </Collapsible>

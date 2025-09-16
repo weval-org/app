@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
 import ConversationHistory from '@/app/analysis/components/ConversationHistory';
 import { ConversationMessage } from '@/types/shared';
+import { RenderAsType } from '@/app/components/ResponseRenderer';
 
 interface TemperatureEntry {
     temperature: number;
@@ -17,13 +18,14 @@ interface TemperatureEntry {
 interface TemperatureHistoryGroupProps {
     entries: TemperatureEntry[];
     isMobile?: boolean;
+    renderAs?: RenderAsType;
 }
 
 /**
  * Groups multiple temperature histories into collapsible sections, with
  * optional bulk expand/collapse controls.
  */
-const TemperatureHistoryGroup: React.FC<TemperatureHistoryGroupProps> = ({ entries, isMobile = false }) => {
+const TemperatureHistoryGroup: React.FC<TemperatureHistoryGroupProps> = ({ entries, isMobile = false, renderAs }) => {
     const [openSet, setOpenSet] = useState<Set<number>>(new Set());
 
     const allOpen = useMemo(() => entries.length > 0 && openSet.size === entries.length, [entries.length, openSet]);
@@ -78,6 +80,7 @@ const TemperatureHistoryGroup: React.FC<TemperatureHistoryGroupProps> = ({ entri
                             transcript={entry.transcript}
                             text={entry.text}
                             isMobile={isMobile}
+                            renderAs={renderAs}
                         />
                     </CollapsibleContent>
                 </Collapsible>

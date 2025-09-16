@@ -13,6 +13,7 @@ import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { CoverageResult } from '@/app/utils/types';
 import PromptInfo from './PromptInfo';
 // import { usePreloadIcons } from '@/components/ui/use-preload-icons';
+import { RenderAsType } from '@/app/components/ResponseRenderer';
 
 interface ModelEvaluationVariant {
     modelId: string;
@@ -21,6 +22,7 @@ interface ModelEvaluationVariant {
     systemPrompt: string | null;
     temps?: number[];
     perTempMap?: Map<number, ModelEvaluationVariant>; // for aggregate variant only
+    renderAs?: RenderAsType;
 }
 
 const SpecificEvaluationModal: React.FC = () => {
@@ -273,6 +275,7 @@ const SpecificEvaluationModal: React.FC = () => {
             promptContext: promptContext,
             promptDescription: promptConfig?.description,
             promptCitation: promptConfig?.citation,
+            renderAs: promptConfig?.render_as || 'markdown',
             variantEvaluations: variantEvaluations,
             initialVariantIndex: clickedParsed.systemPromptIndex ?? 0,
             idealResponse: idealResponse,
@@ -479,6 +482,7 @@ const SpecificEvaluationModal: React.FC = () => {
                                 expandedLogs={expandedLogs}
                                 toggleLogExpansion={toggleLogExpansion}
                                 isMobile={false}
+                                renderAs={modalData.renderAs}
                             />
                         </div>
                     </div>

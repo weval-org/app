@@ -106,6 +106,7 @@ The following fields can be included in the header section (Structure 1) or the 
 | `tools` | `object[]` | **(Optional)** Trace-only tool inventory for tool-use evaluation. Each tool has `{ name: string, description?: string, schema?: object }` (JSON Schema for arguments, recommended). |
 | `toolUse` | `object` | **(Optional)** Tool-use policy (trace-only). Supported keys: `{ enabled?: boolean, mode?: 'trace-only', maxSteps?: number, outputFormat?: 'json-line' }`. Default mode is trace-only; no execution is performed. |
 | `context` | `object` | **(Optional)** Frozen, deterministic data available to prompts (e.g., a small corpus). Shape is user-defined. |
+| `render_as` | `string` | **(Optional)** Sets the default rendering mode for all prompts in the blueprint. Can be `markdown`, `html`, or `plaintext`. Defaults to `markdown`. Overridden by prompt-level `render_as`. |
 
 ### Model Configuration
 
@@ -305,6 +306,7 @@ Each item in the list of prompts is an object that can contain the following fie
 | `requiredTools` | `string[]` | **(Optional)** For tool-use scenarios, list of tools that must be called in the emitted trace. |
 | `prohibitedTools` | `string[]` | **(Optional)** For tool-use scenarios, tools that must not be called. |
 | `maxCalls` | `number` | **(Optional)** Per-prompt cap for tool calls expected in the emitted trace. |
+| `render_as` | `string` | **(Optional)** Sets the rendering mode for this specific prompt's output, overriding the global setting. Can be `markdown`, `html`, or `plaintext`. |
 
 #### Message Formats (`messages` array)
 
@@ -567,68 +569,4 @@ These checks operate on the parsed `toolCalls` trace only; they do not execute t
 
 ### Parser compatibility
 
-No parser changes are required. The blueprint parser already forwards unknown configuration fields (such as `tools`, `toolUse`, `context`) into the final config object unchanged.
-
----
-
-## Fixtures (External, Optional)
-
-Fixtures provide deterministic candidate responses for testing without changing the blueprint.
-
-- Location:
-  - Local runs: pass a file path via `--fixtures <path>`
-  - GitHub runs: pass a name via `--fixtures <name>`; the file is resolved under `fixtures/<name>.yml|yaml|json` in `weval/configs`
-- Format: YAML or JSON
-- Shape:
-  - `version?: number`
-  - `strategy?: 'seeded' | 'round-robin' | 'first'` (default: seeded)
-  - `seed?: string | number` (for seeded selection)
-  - `responses: { [promptId]: { default?: string | string[] | { turns: string[] }, byModel?: { [modelIdOrPattern]: string | string[] | { turns: string[] } } } }`
-    - `string` → single fixed response (final assistant)
-    - `string[]` → array to select from per the strategy (final assistant)
-    - `{ turns: string[] }` → fills assistant:null turns in order
-
-Notes:
-- Fixtures only affect candidate responses. Evaluation (coverage/similarity) runs as usual.
-- For multi-turn prompts using `assistant: null`, provide `turns` to fill those generated turns deterministically.
-- A `--fixtures-strict` flag can require all prompt×model pairs have fixtures; otherwise the system falls back to live generation for missing entries.
-
-
-## Legacy JSON Blueprint Format
-
-The system remains backwardly compatible with the original JSON format.
-
-### JSON Structure
-
-```json
-{
-  "id": "legacy-json-test-v1",
-  "title": "Legacy JSON Test",
-  "models": [
-    "openai:gpt-4o-mini"
-  ],
-  "prompts": [
-    {
-      "id": "p1-json",
-      "promptText": "What is JSON?",
-      "idealResponse": "A lightweight data-interchange format.",
-      "citation": "https://www.json.org/",
-      "points": [
-        { "text": "It is a data-interchange format", "multiplier": 1.0 }
-      ],
-      "should_not": [
-          { "fn": "contains", "fnArgs": "YAML" }
-      ]
-    }
-  ]
-}
-```
-
-### Key Differences from YAML
-
-- **Single Object**: The entire blueprint is a single JSON object.
-- **Formal Field Names**: While some aliases work, the canonical field names are `promptText`, `idealResponse`, and `points`.
-- **No Multi-Document**: There is no `---` separator. Prompts are nested within the `"prompts"` array.
-- **ID is Required**: In the legacy format, the top-level `id` and the `id` for each prompt are generally expected. The automatic prompt ID generation was added with the YAML format in mind.
-- **Top-Level ID is Ignored**: As with the modern YAML format, the top-level `id` field in a legacy JSON blueprint is also ignored. The blueprint's ID is always derived from its file path.
-- **Prompt ID**: The `id` for each individual prompt inside the `prompts` array is still respected and useful for tracking.
+No parser changes are required. The blueprint parser already forwards unknown configuration fields (such as `tools`, `

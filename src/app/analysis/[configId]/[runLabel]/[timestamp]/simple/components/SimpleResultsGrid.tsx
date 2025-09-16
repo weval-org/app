@@ -8,7 +8,7 @@ import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
 import { getModelDisplayLabel, parseModelIdForDisplay, getCanonicalModels } from '@/app/utils/modelIdUtils';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import Icon from '@/components/ui/icon';
-import ReactMarkdown from 'react-markdown';
+import ResponseRenderer from '@/app/components/ResponseRenderer';
 import RemarkGfmPlugin from 'remark-gfm';
 
 export const SimpleResultsGrid: React.FC = () => {
@@ -133,6 +133,9 @@ export const SimpleResultsGrid: React.FC = () => {
         const prompt = promptData.find(p => p.id === selectedPrompt);
         if (!prompt) return null;
 
+        const promptConfig = data.config.prompts?.find(p => p.id === selectedPrompt);
+        const renderAs = promptConfig?.render_as || 'markdown';
+
         // Get the actual responses for this prompt from cache
         const getResponseForModel = (modelId: string) => {
             return getCachedResponse ? getCachedResponse(selectedPrompt, modelId) : null;
@@ -243,9 +246,7 @@ export const SimpleResultsGrid: React.FC = () => {
                                                         expandedResponses.has(modelId) ? '' : 'max-h-64 overflow-hidden'
                                                     }`}
                                                 >
-                                                    <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
-                                                        {displayResponse}
-                                                    </ReactMarkdown>
+                                                    <ResponseRenderer content={displayResponse} renderAs={renderAs} />
                                                 </div>
                                                 
                                                 {/* Show/Hide button for long content */}

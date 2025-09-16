@@ -19,7 +19,7 @@ import { getHybridScoreColorClass } from '../utils/colorUtils';
 import Icon from '@/components/ui/icon';
 // import { usePreloadIcons } from '@/components/ui/use-preload-icons';
 
-import ReactMarkdown from 'react-markdown';
+import ResponseRenderer, { RenderAsType } from '@/app/components/ResponseRenderer';
 import RemarkGfmPlugin from 'remark-gfm';
 
 interface PromptPerformance {
@@ -29,6 +29,7 @@ interface PromptPerformance {
     response: string | undefined;
     score: number | null;
     rank: 'excellent' | 'good' | 'poor' | 'error';
+    renderAs?: RenderAsType;
 }
 
 const ModelPerformanceModal: React.FC = () => {
@@ -157,6 +158,7 @@ const ModelPerformanceModal: React.FC = () => {
             const coverageResult = allCoverageScores[promptId]?.[resolvedModelId];
             const response = allFinalAssistantResponses[promptId]?.[resolvedModelId];
             const promptText = promptTexts[promptId] || promptId;
+            const promptConfig = config?.prompts.find(p => p.id === promptId);
             
             console.log(`⚡ ModelPerformanceModal: Processing prompt ${promptId}`, {
                 hasCoverageResult: !!coverageResult,
@@ -173,7 +175,7 @@ const ModelPerformanceModal: React.FC = () => {
                 else if (score !== null && score >= 0.6) rank = 'good';
                 else if (score !== null) rank = 'poor';
             }
-            return { promptId, promptText, coverageResult, response, score, rank };
+            return { promptId, promptText, coverageResult, response, score, rank, renderAs: promptConfig?.render_as as RenderAsType | undefined };
         });
         
         console.log('🟣 ModelPerformanceModal: Final promptPerformances', {
@@ -473,7 +475,7 @@ const ModelPerformanceModal: React.FC = () => {
                                         )}
                                         {config.prompts.find(p => p.id === selectedPromptId)?.description && (
                                             <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground border-l-4 border-primary/20 pl-4 py-1 mb-4">
-                                                <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>{config.prompts.find(p => p.id === selectedPromptId)?.description}</ReactMarkdown>
+                                                <ResponseRenderer content={config.prompts.find(p => p.id === selectedPromptId)?.description || ''} renderAs={config.prompts.find(p => p.id === selectedPromptId)?.render_as} />
                                             </div>
                                         )}
                                         {config.prompts.find(p => p.id === selectedPromptId)?.citation && (
@@ -491,6 +493,7 @@ const ModelPerformanceModal: React.FC = () => {
                                         idealResponse={idealResponse ?? undefined}
                                         expandedLogs={expandedLogs}
                                         toggleLogExpansion={toggleLogExpansion}
+                                        renderAs={config.prompts.find(p => p.id === selectedPromptId)?.render_as}
                                     />
                                 ) : (
                                     <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-muted/50 rounded-lg">
