@@ -1,20 +1,20 @@
 import { NextResponse } from 'next/server';
 import { getPromptResponses } from '@/lib/storageService';
 
-type RouteParams = {
-    params: {
+type RouteContext = {
+    params: Promise<{
         configId: string;
         runLabel: string;
         timestamp: string;
-    };
+    }>;
 };
 
 type BatchRequestBody = {
     pairs: { promptId: string; modelId: string }[];
 };
 
-export async function POST(request: Request, { params }: RouteParams) {
-    const { configId, runLabel, timestamp } = params;
+export async function POST(request: Request, context: RouteContext) {
+    const { configId, runLabel, timestamp } = await context.params;
 
     try {
         const { pairs }: BatchRequestBody = await request.json();
