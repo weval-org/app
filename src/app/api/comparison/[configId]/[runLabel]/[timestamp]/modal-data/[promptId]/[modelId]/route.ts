@@ -2,18 +2,18 @@ import { NextResponse } from 'next/server';
 import { getPromptResponses, getCoreResult, getConversationHistory } from '@/lib/storageService';
 import { WevalConfig } from '@/types/shared';
 
-type RouteParams = {
-    params: {
+type RouteContext = {
+    params: Promise<{
         configId: string;
         runLabel: string;
         timestamp: string;
         promptId: string;
         modelId: string;
-    };
+    }>;
 };
 
-export async function GET(request: Request, { params }: RouteParams) {
-    const { configId, runLabel, timestamp, promptId, modelId } = params;
+export async function GET(request: Request, context: RouteContext) {
+    const { configId, runLabel, timestamp, promptId, modelId } = await context.params;
 
     if (!configId || !runLabel || !timestamp || !promptId || !modelId) {
         return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 });
