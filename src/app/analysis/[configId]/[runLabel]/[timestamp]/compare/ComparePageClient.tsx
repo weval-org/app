@@ -9,7 +9,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import Icon from '@/components/ui/icon';
+import { Skeleton } from '@/components/ui/skeleton';
 import ResponseRenderer, { RenderAsType } from '@/app/components/ResponseRenderer';
+import SpecificEvaluationModal from '@/app/analysis/components/SpecificEvaluationModal';
+
+const getScoreColor = (score: number) => {
+    if (score >= 0.75) return 'bg-green-600';
+    if (score >= 0.5) return 'bg-yellow-600';
+    if (score > 0) return 'bg-red-600';
+    return 'bg-slate-500';
+};
 
 const ModelResponseCell = ({ 
     promptId, 
@@ -18,13 +27,15 @@ const ModelResponseCell = ({
     onInView,
     isQueued,
     renderAs,
+    coverageScore,
 }: { 
     promptId: string;
     modelId: string;
-    onClick: (response: string, renderAs: RenderAsType) => void;
+    onClick: () => void;
     onInView: () => void;
     isQueued: boolean;
     renderAs?: RenderAsType;
+    coverageScore?: number | null;
 }) => {
   const { getCachedResponse, isLoadingResponse } = useAnalysis();
   const response = getCachedResponse(promptId, modelId);
@@ -68,11 +79,26 @@ const ModelResponseCell = ({
   const showLoading = (isLoading || isQueued) && !response;
   
   return (
-    <td ref={cellRef} className="p-2 border border-border" style={{minWidth: '250px', maxWidth: '250px'}}>
-      <div className="h-full cursor-pointer" onClick={() => response && onClick(response, renderAs || 'markdown')}>
+    <td ref={cellRef} className="p-2 border border-border relative" style={{minWidth: '250px'}}>
+      {coverageScore !== null && coverageScore !== undefined && hasBeenInView.current && !showLoading && (
+          <div
+              className={`absolute top-3 right-3 z-10 px-2 py-0.5 rounded-full text-xs font-semibold text-white shadow-md ${getScoreColor(coverageScore)}`}
+              title={`Coverage Score: ${(coverageScore * 100).toFixed(1)}%`}
+          >
+              {Math.round(coverageScore * 100)}
+          </div>
+      )}
+      <div className="h-full cursor-pointer" onClick={() => response && onClick()}>
         {showLoading ? (
-            <Card className="h-full bg-muted/50 flex items-center justify-center">
-                <Icon name="loader-2" className="h-6 w-6 animate-spin text-primary" />
+            <Card className="h-full bg-muted/20 overflow-hidden" style={{height: '350px'}}>
+                <CardContent className="p-3">
+                    <div className="space-y-2">
+                        <Skeleton className="h-4 w-3/4" />
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-5/6" />
+                        <Skeleton className="h-4 w-2/3" />
+                    </div>
+                </CardContent>
             </Card>
         ) : (response === null || response.trim() === '') && hasBeenInView.current ? (
             <Card className="h-full bg-muted/50">
@@ -95,8 +121,7 @@ const ModelResponseCell = ({
 };
 
 export const ComparePageClient: React.FC = () => {
-    const { data, pageTitle, configId, runLabel, timestamp, fetchModalResponseBatch } = useAnalysis();
-    const [modalContent, setModalContent] = useState<{ title: string; content: string; renderAs: RenderAsType } | null>(null);
+    const { data, pageTitle, configId, runLabel, timestamp, fetchModalResponseBatch, openModelEvaluationDetailModal } = useAnalysis();
     const [loadingQueue, setLoadingQueue] = useState(() => new Set<string>());
 
     const requestLoad = useCallback((promptId: string, modelId: string) => {
@@ -160,12 +185,8 @@ export const ComparePageClient: React.FC = () => {
         return { models, prompts };
     }, [data]);
 
-    const handleCellClick = (response: string, modelId: string, promptText: string, renderAs: RenderAsType) => {
-        setModalContent({
-            title: `Response from ${getModelDisplayLabel(modelId, { prettifyModelName: true })} for prompt: "${promptText}"`,
-            content: response,
-            renderAs: renderAs,
-        });
+    const handleCellClick = (promptId: string, modelId: string) => {
+        openModelEvaluationDetailModal({ promptId, modelId });
     };
 
     if (!data) {
@@ -180,7 +201,7 @@ export const ComparePageClient: React.FC = () => {
     return (
         <div className="bg-slate-50 dark:bg-slate-900 min-h-screen">
             <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-b border-border">
-                <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="w-full px-4 sm:px-6 lg:px-8">
                     <div className="flex items-center justify-between h-16">
                         <div className="flex-1 min-w-0">
                             <h1 className="text-xl font-bold tracking-tight truncate" title={pageTitle}>
@@ -200,18 +221,18 @@ export const ComparePageClient: React.FC = () => {
             </header>
 
             <main className="p-4 sm:p-6 lg:p-8">
-                <div className="overflow-x-auto relative">
-                    <table className="border-collapse table-fixed">
+                <div className="overflow-x-auto relative w-full">
+                    <table className="border-collapse w-full">
                         <thead>
                             <tr>
-                                <th className="bg-slate-100 dark:bg-slate-800 border border-border p-2" style={{width: '250px'}}>
+                                <th className="bg-slate-100 dark:bg-slate-800 border border-border p-2" style={{minWidth: '250px'}}>
                                     <span className="text-sm font-semibold">Prompts</span>
                                 </th>
                                 {models.map(modelId => {
                                     const parsed = parseModelIdForDisplay(modelId);
                                     const displayLabel = getModelDisplayLabel(parsed, { prettifyModelName: true });
                                     return (
-                                        <th key={modelId} className="bg-slate-100 dark:bg-slate-800 p-0 border border-border" style={{minWidth: '250px', maxWidth: '250px'}}>
+                                        <th key={modelId} className="bg-slate-100 dark:bg-slate-800 p-0 border border-border" style={{minWidth: '250px'}}>
                                             <div className="p-2 truncate font-semibold text-sm" title={getModelDisplayLabel(modelId)}>
                                                 {displayLabel}
                                             </div>
@@ -223,22 +244,30 @@ export const ComparePageClient: React.FC = () => {
                         <tbody>
                             {prompts.map(prompt => (
                                 <tr key={prompt.id}>
-                                    <th className="bg-slate-100 dark:bg-slate-800 border border-border p-2 align-top" style={{width: '250px'}}>
+                                    <th className="bg-slate-100 dark:bg-slate-800 border border-border p-2 align-top" style={{minWidth: '250px'}}>
                                         <div className="font-medium text-sm text-left" title={prompt.text}>
                                             {prompt.text}
                                         </div>
                                     </th>
-                                    {models.map(modelId => (
-                                        <ModelResponseCell
-                                            key={modelId}
-                                            promptId={prompt.id}
-                                            modelId={modelId}
-                                            onInView={() => requestLoad(prompt.id, modelId)}
-                                            isQueued={loadingQueue.has(`${prompt.id}:${modelId}`)}
-                                            onClick={(response, renderAs) => handleCellClick(response, modelId, prompt.text, renderAs)}
-                                            renderAs={prompt.renderAs}
-                                        />
-                                    ))}
+                                    {models.map(modelId => {
+                                        const coverageResult = data.evaluationResults?.llmCoverageScores?.[prompt.id]?.[modelId];
+                                        const score = (coverageResult && !('error' in coverageResult) && typeof coverageResult.avgCoverageExtent === 'number') 
+                                            ? coverageResult.avgCoverageExtent 
+                                            : null;
+
+                                        return (
+                                            <ModelResponseCell
+                                                key={modelId}
+                                                promptId={prompt.id}
+                                                modelId={modelId}
+                                                onInView={() => requestLoad(prompt.id, modelId)}
+                                                isQueued={loadingQueue.has(`${prompt.id}:${modelId}`)}
+                                                onClick={() => handleCellClick(prompt.id, modelId)}
+                                                renderAs={prompt.renderAs}
+                                                coverageScore={score}
+                                            />
+                                        );
+                                    })}
                                 </tr>
                             ))}
                         </tbody>
@@ -246,16 +275,7 @@ export const ComparePageClient: React.FC = () => {
                 </div>
             </main>
 
-            <Dialog open={!!modalContent} onOpenChange={() => setModalContent(null)}>
-              <DialogContent className="max-w-4xl w-[90vw] h-[90vh] flex flex-col">
-                  <DialogHeader>
-                      <DialogTitle className="truncate">{modalContent?.title}</DialogTitle>
-                  </DialogHeader>
-                  <div className="mt-4 flex-1 overflow-y-auto">
-                      <ResponseRenderer content={modalContent?.content || ''} renderAs={modalContent?.renderAs} />
-                  </div>
-              </DialogContent>
-            </Dialog>
+            <SpecificEvaluationModal />
         </div>
     );
 };

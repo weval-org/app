@@ -13,6 +13,7 @@ export default function FullWidthLayout({
 }) {
   const pathname = usePathname();
   const isArticle = pathname?.includes('/article');
+  const isCompare = pathname?.includes('/compare');
 
   if (isArticle) {
     return (
@@ -28,13 +29,13 @@ export default function FullWidthLayout({
         <TopProgressBar />
         <NavigationEvents />
       </Suspense>
-      <SiteHeader contentMaxWidth="max-w-[1800px]" />
+      <SiteHeader contentMaxWidth={isCompare ? 'max-w-none' : 'max-w-[1800px]'} />
       <main className="flex-grow w-full bg-background text-foreground">
-        <div className="max-w-[1800px] mx-auto">
-            {children}
+        <div className={isCompare ? 'w-full' : 'max-w-[1800px] mx-auto'}>
+          {children}
         </div>
       </main>
-      <SiteFooter contentMaxWidth="max-w-[1800px]" />
+      <SiteFooter contentMaxWidth={isCompare ? 'max-w-none' : 'max-w-[1800px]'} />
     </div>
   );
 } 

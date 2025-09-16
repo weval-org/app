@@ -11,16 +11,31 @@
  * @returns The cleaned HTML content.
  */
 export function transformHtmlContent(content: string): string {
-    // Regular expression to find content within ```html ... ``` or ``` ... ```
-    // It handles optional language specifier and multiline content.
-    const codeBlockRegex = /^```(?:html)?\s*\n([\s\S]+?)\n```$/;
-    const match = content.match(codeBlockRegex);
+    // Normalize whitespace around the whole response first
+    const trimmed = (content ?? '').trim();
 
-    if (match && match[1]) {
-        // Return the captured group (the code inside the block), trimmed of whitespace.
+    // Be forgiving: unwrap content if the entire string is fenced in backticks, with or without a language
+    // Matches variants like:
+    // ```html\n...\n```  |  ```\n...\n```  |  ```<div>...</div>```  |  `...`
+    const fencedBlockRegex = /^```([a-zA-Z0-9_-]*)?\s*\r?\n?([\s\S]*?)\r?\n?```$/i;
+    const fencedInlineRegex = /^```([\s\S]+)```$/; // same-line open/close
+    const singleBacktickRegex = /^`([\s\S]+)`$/;   // inline single backticks
+
+    let match = trimmed.match(fencedBlockRegex);
+    if (match && typeof match[2] === 'string') {
+        return match[2].trim();
+    }
+
+    match = trimmed.match(fencedInlineRegex);
+    if (match && typeof match[1] === 'string') {
         return match[1].trim();
     }
 
-    // If no code block is found, return the original content.
-    return content;
+    match = trimmed.match(singleBacktickRegex);
+    if (match && typeof match[1] === 'string') {
+        return match[1].trim();
+    }
+
+    // No fences detected; return normalized content as-is
+    return trimmed;
 }
