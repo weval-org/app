@@ -26,8 +26,8 @@ export async function generateMetadata(
   const newSearchParams = { ...searchParams, view: 'compare' };
   return generateAnalysisPageMetadata(
     {
-      params,
-      searchParams: newSearchParams,
+      params: Promise.resolve(params),
+      searchParams: Promise.resolve(newSearchParams),
     },
     parent
   );

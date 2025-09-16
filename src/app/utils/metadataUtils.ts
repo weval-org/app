@@ -3,8 +3,8 @@ import { fromSafeTimestamp } from '@/lib/timestampUtils';
 
 // Props type for generateMetadata function - params and searchParams as Promises
 export type GenerateMetadataProps = {
-  params: { [key: string]: string | string[] | undefined } | Promise<{ [key: string]: string | string[] | undefined }>;
-  searchParams: { [key: string]: string | string[] | undefined } | Promise<{ [key: string]: string | string[] | undefined }>;
+  params: Promise<{ [key: string]: string | string[] | undefined }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
 
 // Generic function to generate metadata for analysis-like pages
@@ -47,7 +47,7 @@ export async function generateAnalysisPageMetadata(
   
   const inferredTitle = configId.replace(/[-_]/g, ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   const pageTitle = `Analysis: ${inferredTitle} - Run ${runLabel.substring(0, 7)}...`;
-  const description = `Detailed analysis for Blueprint \'${inferredTitle}\' (Version: ${runLabel.substring(0,12)}...), executed on ${new Date(fromSafeTimestamp(timestamp)).toLocaleDateString()}`;
+  const description = `Detailed analysis for Blueprint '${inferredTitle}' (Version: ${runLabel.substring(0,12)}...), executed on ${new Date(fromSafeTimestamp(timestamp)).toLocaleDateString()}`;
   
   // Consistent appUrl definition
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:8888' : 'https://weval.org');

@@ -11,9 +11,6 @@ import Icon from '@/components/ui/icon';
 import { usePreloadIcons } from '@/components/ui/use-preload-icons';
 import { RenderAsType } from '@/app/components/ResponseRenderer';
 
-const ReactMarkdown = dynamic(() => import('react-markdown'), { ssr: false });
-const RemarkGfmPlugin = dynamic(() => import('remark-gfm'), { ssr: false });
-
 const PromptPerformanceModal: React.FC = () => {
     const {
         data,
