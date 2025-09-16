@@ -5,7 +5,6 @@ import { notFound } from 'next/navigation';
 import { ComparisonDataV2 } from '@/app/utils/types';
 import { getResultByFileName, getCoreResult } from '@/lib/storageService';
 import { AnalysisProvider } from '@/app/analysis/context/AnalysisProvider';
-import FlowThreadClient from './FlowThreadClient';
 import ThreadClient from './ThreadClient';
 
 type ThisPageProps = {

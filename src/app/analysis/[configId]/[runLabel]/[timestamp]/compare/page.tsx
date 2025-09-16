@@ -8,12 +8,12 @@ import { ComparePageClient } from './ComparePageClient';
 import { cache } from 'react';
 
 type ThisPageProps = {
-  params: {
+  params: Promise<{
     configId: string;
     runLabel: string;
     timestamp: string;
-  };
-  searchParams: { [key: string]: string | string[] | undefined };
+  }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
 
 export const revalidate = 3600;
@@ -22,19 +22,18 @@ export async function generateMetadata(
   props: ThisPageProps,
   parent: ResolvingMetadata
 ): Promise<Metadata> {
-  const { params, searchParams } = props;
-  const newSearchParams = { ...searchParams, view: 'compare' };
+  const newSearchParamsPromise = (async () => ({ ...(await props.searchParams), view: 'compare' }))();
   return generateAnalysisPageMetadata(
     {
-      params: Promise.resolve(params),
-      searchParams: Promise.resolve(newSearchParams),
+      params: props.params,
+      searchParams: newSearchParamsPromise,
     },
     parent
   );
 }
 
 const getComparisonData = cache(async (params: ThisPageProps['params']): Promise<ComparisonDataV2 | null> => {
-  const { configId, runLabel, timestamp } = params;
+  const { configId, runLabel, timestamp } = await params;
 
   try {
     const core = await getCoreResult(configId, runLabel, timestamp);
@@ -62,7 +61,7 @@ const getComparisonData = cache(async (params: ThisPageProps['params']): Promise
 
 export default async function ComparePage(props: ThisPageProps) {
   const data = await getComparisonData(props.params);
-  const { configId, runLabel, timestamp } = props.params;
+  const { configId, runLabel, timestamp } = await props.params;
 
   if (!data) {
     notFound();
