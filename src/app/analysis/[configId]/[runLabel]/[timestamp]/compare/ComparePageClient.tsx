@@ -42,6 +42,19 @@ const ModelResponseCell = ({
   const isLoading = isLoadingResponse(promptId, modelId);
   const cellRef = useRef<HTMLTableCellElement>(null);
   const hasBeenInView = useRef(false);
+  const responseAvailableRef = useRef<boolean>(!!response);
+  const isQueuedRef = useRef<boolean>(!!isQueued);
+  const isLoadingRef = useRef<boolean>(!!isLoading);
+
+  useEffect(() => {
+    responseAvailableRef.current = !!response && response.trim() !== '';
+  }, [response]);
+  useEffect(() => {
+    isQueuedRef.current = !!isQueued;
+  }, [isQueued]);
+  useEffect(() => {
+    isLoadingRef.current = !!isLoading;
+  }, [isLoading]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -49,7 +62,9 @@ const ModelResponseCell = ({
         if (entry.isIntersecting) {
           if (!hasBeenInView.current) {
             hasBeenInView.current = true;
-            onInView();
+            if (!responseAvailableRef.current && !isQueuedRef.current && !isLoadingRef.current) {
+              onInView();
+            }
           }
           if (cellRef.current) {
             observer.unobserve(cellRef.current);
@@ -199,8 +214,8 @@ export const ComparePageClient: React.FC = () => {
     }
 
     return (
-        <div className="bg-slate-50 dark:bg-slate-900 min-h-screen">
-            <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-b border-border">
+        <div className="bg-slate-50 dark:bg-slate-900 h-screen flex flex-col overflow-hidden">
+            <header className="flex-none bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border-b border-border">
                 <div className="w-full px-4 sm:px-6 lg:px-8">
                     <div className="flex items-center justify-between h-16">
                         <div className="flex-1 min-w-0">
@@ -220,19 +235,19 @@ export const ComparePageClient: React.FC = () => {
                 </div>
             </header>
 
-            <main className="p-4 sm:p-6 lg:p-8">
-                <div className="overflow-x-auto relative w-full">
-                    <table className="border-collapse w-full">
+            <main className="flex-1 min-h-0">
+                <div className="h-full overflow-auto relative w-full">
+                    <table className="border-separate border-spacing-0 w-full">
                         <thead>
                             <tr>
-                                <th className="bg-slate-100 dark:bg-slate-800 border border-border p-2" style={{minWidth: '250px'}}>
+                                <th className="bg-slate-100 dark:bg-slate-800 border border-border p-2 sticky top-0 left-0 z-40 shadow-sm bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-sm" style={{minWidth: '250px'}}>
                                     <span className="text-sm font-semibold">Prompts</span>
                                 </th>
                                 {models.map(modelId => {
                                     const parsed = parseModelIdForDisplay(modelId);
                                     const displayLabel = getModelDisplayLabel(parsed, { prettifyModelName: true });
                                     return (
-                                        <th key={modelId} className="bg-slate-100 dark:bg-slate-800 p-0 border border-border" style={{minWidth: '250px'}}>
+                                        <th key={modelId} className="bg-slate-100 dark:bg-slate-800 p-0 border border-border sticky top-0 z-30 shadow-sm bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-sm" style={{minWidth: '250px'}}>
                                             <div className="p-2 truncate font-semibold text-sm" title={getModelDisplayLabel(modelId)}>
                                                 {displayLabel}
                                             </div>
@@ -244,7 +259,7 @@ export const ComparePageClient: React.FC = () => {
                         <tbody>
                             {prompts.map(prompt => (
                                 <tr key={prompt.id}>
-                                    <th className="bg-slate-100 dark:bg-slate-800 border border-border p-2 align-top" style={{minWidth: '250px'}}>
+                                    <th className="bg-slate-100 dark:bg-slate-800 border border-border p-2 align-top sticky left-0 z-20 shadow-sm bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-sm" style={{minWidth: '250px'}}>
                                         <div className="font-medium text-sm text-left" title={prompt.text}>
                                             {prompt.text}
                                         </div>

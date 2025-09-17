@@ -29,13 +29,17 @@ export default function FullWidthLayout({
         <TopProgressBar />
         <NavigationEvents />
       </Suspense>
-      <SiteHeader contentMaxWidth={isCompare ? 'max-w-none' : 'max-w-[1800px]'} />
+      {!isCompare && (
+        <SiteHeader contentMaxWidth={'max-w-[1800px]'} />
+      )}
       <main className="flex-grow w-full bg-background text-foreground">
         <div className={isCompare ? 'w-full' : 'max-w-[1800px] mx-auto'}>
           {children}
         </div>
       </main>
-      <SiteFooter contentMaxWidth={isCompare ? 'max-w-none' : 'max-w-[1800px]'} />
+      {!isCompare && (
+        <SiteFooter contentMaxWidth={'max-w-[1800px]'} />
+      )}
     </div>
   );
 } 
