@@ -32,7 +32,7 @@ const ResponseRenderer: React.FC<ResponseRendererProps> = ({ content, renderAs =
     case 'markdown':
     default:
       return (
-        <div className="prose prose-sm dark:prose-invert max-w-none prose-h1:text-lg prose-h2:text-base prose-h3:text-sm prose-h4:text-xs">
+        <div className="prose prose-sm prose-inherit max-w-none prose-h1:text-lg prose-h2:text-base prose-h3:text-sm prose-h4:text-xs">
             <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
                 {content}
             </ReactMarkdown>

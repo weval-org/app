@@ -121,7 +121,9 @@ export const handler: BackgroundHandler = async (event) => {
       id: outline.id || `story-quickrun-${runId}`,
       title: outline.title || 'Story Quick Test',
       description: outline.description || undefined,
-      models: Array.isArray(outline.models) && outline.models.length > 0 ? outline.models.slice(0, 3) : DEFAULT_MODELS,
+      // Intentionally ignore any models specified in the outline for quick runs.
+      // We want a consistent default cohort here.
+      models: DEFAULT_MODELS,
       prompts: limitedPrompts,
       evaluationConfig: {
         'llm-coverage': {
