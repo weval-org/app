@@ -261,8 +261,8 @@ export async function executeComparisonPipeline(
                     for (const modelId of apiModels) {
                         for (const temp of temperatures) {
                             const effectiveId = sysVariants.length > 1
-                                ? `${modelId}[temp:${Number(temp).toFixed(1)}][sp_idx:${sysIdx}]`
-                                : `${modelId}[temp:${Number(temp).toFixed(1)}]`;
+                                ? `${modelId}[temp:${temp}][sp_idx:${sysIdx}]`
+                                : `${modelId}[temp:${temp}]`;
                             try {
                                 const resp = await getModelResponse({
                                     modelId: modelId as string,

@@ -125,7 +125,7 @@ export async function generateAllResponses(
      
                         let finalEffectiveId = modelId;
                         if (temperatureForThisCall !== undefined) {
-                            finalEffectiveId = `${finalEffectiveId}[temp:${temperatureForThisCall.toFixed(1)}]`;
+                            finalEffectiveId = `${finalEffectiveId}[temp:${temperatureForThisCall}]`;
                         }
                         if (config.systems && config.systems.length > 1) {
                             finalEffectiveId = `${finalEffectiveId}[sp_idx:${sp_idx}]`;

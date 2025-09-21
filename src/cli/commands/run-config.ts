@@ -458,7 +458,11 @@ export function parseEvalMethods(evalMethodString: string | undefined): Evaluati
     // Default to BOTH embeddings and llm-coverage when not specified
     if (!evalMethodString) return ['embedding', 'llm-coverage'];
 
-    const methods = evalMethodString.split(',').map(m => m.trim().toLowerCase()).filter(m => m);
+    const normalized = evalMethodString.trim().toLowerCase();
+    if (normalized === 'none') {
+        return [];
+    }
+    const methods = normalized.split(',').map(m => m.trim()).filter(m => m);
     const validMethods: EvaluationMethod[] = ['embedding', 'llm-coverage'];
     const chosenMethods: EvaluationMethod[] = [];
 
@@ -479,7 +483,7 @@ export function parseEvalMethods(evalMethodString: string | undefined): Evaluati
     if (chosenMethods.length === 0) {
         const logger = getConfig()?.logger;
         const logFn = logger ? logger.warn : console.warn;
-        logFn('[ParseEvalMethods] No valid evaluation methods found or specified. Defaulting to embedding.');
+        logFn('[ParseEvalMethods] No valid evaluation methods found. Use --eval-method none to skip all evaluations. Defaulting to embedding.');
         return ['embedding'];
     }
     return chosenMethods;
@@ -1040,7 +1044,7 @@ const localCommand = new Command('local')
     .option('--fixtures <nameOrPath>', 'Fixtures file path (local). If provided, candidate responses are taken from fixtures.')
     .option('--fixtures-strict', 'Error when a fixture for a prompt×model is missing instead of generating live.', false)
     .option('-r, --run-label <runLabelValue>', 'A unique label for this specific execution run. If not provided, a label will be generated based on the blueprint content.')
-    .option('--eval-method <methods>', "Comma-separated evaluation methods (embedding, llm-coverage, all)")
+    .option('--eval-method <methods>', "Comma-separated evaluation methods (embedding, llm-coverage, all, none)")
     .option('--cache', 'Enable caching for model responses (defaults to false).')
     .option('--collections-repo-path <path>', 'Path to a local checkout of a collections repository (e.g., weval/configs) to resolve model collection placeholders.')
     .option('--require-executive-summary', 'Fail the entire run if executive summary generation fails (defaults to false).')
@@ -1057,7 +1061,7 @@ const githubCommand = new Command('github')
     .option('--fixtures <name>', 'Fixtures name in the configs repo under fixtures/<name>.yml|yaml|json. If provided, candidate responses are taken from fixtures.')
     .option('--fixtures-strict', 'Error when a fixture for a prompt×model is missing instead of generating live.', false)
     .option('-r, --run-label <runLabelValue>', 'A unique label for this specific execution run. If not provided, a label will be generated based on the blueprint content.')
-    .option('--eval-method <methods>', "Comma-separated evaluation methods (embedding, llm-coverage, all)")
+    .option('--eval-method <methods>', "Comma-separated evaluation methods (embedding, llm-coverage, all, none)")
     .option('--cache', 'Enable caching for model responses (defaults to false).')
     .option('--collections-repo-path <path>', 'Optional. Path to a local checkout of a collections repository to override the default behavior of fetching collections from GitHub.')
     .option('--require-executive-summary', 'Fail the entire run if executive summary generation fails (defaults to false).')
