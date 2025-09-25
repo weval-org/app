@@ -46,6 +46,7 @@ export const BlueprintAuthoringSchema = {
         toolUse: { type: 'object' },
         context: { type: 'object' },
         prompts: { $ref: '#/$defs/promptList' },
+        noCache: { type: 'boolean' },
       },
       required: ['prompts'],
       additionalProperties: true,
@@ -153,6 +154,7 @@ export const BlueprintAuthoringSchema = {
         expectations: { $ref: '#/$defs/pointBlock', deprecated: true },
         weight: { type: 'number', minimum: 0.1, maximum: 10 },
         multiplier: { type: 'number', minimum: 0.1, maximum: 10, deprecated: true },
+        noCache: { type: 'boolean', description: 'If true, forces a fresh generation for this prompt, ignoring the cache.' },
       },
       // Either prompt or messages is required (but parser enforces exactly-one at runtime)
       anyOf: [

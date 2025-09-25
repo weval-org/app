@@ -185,6 +185,7 @@ export async function generateAllResponses(
                                                 messages: [...workingHistory],
                                                 temperature: temperatureForThisCall,
                                                 useCache: useCache,
+                                                promptNoCache: !!promptConfig.noCache,
                                                 timeout: genOptions?.genTimeoutMs,
                                                 retries: genOptions?.genRetries,
                                             });
@@ -230,6 +231,7 @@ export async function generateAllResponses(
                                         messages: workingHistory,
                                         temperature: temperatureForThisCall,
                                         useCache: useCache,
+                                        promptNoCache: !!promptConfig.noCache,
                                         timeout: genOptions?.genTimeoutMs,
                                         retries: genOptions?.genRetries,
                                     });
@@ -267,6 +269,7 @@ export async function generateAllResponses(
                                             messages: workingHistory,
                                             temperature: temperatureForThisCall,
                                             useCache: useCache,
+                                            promptNoCache: !!promptConfig.noCache,
                                             timeout: genOptions?.genTimeoutMs,
                                             retries: genOptions?.genRetries,
                                         });

@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import yaml from 'js-yaml';
 import { ComparisonConfig } from '@/cli/types/cli_types';
+import { configure } from '@/cli/config';
+import { executeComparisonPipeline } from '@/cli/services/comparison-pipeline-service';
+import { generateConfigContentHash } from '@/lib/hash-utils';
+import { registerCustomModels } from '@/lib/llm-clients/client-dispatcher';
+import type { CustomModelDefinition } from '@/lib/llm-clients/types';
 
 const PUBLIC_API_KEY = process.env.PUBLIC_API_KEY;
 const NETLIFY_FUNCTION_URL = `${process.env.NEXT_PUBLIC_APP_URL}/.netlify/functions/execute-api-evaluation-background`;
@@ -23,6 +28,10 @@ function parseBlueprint(content: string): ComparisonConfig | null {
 
 
 export async function POST(req: NextRequest) {
+    const url = new URL(req.url);
+    const responseModeHeader = (req.headers.get('X-Response-Mode') || '').toLowerCase();
+    const responseModeQuery = (url.searchParams.get('responseMode') || '').toLowerCase();
+    const isInline = responseModeHeader === 'inline' || responseModeQuery === 'inline';
     const authHeader = req.headers.get('Authorization');
     const authDisabled = process.env.DISABLE_PUBLIC_API_AUTH === 'true';
     if (!authDisabled) {
@@ -86,6 +95,95 @@ export async function POST(req: NextRequest) {
 
     const runId = uuidv4();
 
+    if (isInline) {
+        // --- INLINE MODE (no persistence) ---
+        const MAX_INLINE_PROMPTS = 5;
+        const MAX_INLINE_MODELS = 3;
+
+        const promptCount = Array.isArray(config.prompts) ? config.prompts.length : 0;
+        const modelCount = Array.isArray(config.models) ? config.models.length : 0;
+        if (promptCount > MAX_INLINE_PROMPTS || modelCount > MAX_INLINE_MODELS) {
+            return NextResponse.json({ 
+                error: 'Inline mode limits exceeded.',
+                message: `Inline mode supports at most ${MAX_INLINE_PROMPTS} prompts and ${MAX_INLINE_MODELS} models. Received prompts=${promptCount}, models=${modelCount}.`
+            }, { status: 400 });
+        }
+
+        // Initialize CLI config/logging for serverless context
+        try {
+            configure({
+                errorHandler: (err: Error) => console.error('[API RUN inline] Error:', err.message),
+                logger: {
+                    info: (...args: any[]) => console.log('[API RUN inline]', ...args),
+                    warn: (...args: any[]) => console.warn('[API RUN inline]', ...args),
+                    error: (...args: any[]) => console.error('[API RUN inline]', ...args),
+                    success: (...args: any[]) => console.log('[API RUN inline]', ...args),
+                },
+            });
+        } catch {}
+
+        // Register any custom models
+        try {
+            const customModelDefs = (config.models || []).filter(m => typeof m === 'object') as CustomModelDefinition[];
+            if (customModelDefs.length > 0) {
+                registerCustomModels(customModelDefs);
+                console.log(`[API RUN inline] Registered ${customModelDefs.length} custom model definitions.`);
+            }
+        } catch {}
+
+        // Synthesize messages if only prompt/promptText was provided (match background behavior)
+        try {
+            if (Array.isArray(config?.prompts)) {
+                config.prompts = config.prompts.map((p: any) => {
+                    if (!p) return p;
+                    if (!Array.isArray(p.messages) || p.messages.length === 0) {
+                        const text = typeof p.prompt === 'string' ? p.prompt : (typeof p.promptText === 'string' ? p.promptText : undefined);
+                        if (typeof text === 'string' && text.trim().length > 0) {
+                            p.messages = [{ role: 'user', content: text }];
+                        }
+                    }
+                    return p;
+                });
+            }
+        } catch (normErr: any) {
+            console.warn(`[API RUN inline] Prompt normalization failed: ${normErr?.message || normErr}`);
+        }
+
+        // Prepare identifiers similar to background function
+        const shortId = runId.split('-')[0];
+        const configIdForRun = `api-inline-${shortId}`;
+        (config as any).id = configIdForRun;
+        const contentHash = generateConfigContentHash(config as any);
+        const runLabel = contentHash;
+
+        // Force coverage-only, skip executive summary; use cache
+        const { data } = await executeComparisonPipeline(
+            config as any,
+            runLabel,
+            ['llm-coverage'],
+            {
+                info: (...args: any[]) => console.log('[API RUN inline]', ...args),
+                warn: (...args: any[]) => console.warn('[API RUN inline]', ...args),
+                error: (...args: any[]) => console.error('[API RUN inline]', ...args),
+                success: (...args: any[]) => console.log('[API RUN inline]', ...args),
+            } as any,
+            undefined,
+            undefined,
+            true,
+            undefined,
+            undefined,
+            false,
+            true,
+            undefined,
+            undefined,
+            undefined,
+            true, // noSave
+        );
+
+        return NextResponse.json({ result: data, resultUrl: null, runId });
+    }
+
+    // --- DEFAULT MODE (async + persisted) ---
     console.log(`[API RUN] Triggering background evaluation for runId: ${runId}`);
     console.log(`[API RUN] Target function URL: ${NETLIFY_FUNCTION_URL}`);
 

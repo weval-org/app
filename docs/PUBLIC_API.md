@@ -25,7 +25,7 @@ POST `${BASE_URL}/api/v1/evaluations/run`
 - Body: Blueprint as YAML or JSON (UTF-8). The service accepts raw YAML/JSON text.
 - Headers:
   - `Authorization: Bearer <PUBLIC_API_KEY>`
-  - `Content-Type: text/plain` (or `application/yaml`, `application/json`)
+  - `Content-Type: text/plain` (recommended). Also accepts `application/json` or `application/yaml`.
 - Behavior:
   - Parses and normalizes the blueprint.
   - Adds tag `_public_api` to isolate these runs.
@@ -37,7 +37,8 @@ POST `${BASE_URL}/api/v1/evaluations/run`
   "message": "Evaluation run initiated successfully.",
   "runId": "<uuid>",
   "statusUrl": "<BASE_URL>/api/v1/evaluations/status/<runId>",
-  "resultsUrl": "<BASE_URL>/api/v1/evaluations/result/<runId>"
+  "resultsUrl": "<BASE_URL>/api/v1/evaluations/result/<runId>",
+  "viewUrl": "<BASE_URL>/api-run/<runId>"
 }
 ```
 
@@ -72,7 +73,7 @@ GET `${BASE_URL}/api/v1/evaluations/status/:runId`
   "message": "Evaluation completed successfully.",
   "lastUpdated": "2025-01-01T12:40:22.000Z",
   "payload": {
-    "output": "api-runs/<runId>/results/live/blueprints/<configId>/<fileName>",
+    "output": "live/blueprints/<configId>/<fileName>",
     "resultUrl": "<BASE_URL>/analysis/<configId>/<runLabel>/<timestamp>"
   }
 }
@@ -108,6 +109,44 @@ Example:
 curl "$BASE_URL/api/v1/evaluations/result/$RUN_ID"
 ```
 
+### 4) Inline mode (no persistence)
+
+Opt-in mode to return the full monolithic result directly in the POST response, without saving artefacts.
+
+- How to enable: add either header `X-Response-Mode: inline` or query param `?responseMode=inline`
+- Intended for small runs (the server enforces limits): at most 5 prompts and 3 models
+- Behavior: coverage-only, skips executive summary; returns monolithic JSON in `result`
+
+Example (inline JSON blueprint):
+
+```bash
+BASE_URL=${BASE_URL:-http://localhost:3000}
+PUBLIC_API_KEY=${PUBLIC_API_KEY:?set PUBLIC_API_KEY}
+
+BLUEPRINT='{"title":"Quick Inline Test","models":["openai:gpt-4o-mini"],"prompts":[{"id":"hello","prompt":"Say hello in one sentence."}]}'
+
+curl -s -X POST \
+  -H "Authorization: Bearer $PUBLIC_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "X-Response-Mode: inline" \
+  --data "$BLUEPRINT" \
+  "$BASE_URL/api/v1/evaluations/run" | jq '.result | {configId,runLabel,timestamp,models:.effectiveModels,prompts:.promptIds}'
+```
+
+Response (200 OK):
+
+```json
+{ "result": { /* monolithic comparison JSON */ }, "resultUrl": null, "runId": "<uuid>" }
+```
+
+### 4) Get blueprint (submitted config)
+
+GET `${BASE_URL}/api/v1/evaluations/blueprint/:runId`
+
+- Returns the saved blueprint JSON that the background job used.
+- Useful for debugging and for reproducing runs.
+- Response (200 OK): the blueprint object; 404 if not found.
+
 ## Status model (internal details)
 
 - Storage key: `api-runs/<runId>/status.json`
@@ -121,6 +160,14 @@ curl "$BASE_URL/api/v1/evaluations/result/$RUN_ID"
 }
 ```
 - Written by the background function via a storage abstraction. Supports S3 or local filesystem transparently.
+
+### Storage layout
+
+- Status JSON: `api-runs/<runId>/status.json`
+- Submitted blueprint snapshot: `api-runs/<runId>/blueprint.json`
+- Final results artefacts under `live/blueprints/<configId>/`:
+  - Legacy monolithic: `<runLabel>_<timestamp>_comparison.json`
+  - Compact payload: `core.json` (preferred by the Result endpoint when present)
 
 ## Polling pattern
 

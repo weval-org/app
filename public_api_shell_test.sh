@@ -5,8 +5,9 @@ set -euo pipefail
 # Public Evaluation API quickstart
 # - Loads .env safely (zsh/bash)
 # - Submits an inline JSON blueprint
-# - Polls status until complete
-# - Prints compact result
+# - Supports async (default) and inline (no-persist) modes
+# - Async: polls status until complete, then fetches compact result
+# - Inline: returns monolithic result immediately in POST response
 # ================================
 
 # 1) Load .env (zsh-safe): export only KEY=VALUE lines, ignore comments/blank
@@ -24,14 +25,30 @@ fi
 # 3) Minimal inline JSON blueprint
 BLUEPRINT='{"title":"Quick API Test","models":["openai:gpt-4o-mini"],"prompts":[{"id":"hello","prompt":"Say hello in one short sentence."}]}'
 
-# 4) Submit run
+# 4) Choose response mode (env var): RESPONSE_MODE=inline for no-persist
+MODE_HEADER=()
+if [ "${RESPONSE_MODE:-}" = "inline" ]; then
+  MODE_HEADER+=( -H "X-Response-Mode: inline" )
+  echo "Using inline response mode (no persistence)."
+fi
+
+# 5) Submit run
 RESP=$(curl -s -X POST \
   -H "Authorization: Bearer $PUBLIC_API_KEY" \
   -H "Content-Type: application/json" \
+  "${MODE_HEADER[@]}" \
   --data "$BLUEPRINT" \
   "$BASE_URL/api/v1/evaluations/run")
 
-# 5) Extract runId (no jq); bail if missing
+# Inline mode: print monolithic result and exit
+if [ "${RESPONSE_MODE:-}" = "inline" ]; then
+  echo "$RESP" > /tmp/_inline_result.json
+  echo "Inline result saved to /tmp/_inline_result.json"
+  cat /tmp/_inline_result.json
+  exit 0
+fi
+
+# 6) Extract runId (no jq); bail if missing
 RUN_ID=$(printf '%s' "$RESP" | sed -n 's/.*"runId":"\([^"]*\)".*/\1/p')
 if [ -z "$RUN_ID" ]; then
   echo "Failed to start run. Server response:"
@@ -46,7 +63,7 @@ if [ -n "$VIEW_URL" ]; then
     echo "View run progress at: $VIEW_URL"
 fi
 
-# 6) Poll status until completed/failed
+# 7) Poll status until completed/failed
 while true; do
   STATUS_JSON=$(curl -s "$BASE_URL/api/v1/evaluations/status/$RUN_ID")
   STATUS=$(printf '%s' "$STATUS_JSON" | sed -n 's/.*"status":"\([^"]*\)".*/\1/p')
@@ -56,7 +73,7 @@ while true; do
   sleep 2
 done
 
-# 7) Fetch result (compact payload) with small buffer and retries
+# 8) Fetch result (compact payload) with small buffer and retries
 sleep 2
 TRIES=10
 while : ; do

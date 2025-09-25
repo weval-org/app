@@ -283,11 +283,12 @@ export function parseAndNormalizeBlueprint(content: string, fileType: 'json' | '
         const firstDocIsConfig = 
             typeof firstDoc === 'object' &&
             !Array.isArray(firstDoc) &&
-            // Heuristic: if it has config-like keys and not prompt-like keys, it's a config.
-            (firstDoc.models || firstDoc.id || firstDoc.title || firstDoc.system || firstDoc.evaluationConfig || firstDoc.configId || firstDoc.configTitle || firstDoc.point_defs || firstDoc.defs || firstDoc.render_as) &&
-            !(firstDoc.prompt || firstDoc.messages || firstDoc.should || firstDoc.ideal || firstDoc.points);
+            // Heuristic: if it does NOT have prompt-defining keys, it's a config.
+            // This is more robust than looking for specific config keys, especially
+            // as new, potentially ambiguous keys like 'noCache' are added.
+            !(firstDoc.prompt || firstDoc.messages || firstDoc.should || firstDoc.ideal || firstDoc.points || firstDoc.expect);
 
-        if (firstDocIsConfig || (typeof firstDoc === 'object' && !Array.isArray(firstDoc) && firstDoc.point_defs || firstDoc.defs)) {
+        if (firstDocIsConfig) {
             // Structure 1: Config Header + Prompts
             configHeader = firstDoc;
             rawPrompts = rawDocs.slice(1).flat();
@@ -381,6 +382,8 @@ export function parseAndNormalizeBlueprint(content: string, fileType: 'json' | '
         finalConfig.models.forEach(_validateModelDefinition);
     }
 
+    const globalNoCache = finalConfig.noCache;
+
     // Normalize prompts
     finalConfig.prompts = (rawPrompts || []).map((p: any) => {
         const finalPrompt: Partial<PromptConfig> = {};
@@ -414,6 +417,11 @@ export function parseAndNormalizeBlueprint(content: string, fileType: 'json' | '
         finalPrompt.description = p.description;
         finalPrompt.idealResponse = p.ideal || p.idealResponse;
         finalPrompt.system = p.system;
+        if (p.noCache !== undefined) {
+            finalPrompt.noCache = !!p.noCache;
+        } else if (globalNoCache !== undefined) {
+            finalPrompt.noCache = !!globalNoCache;
+        }
         
         // Normalize citation/reference (support both as aliases)
         const promptCitationValue = p.citation || p.reference;

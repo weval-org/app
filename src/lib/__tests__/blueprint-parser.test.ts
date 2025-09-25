@@ -557,4 +557,44 @@ reference:
             ]);
         });
     });
+
+    describe('noCache Normalization', () => {
+        test('should correctly parse noCache flag on a prompt', () => {
+            const yamlContent = `
+- id: p1
+  prompt: "This should be cached"
+- id: p2
+  prompt: "This should not be cached"
+  noCache: true
+- id: p3
+  prompt: "This should also be cached"
+  noCache: false
+`;
+            const result = parseAndNormalizeBlueprint(yamlContent, 'yaml');
+            expect(result.prompts).toHaveLength(3);
+            expect(result.prompts[0].noCache).toBe(undefined);
+            expect(result.prompts[1].noCache).toBe(true);
+            expect(result.prompts[2].noCache).toBe(false);
+        });
+
+        test('should handle global noCache with prompt-level overrides', () => {
+            const yamlContent = `
+noCache: true
+---
+- id: p1
+  prompt: "Inherits global noCache=true"
+- id: p2
+  prompt: "Overrides global with noCache=false"
+  noCache: false
+- id: p3
+  prompt: "Explicitly sets noCache=true"
+  noCache: true
+`;
+            const result = parseAndNormalizeBlueprint(yamlContent, 'yaml');
+            expect(result.prompts).toHaveLength(3);
+            expect(result.prompts[0].noCache).toBe(true); // Inherited
+            expect(result.prompts[1].noCache).toBe(false); // Overridden
+            expect(result.prompts[2].noCache).toBe(true); // Explicit
+        });
+    });
 }); 

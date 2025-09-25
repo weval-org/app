@@ -107,6 +107,7 @@ The following fields can be included in the header section (Structure 1) or the 
 | `toolUse` | `object` | **(Optional)** Tool-use policy (trace-only). Supported keys: `{ enabled?: boolean, mode?: 'trace-only', maxSteps?: number, outputFormat?: 'json-line' }`. Default mode is trace-only; no execution is performed. |
 | `context` | `object` | **(Optional)** Frozen, deterministic data available to prompts (e.g., a small corpus). Shape is user-defined. |
 | `render_as` | `string` | **(Optional)** Sets the default rendering mode for all prompts in the blueprint. Can be `markdown`, `html`, or `plaintext`. Defaults to `markdown`. Overridden by prompt-level `render_as`. |
+| `noCache` | `boolean` | **(Optional)** If `true`, sets the default caching behavior for all prompts to `noCache`. This can be overridden by a per-prompt `noCache` setting. This only affects the initial model response generation, not subsequent evaluation steps like `llm-coverage`, which have their own caching. |
 
 ### Model Configuration
 
@@ -307,6 +308,7 @@ Each item in the list of prompts is an object that can contain the following fie
 | `prohibitedTools` | `string[]` | **(Optional)** For tool-use scenarios, tools that must not be called. |
 | `maxCalls` | `number` | **(Optional)** Per-prompt cap for tool calls expected in the emitted trace. |
 | `render_as` | `string` | **(Optional)** Sets the rendering mode for this specific prompt's output, overriding the global setting. Can be `markdown`, `html`, or `plaintext`. |
+| `noCache` | `boolean` | **(Optional)** If `true`, forces a fresh generation for this prompt, overriding the global `--cache` flag. Defaults to `false`. |
 
 #### Message Formats (`messages` array)
 
@@ -505,6 +507,59 @@ If no nesting is used, the block is parsed as a single path, preserving full bac
 
 For more details, see the [POINTS_DOCUMENTATION.md](POINTS_DOCUMENTATION.md).
 
+## JSON Blueprint Format
+
+While YAML is recommended, JSON is fully supported. JSON blueprints must be a single object with a top-level `prompts` array. All fields and aliases documented above apply equally to JSON.
+
+### Minimal JSON
+
+```json
+{
+  "title": "My First Blueprint",
+  "models": ["openai:gpt-4o-mini"],
+  "prompts": [
+    { "id": "p1", "promptText": "What is the capital of France?" },
+    { "id": "p2", "promptText": "What is 2 + 2?" }
+  ]
+}
+```
+
+### Rich JSON example (aliases, points, and messages)
+
+```json
+{
+  "title": "Normalization Test",
+  "systemPrompt": "Global system prompt",
+  "point_defs": { "scoreBand": "return 1;" },
+  "prompts": [
+    {
+      "id": "p1",
+      "messages": [
+        { "role": "user", "content": "Hello" },
+        { "role": "assistant", "content": "Hi there" }
+      ],
+      "idealResponse": "Ideal response",
+      "points": [
+        "A simple conceptual point.",
+        { "Covers the 'prudent man' rule.": "Investment Advisers Act of 1940" },
+        { "$contains": "fiduciary" },
+        { "fn": "ends_with", "fnArgs": "." }
+      ],
+      "should_not": [ { "$contains": "guarantee" } ],
+      "noCache": false
+    }
+  ]
+}
+```
+
+### Notes
+
+- JSON must be a single object with a top-level `prompts` array. Streams/lists of documents are YAML-only conveniences.
+- Aliases supported: `promptText` → `prompt`, `idealResponse` → `ideal`, `reference`/`citation` (string or object). Point-object aliases: `weight` ↔ `multiplier`, `arg` ↔ `fnArgs`.
+- `messages` accepts the same formats as YAML; `assistant: null` is allowed to request generated turns; `ai` is an alias for `assistant`.
+- `render_as` and `noCache` are supported globally and per-prompt with the same semantics as YAML.
+- Reusable definitions via `point_defs` work the same; reference them inside points with `$ref`.
+
 ---
 
 ## Tool-Use (Trace-Only) Support
@@ -566,7 +621,3 @@ You can use these point functions in `should`/`should_not`:
 - `$tool_call_order(["toolA","toolB", ...])`
 
 These checks operate on the parsed `toolCalls` trace only; they do not execute tools and are fully deterministic.
-
-### Parser compatibility
-
-No parser changes are required. The blueprint parser already forwards unknown configuration fields (such as `tools`, `

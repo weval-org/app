@@ -17,6 +17,7 @@ export interface GetModelResponseParams {
     temperature?: number;
     maxTokens?: number;
     useCache?: boolean;
+    promptNoCache?: boolean;
     timeout?: number;
     retries?: number;
 }
@@ -35,6 +36,7 @@ export async function getModelResponse(params: GetModelResponseParams): Promise<
         temperature = 0,
         maxTokens,
         useCache = true,
+        promptNoCache = false,
         timeout,
         retries,
     } = params;
@@ -111,7 +113,9 @@ export async function getModelResponse(params: GetModelResponseParams): Promise<
         }
     }
 
-    if (useCache) {
+    const effectiveUseCache = useCache && !promptNoCache;
+
+    if (effectiveUseCache) {
         // Check cache first
         try {
             const cachedResponse = await llmCache.get(cacheKey);
@@ -124,7 +128,16 @@ export async function getModelResponse(params: GetModelResponseParams): Promise<
         }
     }
     
-    logger.info(`[LLM Service] Cache MISS for ${modelId}. Tokens: ~${heuristicTokenCount}. Key: ${cacheKey.slice(0, 8)}... Calling API...`);
+    let reason = '';
+    if (effectiveUseCache) {
+        reason = 'Cache MISS';
+    } else if (promptNoCache) {
+        reason = `Bypassing cache due to prompt's 'noCache: true' setting`;
+    } else { // !useCache
+        reason = `Caching disabled by CLI flag`;
+    }
+
+    logger.info(`[LLM Service] ${reason} for ${modelId}. Tokens: ~${heuristicTokenCount}. Key: ${cacheKey.slice(0, 8)}... Calling API...`);
 
     const requestPayload: LLMApiCallOptions = {
         modelId,
@@ -159,7 +172,7 @@ export async function getModelResponse(params: GetModelResponseParams): Promise<
             // }
         });
         
-        if (useCache) {
+        if (effectiveUseCache) {
             try {
                 await llmCache.set(cacheKey, responseContent);
                 logger.info(`[LLM Service] Cached response for ${modelId}. Key: ${cacheKey.slice(0, 8)}...`);
