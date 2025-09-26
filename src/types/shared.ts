@@ -112,6 +112,8 @@ export interface WevalPromptConfig {
      */
     weight?: number;
     render_as?: 'markdown' | 'html' | 'plaintext';
+    // If true, force a fresh generation for this prompt regardless of global cache flag
+    noCache?: boolean;
 }
 
 // --- Tool-use (trace-only) types ---
@@ -163,6 +165,8 @@ export interface WevalConfig {
     // Optional static context for prompts (e.g., frozen corpus). Shape is user-defined.
     context?: Record<string, unknown>;
     render_as?: 'markdown' | 'html' | 'plaintext';
+    // If true, sets default caching behavior for all prompts. Overridden by per-prompt noCache
+    noCache?: boolean;
 }
 
 export interface WevalResult {
