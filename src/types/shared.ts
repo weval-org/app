@@ -105,7 +105,7 @@ export interface WevalPromptConfig {
     idealResponse?: string | null;
     system?: string | null;
     temperature?: number;
-    citation?: string;
+    citation?: string | { title?: string; name?: string; url?: string };
     /**
      * Relative importance of this prompt when aggregating scores across prompts.
      * Defaults to 1.0. Valid range: [0.1, 10].

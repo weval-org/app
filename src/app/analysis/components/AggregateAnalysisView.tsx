@@ -23,6 +23,20 @@ import KeyPointCoverageTable from '@/app/analysis/components/KeyPointCoverageTab
 import Icon from '@/components/ui/icon';
 import { usePreloadIcons } from '@/components/ui/use-preload-icons';
 
+const CitationInline: React.FC<{ citation: any }> = ({ citation }) => {
+    if (!citation) return null;
+    if (typeof citation === 'string') return <span>Source: {citation}</span>;
+    if (typeof citation === 'object') {
+        const title = citation.title || citation.name || '';
+        const url = citation.url as string | undefined;
+        const content = <span>Source: {title}</span>;
+        return url ? (
+            <a href={url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">{content}</a>
+        ) : content;
+    }
+    return null;
+};
+
 const RenderPromptDetails: React.FC<{ promptId: string }> = ({ promptId }) => {
     const { data } = useAnalysis();
     if (!data) return null;
@@ -66,7 +80,7 @@ const RenderPromptDetails: React.FC<{ promptId: string }> = ({ promptId }) => {
             
             {promptConfig?.citation && (
                 <div className="flex items-start space-x-1.5 text-xs text-muted-foreground/90 italic border-l-2 border-border pl-3 py-2">
-                    <span>Source: {promptConfig.citation}</span>
+                    <CitationInline citation={promptConfig.citation as any} />
                 </div>
             )}
             

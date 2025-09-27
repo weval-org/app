@@ -14,7 +14,7 @@ import RemarkGfmPlugin from 'remark-gfm';
 
 interface PromptInfoProps {
   description: string | undefined;
-  citation: string | undefined;
+  citation: any;
 }
 
 const PromptInfo: React.FC<PromptInfoProps> = ({ 
@@ -62,7 +62,19 @@ const PromptInfo: React.FC<PromptInfoProps> = ({
                 <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Source</h4>
                 <div className="flex items-start space-x-2 p-3 rounded-md bg-slate-50 dark:bg-slate-950/30 border border-slate-200 dark:border-slate-800/30">
                   <Icon name="quote" className="h-3.5 w-3.5 mt-0.5 flex-shrink-0 text-slate-600 dark:text-slate-400" />
-                  <span className="text-xs text-slate-700 dark:text-slate-300">{citation}</span>
+                  {(() => {
+                    const c: any = citation;
+                    if (typeof c === 'string') return (<span className="text-xs text-slate-700 dark:text-slate-300">{c}</span>);
+                    if (c && typeof c === 'object') {
+                      const title = c.title || c.name || '';
+                      const url = c.url as string | undefined;
+                      const content = <span className="text-xs text-slate-700 dark:text-slate-300">{title}</span>;
+                      return url ? (
+                        <a href={url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">{content}</a>
+                      ) : content;
+                    }
+                    return null;
+                  })()}
                 </div>
               </div>
             )}

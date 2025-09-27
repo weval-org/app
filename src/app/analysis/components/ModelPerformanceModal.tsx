@@ -481,7 +481,19 @@ const ModelPerformanceModal: React.FC = () => {
                                         {config.prompts.find(p => p.id === selectedPromptId)?.citation && (
                                             <div className="flex items-start space-x-1.5 text-xs text-muted-foreground/90 italic border-l-2 border-border pl-3 py-2 mb-4">
                                                 <Icon name="quote" className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                                                <span>Source: {config.prompts.find(p => p.id === selectedPromptId)?.citation}</span>
+                                                {(() => {
+                                                    const c: any = config.prompts.find(p => p.id === selectedPromptId)?.citation as any;
+                                                    if (typeof c === 'string') return <span>Source: {c}</span>;
+                                                    if (c && typeof c === 'object') {
+                                                        const title = c.title || c.name || '';
+                                                        const url = c.url as string | undefined;
+                                                        const content = <span>Source: {title}</span>;
+                                                        return url ? (
+                                                            <a href={url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">{content}</a>
+                                                        ) : content;
+                                                    }
+                                                    return null;
+                                                })()}
                                             </div>
                                         )}
                                         {/* System prompt and conversation thread omitted; history is shown with the model output */}
