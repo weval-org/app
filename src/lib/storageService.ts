@@ -735,12 +735,15 @@ export async function saveResult(configId: string, fileNameWithTimestamp: string
     const buildCoreData = (full: any) => {
       const clone = { ...full } as any;
 
-      // ---- Trim config.prompts (remove heavy text, keep IDs and weights only) ----
+      // ---- Trim config.prompts (remove heavy text, but keep lightweight meta like description/citation) ----
       if (clone.config?.prompts) {
         clone.config.prompts = clone.config.prompts.map((p: any) => ({ 
           id: p.id,
           ...(typeof p.weight === 'number' ? { weight: p.weight } : {}),
-          ...(p.render_as ? { render_as: p.render_as } : {})
+          ...(p.render_as ? { render_as: p.render_as } : {}),
+          ...(p.description ? { description: p.description } : {}),
+          ...(p.citation ? { citation: p.citation } : {}),
+          ...(p.system ? { system: p.system } : {}),
         }));
       }
 

@@ -10,6 +10,7 @@ import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import Icon from '@/components/ui/icon';
 import { usePreloadIcons } from '@/components/ui/use-preload-icons';
 import { RenderAsType } from '@/app/components/ResponseRenderer';
+import PromptInfo from './PromptInfo';
 
 const PromptPerformanceModal: React.FC = () => {
     const {
@@ -189,13 +190,20 @@ const PromptPerformanceModal: React.FC = () => {
                             </div>
                         </div>
                     ) : (
-                        <KeyPointCoverageTable
-                            data={enhancedData!}
-                            promptId={promptId}
-                            displayedModels={canonicalModels}
-                            hideHeader={true}
-                            renderAs={promptConfig?.render_as as RenderAsType}
-                        />
+                        <>
+                            {(promptConfig?.description || promptConfig?.citation) && (
+                                <div className="mb-4">
+                                    <PromptInfo description={promptConfig?.description} citation={promptConfig?.citation as any} />
+                                </div>
+                            )}
+                            <KeyPointCoverageTable
+                                data={enhancedData!}
+                                promptId={promptId}
+                                displayedModels={canonicalModels}
+                                hideHeader={true}
+                                renderAs={promptConfig?.render_as as RenderAsType}
+                            />
+                        </>
                     )}
                 </div>
             </DialogContent>
