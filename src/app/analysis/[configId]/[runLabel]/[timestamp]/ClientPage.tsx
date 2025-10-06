@@ -91,33 +91,25 @@ export const ClientPage: React.FC = () => {
 
     const handleExploreInSandbox = () => {
         try {
-          if (!data?.config) {
-            throw new Error('Blueprint configuration is not available in the results data.');
+          if (!configId || !runLabel || !timestamp) {
+            throw new Error('Missing identifiers to construct sandbox import URL.');
           }
 
-          const yamlContent = generateMinimalBlueprintYaml(data.config);
-          const blueprintName = `Copy of ${data.configTitle || 'Untitled Blueprint'}.yml`;
+          const param = encodeURIComponent(`${configId}/${runLabel}/${timestamp}`);
 
-          const importData = {
-            name: blueprintName,
-            content: yamlContent,
-          };
-
-          localStorage.setItem('weval_sandbox_import_v2', JSON.stringify(importData));
-          
           toast({
-            title: "Blueprint prepared!",
-            description: `Opening "${blueprintName}" in the Sandbox Studio...`,
+            title: "Opening Sandbox...",
+            description: "Preparing import from selected analysis run.",
           });
 
-          window.open('/sandbox', '_blank');
+          window.open(`/sandbox?config=${param}`, '_blank');
 
         } catch (error) {
-          console.error("Failed to prepare blueprint for Sandbox:", error);
+          console.error("Failed to open Sandbox:", error);
           toast({
             variant: 'destructive',
             title: 'Operation Failed',
-            description: 'Could not prepare the blueprint for the Sandbox Studio.',
+            description: 'Could not open the Sandbox Studio.',
           });
         }
     };

@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import * as yaml from 'js-yaml';
 import { useAuth } from '../hooks/useAuth';
 import { useWorkspace, ActiveBlueprint, BlueprintFile } from '../hooks/useWorkspace';
 import { useToast } from '@/components/ui/use-toast';
 import { Toaster } from "@/components/ui/toaster";
+import { ToastAction } from '@/components/ui/toast';
 import { ProposalWizard } from './ProposalWizard';
 import { EditorPanel } from './EditorPanel';
 import { FormPanel } from './FormPanel';
@@ -87,6 +89,7 @@ function SandboxClientPageInternal() {
     );
 
     const setupInitiatedRef = useRef(false);
+    const searchParams = useSearchParams();
 
     const [isProposalWizardOpen, setIsProposalWizardOpen] = useState(false);
     const [isTourModalOpen, setIsTourModalOpen] = useState(false);
@@ -99,6 +102,9 @@ function SandboxClientPageInternal() {
     const [isAnonymousRunModalOpen, setIsAnonymousRunModalOpen] = useState(false);
     const [isAutoCreateModalOpen, setIsAutoCreateModalOpen] = useState(false);
     const [isModalSubmitting, setIsModalSubmitting] = useState(false);
+    // Import overlay state for ?config=...
+    const [isImportingFromConfig, setIsImportingFromConfig] = useState(false);
+    const [importMessage, setImportMessage] = useState<string>('Preparing import...');
     const [fileToDelete, setFileToDelete] = useState<BlueprintFile | null>(null);
     const [inputModalConfig, setInputModalConfig] = useState<{
         title: string;
@@ -175,6 +181,94 @@ function SandboxClientPageInternal() {
             setupInitiatedRef.current = false;
         }
     }, [user?.isLoggedIn]);
+
+    // Import via config query param (?config=configId/runLabel/timestamp)
+    useEffect(() => {
+        const configParam = searchParams?.get('config');
+        if (!configParam || !createBlueprintWithContent) return;
+
+        const importFromAnalysis = async () => {
+            try {
+                setIsImportingFromConfig(true);
+                setImportMessage('Downloading run data...');
+                const [cfg, rl, ts] = decodeURIComponent(configParam).split('/');
+                if (!cfg || !rl || !ts) throw new Error('Invalid config parameter');
+
+                // Fetch full raw data
+                const resp = await fetch(`/api/comparison/${encodeURIComponent(cfg)}/${encodeURIComponent(rl)}/${encodeURIComponent(ts)}/raw`);
+                if (!resp.ok) throw new Error('Failed to fetch raw comparison data');
+                const fullData = await resp.json();
+
+                // Reconstruct prompts with promptContexts and ideal
+                setImportMessage('Reconstructing blueprint...');
+                const reconstructed = {
+                    ...fullData.config,
+                    prompts: (fullData.config?.prompts || []).map((p: any) => {
+                        const promptId = p.id;
+                        const out = { ...p };
+                        if (!out.messages && !out.promptText) {
+                            const ctx = fullData.promptContexts?.[promptId];
+                            if (typeof ctx === 'string') out.promptText = ctx; else if (Array.isArray(ctx)) out.messages = ctx;
+                        }
+                        if (!out.idealResponse) {
+                            const ideal = fullData.allFinalAssistantResponses?.[promptId]?.ideal || fullData.allFinalAssistantResponses?.[promptId]?.ideal_model || fullData.allFinalAssistantResponses?.[promptId]?.ideal_response || fullData.allFinalAssistantResponses?.[promptId]?.idealModel || fullData.allFinalAssistantResponses?.[promptId]?.ideal_response_text || fullData.allFinalAssistantResponses?.[promptId]?.['ideal'];
+                            const idealDirect = fullData.allFinalAssistantResponses?.[promptId]?.ideal || fullData.allFinalAssistantResponses?.[promptId]?.['ideal'];
+                            out.idealResponse = idealDirect ?? out.idealResponse ?? null;
+                            const idealById = fullData.allFinalAssistantResponses?.[promptId]?.ideal ?? fullData.allFinalAssistantResponses?.[promptId]?.['ideal'];
+                            if (!out.idealResponse && fullData.allFinalAssistantResponses?.[promptId]) {
+                                const idealModelKey = 'ideal';
+                                const maybe = fullData.allFinalAssistantResponses[promptId][idealModelKey];
+                                if (typeof maybe === 'string') out.idealResponse = maybe;
+                            }
+                        }
+                        return out;
+                    })
+                } as any;
+
+                const yamlText = generateMinimalBlueprintYaml(reconstructed);
+                const filename = `Copy of ${fullData.configTitle || cfg}.yml`;
+                setImportMessage('Creating local draft...');
+                await createBlueprintWithContent(filename, yamlText, {
+                    toastTitle: 'Blueprint Imported!',
+                    toastDescription: `Loaded "${filename}" from ${cfg}.`,
+                });
+
+                // Clear the ?config param to prevent re-import on refresh
+                try {
+                    const url = new URL(window.location.href);
+                    url.searchParams.delete('config');
+                    window.history.replaceState({}, document.title, url.toString());
+                } catch {}
+            } catch (err) {
+                console.error('[Sandbox import via config] Failed:', err);
+                toast({
+                    variant: 'destructive',
+                    title: 'Import Failed',
+                    description: 'Could not import the blueprint from the analysis run.',
+                    action: (
+                        <ToastAction
+                          altText="Retry import"
+                          onClick={() => {
+                            const again = async () => {
+                              setIsImportingFromConfig(true);
+                              setImportMessage('Retrying import...');
+                              try { await importFromAnalysis(); } finally { setIsImportingFromConfig(false); }
+                            };
+                            again();
+                          }}
+                        >Retry</ToastAction>
+                    ),
+                });
+            } finally {
+                setIsImportingFromConfig(false);
+                setImportMessage('');
+            }
+        };
+
+        // Only run once on mount
+        importFromAnalysis();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     useEffect(() => {
         if (editorContent) {
@@ -1018,6 +1112,17 @@ function SandboxClientPageInternal() {
         <>
             {renderMainContent()}
             <Toaster />
+            {isImportingFromConfig && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div className="bg-card text-card-foreground px-8 py-6 rounded-lg shadow-2xl flex items-center gap-4 max-w-md mx-4 border border-border">
+                        <Icon name="loader-2" className="w-8 h-8 animate-spin text-primary" />
+                        <div>
+                            <h3 className="font-bold text-lg">Importing from Analysis</h3>
+                            <p className="text-sm opacity-90">{importMessage}</p>
+                        </div>
+                    </div>
+                </div>
+            )}
             {isLoggingInWithGitHub && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
                     <div className="bg-exciting text-exciting-foreground px-8 py-6 rounded-lg shadow-2xl flex items-center gap-4 max-w-md mx-4">

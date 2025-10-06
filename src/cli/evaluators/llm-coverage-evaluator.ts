@@ -26,12 +26,18 @@ const DEFAULT_JUDGE_CONCURRENCY = 20;
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
+// Global override to force experimental classification scale
+const FORCE_EXPERIMENTAL = true;
+
 // Add local interface to fix TS error until types can be globally updated
 interface LLMCoverageEvaluationConfig {
     judgeModels?: string[];
     judgeMode?: 'failover' | 'consensus';
     judges?: Judge[];
+    useExperimentalScale?: boolean;
 }
+
+type ClassificationScaleItem = { name: string; score: number; description: string };
 
 export const DEFAULT_JUDGES: Judge[] = [
     // We're fine with two for now.
@@ -44,7 +50,7 @@ export const DEFAULT_JUDGES: Judge[] = [
     // Note holistic and prompt-aware are the same approach now.
 
     { id: 'holistic-qwen3-30b-a3b-instruct-2507', model: 'openrouter:qwen/qwen3-30b-a3b-instruct-2507', approach: 'holistic' },
-    { id: 'holistic-gemma-3-12b-it', model: 'openrouter:google/gemma-3-12b-it', approach: 'holistic' },
+    { id: 'holistic-openai-gpt-oss-120b', model: 'openrouter:openai/gpt-oss-120b', approach: 'holistic' },
 ];
 
 const DEFAULT_BACKUP_JUDGE: Judge = {
@@ -53,13 +59,27 @@ const DEFAULT_BACKUP_JUDGE: Judge = {
     approach: 'holistic'
 };
 
-const CLASSIFICATION_SCALE = [
+const CLASSIFICATION_SCALE: ClassificationScaleItem[] = [
     // Old Approach: CLASS_ABSENT, CLASS_SLIGHTLY_PRESENT, CLASS_PARTIALLY_PRESENT, CLASS_MAJORLY_PRESENT, CLASS_FULLY_PRESENT
     { name: 'CLASS_UNMET', score: 0.0, description: 'The criterion is not met.' },
     { name: 'CLASS_PARTIALLY_MET', score: 0.25, description: 'The criterion is partially met.' },
     { name: 'CLASS_MODERATELY_MET', score: 0.5, description: 'The criterion is moderately met.' },
     { name: 'CLASS_MAJORLY_MET', score: 0.75, description: 'The criterion is mostly met.' },
     { name: 'CLASS_EXACTLY_MET', score: 1.0, description: 'The criterion is fully met.' }
+];
+
+// Experimental 9-point scale with finer granularity
+const EXPERIMENTAL_CLASSIFICATION_SCALE: ClassificationScaleItem[] = [
+    { name: 'CLASS_UTTERLY_UNMET', score: 0.0, description: 'The criterion is so completely absent to an extent where the content in-fact *contradicts* or contravenes the criterion.' },
+    { name: 'CLASS_UNMET', score: 0.001, description: 'The criterion is not met.' },
+    { name: 'CLASS_TRACE', score: 0.125, description: 'Only a trace or hint of the criterion appears.' },
+    { name: 'CLASS_SLIGHT', score: 0.25, description: 'A slight presence of the criterion is detectable.' },
+    { name: 'CLASS_PARTIAL', score: 0.375, description: 'Partial fulfillment; important elements are missing.' },
+    { name: 'CLASS_MODERATE', score: 0.5, description: 'Moderate fulfillment; balanced presence with notable gaps.' },
+    { name: 'CLASS_SUBSTANTIAL', score: 0.625, description: 'Substantial fulfillment; most key aspects are present.' },
+    { name: 'CLASS_MAJOR', score: 0.75, description: 'Major fulfillment; minor omissions remain.' },
+    { name: 'CLASS_VERY_NEARLY', score: 0.875, description: 'Very nearly fully met; only negligible details missing.' },
+    { name: 'CLASS_EXACT', score: 1.0, description: 'Exactly and fully meets the criterion.' },
 ];
 
 interface PointwiseCoverageLLMResult {
@@ -86,6 +106,9 @@ export class LLMCoverageEvaluator implements Evaluator {
         this.logger = logger;
         this.useCache = useCache;
         this.logger.info(`[LLMCoverageEvaluator] Initialized (Pointwise evaluation is now default). Caching: ${this.useCache}`);
+        const defaultScale = FORCE_EXPERIMENTAL ? EXPERIMENTAL_CLASSIFICATION_SCALE : CLASSIFICATION_SCALE;
+        const strategyLabel = FORCE_EXPERIMENTAL ? 'EXPERIMENTAL (FORCED)' : 'DEFAULT';
+        this.logger.info(`[LLMCoverageEvaluator] Classification scale default: ${strategyLabel}; size=${defaultScale.length}`);
     }
 
     getMethodName(): EvaluationMethod { return 'llm-coverage'; }
@@ -228,7 +251,8 @@ export class LLMCoverageEvaluator implements Evaluator {
         promptContextText: string,
         suiteDescription: string | undefined,
         judges?: Judge[],
-        judgeMode?: 'failover' | 'consensus' // Legacy
+        judgeMode?: 'failover' | 'consensus', // Legacy
+        classificationScale: ClassificationScaleItem[] = CLASSIFICATION_SCALE,
     ): Promise<JudgeResult> {
         const judgeLog: string[] = [];
         const judgeRequestLimit = pLimit(5);
@@ -260,7 +284,9 @@ export class LLMCoverageEvaluator implements Evaluator {
                     allKeyPointTexts,
                     promptContextText,
                     suiteDescription,
-                    judge
+                    judge,
+                    classificationScale,
+                    judgeLog
                 );
 
                 if ('error' in singleEvalResult) {
@@ -285,7 +311,8 @@ export class LLMCoverageEvaluator implements Evaluator {
             successfulJudgements,
             totalJudgesAttempted,
             judges,
-            judgeLog
+            judgeLog,
+            classificationScale
         );
 
         if (successfulJudgements.length === 0) {
@@ -335,7 +362,8 @@ export class LLMCoverageEvaluator implements Evaluator {
         successfulJudgements: (PointwiseCoverageLLMResult & { judgeModelId: string })[],
         totalJudgesAttempted: number,
         judges?: Judge[],
-        judgeLog: string[] = []
+        judgeLog: string[] = [],
+        classificationScale: ClassificationScaleItem[] = CLASSIFICATION_SCALE,
     ): Promise<boolean> {
         // Only use backup judge if we have fewer successful judgements than expected 
         // and we're not using custom judges (to preserve user configurations)
@@ -356,7 +384,9 @@ export class LLMCoverageEvaluator implements Evaluator {
             allKeyPointTexts,
             promptContextText,
             suiteDescription,
-            DEFAULT_BACKUP_JUDGE
+            DEFAULT_BACKUP_JUDGE,
+            classificationScale,
+            judgeLog
         );
 
         if ('error' in backupEvalResult) {
@@ -376,28 +406,11 @@ export class LLMCoverageEvaluator implements Evaluator {
         allOtherKeyPoints: string[],
         promptContextText: string,
         suiteDescription: string | undefined,
-        judge: Judge
+        judge: Judge,
+        classificationScale: ClassificationScaleItem[] = CLASSIFICATION_SCALE,
+        judgeLog?: string[]
     ): Promise<PointwiseCoverageLLMResult | { error: string }> {
-        const cacheKeyPayload = {
-            modelResponseText,
-            keyPointText,
-            allOtherKeyPoints,
-            promptContextText,
-            suiteDescription,
-            judge, // Judge object includes model and approach
-        };
-        const cacheKey = generateCacheKey(cacheKeyPayload);
-        const cache = getCache('judge-evaluations');
         const { model: modelId, approach } = judge;
-
-        if (this.useCache) {
-            const cachedResult = await cache.get(cacheKey);
-            if (cachedResult) {
-                this.logger.info(`Cache HIT for pointwise judge evaluation with ${modelId} (${approach})`);
-                return cachedResult as PointwiseCoverageLLMResult;
-            }
-            this.logger.info(`Cache MISS for pointwise judge evaluation with ${modelId} (${approach})`);
-        }
 
         let pointwisePrompt: string;
 
@@ -443,7 +456,7 @@ ${keyPointText}
                 break;
         }
 
-        const classificationGuidelines = CLASSIFICATION_SCALE.map(c => `- ${c.name}: ${c.description}`).join('\n');
+        const classificationGuidelines = classificationScale.map(c => `- ${c.name}: ${c.description}`).join('\n');
 
         const finalPrompt = `${pointwisePrompt}
 
@@ -454,7 +467,7 @@ ${classificationGuidelines}
 
 Your output MUST strictly follow this XML format:
 <reflection>Your 1-2 sentence reflection and reasoning for the classification, explaining how well the criterion is met, if at all.</reflection>
-<classification>ONE of the ${CLASSIFICATION_SCALE.length} class names (e.g., ${CLASSIFICATION_SCALE[CLASSIFICATION_SCALE.length - 1].name})</classification>
+<classification>ONE of the ${classificationScale.length} class names (e.g., ${classificationScale[classificationScale.length - 1].name})</classification>
 `;
         
         const systemPrompt = `
@@ -492,9 +505,46 @@ Output: <reflection>The number provided in the text is very close to the number 
 Input: <TEXT>Handling a situation where a colleague consistently takes credit for your ideas requires a balance of assertiveness, empathy, and strategic communication</TEXT><CRITERION>Mentions empathy</CRITERION>
 Output: <reflection>The text mentions empathy, which means the criterion is MET precisely.</reflection><classification>${CLASSIFICATION_SCALE[CLASSIFICATION_SCALE.length - 1].name}</classification>
 -----
-`.trim();
+        `.trim();
+        
+        // Now that prompts are constructed, check cache
+        const cacheKeyPayload = {
+            modelResponseText,
+            keyPointText,
+            allOtherKeyPoints,
+            promptContextText,
+            suiteDescription,
+            judge, // Judge object includes model and approach
+            finalPrompt,
+            systemPrompt,
+        };
+        const cacheKey = generateCacheKey(cacheKeyPayload);
+        const cache = getCache('judge-evaluations');
+
+        if (this.useCache) {
+            const cachedResult = await cache.get(cacheKey);
+            if (cachedResult) {
+                this.logger.info(`Cache HIT for pointwise judge evaluation with ${modelId} (${approach})`);
+                return cachedResult as PointwiseCoverageLLMResult;
+            }
+            this.logger.info(`Cache MISS for pointwise judge evaluation with ${modelId} (${approach})`);
+        }
         
         try {
+            // Log the system prompt used (once per judge request)
+            const judgeIdForLog = judge.id || `${judge.approach}`;
+            // this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- [${judgeIdForLog}] System prompt used (approach=${judge.approach}):\n${systemPrompt}`);
+            // if (judgeLog) {
+            //     judgeLog.push(`[${judgeIdForLog}] SYSTEM_PROMPT_BEGIN`);
+            //     judgeLog.push(systemPrompt);
+            //     judgeLog.push(`[${judgeIdForLog}] SYSTEM_PROMPT_END`);
+            // }
+            // this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- [${judgeIdForLog}] Final prompt used (approach=${judge.approach}):\n${finalPrompt}`);
+            // if (judgeLog) {
+            //     judgeLog.push(`[${judgeIdForLog}] FINAL_PROMPT_BEGIN`);
+            //     judgeLog.push(finalPrompt);
+            //     judgeLog.push(`[${judgeIdForLog}] FINAL_PROMPT_END`);
+            // }
              const clientOptions: Omit<LLMApiCallOptions, 'modelName'> & { modelId: string } = {
                 modelId: modelId,
                 messages: [{ role: 'user', content: finalPrompt }],
@@ -528,7 +578,7 @@ Output: <reflection>The text mentions empathy, which means the criterion is MET 
             }
 
             const classificationToScore: Record<string, number> = Object.fromEntries(
-                CLASSIFICATION_SCALE.map(item => [item.name, item.score])
+                classificationScale.map(item => [item.name, item.score])
             );
 
             const reflection = reflectionMatch[1].trim();
@@ -648,6 +698,12 @@ Output: <reflection>The text mentions empathy, which means the criterion is MET 
             }
 
             const llmCoverageConfig = config.evaluationConfig?.['llm-coverage'] as LLMCoverageEvaluationConfig | undefined;
+            const classificationScale = (FORCE_EXPERIMENTAL || llmCoverageConfig?.useExperimentalScale)
+                ? EXPERIMENTAL_CLASSIFICATION_SCALE
+                : CLASSIFICATION_SCALE;
+            const usingExperimental = classificationScale === EXPERIMENTAL_CLASSIFICATION_SCALE;
+            const reason = FORCE_EXPERIMENTAL ? 'FORCE_EXPERIMENTAL=true' : (llmCoverageConfig?.useExperimentalScale ? 'per-blueprint flag' : 'default');
+            this.logger.info(`[LLMCoverageEvaluator] Using ${usingExperimental ? 'EXPERIMENTAL' : 'DEFAULT'} classification scale (${reason}) for prompt ${promptData.promptId}; size=${classificationScale.length}`);
 
             for (const [modelId, responseData] of Object.entries(promptData.modelResponses)) {
                 if (modelId === IDEAL_MODEL_ID) continue;
@@ -696,7 +752,8 @@ Output: <reflection>The text mentions empathy, which means the criterion is MET 
                                     transcriptForModel,
                                     config.description,
                                     llmCoverageConfig?.judges,
-                                    llmCoverageConfig?.judgeMode
+                                    llmCoverageConfig?.judgeMode,
+                                    classificationScale
                                 );
 
                                 let finalScore = judgeResult.coverage_extent;

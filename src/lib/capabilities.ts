@@ -65,7 +65,7 @@ export const CAPABILITY_BUCKETS: CapabilityBucket[] = [
       { key: 'confidence-high-stakes-domains', weight: 2.0 },
       { key: 'jailbreak-safety-probes', weight: 3.0 },
       { key: 'csr-suicide-response-scenarios', weight: 0.5 },
-      { key: 'sydney__original', weight: 1.0 },
+      { key: 'sydney__original', weight: 2.0 },
       { key: 'compass__cautious', weight: 0.8 },
       { key: 'compass__risk-averse', weight: 0.8 },
       { key: 'compass__confident', weight: 0.6, invert: true },
@@ -167,7 +167,8 @@ export const CAPABILITY_BUCKETS: CapabilityBucket[] = [
       { key: 'platform-workers-sea-algo-manage', weight: 1.5 },
       { key: 'maternal-health-uttar-pradesh', weight: 2.0 },
       { key: 'jp-clinical-scenarios', weight: 1.0 },
-      { key: 'yka-set', weight: 1.5 }
+      { key: 'yka-set', weight: 1.5 },
+      { key: 'ifit-conflict-resolution', weight: 1.5}
     ],
   },
   {
@@ -188,7 +189,8 @@ export const CAPABILITY_BUCKETS: CapabilityBucket[] = [
       { key: 'system-prompt-adherence-resilience', weight: 2.0 },
       { key: 'geneva-conventions-full-evaluation', weight: 1.0 },
       { key: 'hmt-empire-windrush-comprehensive-eval', weight: 1.0 },
-      { key: 'udhr-misattribution-absurd-framing', weight: 1.0 }
+      { key: 'udhr-misattribution-absurd-framing', weight: 1.0 },
+      { key: 'evidence-based-ai-tutoring', weight: 2.0 }
     ]
   }
 ];
