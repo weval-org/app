@@ -10,7 +10,7 @@ import { ControlSignalHelpers } from '@/lib/story-utils/control-signals';
 import { sanitizeCtaText } from '@/app/api/story/utils/validation';
 import { QuickRunFallback } from './components/QuickRunFallback';
 import { QuickRunResults } from './components/QuickRunResults';
-import { Bot, User, XCircle, RefreshCcw } from 'lucide-react';
+import { Bot, User, XCircle, RefreshCcw, MessageSquare, ArrowLeft, Edit3, Download } from 'lucide-react';
 import { GuidedStepHeader } from './components/GuidedStepHeader';
 import Icon from '@/components/ui/icon';
 import ResponseRenderer from '@/app/components/ResponseRenderer';
@@ -19,6 +19,7 @@ import RemarkGfmPlugin from 'remark-gfm';
 export default function StoryPageClient() {
   const [story, setStory] = useState('');
   const [composer, setComposer] = useState('');
+  const [showResultsFullscreen, setShowResultsFullscreen] = useState(false);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   
@@ -45,6 +46,13 @@ export default function StoryPageClient() {
 
   const canSubmitIntro = story.trim().length > 0 && !pending;
   const canSend = composer.trim().length > 0 && !pending;
+  
+  // Auto-show results fullscreen when they arrive
+  useEffect(() => {
+    if (quickRunResult && !quickRunError) {
+      setShowResultsFullscreen(true);
+    }
+  }, [quickRunResult, quickRunError]);
 
   const scrollToBottom = () => {
     requestAnimationFrame(() => {
@@ -115,7 +123,19 @@ export default function StoryPageClient() {
   const onReset = () => {
     if (window.confirm('Are you sure you want to clear this conversation and start over?')) {
       resetChat();
+      setShowResultsFullscreen(false);
     }
+  };
+
+  const onBackToChat = () => {
+    setShowResultsFullscreen(false);
+    composerRef.current?.focus();
+  };
+
+  const onDiscussResults = () => {
+    setShowResultsFullscreen(false);
+    setComposer("I'd like to discuss these results. ");
+    composerRef.current?.focus();
   };
 
   return (
@@ -147,14 +167,76 @@ export default function StoryPageClient() {
             </Card>
           </div>
         </div>
-      ) : (
+      ) : showResultsFullscreen && quickRunResult ? (
+        // RESULTS FULLSCREEN MODE
         <div className="flex flex-col h-full">
           <div className="flex justify-between items-center p-4 border-b bg-background">
-            <h1 className="text-3xl font-semibold">Exploring Your Story</h1>
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" size="sm" onClick={onBackToChat}>
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Conversation
+              </Button>
+              <div className="h-6 w-px bg-border" />
+              <h1 className="text-3xl font-semibold">Your Test Results</h1>
+            </div>
             <Button variant="ghost" size="sm" onClick={onReset}>
               <RefreshCcw className="mr-2 h-4 w-4" />
               Start Over
             </Button>
+          </div>
+          
+          <div className="flex-1 min-h-0 flex flex-col gap-4 p-4">
+            {/* Dismissible chat saved banner */}
+            <Card className="p-3 bg-accent/50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Your conversation is saved and you can return to it anytime</span>
+              </div>
+              <Button variant="ghost" size="sm" onClick={onBackToChat}>
+                View Chat
+              </Button>
+            </Card>
+
+            {/* FULL WIDTH RESULTS - No constraints */}
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <QuickRunResults result={quickRunResult} />
+            </div>
+
+            {/* Action bar at bottom */}
+            <Card className="p-4 flex items-center justify-between border-dashed bg-muted/30">
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={onDiscussResults}>
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  Discuss Results
+                </Button>
+                <Button size="sm" variant="outline" onClick={onBackToChat}>
+                  <Edit3 className="h-4 w-4 mr-2" />
+                  Refine Test
+                </Button>
+              </div>
+              <div className="text-sm text-muted-foreground">
+                Want to iterate? Continue the conversation to adjust your test criteria.
+              </div>
+            </Card>
+          </div>
+        </div>
+      ) : (
+        // CHAT MODE: Original layout
+        <div className="flex flex-col h-full">
+          <div className="flex justify-between items-center p-4 border-b bg-background">
+            <h1 className="text-3xl font-semibold">Exploring Your Story</h1>
+            <div className="flex items-center gap-2">
+              {quickRunResult && (
+                <Button variant="outline" size="sm" onClick={() => setShowResultsFullscreen(true)}>
+                  <Icon name="bar-chart" className="mr-2 h-4 w-4" />
+                  View Results
+                </Button>
+              )}
+              <Button variant="ghost" size="sm" onClick={onReset}>
+                <RefreshCcw className="mr-2 h-4 w-4" />
+                Start Over
+              </Button>
+            </div>
           </div>
           <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-4 lg:grid-cols-3 gap-4 p-4">
             <div className="xl:col-span-2 lg:col-span-2 flex flex-col min-h-0">

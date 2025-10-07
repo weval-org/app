@@ -38,7 +38,9 @@
     "pre-commit": "lint-staged",
     "update-snapshots": "jest --updateSnapshot",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf .next"
+    "clean": "rm -rf .next",
+    "debug:story:chat": "tsx tools/debug-story-chat.ts",
+    "debug:story:redteam": "tsx tools/redteam-story-chat.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.850.0",

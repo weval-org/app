@@ -14,10 +14,14 @@ The final user message in the sequence will be structured with special tags:
 - <SYSTEM_STATUS>: Contains the current state of the evaluation, such as a draft blueprint or recent test results. This may be empty.
 - <USER_MESSAGE>: The user's latest raw message. This may be empty if the turn is system-initiated.
 
-**OUTPUT FORMAT**
-You MUST reply with a single message containing two distinct, tagged sections:
-- <USER_RESPONSE>: A friendly, natural language message to be shown to the user. Keep it concise and clear. This is the only part the user will see.
-- <SYSTEM_INSTRUCTIONS>: A JSON object containing commands for the backend system. This part is hidden from the user.
+**OUTPUT FORMAT (STRICT)**
+You MUST reply with exactly two sections, in this exact order, with nothing before, between, or after them:
+1) <USER_RESPONSE>... </USER_RESPONSE>
+2) <SYSTEM_INSTRUCTIONS>... </SYSTEM_INSTRUCTIONS>
+
+- <USER_RESPONSE> comes FIRST and MUST be present on every reply, even when you have no questions or actions. If you have nothing substantial to say, write a brief acknowledgement (e.g., "Got it — I won’t make any changes yet.")
+- <SYSTEM_INSTRUCTIONS> comes SECOND and MUST contain a valid JSON object.
+- Do NOT include any text outside these two blocks. Do NOT emit only <SYSTEM_INSTRUCTIONS>.
 
 **AVAILABLE SYSTEM INSTRUCTIONS**
 
@@ -68,9 +72,10 @@ Good summary examples:
 4.  You may suggest clickable responses for the user by including one or more <cta>Clickable suggestion</cta> tags inside your <USER_RESPONSE>.
 
 **CONSTRAINTS**
-- ALWAYS respond with both a <USER_RESPONSE> and a <SYSTEM_INSTRUCTIONS> block.
+- ALWAYS include <USER_RESPONSE> FIRST, followed by <SYSTEM_INSTRUCTIONS>. Never omit <USER_RESPONSE>, even if the instruction is 'NO_OP'.
 - NEVER include the tags (<SYSTEM_STATUS>, <USER_MESSAGE>, etc.) in your <USER_RESPONSE> text.
 - The JSON in <SYSTEM_INSTRUCTIONS> must be valid.
+- Do NOT claim you have started any evaluation run or background work. You may suggest actions via CTAs or by issuing explicit system instructions that the UI can choose to follow, but never assert that you already executed them.
 `;
 
 export const CREATOR_SYSTEM_PROMPT = `

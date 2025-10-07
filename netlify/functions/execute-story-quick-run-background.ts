@@ -49,6 +49,7 @@ function compactify(run: FinalComparisonOutputV2) {
   for (const p of run.config.prompts || []) {
     const modelResponses: any = {};
     const scores: any = {};
+    const assessments: any = {}; // NEW: Store point assessments per model
     const allFinal = run.allFinalAssistantResponses || {};
     const ideal = allFinal[p.id]?.['ideal'];
 
@@ -60,6 +61,11 @@ function compactify(run: FinalComparisonOutputV2) {
       scores[modelId] = (coverage && typeof coverage === 'object' && 'avgCoverageExtent' in coverage
         ? (coverage as any).avgCoverageExtent
         : 0) || 0;
+      
+      // NEW: Include point assessments with judge reasoning
+      if (coverage && typeof coverage === 'object' && 'pointAssessments' in coverage) {
+        assessments[modelId] = (coverage as any).pointAssessments || [];
+      }
     }
     prompts.push({
       id: p.id,
@@ -68,6 +74,7 @@ function compactify(run: FinalComparisonOutputV2) {
       ideal,
       modelResponses,
       scores,
+      assessments, // NEW: Include detailed assessments
     });
   }
   return { prompts, models: run.effectiveModels.filter(m => m !== 'ideal') };

@@ -105,7 +105,7 @@ export function useStoryOrchestrator(): StoryState & StoryActions {
   }, []);
 
 
-  const handleSystemInstruction = useCallback(async (instruction: SystemInstruction) => {
+  const handleSystemInstruction = useCallback(async (instruction: SystemInstruction, opts?: { synthesizeIfEmpty?: boolean }) => {
     log('Handling system instruction', instruction);
     switch (instruction.command) {
       case 'CREATE_OUTLINE':
@@ -116,6 +116,13 @@ export function useStoryOrchestrator(): StoryState & StoryActions {
             outlineYaml: String(out.yaml || ''),
             outlineObj: out.data || null,
           });
+          // If the visible chat content was empty, synthesize a concise confirmation message
+          if (opts?.synthesizeIfEmpty) {
+            setState(prev => ({
+              ...prev,
+              messages: [...prev.messages, { id: nanoid(), role: 'assistant' as const, content: 'Created a draft evaluation outline.' }],
+            }));
+          }
         } catch (e) {
           log('Error creating outline', e);
           updateState({ createError: 'Failed to create evaluation outline.' });
@@ -130,11 +137,12 @@ export function useStoryOrchestrator(): StoryState & StoryActions {
         try {
           const updated = await callUpdate(state.outlineObj, instruction.payload.guidance);
           const confirmationAndSuggestion = `I have updated the evaluation outline.`;
-          updateState({
+          setState(prev => ({
+            ...prev,
             outlineObj: updated.data || null,
             outlineYaml: String(updated.yaml || ''),
-            messages: [...state.messages, { id: nanoid(), role: 'assistant' as const, content: confirmationAndSuggestion }],
-          });
+            messages: [...prev.messages, { id: nanoid(), role: 'assistant' as const, content: confirmationAndSuggestion }],
+          }));
         } catch (e) {
           log('Error updating outline', e);
           updateState({ messages: [...state.messages, { id: nanoid(), role: 'assistant' as const, content: 'Sorry - I could not update the evaluation this time.' }] });
@@ -155,6 +163,7 @@ export function useStoryOrchestrator(): StoryState & StoryActions {
     updateState({ pending: true, activeStream: { messageId, visibleContent: '', ctas: [], systemInstructions: null, streamError: null } });
 
     try {
+      log('Stream: starting /api/story/chat', { contextLen: context.length, hasOutline: Boolean(state.outlineYaml), hasQuickRunResult: Boolean(state.quickRunResult) });
       const res = await fetch('/api/story/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -173,12 +182,16 @@ export function useStoryOrchestrator(): StoryState & StoryActions {
       const parser = new StreamingParser();
 
       let done = false;
+      let chunkCount = 0;
+      let totalBytes = 0;
       while (!done) {
         const { value, done: readerDone } = await reader.read();
         done = readerDone;
         const chunk = decoder.decode(value, { stream: true });
         
         if (chunk) {
+          chunkCount += 1;
+          totalBytes += chunk.length;
           const parsed = parser.ingest(chunk);
           updateState({ activeStream: { messageId, ...parsed } });
           if (parsed.streamError) throw new Error(parsed.streamError);
@@ -186,23 +199,68 @@ export function useStoryOrchestrator(): StoryState & StoryActions {
       }
 
       const finalParsed = parser.finalize();
+    const hadVisible = (finalParsed.visibleContent || '').trim().length > 0;
+      const maybeInstruction = finalParsed.systemInstructions;
+    const instruction = isSystemInstruction(maybeInstruction) ? maybeInstruction : null;
+    const isNoOpInstruction = instruction?.command === 'NO_OP';
+    const ctaCount = finalParsed.ctas?.length || 0;
+    log('Stream: finalized', { hadVisible, ctaCount, hasInstruction: Boolean(instruction), instructionCmd: instruction?.command });
+
+    if (hadVisible) {
+        const sanitizeAgencyClaims = (text: string, instr: SystemInstruction | null) => {
+          if (!text) return text;
+          const claimRegex = /\b(I('|’)?ll|I will|we('|’)?ll|we will)\s+(start|set up|setup|run|process|kick\s*off|get (it )?started)/i;
+          if (claimRegex.test(text) && (!instr || instr.command === 'NO_OP')) {
+            return `${text}\n\nNote: No evaluation has been started.`;
+          }
+          return text;
+        };
+        const safeVisible = sanitizeAgencyClaims(finalParsed.visibleContent, instruction);
       const finalMessage: Message = {
         id: messageId,
         role: 'assistant',
-        content: finalParsed.visibleContent,
+          content: safeVisible,
         ctas: finalParsed.ctas.length > 0 ? finalParsed.ctas : undefined,
       };
-
       setState(prev => ({
         ...prev,
         messages: [...prev.messages, finalMessage],
         activeStream: null,
       }));
+      } else {
+        // No visible content: if there are CTAs but no text, still show a minimal bubble so CTAs render.
+        // If there are no CTAs and either no instruction OR a NO_OP instruction, append a friendly fallback line.
+        const hasCtas = ctaCount > 0;
+        const fallbackText = hasCtas
+          ? 'Here are some options you can try:'
+          : 'I received your message but did not produce a visible reply. Please try rephrasing.';
 
-      // Handle instructions after stream is complete
-      if (isSystemInstruction(finalParsed.systemInstructions)) {
-        await handleSystemInstruction(finalParsed.systemInstructions);
+        if (!instruction || isNoOpInstruction) {
+          const finalMessage: Message = {
+            id: messageId,
+            role: 'assistant',
+            content: fallbackText,
+            ctas: hasCtas ? finalParsed.ctas : undefined,
+          };
+          setState(prev => ({
+            ...prev,
+            messages: [...prev.messages, finalMessage],
+            activeStream: null,
+          }));
+        } else {
+          // Non-NO_OP instruction will be handled below; just clear active stream here.
+          setState(prev => ({
+            ...prev,
+            activeStream: null,
+          }));
+        }
       }
+
+    // Handle instructions after stream is complete. If there was no visible text,
+    // request the handler to synthesize a short confirmation message instead.
+    if (instruction) {
+      await handleSystemInstruction(instruction, { synthesizeIfEmpty: !hadVisible && !isNoOpInstruction });
+    }
 
     } catch (e) {
       log('Error during stream handling', e);
