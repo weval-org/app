@@ -11,7 +11,7 @@ const AVAILABLE_PLAYGROUND_MODELS = [
   "openai:gpt-4.1-nano",
   "openai:gpt-4.1-mini",
   "anthropic:claude-3-haiku-20240307",
-  "openrouter:google/gemini-flash-1.5",
+  "openrouter:google/gemini-2.5-flash",
   "openrouter:google/gemini-2.5-flash",
   "openrouter:mistralai/mistral-7b-instruct-v0.3",
   "openrouter:meta-llama/llama-3-8b-instruct",
@@ -20,7 +20,7 @@ const AVAILABLE_PLAYGROUND_MODELS = [
 const DEFAULT_PLAYGROUND_MODELS = [
   "openai:gpt-4o-mini",
   "anthropic:claude-3-haiku-20240307",
-  "openrouter:google/gemini-flash-1.5"
+  "openrouter:google/gemini-2.5-flash"
 ];
 
 const MAX_MODEL_SELECTION = 6;

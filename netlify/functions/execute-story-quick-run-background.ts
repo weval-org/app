@@ -18,7 +18,7 @@ const s3Client = new S3Client({
 const STORY_RUNS_DIR = 'live/story/runs';
 
 const DEFAULT_MODELS = [
-  'openrouter:google/gemini-flash-1.5',
+  'openrouter:google/gemini-2.5-flash',
   'openrouter:anthropic/claude-3-haiku',
   'openai:gpt-4o-mini',
 ];
@@ -127,7 +127,7 @@ export const handler: BackgroundHandler = async (event) => {
       prompts: limitedPrompts,
       evaluationConfig: {
         'llm-coverage': {
-          judges: [{ id: 'holistic-gemini-flash', model: 'openrouter:google/gemini-flash-1.5', approach: 'holistic' }],
+          judges: [{ id: 'holistic-gemini-flash', model: 'openrouter:google/gemini-2.5-flash', approach: 'holistic' }],
         } as any,
       },
       temperature: 0,

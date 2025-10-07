@@ -22,7 +22,7 @@ const QUICK_RUN_JUDGE = 'openrouter:google/gemini-2.5-flash';
 const DEFAULT_ADVANCED_MODELS = [
     "openai:gpt-4.1-mini",
     "anthropic:claude-3-haiku-20240307",
-    'openrouter:google/gemini-flash-1.5'
+    'openrouter:google/gemini-2.5-flash'
 ];
 
 const SANDBOX_V2_TEMP_DIR = 'live/sandbox';
