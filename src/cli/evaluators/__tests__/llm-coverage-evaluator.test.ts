@@ -164,7 +164,9 @@ describe('LLMCoverageEvaluator', () => {
             ["[should] This is a string point"], // allOtherKeyPoints
             expect.stringContaining("Prompt for prompt1"), // promptContextText
             undefined, // suiteDescription
-            expect.objectContaining({ approach: 'prompt-aware' }) // judge object
+            expect.objectContaining({ approach: 'prompt-aware' }), // judge object
+            expect.any(Array), // classificationScale
+            expect.any(Array)  // judgeLog
         );
 
         const model1Result = result.llmCoverageScores?.['prompt1']?.['model1'];
@@ -502,7 +504,9 @@ describe('LLMCoverageEvaluator', () => {
                 expectedAllPoints,  // allOtherKeyPoints
                 expect.any(String), // promptContextText
                 undefined, // suiteDescription
-                expect.objectContaining({ approach: 'holistic' })
+                expect.objectContaining({ approach: 'holistic' }),
+                expect.any(Array), // classificationScale
+                expect.any(Array)  // judgeLog
              );
              expect(requestIndividualJudgeSpy).toHaveBeenCalledWith(
                 expect.any(String), // modelResponseText
@@ -510,7 +514,9 @@ describe('LLMCoverageEvaluator', () => {
                 expectedAllPoints,  // allOtherKeyPoints
                 expect.any(String), // promptContextText
                 undefined, // suiteDescription
-                expect.objectContaining({ approach: 'holistic' })
+                expect.objectContaining({ approach: 'holistic' }),
+                expect.any(Array), // classificationScale
+                expect.any(Array)  // judgeLog
              );
         });
 
@@ -551,7 +557,9 @@ describe('LLMCoverageEvaluator', () => {
                 expectedAllPointsContext,
                 expect.any(String),
                 undefined, // suiteDescription
-                expect.objectContaining({ approach: 'holistic' })
+                expect.objectContaining({ approach: 'holistic' }),
+                expect.any(Array), // classificationScale
+                expect.any(Array)  // judgeLog
             );
 
             // Check call for the 'should not' point
@@ -561,7 +569,9 @@ describe('LLMCoverageEvaluator', () => {
                 expectedAllPointsContext,
                 expect.any(String),
                 undefined, // suiteDescription
-                expect.objectContaining({ approach: 'holistic' })
+                expect.objectContaining({ approach: 'holistic' }),
+                expect.any(Array), // classificationScale
+                expect.any(Array)  // judgeLog
             );
         });
 
@@ -584,7 +594,9 @@ describe('LLMCoverageEvaluator', () => {
                 ['[should] be helpful'],
                 expect.any(String),
                 'This blueprint evaluates customer service quality', // suiteDescription should be passed
-                expect.objectContaining({ approach: 'holistic' })
+                expect.objectContaining({ approach: 'holistic' }),
+                expect.any(Array), // classificationScale
+                expect.any(Array)  // judgeLog
             );
         });
     });

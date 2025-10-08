@@ -149,6 +149,12 @@ export function PromptCard({ prompt, onUpdate, onRemove, onDuplicate, isEditable
     onUpdate(nextState);
   };
 
+  const getCitationDisplayValue = (): string => {
+    if (!prompt.citation) return '';
+    if (typeof prompt.citation === 'string') return prompt.citation;
+    return prompt.citation.title || prompt.citation.name || prompt.citation.url || '';
+  };
+
   const setShouldNotField = (value: any) => {
     const nextState = produce(prompt, draft => {
         draft.should_not = value;
@@ -310,7 +316,7 @@ export function PromptCard({ prompt, onUpdate, onRemove, onDuplicate, isEditable
                             <p className="text-xs text-muted-foreground mb-1.5">Source or reference for this prompt (e.g., URL, paper, documentation).</p>
                             <AutoExpandTextarea
                                 placeholder="e.g., https://example.com/source or Smith et al. (2023)"
-                                value={prompt.citation || ''}
+                                value={getCitationDisplayValue()}
                                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleCitationChange(e.target.value)}
                                 minRows={1}
                                 maxRows={3}
