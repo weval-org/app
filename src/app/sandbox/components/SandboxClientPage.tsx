@@ -270,6 +270,73 @@ function SandboxClientPageInternal() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // Import via story query param (?story=sessionId)
+    useEffect(() => {
+        const storyParam = searchParams?.get('story');
+        if (!storyParam || !createBlueprintWithContent) return;
+
+        const importFromStory = async () => {
+            try {
+                setIsImportingFromConfig(true);
+                setImportMessage('Loading blueprint from Story...');
+
+                const sessionId = decodeURIComponent(storyParam);
+
+                // Fetch exported blueprint
+                const resp = await fetch(`/api/story/export?id=${encodeURIComponent(sessionId)}`);
+                if (!resp.ok) {
+                    throw new Error(resp.status === 404 ? 'Story session not found' : 'Failed to load story blueprint');
+                }
+
+                const data = await resp.json();
+
+                setImportMessage('Creating blueprint in Sandbox...');
+                const filename = data.blueprint?.title
+                    ? `${data.blueprint.title}.yml`
+                    : `Story Blueprint ${new Date().toLocaleDateString()}.yml`;
+
+                await createBlueprintWithContent(filename, data.yaml, {
+                    toastTitle: 'Blueprint Imported from Story!',
+                    toastDescription: `Loaded "${filename}". You can now refine and contribute it.`,
+                });
+
+                // Clear the ?story param to prevent re-import on refresh
+                try {
+                    const url = new URL(window.location.href);
+                    url.searchParams.delete('story');
+                    window.history.replaceState({}, document.title, url.toString());
+                } catch {}
+            } catch (err) {
+                console.error('[Sandbox import via story] Failed:', err);
+                toast({
+                    variant: 'destructive',
+                    title: 'Import Failed',
+                    description: err instanceof Error ? err.message : 'Could not import the blueprint from Story.',
+                    action: (
+                        <ToastAction
+                          altText="Retry import"
+                          onClick={() => {
+                            const again = async () => {
+                              setIsImportingFromConfig(true);
+                              setImportMessage('Retrying import...');
+                              try { await importFromStory(); } finally { setIsImportingFromConfig(false); }
+                            };
+                            again();
+                          }}
+                        >Retry</ToastAction>
+                    ),
+                });
+            } finally {
+                setIsImportingFromConfig(false);
+                setImportMessage('');
+            }
+        };
+
+        // Only run once on mount
+        importFromStory();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     useEffect(() => {
         if (editorContent) {
             try {
