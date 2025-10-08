@@ -36,18 +36,18 @@ export default function WhatIsAnEvalPage() {
           </h2>
           <div className="prose prose-lg dark:prose-invert max-w-none">
             <p className="text-foreground/90 leading-relaxed mb-4">
-              Imagine a family physician, Dr. Sharma, working in Mumbai. When she enters symptoms for a patient experiencing joint pain, fatigue, and slight hair loss, her clinic's AI chatbot suggests malnutrition and sanitation-related infections. Dr. Sharma is puzzled—the patient has good nutrition and hygiene. Why didn't the AI consider typical autoimmune conditions? And why the assumption based on outdated stereotypes?
+              Imagine a family physician, Dr. Sharma, working in Mumbai. When she enters symptoms for a patient experiencing joint pain, fatigue, and slight hair loss, her clinic's AI chatbot suggests malnutrition and sanitation-related infections. Dr. Sharma is puzzled—the patient has good nutrition and hygiene. Why didn't the AI consider typical autoimmune conditions? Why was its assumption based on outdated stereotypes?
             </p>
             <p className="text-foreground/90 leading-relaxed mb-4">
               Or take Peter, teaching seventh graders in rural Montana. His district's AI assistant suggests lesson plans with field trips to museums hours away and prioritizes rote memorization over interactive learning. As an experienced teacher, Peter knows this won't work for his students.
             </p>
             <div className="my-6 pl-6 pr-6 py-4 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-l-4 border-primary rounded-r-lg shadow-sm">
               <p className="text-foreground font-semibold leading-relaxed m-0">
-                AI labs can't test whether AI works for every Mumbai clinic or Montana classroom from a lab in San Francisco. But we can build infrastructure to give those experts the ability to do their own testing, and then drive change from the ground up.
+                AI labs can't reasonably test whether AI works for every Mumbai clinic or Montana classroom from their lab in San Francisco.
               </p>
             </div>
             <p className="text-foreground/90 leading-relaxed mb-4">
-              Dr. Sharma knows what questions to ask and what a competent diagnosis should include. Peter knows what makes an effective lesson plan for rural students. An eval is how they make that knowledge systematic and testable. But the methods of doing this have been very limited for non-engineers or people unfamiliar with the way AI is built. Thus we made Weval.
+              Dr. Sharma knows what questions to ask and what a competent diagnosis should include. Peter knows what makes an effective lesson plan for rural students. An eval is how they make that knowledge systematic and testable. <strong>But the methods of doing this have been very limited for non-engineers or people unfamiliar with the way AI is built.</strong> Thus we made Weval.
             </p>
           </div>
         </section>
@@ -71,6 +71,15 @@ export default function WhatIsAnEvalPage() {
                   <p className="text-foreground/80">
                     You have lived experience and expertise. You know when AI gets it wrong, and you can describe what "right" looks like in your context.
                   </p>
+                  <div className="mt-3 p-3 bg-muted/30 rounded-lg border border-muted">
+                    <p className="text-sm text-muted-foreground mb-2">
+                      A good way to start is with our conversational interface, where you can describe your experience with AI and we'll help you turn it into a structured eval.
+                    </p>
+                    <Link href="/story" className="inline-flex items-center text-sm text-primary hover:underline font-medium">
+                      Try the conversational builder
+                      <Icon name="arrow-right" className="w-4 h-4 ml-1" />
+                    </Link>
+                  </div>
                 </div>
               </div>
             </Card>
@@ -320,37 +329,6 @@ export default function WhatIsAnEvalPage() {
               </Link>
             </div>
           </Card>
-        </section>
-
-        {/* Learn More */}
-        <section className="border-t pt-8">
-          <h3 className="text-lg font-semibold mb-4">Want to go deeper?</h3>
-          <div className="grid sm:grid-cols-2 gap-4">
-            <Link
-              href={`${APP_REPO_URL}/blob/main/docs/BLUEPRINT_FORMAT.md`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-3 p-4 rounded-lg border hover:border-primary/50 hover:bg-accent/50 transition-colors group"
-            >
-              <Icon name="file-text" className="w-5 h-5 text-muted-foreground group-hover:text-primary" />
-              <div>
-                <div className="font-medium">Blueprint Format Guide</div>
-                <div className="text-sm text-muted-foreground">Technical details on creating evals</div>
-              </div>
-            </Link>
-            <Link
-              href={`${APP_REPO_URL}/blob/main/docs/METHODOLOGY.md`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-3 p-4 rounded-lg border hover:border-primary/50 hover:bg-accent/50 transition-colors group"
-            >
-              <Icon name="bar-chart-3" className="w-5 h-5 text-muted-foreground group-hover:text-primary" />
-              <div>
-                <div className="font-medium">Evaluation Methodology</div>
-                <div className="text-sm text-muted-foreground">How we score and aggregate results</div>
-              </div>
-            </Link>
-          </div>
         </section>
       </div>
     </div>
