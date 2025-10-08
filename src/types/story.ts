@@ -4,8 +4,6 @@ export type Message = {
   id: string;
   role: 'user' | 'assistant'; 
   content: string;
-  // Additional structured data from the stream
-  ctas?: string[];
 };
 
 export interface QuickRunStatus {
@@ -17,6 +15,14 @@ export interface QuickRunStatus {
   };
   result?: any;
   details?: string;
+}
+
+export interface StorySessionSummary {
+  id: string;
+  title: string;
+  startedAt: string;
+  updatedAt: string;
+  messageCount: number;
 }
 
 export interface StoryState {
@@ -34,4 +40,8 @@ export interface StoryState {
   quickRunResult: any | null;
   quickRunId: string | null;
   quickRunStatus: QuickRunStatus;
+  sessionId?: string | null;
+  startedAt?: string | null;
+  updatedAt?: string | null;
+  title?: string | null;
 }

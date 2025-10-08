@@ -20,7 +20,6 @@ const messageSchema = z.object({
   id: z.string().optional(),
   role: z.enum(['user', 'assistant']),
   content: z.string(),
-  ctas: z.array(z.string()).optional(),
 });
 
 export const chatRequestSchema = z.object({
@@ -63,8 +62,8 @@ export function sanitizeUserInput(input: string): string {
     .replace(/data:text\/html/gi, '')
     .replace(/vbscript:/gi, '')
     .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '') // Remove event handlers like onclick="..."
-    // Preserve legitimate tags used by our system but escape dangerous ones
-    .replace(/<(?!\/?(cta)\b)[^>]*>/gi, '')
+    // Remove all HTML tags
+    .replace(/<[^>]*>/gi, '')
     // Trim whitespace and limit length
     .trim()
     .slice(0, LIMITS.MAX_MESSAGE_LENGTH);
@@ -112,16 +111,3 @@ export function validateBlueprintStructure(obj: any): boolean {
   );
 }
 
-/**
- * Sanitize CTA text to prevent injection
- */
-export function sanitizeCtaText(text: string): string {
-  if (typeof text !== 'string') return '';
-  
-  return text
-    .replace(/[<>]/g, '') // Remove angle brackets
-    .replace(/javascript:/gi, '')
-    .replace(/data:/gi, '')
-    .trim()
-    .slice(0, 100); // CTAs should be short
-}

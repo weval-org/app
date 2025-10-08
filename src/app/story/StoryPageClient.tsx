@@ -7,19 +7,21 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { useStoryOrchestrator } from '@/hooks/useStoryOrchestrator';
 import { ControlSignalHelpers } from '@/lib/story-utils/control-signals';
-import { sanitizeCtaText } from '@/app/api/story/utils/validation';
 import { QuickRunFallback } from './components/QuickRunFallback';
 import { QuickRunResults } from './components/QuickRunResults';
-import { Bot, User, XCircle, RefreshCcw, MessageSquare, ArrowLeft, Edit3, Download } from 'lucide-react';
+import { Bot, User, XCircle, RefreshCcw, MessageSquare, ArrowLeft, Edit3, Download, History, Plus, Trash2 } from 'lucide-react';
 import { GuidedStepHeader } from './components/GuidedStepHeader';
 import Icon from '@/components/ui/icon';
 import ResponseRenderer from '@/app/components/ResponseRenderer';
 import RemarkGfmPlugin from 'remark-gfm';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import type { StorySessionSummary } from '@/types/story';
 
 export default function StoryPageClient() {
   const [story, setStory] = useState('');
   const [composer, setComposer] = useState('');
   const [showResultsFullscreen, setShowResultsFullscreen] = useState(false);
+  const [sessions, setSessions] = useState<StorySessionSummary[]>([]);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   
@@ -36,12 +38,15 @@ export default function StoryPageClient() {
     quickRunError,
     startChat,
     sendMessage,
-    sendCta,
     runQuickTest,
     clearErrors,
     resetChat,
     activeStream,
     quickRunResult,
+    listSessions,
+    loadSession,
+    deleteSession,
+    clearAllSessions,
   } = useStoryOrchestrator();
 
   const canSubmitIntro = story.trim().length > 0 && !pending;
@@ -79,20 +84,18 @@ export default function StoryPageClient() {
     }
   }, [phase]);
 
-  // Persistence
-  const STORAGE_KEY = 'story_session_v1';
+  // Load most recent session on first mount, if any
+  const didInitRef = useRef(false);
   useEffect(() => {
+    if (didInitRef.current) return;
+    didInitRef.current = true;
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (parsed && Array.isArray(parsed.messages) && parsed.messages.length > 0) {
-        // TODO: Restore state from localStorage via hook
-        // For now, just clear any existing errors
-        clearErrors();
+      const sessions = listSessions();
+      if (Array.isArray(sessions) && sessions.length > 0) {
+        loadSession(sessions[0].id);
       }
     } catch {}
-  }, [clearErrors]);
+  }, [listSessions, loadSession]);
 
   const onSubmitIntro = async () => {
     if (!canSubmitIntro) return;
@@ -143,6 +146,50 @@ export default function StoryPageClient() {
       {phase === 'intro' ? (
         <div className="flex-1 flex flex-col items-center justify-center p-4">
           <div className="w-full max-w-5xl">
+            <div className="flex justify-end mb-2">
+              <DropdownMenu onOpenChange={(open) => { if (open) { try { setSessions(listSessions()); } catch {} } }}>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <History className="mr-2 h-4 w-4" />
+                    Sessions
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-80">
+                  <DropdownMenuLabel>Recent sessions</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {sessions.length === 0 ? (
+                    <div className="px-2 py-2 text-sm text-muted-foreground">No saved sessions yet</div>
+                  ) : (
+                    sessions.map(s => (
+                      <DropdownMenuItem key={s.id} className="flex items-center gap-2">
+                        <button className="flex-1 min-w-0 text-left" onClick={() => loadSession(s.id)}>
+                          <div className="text-sm font-medium truncate">{s.title}</div>
+                          <div className="text-xs text-muted-foreground truncate">Updated {new Date(s.updatedAt).toLocaleString()}</div>
+                        </button>
+                        <button
+                          className="ml-2 text-muted-foreground hover:text-destructive"
+                          title="Delete session"
+                          onClick={(e) => { e.stopPropagation(); deleteSession(s.id); setSessions(listSessions()); }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </DropdownMenuItem>
+                    ))
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => resetChat()}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    New session
+                  </DropdownMenuItem>
+                  {sessions.length > 0 && (
+                    <DropdownMenuItem onClick={() => { clearAllSessions(); setSessions([]); }}>
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Clear all
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
             <GuidedStepHeader 
               icon="file-text"
               title="Let's change AI! First step: How has AI affected you?"
@@ -226,9 +273,51 @@ export default function StoryPageClient() {
           <div className="flex justify-between items-center p-4 border-b bg-background">
             <h1 className="text-3xl font-semibold">Exploring Your Story</h1>
             <div className="flex items-center gap-2">
+              <DropdownMenu onOpenChange={(open) => { if (open) { try { setSessions(listSessions()); } catch {} } }}>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <History className="mr-2 h-4 w-4" />
+                    Sessions
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-80">
+                  <DropdownMenuLabel>Recent sessions</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {sessions.length === 0 ? (
+                    <div className="px-2 py-2 text-sm text-muted-foreground">No saved sessions yet</div>
+                  ) : (
+                    sessions.map(s => (
+                      <DropdownMenuItem key={s.id} className="flex items-center gap-2">
+                        <button className="flex-1 min-w-0 text-left" onClick={() => loadSession(s.id)}>
+                          <div className="text-sm font-medium truncate">{s.title}</div>
+                          <div className="text-xs text-muted-foreground truncate">Updated {new Date(s.updatedAt).toLocaleString()}</div>
+                        </button>
+                        <button
+                          className="ml-2 text-muted-foreground hover:text-destructive"
+                          title="Delete session"
+                          onClick={(e) => { e.stopPropagation(); deleteSession(s.id); setSessions(listSessions()); }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </DropdownMenuItem>
+                    ))
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => resetChat()}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    New session
+                  </DropdownMenuItem>
+                  {sessions.length > 0 && (
+                    <DropdownMenuItem onClick={() => { clearAllSessions(); setSessions([]); }}>
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Clear all
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
               {quickRunResult && (
                 <Button variant="outline" size="sm" onClick={() => setShowResultsFullscreen(true)}>
-                  <Icon name="bar-chart" className="mr-2 h-4 w-4" />
+                  <Icon name="bar-chart-3" className="mr-2 h-4 w-4" />
                   View Results
                 </Button>
               )}
@@ -247,7 +336,6 @@ export default function StoryPageClient() {
                     // For the last assistant message, we might be streaming, so take from activeStream
                     const content = (isLast && m.role === 'assistant' && activeStream) ? activeStream.visibleContent : m.content;
                     const cleanText = m.role === 'assistant' ? ControlSignalHelpers.cleanUserText(content) : content;
-                    const ctas = m.role === 'assistant' ? (m.ctas || ControlSignalHelpers.extractCtas(m.content)) : [];
                     
                     return (
                       <div key={m.id || `msg-${idx}`} className={cn('flex items-start gap-3', m.role === 'user' ? 'flex-row-reverse' : 'flex-row')}>
@@ -271,18 +359,6 @@ export default function StoryPageClient() {
                           )}>
                             <ResponseRenderer content={cleanText} />
                           </div>
-                          {m.role === 'assistant' && ctas.length > 0 && (
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {ctas.map((t, idx) => (
-                                <Button key={idx} variant="secondary" size="sm" onClick={() => {
-                                  const sanitized = sanitizeCtaText(t);
-                                  if (sanitized) {
-                                    sendCta(sanitized);
-                                  }
-                                }}>{t}</Button>
-                              ))}
-                            </div>
-                          )}
                         </div>
                       </div>
                     );
@@ -301,18 +377,6 @@ export default function StoryPageClient() {
                           <div className="text-sm text-muted-foreground flex items-center gap-2">
                             <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-primary"></div>
                             <span>Assistant is typing…</span>
-                          </div>
-                        )}
-                        {activeStream.ctas.length > 0 && (
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {activeStream.ctas.map((t, idx) => (
-                              <Button key={idx} variant="secondary" size="sm" onClick={() => {
-                                const sanitized = sanitizeCtaText(t);
-                                if (sanitized) {
-                                  sendCta(sanitized);
-                                }
-                              }}>{t}</Button>
-                            ))}
                           </div>
                         )}
                       </div>

@@ -2,7 +2,6 @@ import {
   sanitizeUserInput, 
   validateAndSanitizeMessages, 
   validateBlueprintStructure,
-  sanitizeCtaText,
   LIMITS 
 } from '../utils/validation';
 
@@ -26,10 +25,10 @@ describe('Story API - Input Validation', () => {
       expect(sanitized).toBe('Button');
     });
 
-    it('should preserve only CTA tags', () => {
+    it('should remove all HTML tags', () => {
       const input = 'Please <cta>run test</cta> and <ready_to_begin/>';
       const sanitized = sanitizeUserInput(input);
-      expect(sanitized).toBe('Please <cta>run test</cta> and');
+      expect(sanitized).toBe('Please run test and');
     });
 
     it('should remove dangerous HTML but keep text', () => {
@@ -55,12 +54,12 @@ describe('Story API - Input Validation', () => {
     it('should validate and sanitize valid messages', () => {
       const messages = [
         { role: 'user', content: 'Hello there!' },
-        { role: 'assistant', content: 'Hi! <cta>Click me</cta>' }
+        { role: 'assistant', content: 'Hi! How can I help?' }
       ];
       const result = validateAndSanitizeMessages(messages);
       expect(result).toHaveLength(2);
       expect(result[0]).toEqual({ role: 'user', content: 'Hello there!' });
-      expect(result[1]).toEqual({ role: 'assistant', content: 'Hi! <cta>Click me</cta>' });
+      expect(result[1]).toEqual({ role: 'assistant', content: 'Hi! How can I help?' });
     });
 
     it('should filter out invalid messages', () => {
@@ -146,29 +145,4 @@ describe('Story API - Input Validation', () => {
     });
   });
 
-  describe('sanitizeCtaText', () => {
-    it('should remove angle brackets', () => {
-      const input = 'Click <here> now';
-      const sanitized = sanitizeCtaText(input);
-      expect(sanitized).toBe('Click here now');
-    });
-
-    it('should remove dangerous protocols', () => {
-      const input = 'javascript:alert() and data:text/html,<script>';
-      const sanitized = sanitizeCtaText(input);
-      expect(sanitized).toBe('alert() and text/html,script');
-    });
-
-    it('should truncate long CTA text', () => {
-      const longInput = 'a'.repeat(200);
-      const sanitized = sanitizeCtaText(longInput);
-      expect(sanitized.length).toBe(100);
-    });
-
-    it('should handle non-string input', () => {
-      expect(sanitizeCtaText(null as any)).toBe('');
-      expect(sanitizeCtaText(undefined as any)).toBe('');
-      expect(sanitizeCtaText(123 as any)).toBe('');
-    });
-  });
 });

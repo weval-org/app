@@ -2,7 +2,6 @@ import { ControlSignal, CONTROL_PATTERNS } from './control-signals';
 
 export type ParsedStreamResult = {
   visibleContent: string;
-  ctas: string[];
   systemInstructions: object | null;
   streamError: string | null;
 };
@@ -11,7 +10,6 @@ export class StreamingParser {
   private buffer = '';
   private result: ParsedStreamResult = {
     visibleContent: '',
-    ctas: [],
     systemInstructions: null,
     streamError: null,
   };
@@ -86,7 +84,7 @@ export class StreamingParser {
   private processTag(tag: string, content: string) {
     switch (tag as ControlSignal) {
       case 'USER_RESPONSE':
-        this.processUserResponse(content);
+        this.result.visibleContent += content;
         break;
 
       case 'SYSTEM_INSTRUCTIONS':
@@ -97,40 +95,6 @@ export class StreamingParser {
           this.result.streamError = 'Failed to parse system instructions.';
         }
         break;
-      
-      case 'CTA':
-        if (content.trim()) {
-          this.result.ctas.push(content.trim());
-        }
-        break;
-    }
-  }
-
-  // Special handler for USER_RESPONSE to process nested tags like CTAs
-  private processUserResponse(content: string) {
-    let lastIndex = 0;
-    // Ensure we create a new RegExp object to reset its state for each call
-    const ctaPattern = new RegExp(CONTROL_PATTERNS.CTA.source, CONTROL_PATTERNS.CTA.flags);
-    let match;
-
-    while ((match = ctaPattern.exec(content)) !== null) {
-      // Add the text between the last match and this one
-      this.result.visibleContent += content.substring(lastIndex, match.index);
-      
-      const ctaText = match[1] || '';
-      if (ctaText.trim()) {
-        this.result.ctas.push(ctaText.trim());
-      }
-      
-      // Add the clean CTA text to the visible content
-      this.result.visibleContent += ctaText;
-
-      lastIndex = ctaPattern.lastIndex;
-    }
-
-    // Add any remaining text after the last match
-    if (lastIndex < content.length) {
-      this.result.visibleContent += content.substring(lastIndex);
     }
   }
 }

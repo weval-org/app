@@ -62,15 +62,4 @@ describe('StreamingParser', () => {
     const result = parser.finalize();
     expect(result.visibleContent).toBe('Part 1. Part 2.');
   });
-  
-  it('should extract CTAs from within a USER_RESPONSE block', () => {
-    const parser = new StreamingParser();
-    const chunk = '<USER_RESPONSE>Click here: <cta>Action 1</cta> or <cta>Action 2</cta></USER_RESPONSE>';
-    const result = parser.ingest(chunk);
-    
-    // The parser now extracts CTAs and also adds the clean text to visibleContent
-    expect(result.ctas).toEqual(['Action 1', 'Action 2']);
-    // The visible content should now be clean of the tags
-    expect(result.visibleContent).toBe('Click here: Action 1 or Action 2');
-  });
 });

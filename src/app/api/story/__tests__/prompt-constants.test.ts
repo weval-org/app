@@ -12,7 +12,6 @@ describe('Story API - Prompt Constants', () => {
       expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain('<USER_MESSAGE>');
       expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain('<USER_RESPONSE>');
       expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain('<SYSTEM_INSTRUCTIONS>');
-      expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain('<cta>');
 
       // Key Commands
       expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain('CREATE_OUTLINE');

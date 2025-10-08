@@ -33,13 +33,13 @@ const getPointIcon = (score: number | null) => {
 };
 
 export function QuickRunResults({ result }: QuickRunResultsProps) {
-  const { prompts, winners, uniqueModels, overallBestModel } = useMemo(() => {
+  const { prompts, winners, uniqueModels, overallBestModels } = useMemo(() => {
     if (!result?.prompts?.length) {
       return { 
         prompts: [] as NormalizedPrompt[], 
-        winners: new Map<string, string>(),
+        winners: new Map<string, string[]>(),
         uniqueModels: [],
-        overallBestModel: null
+        overallBestModels: null
       };
     }
 
@@ -105,11 +105,11 @@ export function QuickRunResults({ result }: QuickRunResultsProps) {
       return { id, promptText, models };
     });
 
-    // Compute winners per prompt
-    const winnersMap = new Map<string, string>();
+    // Compute winners per prompt (can be multiple in case of ties)
+    const winnersMap = new Map<string, string[]>();
     normalizedPrompts.forEach((prompt) => {
       let best = -1;
-      let bestId = '';
+      const bestIds: string[] = [];
       for (const model of prompt.models) {
         // Prefer overall score if available; otherwise average point scores
         const overall = overallScores.get(`${prompt.id}:${model.modelId}`);
@@ -119,27 +119,35 @@ export function QuickRunResults({ result }: QuickRunResultsProps) {
         const candidate = overall != null ? overall : Math.round(avgFromPoints);
         if (candidate > best) {
           best = candidate;
-          bestId = model.modelId;
+          bestIds.length = 0;
+          bestIds.push(model.modelId);
+        } else if (candidate === best && best > 0) {
+          bestIds.push(model.modelId);
         }
       }
-      winnersMap.set(prompt.id, bestId);
+      winnersMap.set(prompt.id, bestIds);
     });
 
     // Compute unique models
     const modelsSet = new Set<string>();
     normalizedPrompts.forEach(p => p.models.forEach(m => modelsSet.add(m.modelId)));
     
-    // Find overall best model (most wins)
+    // Find overall best model(s) - most wins, can be multiple in case of ties
     const winCounts = new Map<string, number>();
-    winnersMap.forEach(winnerId => {
-      winCounts.set(winnerId, (winCounts.get(winnerId) || 0) + 1);
+    winnersMap.forEach(winnerIds => {
+      winnerIds.forEach(winnerId => {
+        winCounts.set(winnerId, (winCounts.get(winnerId) || 0) + 1);
+      });
     });
     let maxWins = 0;
-    let bestOverall = '';
+    const bestOverallModels: string[] = [];
     winCounts.forEach((wins, modelId) => {
       if (wins > maxWins) {
         maxWins = wins;
-        bestOverall = modelId;
+        bestOverallModels.length = 0;
+        bestOverallModels.push(modelId);
+      } else if (wins === maxWins && maxWins > 0) {
+        bestOverallModels.push(modelId);
       }
     });
 
@@ -147,7 +155,7 @@ export function QuickRunResults({ result }: QuickRunResultsProps) {
       prompts: normalizedPrompts, 
       winners: winnersMap,
       uniqueModels: Array.from(modelsSet),
-      overallBestModel: bestOverall || null
+      overallBestModels: bestOverallModels.length > 0 ? bestOverallModels : null
     };
   }, [result]);
 
@@ -167,17 +175,42 @@ export function QuickRunResults({ result }: QuickRunResultsProps) {
             <h2 className="text-2xl font-bold mb-2">Your Test Is Complete!</h2>
             <p className="text-base text-muted-foreground mb-3">
               We tested <span className="font-semibold text-foreground">{prompts.length}</span> scenario{prompts.length !== 1 ? 's' : ''} across <span className="font-semibold text-foreground">{uniqueModels.length}</span> different AI model{uniqueModels.length !== 1 ? 's' : ''}.
-              {overallBestModel && (
-                <>
-                  {' '}<span className="font-semibold text-primary">
-                    {getModelDisplayLabel(overallBestModel, { 
-                      prettifyModelName: true, 
-                      hideTemperature: true,
-                      hideProvider: true 
-                    })}
-                  </span> performed best overall.
-                </>
-              )}
+              {overallBestModels && overallBestModels.length > 0 && (() => {
+                // All models tied
+                if (overallBestModels.length === uniqueModels.length) {
+                  return <> All models performed equally.</>;
+                }
+                // Single winner
+                if (overallBestModels.length === 1) {
+                  return (
+                    <>
+                      {' '}<span className="font-semibold text-primary">
+                        {getModelDisplayLabel(overallBestModels[0], { 
+                          prettifyModelName: true, 
+                          hideTemperature: true,
+                          hideProvider: true 
+                        })}
+                      </span> performed best overall.
+                    </>
+                  );
+                }
+                // Multiple winners (tie)
+                const modelLabels = overallBestModels.map(m => 
+                  getModelDisplayLabel(m, { 
+                    prettifyModelName: true, 
+                    hideTemperature: true,
+                    hideProvider: true 
+                  })
+                );
+                const lastModel = modelLabels.pop();
+                return (
+                  <>
+                    {' '}<span className="font-semibold text-primary">
+                      {modelLabels.join(', ')} and {lastModel}
+                    </span> tied for best performance.
+                  </>
+                );
+              })()}
             </p>
             <div className="flex flex-wrap gap-2">
               {uniqueModels.map(modelId => (
@@ -197,12 +230,13 @@ export function QuickRunResults({ result }: QuickRunResultsProps) {
       {/* Detailed Results */}
       <div className="space-y-3">
         {prompts.map((prompt, idx) => {
-          const winnerId = winners.get(prompt.id);
-          const winner = prompt.models.find(m => m.modelId === winnerId);
-          const winnerScore = typeof winner?.overall === 'number'
-            ? `${winner.overall}%`
-            : (winner && winner.points.length
-                ? `${Math.round(winner.points.reduce((a, p) => a + (p.score ?? 0), 0) / winner.points.length)}%`
+          const winnerIds = winners.get(prompt.id) || [];
+          const promptWinners = prompt.models.filter(m => winnerIds.includes(m.modelId));
+          const firstWinner = promptWinners[0];
+          const winnerScore = firstWinner && typeof firstWinner.overall === 'number'
+            ? `${firstWinner.overall}%`
+            : (firstWinner && firstWinner.points.length
+                ? `${Math.round(firstWinner.points.reduce((a, p) => a + (p.score ?? 0), 0) / firstWinner.points.length)}%`
                 : undefined);
 
           return (
@@ -213,16 +247,40 @@ export function QuickRunResults({ result }: QuickRunResultsProps) {
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-medium truncate" title={prompt.promptText}>{prompt.promptText}</div>
                       <div className="mt-1 text-xs text-muted-foreground flex items-center gap-2">
-                        {winnerId ? (
+                        {winnerIds.length > 0 ? (
                           <>
-                            <span className="font-semibold">Top performer:</span>
+                            <span className="font-semibold">
+                              {winnerIds.length === prompt.models.length 
+                                ? 'All tied:' 
+                                : winnerIds.length > 1 
+                                  ? 'Tied:' 
+                                  : 'Top performer:'}
+                            </span>
                             <span className="tabular-nums">
-                              {getModelDisplayLabel(winnerId, { 
-                                prettifyModelName: true, 
-                                hideTemperature: true,
-                                hideProvider: true
-                              })}
-                              {winnerScore ? ` (${winnerScore})` : ''}
+                              {winnerIds.length === 1 ? (
+                                <>
+                                  {getModelDisplayLabel(winnerIds[0], { 
+                                    prettifyModelName: true, 
+                                    hideTemperature: true,
+                                    hideProvider: true
+                                  })}
+                                  {winnerScore ? ` (${winnerScore})` : ''}
+                                </>
+                              ) : (
+                                <>
+                                  {winnerIds.map((id, i) => (
+                                    <span key={id}>
+                                      {getModelDisplayLabel(id, { 
+                                        prettifyModelName: true, 
+                                        hideTemperature: true,
+                                        hideProvider: true
+                                      })}
+                                      {i < winnerIds.length - 1 && (i === winnerIds.length - 2 ? ' and ' : ', ')}
+                                    </span>
+                                  ))}
+                                  {winnerScore ? ` (${winnerScore})` : ''}
+                                </>
+                              )}
                             </span>
                           </>
                         ) : (
@@ -236,7 +294,7 @@ export function QuickRunResults({ result }: QuickRunResultsProps) {
                 <CollapsibleContent>
                   <CardContent className="space-y-4">
                     {prompt.models.map((model, idx2) => {
-                      const isWinner = winnerId === model.modelId;
+                      const isWinner = winnerIds.includes(model.modelId);
                       return (
                         <Card key={idx2} className={cn(isWinner && "border-2 border-yellow-400 bg-yellow-50/50 dark:bg-yellow-900/10")}> 
                           <CardHeader className="flex flex-row justify-between items-center">
