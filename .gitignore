@@ -16,6 +16,7 @@
 catechism_dump.txt
 
 **/node_modules/**
+.claude
 
 # testing
 /coverage
