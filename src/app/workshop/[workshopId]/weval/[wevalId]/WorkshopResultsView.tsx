@@ -103,10 +103,10 @@ export function WorkshopResultsView({ data, weval }: WorkshopResultsViewProps) {
       return modelScore?.avgCoverageExtent ?? 0;
     });
     const avgScore = scores.length > 0
-      ? scores.reduce((sum, s) => sum + s, 0) / scores.length
+      ? scores.reduce((sum: number, s: number) => sum + s, 0) / scores.length
       : 0;
     return { modelId, avgScore };
-  }).sort((a, b) => b.avgScore - a.avgScore);
+  }).sort((a: { modelId: string; avgScore: number }, b: { modelId: string; avgScore: number }) => b.avgScore - a.avgScore);
 
   // Helper to render criterion status badge
   const getCriterionStatus = (avgScore: number) => {
@@ -274,7 +274,7 @@ export function WorkshopResultsView({ data, weval }: WorkshopResultsViewProps) {
           Overall Model Performance
         </h2>
         <div className="space-y-3">
-          {overallModelPerformance.map((model, idx) => {
+          {overallModelPerformance.map((model: { modelId: string; avgScore: number }, idx: number) => {
             const medals = ['🥇', '🥈', '🥉'];
             const medal = idx < 3 ? medals[idx] : '';
 

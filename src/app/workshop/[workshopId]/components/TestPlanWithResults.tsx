@@ -74,10 +74,10 @@ export function TestPlanWithResults({ outline, quickRunResult }: TestPlanWithRes
         });
 
         const avgScore = modelScores.length > 0
-          ? modelScores.reduce((sum, ms) => sum + ms.score, 0) / modelScores.length
+          ? modelScores.reduce((sum: number, ms: any) => sum + ms.score, 0) / modelScores.length
           : 0;
 
-        const bestModel = modelScores.reduce((best, current) =>
+        const bestModel = modelScores.reduce((best: any, current: any) =>
           current.score > best.score ? current : best
         , { modelId: '', score: 0 });
 
@@ -93,7 +93,7 @@ export function TestPlanWithResults({ outline, quickRunResult }: TestPlanWithRes
         return { modelId, score };
       });
 
-      const winner = modelAverages.reduce((best, current) =>
+      const winner = modelAverages.reduce((best: any, current: any) =>
         current.score > best.score ? current : best
       , { modelId: '', score: 0 });
 
