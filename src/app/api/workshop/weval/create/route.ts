@@ -31,7 +31,7 @@ const CORE_MODELS = [
   "openrouter:openai/gpt-4o-mini",
   "openrouter:google/gemma-3-12b-it",
   "openrouter:anthropic/claude-3.5-haiku",
-  "openrouter:qwen3-30b-a3b-instruct-2507",
+  "openrouter:qwen/qwen3-30b-a3b-instruct-2507",
   "openrouter:anthropic/claude-sonnet-4.5",
   "openrouter:mistralai/mistral-medium-3",
   "openrouter:meta-llama/llama-3-70b-instruct",
