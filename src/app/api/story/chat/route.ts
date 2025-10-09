@@ -131,10 +131,8 @@ export async function POST(req: NextRequest) {
         const stream = new ReadableStream({
             async start(controller) {
                 const encoder = new TextEncoder();
-                const rawDelay = (process.env.NODE_ENV === 'development')
-                    ? (Number(body.debugStreamDelayMs) || Number(process.env.DEBUG_STREAM_DELAY_MS) || 0)
-                    : 0;
-                const delay = Number.isFinite(rawDelay) && rawDelay > 0 ? rawDelay : 0;
+                // Force zero artificial streaming delay in all environments
+                const delay = 0;
                 for await (const chunk of llmStream) {
                     if (chunk.type === 'content') {
                         if (delay > 0) {
