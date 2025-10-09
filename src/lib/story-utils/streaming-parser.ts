@@ -95,6 +95,10 @@ export class StreamingParser {
           this.result.streamError = 'Failed to parse system instructions.';
         }
         break;
+
+      case 'STREAM_ERROR':
+        this.result.streamError = content;
+        break;
     }
   }
 }

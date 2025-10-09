@@ -12,13 +12,17 @@ export const CONTROL_SIGNALS = {
   // Hidden instructions from orchestrator
   SYSTEM_INSTRUCTIONS_START: '<SYSTEM_INSTRUCTIONS>',
   SYSTEM_INSTRUCTIONS_END: '</SYSTEM_INSTRUCTIONS>',
-  
+
+  // Stream errors from backend
+  STREAM_ERROR_START: '<STREAM_ERROR>',
+  STREAM_ERROR_END: '</STREAM_ERROR>',
+
   // Hidden context containers for the orchestrator's INPUT
   SYSTEM_STATUS_START: '<SYSTEM_STATUS>',
   SYSTEM_STATUS_END: '</SYSTEM_STATUS>',
   USER_MESSAGE_START: '<USER_MESSAGE>',
   USER_MESSAGE_END: '</USER_MESSAGE>',
-  
+
   // Creator/Updater output containers
   JSON_START: '<JSON>',
   JSON_END: '</JSON>',
@@ -28,6 +32,7 @@ export const CONTROL_PATTERNS = {
   // These are for the streaming parser to find tagged blocks in the LLM response
   USER_RESPONSE: /<USER_RESPONSE>([\s\S]*?)<\/USER_RESPONSE>/gi,
   SYSTEM_INSTRUCTIONS: /<SYSTEM_INSTRUCTIONS>([\s\S]*?)<\/SYSTEM_INSTRUCTIONS>/i,
+  STREAM_ERROR: /<STREAM_ERROR>([\s\S]*?)<\/STREAM_ERROR>/i,
   // This is for validation on the backend
   JSON_BLOCK: /<JSON>[\s\S]*?<\/JSON>/i,
 } as const;

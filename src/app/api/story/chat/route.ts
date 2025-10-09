@@ -114,6 +114,12 @@ export async function POST(req: NextRequest) {
                             await new Promise((r) => setTimeout(r, delay));
                         }
                         controller.enqueue(encoder.encode(chunk.content));
+                    } else if (chunk.type === 'error') {
+                        // Send error as a special control signal that the client can parse
+                        const errorSignal = `<STREAM_ERROR>${chunk.error}</STREAM_ERROR>`;
+                        controller.enqueue(encoder.encode(errorSignal));
+                        controller.close();
+                        return;
                     }
                 }
                 controller.close();

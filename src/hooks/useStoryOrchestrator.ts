@@ -303,15 +303,32 @@ export function useStoryOrchestrator(): StoryState & StoryActions {
 
       const finalParsed = parser.finalize();
     const hadVisible = (finalParsed.visibleContent || '').trim().length > 0;
+    const hadError = !!finalParsed.streamError;
       const maybeInstruction = finalParsed.systemInstructions;
     const instruction = isSystemInstruction(maybeInstruction) ? maybeInstruction : null;
     const isNoOpInstruction = instruction?.command === 'NO_OP';
-    log('Stream: finalized', { hadVisible, hasInstruction: Boolean(instruction), instructionCmd: instruction?.command });
+    log('Stream: finalized', { hadVisible, hadError, hasInstruction: Boolean(instruction), instructionCmd: instruction?.command });
+
+    // If there was a stream error, show it to the user
+    if (hadError) {
+      const errorMessage: Message = {
+        id: messageId,
+        role: 'assistant',
+        content: finalParsed.streamError || 'An error occurred while processing your message.',
+      };
+      setState(prev => ({
+        ...prev,
+        messages: [...prev.messages, errorMessage],
+        activeStream: null,
+        chatError: finalParsed.streamError || 'Stream error',
+      }));
+      return; // Don't process instructions if there was an error
+    }
 
     if (hadVisible) {
         const sanitizeAgencyClaims = (text: string, instr: SystemInstruction | null) => {
           if (!text) return text;
-          const claimRegex = /\b(I('|’)?ll|I will|we('|’)?ll|we will)\s+(start|set up|setup|run|process|kick\s*off|get (it )?started)/i;
+          const claimRegex = /\b(I('|')?ll|I will|we('|')?ll|we will)\s+(start|set up|setup|run|process|kick\s*off|get (it )?started)/i;
           if (claimRegex.test(text) && (!instr || instr.command === 'NO_OP')) {
             return `${text}\n\nNote: No evaluation has been started.`;
           }
