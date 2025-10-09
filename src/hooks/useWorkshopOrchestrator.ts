@@ -229,6 +229,17 @@ export function useWorkshopOrchestrator(workshopId: string) {
         body: JSON.stringify({
           messages: context,
           blueprintYaml: outlineYaml,
+          quickRunResult: quickRunResult,
+          uiContext: {
+            pageName: 'Workshop',
+            pageUrl: typeof window !== 'undefined' ? window.location.href : `https://weval.org/workshop/${workshopId}`,
+            availableActions: [
+              'Share button (top right - creates a shareable link without publishing to gallery)',
+              'Publish button (top right - publishes to workshop gallery with your name)',
+              'Quick Run button (test your evaluation with a few models)',
+              'Gallery link (view all published evaluations in this workshop)'
+            ]
+          },
         }),
       });
 
@@ -313,7 +324,7 @@ export function useWorkshopOrchestrator(workshopId: string) {
     } finally {
       setPending(false);
     }
-  }, [outlineYaml, handleSystemInstruction]);
+  }, [outlineYaml, quickRunResult, workshopId, handleSystemInstruction]);
 
   /**
    * Start chat (same as Story)

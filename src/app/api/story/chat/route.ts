@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { configure } from '@/cli/config';
 import { getLogger } from '@/utils/logger';
-import { ORCHESTRATOR_SYSTEM_PROMPT } from '../utils/prompt-constants';
+import { ORCHESTRATOR_SYSTEM_PROMPT, ORCHESTRATOR_SYSTEM_PROMPT_CLARIFICATION } from '../utils/prompt-constants';
 import { ConversationMessage } from '@/types/shared';
 import { chatRequestSchema, validateAndSanitizeMessages } from '../utils/validation';
 import { streamModelResponse } from '@/cli/services/llm-service';
@@ -12,20 +12,39 @@ export const runtime = 'nodejs';
 type ChatRequestBody = {
     messages: ConversationMessage[];
     // System status context
-    blueprintYaml?: string; 
+    blueprintYaml?: string;
     quickRunResult?: object;
+    uiContext?: {
+        pageName: string;
+        pageUrl: string;
+        availableActions: string[];
+    };
     // flag to disable streaming for simple calls
-    noStream?: boolean; 
+    noStream?: boolean;
     // Dev-only: add an artificial delay (ms) between streamed chunks to visualize streaming
     debugStreamDelayMs?: number;
 };
 
 // Builds the structured prompt for the orchestrator
-function buildOrchestratorPrompt(messages: ConversationMessage[], blueprintYaml?: string, quickRunResult?: object): ConversationMessage[] {
+function buildOrchestratorPrompt(
+    messages: ConversationMessage[],
+    blueprintYaml?: string,
+    quickRunResult?: object,
+    uiContext?: { pageName: string; pageUrl: string; availableActions: string[] }
+): ConversationMessage[] {
     const history = messages.slice(-12);
     const lastMessage = history[history.length - 1];
 
     let systemStatus = '';
+
+    // UI Context - always include if provided
+    if (uiContext) {
+        systemStatus += `**UI Context:**\n`;
+        systemStatus += `- Page: ${uiContext.pageName}\n`;
+        systemStatus += `- URL: ${uiContext.pageUrl}\n`;
+        systemStatus += `- Available actions: ${uiContext.availableActions.join(', ')}\n\n`;
+    }
+
     if (blueprintYaml) {
         systemStatus += `The user is working on the following evaluation outline:\n\n${blueprintYaml}\n\n`;
     }
@@ -73,21 +92,29 @@ export async function POST(req: NextRequest) {
             return new Response(JSON.stringify({ error: 'Invalid request format' }), { status: 400 });
         }
 
-        const { messages: rawMessages, blueprintYaml, quickRunResult } = validationResult.data;
+        const { messages: rawMessages, blueprintYaml, quickRunResult, uiContext } = validationResult.data;
         const messages = validateAndSanitizeMessages(rawMessages);
 
         if (messages.length === 0) {
             return new Response(JSON.stringify({ error: 'No valid messages provided' }), { status: 400 });
         }
 
-        const finalMsgs = buildOrchestratorPrompt(messages, blueprintYaml ?? undefined, quickRunResult);
+        // Count user messages to determine which prompt to use
+        const userMessageCount = messages.filter(m => m.role === 'user').length;
+        const systemPrompt = userMessageCount < 3
+            ? ORCHESTRATOR_SYSTEM_PROMPT_CLARIFICATION
+            : ORCHESTRATOR_SYSTEM_PROMPT;
+
+        logger.info(`[story:chat] Using ${userMessageCount < 3 ? 'CLARIFICATION' : 'FULL'} prompt (user messages: ${userMessageCount})`);
+
+        const finalMsgs = buildOrchestratorPrompt(messages, blueprintYaml ?? undefined, quickRunResult, uiContext);
         
         // Handle non-streaming case for quick run follow-up
         if (body.noStream) {
             logger.info('[story:chat] Handling non-streaming request');
             const reply = await resilientLLMCall({
                 messages: finalMsgs,
-                systemPrompt: ORCHESTRATOR_SYSTEM_PROMPT,
+                systemPrompt: systemPrompt,
                 temperature: 0.2,
                 useCache: false,
             });
@@ -97,7 +124,7 @@ export async function POST(req: NextRequest) {
         const llmStream = streamModelResponse({
             messages: finalMsgs,
             modelId: FALLBACK_MODELS[0], // Use the primary model for orchestration
-            systemPrompt: ORCHESTRATOR_SYSTEM_PROMPT,
+            systemPrompt: systemPrompt,
             temperature: 0.2,
         });
 

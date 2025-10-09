@@ -270,10 +270,19 @@ export function useStoryOrchestrator(): StoryState & StoryActions {
       const res = await fetch('/api/story/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          messages: context, 
+        body: JSON.stringify({
+          messages: context,
           blueprintYaml: state.outlineYaml,
           quickRunResult: state.quickRunResult,
+          uiContext: {
+            pageName: 'Story Page',
+            pageUrl: typeof window !== 'undefined' ? window.location.href : 'https://weval.org/story',
+            availableActions: [
+              'Quick Run button (click to test your evaluation with a few models)',
+              'Reset button (start over with a new evaluation)',
+              'Save sessions (your work is auto-saved to browser storage)'
+            ]
+          },
           debugStreamDelayMs: process.env.NODE_ENV === 'development' ? 50 : undefined,
         }),
       });
