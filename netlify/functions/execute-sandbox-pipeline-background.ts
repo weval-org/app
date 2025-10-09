@@ -39,11 +39,15 @@ const logger = {
 };
 type SandboxLogger = typeof logger;
 
-const getStatusUpdater = (runId: string, sandboxVersion: 'v1' | 'v2' = 'v1') => {
-  const directory = sandboxVersion === 'v2' ? 'live/sandbox' : 'live/sandbox';
+const getStatusUpdater = (blueprintKey: string, runId: string) => {
+  // Derive base path from blueprint location
+  // e.g., "live/sandbox/runs/123/blueprint.yml" → "live/sandbox/runs/123"
+  // or "live/workshop/runs/foo/bar/blueprint.yml" → "live/workshop/runs/foo/bar"
+  const basePath = blueprintKey.replace(/\/blueprint\.yml$/, '');
+
   return async (status: string, message: string, extraData: object = {}) => {
-    logger.info(`Updating status for ${runId} (v: ${sandboxVersion}): ${status} - ${message}`);
-    const statusKey = `${directory}/runs/${runId}/status.json`;
+    logger.info(`Updating status for ${runId}: ${status} - ${message}`);
+    const statusKey = `${basePath}/status.json`;
     await s3Client.send(new PutObjectCommand({
       Bucket: process.env.APP_S3_BUCKET_NAME!,
       Key: statusKey,
@@ -71,14 +75,15 @@ export const handler: BackgroundHandler = async (event) => {
   });
   
   logger.info(`[Sandbox Pipeline] CLI configured for runId: ${runId}`);
-  
-  const updateStatus = getStatusUpdater(runId, sandboxVersion);
-  const directory = sandboxVersion === 'v2' ? 'live/sandbox' : 'live/sandbox';
 
   if (!runId || !blueprintKey) {
     logger.error('Missing runId or blueprintKey in invocation.');
     return;
   }
+
+  // Derive base path from blueprint location (path-agnostic approach)
+  const basePath = blueprintKey.replace(/\/blueprint\.yml$/, '');
+  const updateStatus = getStatusUpdater(blueprintKey, runId);
 
   try {
     await updateStatus('pending', 'Fetching blueprint...');
@@ -215,29 +220,34 @@ export const handler: BackgroundHandler = async (event) => {
     );
 
     const comparisonJson = JSON.stringify(finalOutput, null, 2);
-    // 1) Save under sandbox/runs for sandbox UI
-    const resultKey = `${directory}/runs/${runId}/_comparison.json`;
+
+    // Save results to the derived base path (works for sandbox, workshop, etc.)
+    const resultKey = `${basePath}/_comparison.json`;
     await s3Client.send(new PutObjectCommand({
         Bucket: process.env.APP_S3_BUCKET_NAME!,
         Key: resultKey,
         Body: comparisonJson,
         ContentType: 'application/json',
     }));
-    // 2) Also save a legacy monolithic file under live/blueprints so standard /api/comparison endpoints work in sandbox views
-    try {
-        const legacyConfigId = `sandbox-${runId}`;
-        const legacyRunLabel = 'sandbox-run';
-        const legacyTimestamp = finalOutput.timestamp; // already safe format
-        const legacyKey = `live/blueprints/${legacyConfigId}/${legacyRunLabel}_${legacyTimestamp}_comparison.json`;
-        await s3Client.send(new PutObjectCommand({
-            Bucket: process.env.APP_S3_BUCKET_NAME!,
-            Key: legacyKey,
-            Body: comparisonJson,
-            ContentType: 'application/json',
-        }));
-        logger.info(`[Sandbox Pipeline] Also wrote legacy comparison file for API compatibility: ${legacyKey}`);
-    } catch (err: any) {
-        logger.warn(`[Sandbox Pipeline] Failed to write legacy comparison file for API compatibility: ${err.message}`);
+    logger.info(`[Sandbox Pipeline] Saved results to: ${resultKey}`);
+
+    // For sandbox runs only, also save a legacy file for backwards compatibility
+    if (basePath.startsWith('live/sandbox/')) {
+      try {
+          const legacyConfigId = `sandbox-${runId}`;
+          const legacyRunLabel = 'sandbox-run';
+          const legacyTimestamp = finalOutput.timestamp; // already safe format
+          const legacyKey = `live/blueprints/${legacyConfigId}/${legacyRunLabel}_${legacyTimestamp}_comparison.json`;
+          await s3Client.send(new PutObjectCommand({
+              Bucket: process.env.APP_S3_BUCKET_NAME!,
+              Key: legacyKey,
+              Body: comparisonJson,
+              ContentType: 'application/json',
+          }));
+          logger.info(`[Sandbox Pipeline] Also wrote legacy comparison file for API compatibility: ${legacyKey}`);
+      } catch (err: any) {
+          logger.warn(`[Sandbox Pipeline] Failed to write legacy comparison file for API compatibility: ${err.message}`);
+      }
     }
 
     const resultUrl = `/sandbox/results/${runId}`;
