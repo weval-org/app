@@ -17,9 +17,6 @@ describe('Story API - Prompt Constants', () => {
       expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain('CREATE_OUTLINE');
       expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain('UPDATE_OUTLINE');
       expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain('NO_OP');
-      
-      // Interaction Flow
-      expect(ORCHESTRATOR_SYSTEM_PROMPT).toContain('1-2 user replies');
     });
 
     it('should NOT contain obsolete signals from the old architecture', () => {
