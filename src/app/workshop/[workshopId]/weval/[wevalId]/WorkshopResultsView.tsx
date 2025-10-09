@@ -28,12 +28,14 @@ interface PromptResult {
 
 export function WorkshopResultsView({ data, weval }: WorkshopResultsViewProps) {
   const [expandedPrompt, setExpandedPrompt] = useState<string | null>(null);
+  const [showResponsesFor, setShowResponsesFor] = useState<string | null>(null);
 
   // Extract data
   const blueprint = weval.blueprint;
   const prompts = blueprint.prompts || [];
   const effectiveModels = data.effectiveModels || [];
   const llmCoverageScores = data.evaluationResults?.llmCoverageScores || {};
+  const allResponses = data.allFinalAssistantResponses || {};
 
   // Calculate results for each prompt
   const promptResults: PromptResult[] = prompts.map((prompt: any, idx: number) => {
@@ -52,8 +54,8 @@ export function WorkshopResultsView({ data, weval }: WorkshopResultsViewProps) {
       // Get scores from all models for this criterion
       const modelScores = effectiveModels.map((modelId: string) => {
         const modelScore = promptScores[modelId];
-        const criterionScore = modelScore?.keyPoints?.[criterionIdx];
-        const score = criterionScore?.coverage ?? 0;
+        const criterionScore = modelScore?.pointAssessments?.[criterionIdx];
+        const score = criterionScore?.coverageExtent ?? 0;
         return { modelId, score };
       }).filter((ms: any) => ms.score !== undefined);
 
@@ -77,7 +79,7 @@ export function WorkshopResultsView({ data, weval }: WorkshopResultsViewProps) {
     // Calculate overall winner for this prompt
     const modelAverages = effectiveModels.map((modelId: string) => {
       const modelScore = promptScores[modelId];
-      const score = modelScore?.overallCoverage ?? 0;
+      const score = modelScore?.avgCoverageExtent ?? 0;
       return { modelId, score };
     });
 
@@ -98,7 +100,7 @@ export function WorkshopResultsView({ data, weval }: WorkshopResultsViewProps) {
     const scores = prompts.map((prompt: any, idx: number) => {
       const promptId = prompt.id || `prompt_${idx}`;
       const modelScore = llmCoverageScores[promptId]?.[modelId];
-      return modelScore?.overallCoverage ?? 0;
+      return modelScore?.avgCoverageExtent ?? 0;
     });
     const avgScore = scores.length > 0
       ? scores.reduce((sum, s) => sum + s, 0) / scores.length
@@ -205,7 +207,7 @@ export function WorkshopResultsView({ data, weval }: WorkshopResultsViewProps) {
             {/* Winner Banner */}
             {result.overallWinner.modelId && (
               <div className="pt-4 border-t">
-                <div className="bg-accent/50 border border-accent rounded-lg p-4">
+                <div className="bg-accent/50 border border-accent rounded-lg p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="text-2xl">🏆</span>
@@ -218,15 +220,46 @@ export function WorkshopResultsView({ data, weval }: WorkshopResultsViewProps) {
                         </div>
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
-                        Read Response
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        Compare All
-                      </Button>
-                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowResponsesFor(showResponsesFor === result.promptId ? null : result.promptId)}
+                    >
+                      {showResponsesFor === result.promptId ? 'Hide Responses' : 'Show All Responses'}
+                    </Button>
                   </div>
+
+                  {/* Expanded Responses */}
+                  {showResponsesFor === result.promptId && (
+                    <div className="mt-4 space-y-4 pt-4 border-t">
+                      {effectiveModels.map((modelId: string) => {
+                        const response = allResponses[result.promptId]?.[modelId] || 'No response available';
+                        const modelScore = llmCoverageScores[result.promptId]?.[modelId];
+                        const score = modelScore?.avgCoverageExtent ?? 0;
+                        const isWinner = modelId === result.overallWinner.modelId;
+
+                        return (
+                          <div
+                            key={modelId}
+                            className={`p-4 rounded-lg border ${isWinner ? 'bg-primary/5 border-primary/30' : 'bg-background'}`}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="font-medium flex items-center gap-2">
+                                {isWinner && <span>🏆</span>}
+                                {getModelDisplayLabel(modelId, { hideProvider: true, prettifyModelName: true })}
+                              </div>
+                              <Badge variant={isWinner ? 'default' : 'outline'}>
+                                {Math.round(score * 100)}%
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                              {response}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
