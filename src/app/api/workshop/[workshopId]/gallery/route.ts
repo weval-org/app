@@ -61,8 +61,8 @@ export async function GET(
           const content = await streamToString(Body as Readable);
           const weval = JSON.parse(content);
 
-          // Only return wevals that are in the gallery AND have completed execution
-          if (weval.inGallery && weval.executionStatus === 'complete') {
+          // Only return wevals that are in the gallery
+          if (weval.inGallery) {
             return {
               wevalId: weval.wevalId,
               workshopId: weval.workshopId,
