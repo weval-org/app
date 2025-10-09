@@ -210,8 +210,7 @@ export default function WorkshopBuilderPage({ params }: PageProps) {
                         size="sm"
                         onClick={handleDownloadYaml}
                       >
-                        <Download className="mr-2 h-4 w-4" />
-                        Download YAML
+                        <Download className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="outline"
