@@ -25,7 +25,12 @@ const messageSchema = z.object({
 export const chatRequestSchema = z.object({
   messages: z.array(messageSchema).min(1),
   blueprintYaml: z.string().nullable().optional(),
-  quickRunResult: z.any().nullable().optional(), // Allow this new field
+  quickRunResult: z.any().nullable().optional(),
+  uiContext: z.object({
+    pageName: z.string(),
+    pageUrl: z.string(),
+    availableActions: z.array(z.string()),
+  }).optional(),
 });
 
 export const createRequestSchema = z.object({
