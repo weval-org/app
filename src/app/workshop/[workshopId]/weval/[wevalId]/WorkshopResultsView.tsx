@@ -23,7 +23,7 @@ interface PromptResult {
   promptId: string;
   promptText: string;
   criteriaScores: CriterionScore[];
-  overallWinner: { modelId: string; score: number };
+  winners: Array<{ modelId: string; score: number }>;
 }
 
 export function WorkshopResultsView({ data, weval }: WorkshopResultsViewProps) {
@@ -76,22 +76,24 @@ export function WorkshopResultsView({ data, weval }: WorkshopResultsViewProps) {
       };
     });
 
-    // Calculate overall winner for this prompt
+    // Calculate overall winners for this prompt (handle ties)
     const modelAverages = effectiveModels.map((modelId: string) => {
       const modelScore = promptScores[modelId];
       const score = modelScore?.avgCoverageExtent ?? 0;
       return { modelId, score };
     });
 
-    const overallWinner = modelAverages.reduce((best: any, current: any) =>
-      current.score > best.score ? current : best
-    , { modelId: '', score: 0 });
+    // Find the best score
+    const bestScore = Math.max(...modelAverages.map((m: { modelId: string; score: number }) => m.score));
+
+    // Get all models with the best score (winners)
+    const winners = modelAverages.filter((m: { modelId: string; score: number }) => m.score === bestScore);
 
     return {
       promptId,
       promptText: prompt.promptText || prompt.text || '',
       criteriaScores,
-      overallWinner,
+      winners,
     };
   });
 
@@ -201,7 +203,7 @@ export function WorkshopResultsView({ data, weval }: WorkshopResultsViewProps) {
             </div>
 
             {/* Winner Banner */}
-            {result.overallWinner.modelId && (
+            {result.winners.length > 0 && result.winners[0].modelId && (
               <div className="pt-4 border-t">
                 <div className="bg-accent/50 border border-accent rounded-lg p-4 space-y-3">
                   <div className="flex items-center justify-between">
@@ -209,10 +211,16 @@ export function WorkshopResultsView({ data, weval }: WorkshopResultsViewProps) {
                       <span className="text-2xl">🏆</span>
                       <div>
                         <div className="font-semibold text-foreground">
-                          Winner: {getModelDisplayLabel(result.overallWinner.modelId, { hideProvider: true, prettifyModelName: true })}
+                          {result.winners.length === 1 ? 'Winner: ' : 'Winners (tied): '}
+                          {result.winners.map((w, i) => (
+                            <span key={w.modelId}>
+                              {i > 0 && ', '}
+                              {getModelDisplayLabel(w.modelId, { hideProvider: true, prettifyModelName: true })}
+                            </span>
+                          ))}
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          {Math.round(result.overallWinner.score * 100)}% overall
+                          {Math.round(result.winners[0].score * 100)}% overall
                         </div>
                       </div>
                     </div>
@@ -232,7 +240,7 @@ export function WorkshopResultsView({ data, weval }: WorkshopResultsViewProps) {
                         const response = allResponses[result.promptId]?.[modelId] || 'No response available';
                         const modelScore = llmCoverageScores[result.promptId]?.[modelId];
                         const score = modelScore?.avgCoverageExtent ?? 0;
-                        const isWinner = modelId === result.overallWinner.modelId;
+                        const isWinner = result.winners.some(w => w.modelId === modelId);
 
                         return (
                           <div
@@ -273,13 +281,22 @@ export function WorkshopResultsView({ data, weval }: WorkshopResultsViewProps) {
           <table className="w-full">
             <tbody>
               {overallModelPerformance.map((model: { modelId: string; avgScore: number }, idx: number) => {
+                // Calculate actual rank based on score (handle ties)
+                let rank = 1;
+                for (let i = 0; i < idx; i++) {
+                  if (overallModelPerformance[i].avgScore > model.avgScore) {
+                    rank++;
+                  }
+                }
+
+                // Assign medals based on rank (all tied models get the same medal)
                 const medals = ['🥇', '🥈', '🥉'];
-                const medal = idx < 3 ? medals[idx] : '';
+                const medal = rank <= 3 ? medals[rank - 1] : '';
 
                 return (
                   <tr key={model.modelId} className="border-b last:border-0">
                     <td className="py-2 pr-2 text-xl w-8">{medal}</td>
-                    <td className="py-2 pr-3 text-sm text-muted-foreground w-8">{idx + 1}</td>
+                    <td className="py-2 pr-3 text-sm text-muted-foreground w-8">{rank}</td>
                     <td className="py-2 pr-4 text-sm font-medium whitespace-nowrap">
                       {getModelDisplayLabel(model.modelId, { hideProvider: true, prettifyModelName: true })}
                     </td>
