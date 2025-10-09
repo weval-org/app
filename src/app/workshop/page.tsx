@@ -58,12 +58,6 @@ export default function WorkshopEntryPage() {
         <div className="w-full max-w-4xl">
           {/* Hero Section */}
           <div className="text-center mb-12">
-            <div className="inline-flex items-center justify-center p-3 bg-primary/10 rounded-full mb-6">
-              <Users className="h-8 w-8 text-primary" />
-            </div>
-            <h1 className="text-4xl font-bold tracking-tight mb-4">
-              Collaborative AI Evaluation
-            </h1>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
               Build and test AI evaluations together in real-time.
               Perfect for workshops, research teams, and collaborative testing.
@@ -140,38 +134,6 @@ export default function WorkshopEntryPage() {
             </Card>
           </div>
 
-          {/* Features */}
-          <div className="grid md:grid-cols-3 gap-6">
-            <div className="text-center">
-              <div className="inline-flex items-center justify-center p-3 bg-muted rounded-full mb-3">
-                <FileText className="h-5 w-5" />
-              </div>
-              <h3 className="font-semibold mb-2">Build Together</h3>
-              <p className="text-sm text-muted-foreground">
-                Create evaluation blueprints collaboratively with your team
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="inline-flex items-center justify-center p-3 bg-muted rounded-full mb-3">
-                <PlayCircle className="h-5 w-5" />
-              </div>
-              <h3 className="font-semibold mb-2">Test & Share</h3>
-              <p className="text-sm text-muted-foreground">
-                Run evaluations and share results instantly with participants
-              </p>
-            </div>
-
-            <div className="text-center">
-              <div className="inline-flex items-center justify-center p-3 bg-muted rounded-full mb-3">
-                <Users className="h-5 w-5" />
-              </div>
-              <h3 className="font-semibold mb-2">Anonymous & Easy</h3>
-              <p className="text-sm text-muted-foreground">
-                No account required. Just generate an ID and start collaborating
-              </p>
-            </div>
-          </div>
         </div>
       </div>
 

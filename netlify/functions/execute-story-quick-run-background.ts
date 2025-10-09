@@ -18,9 +18,9 @@ const s3Client = new S3Client({
 const STORY_RUNS_DIR = 'live/story/runs';
 
 const DEFAULT_MODELS = [
-  'openrouter:google/gemini-2.5-flash',
   'openrouter:anthropic/claude-3-haiku',
-  'openai:gpt-4o-mini',
+  'openrouter:openai/gpt-5-nano',
+  'openrouter:mistralai/mistral-nemo'
 ];
 
 const streamToString = (stream: Readable): Promise<string> =>
