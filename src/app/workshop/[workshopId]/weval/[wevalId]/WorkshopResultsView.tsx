@@ -118,20 +118,16 @@ export function WorkshopResultsView({ data, weval }: WorkshopResultsViewProps) {
 
   // Helper to render progress bar
   const renderProgressBar = (score: number) => {
-    const percentage = Math.round(score * 100);
     const filledBlocks = Math.round((score * 100) / 7); // 14 blocks total, each ~7%
     const emptyBlocks = 14 - filledBlocks;
 
     return (
-      <div className="flex items-center gap-2 font-mono text-sm">
+      <div className="font-mono text-sm">
         <span className="text-primary">
           {'█'.repeat(Math.max(0, filledBlocks))}
         </span>
         <span className="text-muted-foreground/30">
           {'░'.repeat(Math.max(0, emptyBlocks))}
-        </span>
-        <span className="text-muted-foreground min-w-[4ch] text-right">
-          {percentage}%
         </span>
       </div>
     );
@@ -273,29 +269,31 @@ export function WorkshopResultsView({ data, weval }: WorkshopResultsViewProps) {
           <span>📊</span>
           Overall Model Performance
         </h2>
-        <div className="space-y-3">
-          {overallModelPerformance.map((model: { modelId: string; avgScore: number }, idx: number) => {
-            const medals = ['🥇', '🥈', '🥉'];
-            const medal = idx < 3 ? medals[idx] : '';
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <tbody>
+              {overallModelPerformance.map((model: { modelId: string; avgScore: number }, idx: number) => {
+                const medals = ['🥇', '🥈', '🥉'];
+                const medal = idx < 3 ? medals[idx] : '';
 
-            return (
-              <div key={model.modelId} className="flex items-center gap-3">
-                <span className="text-xl min-w-[2ch]">{medal}</span>
-                <span className="min-w-[3ch] text-sm text-muted-foreground">
-                  {idx + 1}
-                </span>
-                <span className="min-w-[140px] text-sm font-medium">
-                  {getModelDisplayLabel(model.modelId, { hideProvider: true, prettifyModelName: true })}
-                </span>
-                <span className="text-sm font-semibold min-w-[4ch] text-right">
-                  {Math.round(model.avgScore * 100)}%
-                </span>
-                <div className="flex-1">
-                  {renderProgressBar(model.avgScore)}
-                </div>
-              </div>
-            );
-          })}
+                return (
+                  <tr key={model.modelId} className="border-b last:border-0">
+                    <td className="py-2 pr-2 text-xl w-8">{medal}</td>
+                    <td className="py-2 pr-3 text-sm text-muted-foreground w-8">{idx + 1}</td>
+                    <td className="py-2 pr-4 text-sm font-medium whitespace-nowrap">
+                      {getModelDisplayLabel(model.modelId, { hideProvider: true, prettifyModelName: true })}
+                    </td>
+                    <td className="py-2 pr-3 text-sm font-semibold text-right w-12">
+                      {Math.round(model.avgScore * 100)}%
+                    </td>
+                    <td className="py-2">
+                      {renderProgressBar(model.avgScore)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </Card>
     </div>
