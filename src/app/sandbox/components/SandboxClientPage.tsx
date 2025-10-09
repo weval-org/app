@@ -575,12 +575,31 @@ function SandboxClientPageInternal() {
         setActiveEditor('form');
     };
 
-    const handleLogout = () => {
-        clearAuth();
-        toast({
-            title: "Logged Out",
-            description: "You have been successfully logged out.",
-        });
+    const handleLogout = async () => {
+        try {
+            // Call the logout endpoint to clear the session cookie
+            const response = await fetch('/api/github/auth/logout', { method: 'POST' });
+            if (!response.ok) {
+                throw new Error('Failed to logout');
+            }
+
+            // Clear local auth state
+            clearAuth();
+
+            toast({
+                title: "Logged Out",
+                description: "You have been successfully logged out.",
+            });
+        } catch (error) {
+            console.error('[Logout] Failed to logout:', error);
+            // Still clear local state even if the API call fails
+            clearAuth();
+            toast({
+                variant: 'destructive',
+                title: "Logout Error",
+                description: "There was an issue logging out, but your local session has been cleared.",
+            });
+        }
     };
 
     const handleRunRequest = () => {

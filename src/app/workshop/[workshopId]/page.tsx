@@ -166,11 +166,11 @@ export default function WorkshopBuilderPage({ params }: PageProps) {
               <div className="w-full max-w-5xl">
                 <div className="text-center mb-12">
                   <h1 className="text-4xl font-bold mb-4">
-                    Let's change AI! First step: How has AI affected you?
+                    Ensure AI is Safe for Your Community
+                  
                   </h1>
                   <p className="text-muted-foreground text-lg">
-                    Describe how an AI has affected you, what you want improved, or a goal you care about.
-                    We'll help you capture the key points.
+                    Imagine AI as a bridge or a plane — a piece of public infrastructure that everyone will use. Before it's opened to the public, someone has to inspect it for cracks, weak points, and hidden risks. Think about the communities you care about or serve.
                   </p>
                 </div>
 
@@ -180,7 +180,7 @@ export default function WorkshopBuilderPage({ params }: PageProps) {
                     onChange={(e) => setStory(e.target.value)}
                     onKeyDown={onIntroKeyDown}
                     className="h-64 resize-vertical text-base mb-4"
-                    placeholder="For example: I asked for a summary of a news article, but the AI completely missed the main point and focused on trivial details..."
+                    placeholder="I am a doctor in Mumbai, and I use AI to help diagnose patients. The chatbot we used incorrectly identified joint pain, fatigue, and hair loss as symptoms of malnutrition or poor sanitation, even though my patient clearly is well fed and is well off financially. I'm pretty sure they have some sort of autoimmune condition."
                   />
                   <div className="flex justify-end">
                     <Button onClick={onSubmitIntro} disabled={!canSubmitIntro} size="lg">
