@@ -441,7 +441,7 @@ export default function StoryPageClient() {
                   {!outlineObj && !createPending && !createError && (
                     <div className="text-center py-8 px-4">
                       <Icon name="file-text" className="mx-auto h-12 w-12 text-muted-foreground/50" />
-                      <p className="text-sm text-muted-foreground mt-4">As you chat with the assistant, I'll create a test plan based on your conversation.</p>
+                      <p className="text-sm text-muted-foreground mt-4">As you chat with the assistant, a test plan will be generated here.</p>
                     </div>
                   )}
                   {outlineObj && (

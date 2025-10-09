@@ -19,7 +19,7 @@ export function TestPlanWithResults({ outline, quickRunResult }: TestPlanWithRes
     return (
       <div className="text-center py-8 px-4">
         <p className="text-sm text-muted-foreground">
-          As you chat with the assistant, I'll create a test plan based on your conversation.
+         As you chat with the assistant, a test plan will be generated here.
         </p>
       </div>
     );
