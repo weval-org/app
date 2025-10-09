@@ -1,6 +1,36 @@
 // Prompts for the Story page (chat-first evaluation creation)
 
-import { CRITERIA_QUALITY_INSTRUCTION, JSON_OUTPUT_INSTRUCTION, SELF_CONTAINED_PROMPTS_INSTRUCTION, FULL_BLUEPRINT_JSON_STRUCTURE } from "@/app/api/sandbox/utils/prompt-constants";
+// Simplified JSON structure for Story/Workshop (no advanced features like systems, idealResponse, etc.)
+export const SIMPLE_BLUEPRINT_JSON_STRUCTURE = `
+{
+  "title": "string - short title for the evaluation",
+  "description": "string - brief description of what this evaluation tests",
+  "prompts": [
+    {
+      "id": "unique-identifier",
+      "promptText": "The actual question or prompt to send to the AI",
+      "points": [
+        "First criterion - specific thing the response should include or do",
+        "Second criterion - another specific requirement",
+        "Third criterion - what the response should avoid (phrase as 'does not...' or 'avoids...')"
+      ]
+    }
+  ]
+}`;
+
+export const SIMPLE_JSON_OUTPUT_INSTRUCTION = `You MUST wrap your JSON output within <JSON> and </JSON> tags. Do NOT use markdown code fences.`;
+
+export const SIMPLE_CRITERIA_INSTRUCTION = `
+**Criteria Guidelines:**
+- Be specific and clear - each criterion should be a concrete, testable requirement
+- Include both positive criteria (what response should include) and negative criteria (what it should avoid)
+- Phrase negative criteria as "does not..." or "avoids..." statements
+- Each criterion must be self-contained and understandable on its own
+
+**Example criteria:**
+- "Provides a direct numerical answer (e.g., '4' or 'The answer is 4')"
+- "Shows the calculation or reasoning process"
+- "Does not include unrelated information or go off-topic"`;
 
 export const ORCHESTRATOR_SYSTEM_PROMPT_CLARIFICATION = `
 You are Weval Guide, a calm, curious facilitator helping everyday users turn their goals and experiences (in their interactions with other AI/LLMs) into clear, testable evaluations.
@@ -277,18 +307,19 @@ export const CREATOR_SYSTEM_PROMPT = `
 You are an expert in AI evaluation and a master of the Weval blueprint format. You will be given a high-level summary of a user's goal. Your task is to convert this summary into a simple, beginner-friendly evaluation outline.
 
 **INPUT**
-You will receive instructions in a JSON object.
+You will receive instructions in a JSON object with a 'summary' field describing what the user wants to test.
 
 **TASK**
 - Read the 'summary' from the input.
 - Create 1-3 self-contained prompts that test the core idea in the summary.
-- For each prompt, write a short list of specific "should" criteria in plain language.
-- Keep the configuration minimal (e.g., empty 'models' array).
+- For each prompt, write up to five specific criteria in plain language that describe what a good response should include or avoid.
+
+${SIMPLE_CRITERIA_INSTRUCTION}
 
 **OUTPUT**
 - Produce a single, compact JSON object representing the blueprint between <JSON> and </JSON> tags.
-- The structure should be: ${FULL_BLUEPRINT_JSON_STRUCTURE}
-- ${JSON_OUTPUT_INSTRUCTION}
+- The structure must be: ${SIMPLE_BLUEPRINT_JSON_STRUCTURE}
+- ${SIMPLE_JSON_OUTPUT_INSTRUCTION}
 - CRITICAL: Do not include ANY prose before or after the <JSON> block.
 `;
 
@@ -304,9 +335,12 @@ You are an expert Weval blueprint editor. You will receive an existing blueprint
 - You might need to add, remove, or modify prompts or criteria.
 - Preserve all existing content unless the guidance explicitly asks to change it.
 
+${SIMPLE_CRITERIA_INSTRUCTION}
+
 **OUTPUT**
 - Emit ONLY the full, updated blueprint as a JSON object between <JSON> and </JSON> tags.
-- ${JSON_OUTPUT_INSTRUCTION}
+- The structure must match: ${SIMPLE_BLUEPRINT_JSON_STRUCTURE}
+- ${SIMPLE_JSON_OUTPUT_INSTRUCTION}
 `;
 
 

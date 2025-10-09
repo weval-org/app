@@ -148,13 +148,51 @@ export async function parseJsonFromResponse<T = any>(
 }
 
 /**
+ * Sanitizes a WevalConfig to remove advanced features not supported in Story/Workshop
+ * Removes: systems, models, idealResponse, temperature, messages, and other advanced fields
+ */
+function sanitizeSimpleBlueprint(config: any): WevalConfig {
+  if (!config || typeof config !== 'object') {
+    return config;
+  }
+
+  // Remove top-level advanced fields
+  const { systems, models, ...rest } = config;
+
+  // Clean up prompts array
+  if (Array.isArray(rest.prompts)) {
+    rest.prompts = rest.prompts.map((prompt: any) => {
+      // Remove advanced fields from each prompt
+      const { idealResponse, messages, temperature, ...cleanPrompt } = prompt;
+      return cleanPrompt;
+    });
+  }
+
+  return rest as WevalConfig;
+}
+
+/**
  * Specialized parser for WevalConfig responses (auto-create, auto-wiki)
+ * Automatically sanitizes to remove advanced features for Story/Workshop
  */
 export async function parseWevalConfigFromResponse(
   generatedResponse: string,
   options: JsonParseOptions = {}
 ): Promise<JsonParseResult<WevalConfig>> {
-  return parseJsonFromResponse<WevalConfig>(generatedResponse, options);
+  const result = await parseJsonFromResponse<WevalConfig>(generatedResponse, options);
+
+  // Sanitize the blueprint to remove advanced features
+  result.data = sanitizeSimpleBlueprint(result.data);
+
+  // Regenerate YAML from sanitized data
+  try {
+    const yaml = await import('js-yaml');
+    result.yaml = yaml.dump(result.data);
+  } catch (e: any) {
+    console.error(`[JSON Parser] Failed to regenerate YAML after sanitization: ${e.message}`);
+  }
+
+  return result;
 }
 
 /**
