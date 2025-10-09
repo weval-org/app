@@ -10,13 +10,11 @@ import { useWorkshopOrchestrator } from '@/hooks/useWorkshopOrchestrator';
 import { PublishModal } from './components/PublishModal';
 import { ShareModal } from './components/ShareModal';
 import { ControlSignalHelpers } from '@/lib/story-utils/control-signals';
-import { Bot, User, RefreshCcw, Share2, ExternalLink, Copy, Users, Play } from 'lucide-react';
+import { Bot, User, RefreshCcw, Share2, ExternalLink, Copy, Users, Play, CheckCircle } from 'lucide-react';
 import { formatWorkshopId } from '@/lib/workshop-utils';
 import ResponseRenderer from '@/app/components/ResponseRenderer';
-import { QuickRunSummary } from '@/app/story/components/QuickRunSummary';
 import { QuickRunFallback } from '@/app/story/components/QuickRunFallback';
-import { QuickRunResults } from '@/app/story/components/QuickRunResults';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { TestPlanWithResults } from './components/TestPlanWithResults';
 
 interface PageProps {
   params: Promise<{ workshopId: string }>;
@@ -27,7 +25,6 @@ export default function WorkshopBuilderPage({ params }: PageProps) {
   const router = useRouter();
   const [story, setStory] = useState('');
   const [composer, setComposer] = useState('');
-  const [showDetailedResults, setShowDetailedResults] = useState(false);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -378,18 +375,19 @@ export default function WorkshopBuilderPage({ params }: PageProps) {
                     </div>
                   )}
 
-                  {/* Quick Run Results - show at top */}
-                  {quickRunResult && (
-                    <div className="mb-4 flex-shrink-0">
-                      <QuickRunSummary
-                        result={quickRunResult}
-                        onViewDetails={() => setShowDetailedResults(true)}
-                        onRerun={runQuickTest}
-                      />
+                  {/* Simple completion banner */}
+                  {quickRunResult && !quickRunPending && (
+                    <div className="mb-4 flex-shrink-0 p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
+                      <div className="flex items-center gap-2 text-sm">
+                        <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                        <span className="font-medium text-green-900 dark:text-green-100">
+                          Test complete! Results shown below.
+                        </span>
+                      </div>
                     </div>
                   )}
 
-                  {/* Quick Run Error - show at top */}
+                  {/* Quick Run Error */}
                   {quickRunError && !quickRunResult && (
                     <div className="mb-4 flex-shrink-0">
                       <QuickRunFallback
@@ -408,42 +406,12 @@ export default function WorkshopBuilderPage({ params }: PageProps) {
                         <p className="text-sm text-muted-foreground text-center">Creating your test plan...</p>
                       </div>
                     )}
-                    {!outlineObj && !createPending && (
-                      <div className="text-center py-8 px-4">
-                        <p className="text-sm text-muted-foreground">
-                          As you chat with the assistant, I'll create a test plan based on your conversation.
-                        </p>
-                      </div>
-                    )}
-                    {outlineObj && (
-                      <div className="space-y-4">
-                        {outlineObj.description && (
-                          <div className="p-3 rounded-lg bg-accent/30 border border-accent/40">
-                            <p className="text-sm font-medium text-foreground">
-                              <span className="text-muted-foreground">Focus:</span> {outlineObj.description}
-                            </p>
-                          </div>
-                        )}
-                        <div className="space-y-3">
-                          {(outlineObj.prompts || []).slice(0, 8).map((p: any, idx: number) => (
-                            <Card key={p.id || idx} className="p-3 bg-background/50">
-                              <div className="font-semibold text-sm mb-2 text-primary">Question #{idx + 1}</div>
-                              <p className="font-medium text-sm text-foreground/90">{p.promptText}</p>
-                              {Array.isArray(p.points) && p.points.length > 0 && (
-                                <div className="mt-3">
-                                  <h4 className="text-xs font-semibold text-muted-foreground mb-2">Key Criteria:</h4>
-                                  <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
-                                    {(Array.isArray(p.points[0]) ? p.points[0] : p.points).slice(0, 5).map((pt: any, idx: number) => (
-                                      <li key={idx}>{typeof pt === 'string' ? pt : pt?.text || String(pt)}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-                            </Card>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+
+                    {/* Test Plan with inline results */}
+                    <TestPlanWithResults
+                      outline={outlineObj}
+                      quickRunResult={quickRunResult}
+                    />
                   </div>
                 </Card>
               </div>
@@ -465,18 +433,6 @@ export default function WorkshopBuilderPage({ params }: PageProps) {
         onClose={() => setShowShareModal(false)}
         shareUrl={shareUrl || ''}
       />
-
-      {/* Detailed Results Modal */}
-      <Dialog open={showDetailedResults} onOpenChange={setShowDetailedResults}>
-        <DialogContent className="max-w-[95vw] max-h-[90vh] overflow-hidden flex flex-col p-0">
-          <div className="flex justify-between items-center p-6 border-b flex-shrink-0">
-            <DialogTitle className="text-2xl font-semibold">Detailed Test Results</DialogTitle>
-          </div>
-          <div className="flex-1 overflow-y-auto p-6">
-            {quickRunResult && <QuickRunResults result={quickRunResult} />}
-          </div>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }
