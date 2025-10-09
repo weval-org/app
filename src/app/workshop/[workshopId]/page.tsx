@@ -1,0 +1,482 @@
+'use client';
+
+import { use, useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Card } from '@/components/ui/card';
+import { useWorkshopOrchestrator } from '@/hooks/useWorkshopOrchestrator';
+import { PublishModal } from './components/PublishModal';
+import { ShareModal } from './components/ShareModal';
+import { ControlSignalHelpers } from '@/lib/story-utils/control-signals';
+import { Bot, User, RefreshCcw, Share2, ExternalLink, Copy, Users, Play } from 'lucide-react';
+import { formatWorkshopId } from '@/lib/workshop-utils';
+import ResponseRenderer from '@/app/components/ResponseRenderer';
+import { QuickRunSummary } from '@/app/story/components/QuickRunSummary';
+import { QuickRunFallback } from '@/app/story/components/QuickRunFallback';
+import { QuickRunResults } from '@/app/story/components/QuickRunResults';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+
+interface PageProps {
+  params: Promise<{ workshopId: string }>;
+}
+
+export default function WorkshopBuilderPage({ params }: PageProps) {
+  const { workshopId } = use(params);
+  const router = useRouter();
+  const [story, setStory] = useState('');
+  const [composer, setComposer] = useState('');
+  const [showDetailedResults, setShowDetailedResults] = useState(false);
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const {
+    messages,
+    outlineObj,
+    outlineYaml,
+    phase,
+    pending,
+    createPending,
+    quickRunPending,
+    chatError,
+    quickRunError,
+    quickRunResult,
+    quickRunStatus,
+    activeStream,
+    session,
+    showPublishModal,
+    showShareModal,
+    isPublishing,
+    isSharing,
+    shareUrl,
+    startChat,
+    sendMessage,
+    runQuickTest,
+    clearErrors,
+    publishBlueprint,
+    shareBlueprint,
+    resetChat,
+    setShowPublishModal,
+    setShowShareModal,
+  } = useWorkshopOrchestrator(workshopId);
+
+  const canSubmitIntro = story.trim().length > 0 && !pending;
+  const canSend = composer.trim().length > 0 && !pending;
+
+  const scrollToBottom = () => {
+    requestAnimationFrame(() => {
+      scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: 'smooth' });
+    });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  useEffect(() => {
+    if (activeStream) {
+      scrollToBottom();
+    }
+  }, [activeStream]);
+
+  useEffect(() => {
+    if (phase === 'chat') {
+      composerRef.current?.focus();
+    }
+  }, [phase]);
+
+  const onSubmitIntro = async () => {
+    if (!canSubmitIntro) return;
+    await startChat(story);
+  };
+
+  const onSend = async () => {
+    if (!canSend) return;
+    const content = composer.trim();
+    setComposer('');
+    await sendMessage(content);
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      onSend();
+    }
+  };
+
+  const onIntroKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      onSubmitIntro();
+    }
+  };
+
+  const onReset = () => {
+    if (window.confirm('Are you sure you want to clear this conversation and start over?')) {
+      resetChat();
+    }
+  };
+
+  const handlePublish = async (metadata: { authorName: string; description: string }) => {
+    return await publishBlueprint(metadata);
+  };
+
+  const copyWorkshopLink = () => {
+    const url = `${window.location.origin}/workshop/${workshopId}`;
+    navigator.clipboard.writeText(url);
+  };
+
+  const renderToolbar = () => (
+    <div className="flex justify-between items-center p-4 border-b bg-background">
+      <div className="flex items-center gap-4">
+        <h1 className="text-xl font-semibold">
+          <a href="/" className="hover:underline">Weval</a>
+          {' / '}
+          <a href="/workshop" className="hover:underline">Workshop</a>
+        </h1>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Users className="h-4 w-4" />
+          <span className="font-mono">{formatWorkshopId(workshopId)}</span>
+          <Button variant="ghost" size="sm" onClick={copyWorkshopLink}>
+            <Copy className="h-3 w-3" />
+          </Button>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          asChild
+        >
+          <a href={`/workshop/${workshopId}/gallery`} target="_blank" rel="noopener noreferrer">
+            <Users className="mr-2 h-4 w-4" />
+            Gallery
+          </a>
+        </Button>
+        {outlineObj && (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={shareBlueprint}
+              disabled={isSharing}
+            >
+              {isSharing ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent mr-2"></div>
+                  Sharing...
+                </>
+              ) : (
+                <>
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Share
+                </>
+              )}
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => setShowPublishModal(true)}
+              disabled={isPublishing}
+            >
+              <Share2 className="mr-2 h-4 w-4" />
+              Publish
+            </Button>
+          </>
+        )}
+        <Button variant="ghost" size="sm" onClick={onReset}>
+          <RefreshCcw className="mr-2 h-4 w-4" />
+          Start Over
+        </Button>
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      <div className="flex flex-col h-screen">
+        {phase === 'intro' ? (
+          <div className="flex-1 flex flex-col">
+            <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+              <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground border rounded-md px-2 py-1.5">
+                  <Users className="h-3.5 w-3.5" />
+                  <span className="font-mono">{formatWorkshopId(workshopId)}</span>
+                  <Button variant="ghost" size="sm" className="h-5 w-5 p-0 hover:bg-accent" onClick={copyWorkshopLink}>
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  asChild
+                >
+                  <a href={`/workshop/${workshopId}/gallery`} target="_blank" rel="noopener noreferrer">
+                    <Users className="mr-2 h-4 w-4" />
+                    Gallery
+                  </a>
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex-1 flex flex-col items-center justify-center p-4">
+              <div className="w-full max-w-5xl">
+                <div className="text-center mb-12">
+                  <h1 className="text-4xl font-bold mb-4">
+                    Let's change AI! First step: How has AI affected you?
+                  </h1>
+                  <p className="text-muted-foreground text-lg">
+                    Describe how an AI has affected you, what you want improved, or a goal you care about.
+                    We'll help you capture the key points.
+                  </p>
+                </div>
+
+                <Card className="p-6">
+                  <Textarea
+                    value={story}
+                    onChange={(e) => setStory(e.target.value)}
+                    onKeyDown={onIntroKeyDown}
+                    className="h-64 resize-vertical text-base mb-4"
+                    placeholder="For example: I asked for a summary of a news article, but the AI completely missed the main point and focused on trivial details..."
+                  />
+                  <div className="flex justify-end">
+                    <Button onClick={onSubmitIntro} disabled={!canSubmitIntro} size="lg">
+                      Start Conversation
+                    </Button>
+                  </div>
+                </Card>
+            </div>
+          </div>
+          </div>
+        ) : (
+          <div className="flex flex-col h-full">
+            {renderToolbar()}
+            <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-4 lg:grid-cols-3 gap-4 p-4">
+              <div className="xl:col-span-2 lg:col-span-2 flex flex-col min-h-0">
+                <Card className="p-0 flex-1 flex flex-col min-h-0">
+                  <div ref={scrollerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+                    {messages.map((m, idx) => {
+                      const isLast = idx === messages.length - 1;
+                      const content = isLast && m.role === 'assistant' && activeStream
+                        ? activeStream.visibleContent
+                        : m.content;
+                      const cleanText = m.role === 'assistant' ? ControlSignalHelpers.cleanUserText(content) : content;
+
+                      return (
+                        <div
+                          key={m.id || `msg-${idx}`}
+                          className={cn('flex items-start gap-3', m.role === 'user' ? 'flex-row-reverse' : 'flex-row')}
+                        >
+                          <div
+                            className={cn(
+                              'rounded-full p-2 flex-shrink-0',
+                              m.role === 'user'
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-muted text-muted-foreground border'
+                            )}
+                          >
+                            {m.role === 'user' ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+                          </div>
+                          <div
+                            className={cn(
+                              'rounded-lg p-3 max-w-[80%]',
+                              m.role === 'user'
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-card text-card-foreground border'
+                            )}
+                          >
+                            {/* Show typing indicator if streaming with no/little content */}
+                            {isLast && m.role === 'assistant' && activeStream && (!cleanText || cleanText.trim().length < 3) ? (
+                              <div className="flex items-center gap-1 py-1">
+                                <div className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                                <div className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                                <div className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce"></div>
+                              </div>
+                            ) : (
+                              <div className={cn('prose prose-sm max-w-none prose-inherit', m.role === 'assistant' && 'dark:prose-invert')}>
+                                <ResponseRenderer content={cleanText} />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Show typing indicator bubble if streaming started but no assistant message yet */}
+                    {activeStream && messages.length > 0 && messages[messages.length - 1].role === 'user' && (
+                      <div className="flex items-start gap-3 flex-row">
+                        <div className="rounded-full p-2 flex-shrink-0 bg-muted text-muted-foreground border">
+                          <Bot className="h-4 w-4" />
+                        </div>
+                        <div className="rounded-lg p-3 max-w-[80%] bg-card text-card-foreground border">
+                          <div className="flex items-center gap-1 py-1">
+                            <div className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                            <div className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                            <div className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce"></div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-shrink-0 border-t p-3 flex gap-2 items-end">
+                    <Textarea
+                      ref={composerRef}
+                      value={composer}
+                      onChange={(e) => setComposer(e.target.value)}
+                      onKeyDown={onKeyDown}
+                      placeholder={pending ? 'Assistant is typing…' : 'Type your message, or shift+enter for new line'}
+                      className="min-h-[60px]"
+                      disabled={pending}
+                    />
+                    <Button onClick={onSend} disabled={!canSend}>
+                      Send
+                    </Button>
+                  </div>
+                </Card>
+              </div>
+
+              <div className="xl:col-span-2 lg:col-span-1 flex flex-col min-h-0 overflow-y-auto">
+                <Card className="p-4 flex-1 flex flex-col min-h-0">
+                  <h2 className="text-lg font-medium mb-4 flex-shrink-0">Your Test Plan</h2>
+
+                  {/* Test button - only show when outline exists */}
+                  {outlineObj && (
+                    <div className="mb-4 flex-shrink-0">
+                      <Button
+                        variant="default"
+                        size="lg"
+                        onClick={runQuickTest}
+                        disabled={quickRunPending}
+                        className="w-full"
+                      >
+                        {quickRunPending ? (
+                          <>
+                            <div className="animate-spin rounded-full h-5 w-5 border-2 border-background border-t-transparent mr-2"></div>
+                            Testing Your Plan...
+                          </>
+                        ) : (
+                          <>
+                            <Play className="mr-2 h-5 w-5" />
+                            Run Quick Test
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Testing status banner */}
+                  {quickRunPending && (
+                    <div className="mb-4 flex-shrink-0 p-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-primary border-t-transparent"></div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-foreground">{quickRunStatus?.message || 'Running your test...'}</p>
+                          <p className="text-xs text-muted-foreground">This may take a moment</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Quick Run Results - show at top */}
+                  {quickRunResult && (
+                    <div className="mb-4 flex-shrink-0">
+                      <QuickRunSummary
+                        result={quickRunResult}
+                        onViewDetails={() => setShowDetailedResults(true)}
+                        onRerun={runQuickTest}
+                      />
+                    </div>
+                  )}
+
+                  {/* Quick Run Error - show at top */}
+                  {quickRunError && !quickRunResult && (
+                    <div className="mb-4 flex-shrink-0">
+                      <QuickRunFallback
+                        onRetry={runQuickTest}
+                        onSkip={() => clearErrors()}
+                        onGoToSandbox={() => window.open('/sandbox', '_blank')}
+                        isRetrying={quickRunPending}
+                      />
+                    </div>
+                  )}
+
+                  <div className="flex-1 min-h-0 overflow-y-auto">
+                    {createPending && (
+                      <div className="flex flex-col items-center justify-center py-8 px-4">
+                        <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent mb-3"></div>
+                        <p className="text-sm text-muted-foreground text-center">Creating your test plan...</p>
+                      </div>
+                    )}
+                    {!outlineObj && !createPending && (
+                      <div className="text-center py-8 px-4">
+                        <p className="text-sm text-muted-foreground">
+                          As you chat with the assistant, I'll create a test plan based on your conversation.
+                        </p>
+                      </div>
+                    )}
+                    {outlineObj && (
+                      <div className="space-y-4">
+                        {outlineObj.description && (
+                          <div className="p-3 rounded-lg bg-accent/30 border border-accent/40">
+                            <p className="text-sm font-medium text-foreground">
+                              <span className="text-muted-foreground">Focus:</span> {outlineObj.description}
+                            </p>
+                          </div>
+                        )}
+                        <div className="space-y-3">
+                          {(outlineObj.prompts || []).slice(0, 8).map((p: any, idx: number) => (
+                            <Card key={p.id || idx} className="p-3 bg-background/50">
+                              <div className="font-semibold text-sm mb-2 text-primary">Question #{idx + 1}</div>
+                              <p className="font-medium text-sm text-foreground/90">{p.promptText}</p>
+                              {Array.isArray(p.points) && p.points.length > 0 && (
+                                <div className="mt-3">
+                                  <h4 className="text-xs font-semibold text-muted-foreground mb-2">What to Look For:</h4>
+                                  <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
+                                    {(Array.isArray(p.points[0]) ? p.points[0] : p.points).slice(0, 5).map((pt: any, idx: number) => (
+                                      <li key={idx}>{typeof pt === 'string' ? pt : pt?.text || String(pt)}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </Card>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <PublishModal
+        open={showPublishModal}
+        onClose={() => setShowPublishModal(false)}
+        onPublish={handlePublish}
+        defaultAuthorName={session?.displayName || ''}
+        defaultDescription={outlineObj?.description || ''}
+      />
+
+      <ShareModal
+        open={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        shareUrl={shareUrl || ''}
+      />
+
+      {/* Detailed Results Modal */}
+      <Dialog open={showDetailedResults} onOpenChange={setShowDetailedResults}>
+        <DialogContent className="max-w-[95vw] max-h-[90vh] overflow-hidden flex flex-col p-0">
+          <div className="flex justify-between items-center p-6 border-b flex-shrink-0">
+            <DialogTitle className="text-2xl font-semibold">Detailed Test Results</DialogTitle>
+          </div>
+          <div className="flex-1 overflow-y-auto p-6">
+            {quickRunResult && <QuickRunResults result={quickRunResult} />}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
