@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { formatWorkshopId } from '@/lib/workshop-utils';
-import { ArrowLeft, Copy, FileText, Users, CheckCircle, XCircle, Loader2, Clock } from 'lucide-react';
+import { ArrowLeft, Copy, FileText, Users } from 'lucide-react';
 
 interface GalleryWeval {
   wevalId: string;
@@ -126,7 +126,7 @@ export default function WorkshopGalleryPage({ params }: PageProps) {
 
       <div className="container mx-auto px-4 py-8">
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
           <Card className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-primary/10 rounded-lg">
@@ -135,20 +135,6 @@ export default function WorkshopGalleryPage({ params }: PageProps) {
               <div>
                 <p className="text-2xl font-bold">{gallery?.wevals.length || 0}</p>
                 <p className="text-sm text-muted-foreground">Published Evaluations</p>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <CheckCircle className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">
-                  {gallery?.wevals.filter(w => w.executionStatus === 'complete').length || 0}
-                </p>
-                <p className="text-sm text-muted-foreground">Completed</p>
               </div>
             </div>
           </Card>
@@ -182,82 +168,57 @@ export default function WorkshopGalleryPage({ params }: PageProps) {
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {gallery.wevals.map((weval) => {
-              const getStatusIcon = () => {
-                if (weval.executionStatus === 'complete') {
-                  return <CheckCircle className="h-4 w-4 text-green-600" />;
-                } else if (weval.executionStatus === 'error') {
-                  return <XCircle className="h-4 w-4 text-destructive" />;
-                } else if (['pending', 'running', 'generating_responses', 'evaluating'].includes(weval.executionStatus)) {
-                  return <Loader2 className="h-4 w-4 text-primary animate-spin" />;
-                } else {
-                  return <Clock className="h-4 w-4 text-muted-foreground" />;
-                }
-              };
-
-              const getStatusText = () => {
-                if (weval.executionStatus === 'complete') return 'Complete';
-                if (weval.executionStatus === 'error') return 'Failed';
-                if (['pending', 'running', 'generating_responses', 'evaluating'].includes(weval.executionStatus)) return 'Running';
-                return 'Unknown';
-              };
-
-              return (
-                <Card
-                  key={weval.wevalId}
-                  className="p-6 hover:shadow-lg transition-shadow cursor-pointer"
-                  onClick={() => router.push(`/workshop/${workshopId}/weval/${weval.wevalId}`)}
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <div className="p-2 bg-primary/10 rounded-lg">
-                        <FileText className="h-4 w-4 text-primary" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-sm">{weval.authorName}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(weval.createdAt).toLocaleDateString()}
-                        </p>
-                      </div>
+            {gallery.wevals.map((weval) => (
+              <Card
+                key={weval.wevalId}
+                className="p-6 hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => router.push(`/workshop/${workshopId}/weval/${weval.wevalId}`)}
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-primary/10 rounded-lg">
+                      <FileText className="h-4 w-4 text-primary" />
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        copyWevalLink(weval.wevalId);
-                      }}
-                    >
-                      <Copy className="h-3 w-3" />
-                    </Button>
-                  </div>
-
-                  <p className="text-sm mb-4 line-clamp-3">{weval.description}</p>
-
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground mb-4">
-                    <div className="flex items-center gap-1">
-                      <FileText className="h-3 w-3" />
-                      <span>{weval.promptCount} prompts</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {getStatusIcon()}
-                      <span>{getStatusText()}</span>
+                    <div>
+                      <p className="font-semibold text-sm">{weval.authorName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(weval.createdAt).toLocaleDateString()}
+                      </p>
                     </div>
                   </div>
-
                   <Button
-                    className="w-full"
+                    variant="ghost"
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
-                      router.push(`/workshop/${workshopId}/weval/${weval.wevalId}`);
+                      copyWevalLink(weval.wevalId);
                     }}
                   >
-                    View Evaluation
+                    <Copy className="h-3 w-3" />
                   </Button>
-                </Card>
-              );
-            })}
+                </div>
+
+                <p className="text-sm mb-4 line-clamp-3">{weval.description}</p>
+
+                <div className="flex items-center gap-4 text-xs text-muted-foreground mb-4">
+                  <div className="flex items-center gap-1">
+                    <FileText className="h-3 w-3" />
+                    <span>{weval.promptCount} prompts</span>
+                  </div>
+                </div>
+
+                <Button
+                  className="w-full"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(`/workshop/${workshopId}/weval/${weval.wevalId}`);
+                  }}
+                >
+                  View Results
+                </Button>
+              </Card>
+            ))}
           </div>
         )}
       </div>
