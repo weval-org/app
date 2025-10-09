@@ -59,11 +59,17 @@ export async function POST(request: NextRequest) {
 
     logger.info(`[workshop:weval:create] Creating weval ${wevalId} for workshop ${workshopId}`);
 
-    // Prepare blueprint with core models
+    // Prepare blueprint with core models and explicit evaluation config
     const wevalBlueprint = {
       ...blueprint,
       models: CORE_MODELS,
+      evaluationConfig: {
+        'embedding': { enabled: true },
+        'llm-coverage': { enabled: true },
+      },
     };
+
+    logger.info(`[workshop:weval:create] Blueprint prepared with ${CORE_MODELS.length} models and full evaluation config`);
 
     // Kick off background execution using Netlify function
     const executionRunId = `${Date.now()}-${uuidv4()}`;
@@ -88,16 +94,32 @@ export async function POST(request: NextRequest) {
         ContentType: 'application/json',
       }));
 
-      // Invoke the background Netlify function (fire-and-forget)
+      // Invoke the background Netlify function
       const functionUrl = new URL('/.netlify/functions/execute-sandbox-pipeline-background', process.env.URL || 'http://localhost:8888');
 
-      fetch(functionUrl.toString(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ runId: executionRunId, blueprintKey, sandboxVersion: 'v2' }),
-      }).catch(console.error);
+      logger.info(`[workshop:weval:create] Invoking background function at: ${functionUrl.toString()}`);
+      logger.info(`[workshop:weval:create] Payload:`, { runId: executionRunId, blueprintKey, sandboxVersion: 'v2' });
 
-      logger.info(`[workshop:weval:create] Started execution ${executionRunId}`);
+      try {
+        const invocationResponse = await fetch(functionUrl.toString(), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ runId: executionRunId, blueprintKey, sandboxVersion: 'v2' }),
+        });
+
+        logger.info(`[workshop:weval:create] Background function invocation response: ${invocationResponse.status}`);
+
+        if (!invocationResponse.ok) {
+          const errorText = await invocationResponse.text();
+          logger.error(`[workshop:weval:create] Background function failed: ${invocationResponse.status} - ${errorText}`);
+          executionStatus = 'error';
+        } else {
+          logger.info(`[workshop:weval:create] Started execution ${executionRunId}`);
+        }
+      } catch (fetchError: any) {
+        logger.error(`[workshop:weval:create] Failed to invoke background function: ${fetchError.message}`);
+        executionStatus = 'error';
+      }
     } catch (error: any) {
       logger.error(`[workshop:weval:create] Error starting execution: ${error.message}`);
       executionStatus = 'error';

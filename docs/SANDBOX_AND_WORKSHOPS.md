@@ -580,21 +580,22 @@ This format:
 **Usage**:
 - Production: `/analysis/{configId}/{runLabel}/{safeTimestamp}`
 - Sandbox: Legacy path uses safe timestamp
-- Workshop: Advanced analysis link uses `toSafeTimestamp(weval.createdAt)`
+- Workshop: `toSafeTimestamp(weval.createdAt)` used internally by AnalysisProvider (no direct URL)
 
 ### Advanced Analysis Integration
 
-Both Sandbox and Workshop results can link to the advanced analysis UI:
-
 **Sandbox**:
+Sandbox results provide a link to the advanced analysis UI:
 ```typescript
 // Results page provides link
 const analysisUrl = `/analysis/sandbox-${runId}/sandbox-run/${safeTimestamp}`;
 ```
 
 **Workshop**:
+Workshop results are **embedded inline** using `SimpleClientPage` and do not link to the advanced analysis page. This is intentional, as workshops are ephemeral and don't need the full analysis tooling.
+
 ```typescript
-// AnalysisProvider passes timestamp
+// Workshop weval page embeds results directly
 <AnalysisProvider
   initialData={execution.result}
   configId={`workshop_${workshopId}`}
@@ -603,12 +604,29 @@ const analysisUrl = `/analysis/sandbox-${runId}/sandbox-run/${safeTimestamp}`;
 >
   <SimpleClientPage />
 </AnalysisProvider>
-
-// SimpleAnalysisHeader generates link
-<Link href={`/analysis/${configId}/${runLabel}/${timestamp}`}>
-  Advanced Analysis
-</Link>
 ```
+
+The `SimpleClientPage` components detect workshop runs by checking if `configId.startsWith('workshop_')` and hide advanced analysis links accordingly.
+
+### Storage Service Workshop Support
+
+The storage service (`src/lib/storageService.ts`) automatically detects workshop runs and uses the correct S3 paths:
+
+```typescript
+// Workshop detection
+function isWorkshopRun(configId: string): boolean {
+  return configId.startsWith('workshop_');
+}
+
+// Path construction
+function workshopPaths(configId: string, wevalId: string, relative: string) {
+  const workshopId = extractWorkshopId(configId); // "workshop_foo-bar" -> "foo-bar"
+  const s3Key = path.join(LIVE_DIR, 'workshop', 'runs', workshopId, wevalId, relative);
+  // Returns: live/workshop/runs/{workshopId}/{wevalId}/_comparison.json
+}
+```
+
+All lazy-loading API endpoints (`/api/comparison/[configId]/[runLabel]/[timestamp]/...`) automatically support workshop runs through this detection mechanism. This enables workshop modals (ModelPerformanceModal, PromptDetailModal, etc.) to work correctly.
 
 ---
 
@@ -633,7 +651,8 @@ const analysisUrl = `/analysis/sandbox-${runId}/sandbox-run/${safeTimestamp}`;
 | **Persistence** | Local drafts + GitHub files | Client-side state only |
 | **Background Function** | `execute-sandbox-pipeline-background.ts` | Same (path-agnostic) |
 | **Status Polling** | `/api/sandbox/status/[runId]` | `/api/workshop/weval/status/[workshopId]/[wevalId]` |
-| **Advanced Analysis** | Link to `/analysis/sandbox-{runId}/...` | Link to `/analysis/workshop_{workshopId}/...` |
+| **Advanced Analysis** | Link to `/analysis/sandbox-{runId}/...` | Embedded inline (SimpleClientPage) |
+| **Modal Support** | Yes (via storage service) | Yes (via storage service workshop detection) |
 
 ### When to Use Each
 
@@ -770,6 +789,6 @@ Both features generate ephemeral data that should be periodically cleaned:
 
 ---
 
-**Document Version**: 1.0
-**Last Updated**: 2025-01-09
+**Document Version**: 1.1
+**Last Updated**: 2025-10-09
 **Authors**: Claude Code (generated), James (reviewed)

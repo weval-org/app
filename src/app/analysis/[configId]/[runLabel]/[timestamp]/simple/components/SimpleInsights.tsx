@@ -12,14 +12,18 @@ import { MarkdownAccordion } from '@/app/analysis/components/MarkdownAccordion';
 import Icon from '@/components/ui/icon';
 
 export const SimpleInsights: React.FC = () => {
-    const { 
-        summaryStats, 
+    const {
+        summaryStats,
         data,
+        configId,
         openModelPerformanceModal,
         openPromptDetailModal,
         openSimilarityModal,
-        normalizedExecutiveSummary 
+        normalizedExecutiveSummary
     } = useAnalysis();
+
+    // Check if this is a workshop run (ephemeral, different storage pattern)
+    const isWorkshopRun = configId?.startsWith('workshop_');
     
 
     if (!summaryStats && !normalizedExecutiveSummary) {
@@ -116,32 +120,34 @@ export const SimpleInsights: React.FC = () => {
                 </Card>
             )}
 
-            {/* Advanced Features Notice */}
-            <Card className="shadow-lg border border-border/30 bg-muted/20">
-                <CardContent className="py-6">
-                    <Link href={`/analysis/${data?.configId}/${data?.runLabel}/${data?.timestamp}`} className="block group">
-                        <div className="text-center">
-                            <Icon name="search" className="w-8 h-8 text-muted-foreground mx-auto mb-3 group-hover:text-primary transition-colors" />
-                            <h3 className="font-semibold text-foreground mb-2 group-hover:text-primary transition-colors">
-                                Want more detailed analysis?
-                            </h3>
-                            <p className="text-sm text-muted-foreground mb-4">
-                                The advanced view includes conversation trees, similarity matrices, system prompt variations, and detailed filtering options.
-                            </p>
-                            <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
-                                <Badge variant="outline" className="text-xs">Temperature Analysis</Badge>
-                                <Badge variant="outline" className="text-xs">System Prompt Variations</Badge>
-                                <Badge variant="outline" className="text-xs">Similarity Dendrograms</Badge>
-                                <Badge variant="outline" className="text-xs">Coverage Breakdowns</Badge>
+            {/* Advanced Features Notice - Only show for non-workshop runs */}
+            {!isWorkshopRun && (
+                <Card className="shadow-lg border border-border/30 bg-muted/20">
+                    <CardContent className="py-6">
+                        <Link href={`/analysis/${data?.configId}/${data?.runLabel}/${data?.timestamp}`} className="block group">
+                            <div className="text-center">
+                                <Icon name="search" className="w-8 h-8 text-muted-foreground mx-auto mb-3 group-hover:text-primary transition-colors" />
+                                <h3 className="font-semibold text-foreground mb-2 group-hover:text-primary transition-colors">
+                                    Want more detailed analysis?
+                                </h3>
+                                <p className="text-sm text-muted-foreground mb-4">
+                                    The advanced view includes conversation trees, similarity matrices, system prompt variations, and detailed filtering options.
+                                </p>
+                                <div className="flex flex-wrap items-center justify-center gap-2 mb-4">
+                                    <Badge variant="outline" className="text-xs">Temperature Analysis</Badge>
+                                    <Badge variant="outline" className="text-xs">System Prompt Variations</Badge>
+                                    <Badge variant="outline" className="text-xs">Similarity Dendrograms</Badge>
+                                    <Badge variant="outline" className="text-xs">Coverage Breakdowns</Badge>
+                                </div>
+                                <div className="inline-flex items-center gap-2 text-sm text-primary group-hover:underline">
+                                    Open Advanced Analysis
+                                    <Icon name="arrow-right" className="w-4 h-4" />
+                                </div>
                             </div>
-                            <div className="inline-flex items-center gap-2 text-sm text-primary group-hover:underline">
-                                Open Advanced Analysis
-                                <Icon name="arrow-right" className="w-4 h-4" />
-                            </div>
-                        </div>
-                    </Link>
-                </CardContent>
-            </Card>
+                        </Link>
+                    </CardContent>
+                </Card>
+            )}
         </div>
     );
 };

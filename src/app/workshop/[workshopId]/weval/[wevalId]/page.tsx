@@ -8,6 +8,7 @@ import { toSafeTimestamp } from '@/lib/timestampUtils';
 import { Users, ExternalLink, AlertCircle, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { AnalysisProvider } from '@/app/analysis/context/AnalysisProvider';
 import { SimpleClientPage } from '@/app/analysis/[configId]/[runLabel]/[timestamp]/simple/SimpleClientPage';
+import { WorkshopResultsErrorBoundary } from './WorkshopResultsErrorBoundary';
 
 interface PageProps {
   params: Promise<{ workshopId: string; wevalId: string }>;
@@ -24,24 +25,38 @@ export default function WevalViewPage({ params }: PageProps) {
 
   // Fetch weval data
   const fetchWevalData = async () => {
+    console.log('[Workshop Weval] Fetching data for:', { workshopId, wevalId });
     try {
       const response = await fetch(`/api/workshop/weval/${workshopId}/${wevalId}`);
+      console.log('[Workshop Weval] API response status:', response.status);
 
       if (!response.ok) {
         throw new Error('Failed to load weval');
       }
 
       const data = await response.json();
+      console.log('[Workshop Weval] Received data:', {
+        hasWeval: !!data.weval,
+        hasExecution: !!data.execution,
+        executionStatus: data.execution?.status,
+        hasResult: !!data.execution?.result,
+        wevalExecutionRunId: data.weval?.executionRunId,
+        wevalExecutionStatus: data.weval?.executionStatus,
+      });
+
       setWeval(data.weval);
       setExecution(data.execution);
 
       // If execution is running, start polling
-      if (data.execution && ['pending', 'running', 'generating_responses', 'evaluating'].includes(data.execution.status)) {
+      if (data.execution && ['pending', 'running', 'generating_responses', 'evaluating', 'saving'].includes(data.execution.status)) {
+        console.log('[Workshop Weval] Execution is running, starting poll');
         setPolling(true);
       } else {
+        console.log('[Workshop Weval] Execution not running, stopping poll');
         setPolling(false);
       }
     } catch (err: any) {
+      console.error('[Workshop Weval] Error fetching data:', err);
       setError(err.message || 'Failed to load weval');
     } finally {
       setLoading(false);
@@ -114,13 +129,24 @@ export default function WevalViewPage({ params }: PageProps) {
 
   // Check execution status from both sources (execution API or stored in weval)
   const executionStatus = execution?.status || weval.executionStatus || 'unknown';
-  const isExecuting = ['pending', 'running', 'generating_responses', 'evaluating'].includes(executionStatus);
+  const isExecuting = ['pending', 'running', 'generating_responses', 'evaluating', 'saving'].includes(executionStatus);
   const hasError = executionStatus === 'error';
   const hasResults = executionStatus === 'complete' && execution?.result;
 
   // Distinguish between "never started" vs "can't load results"
   const neverStarted = !weval.executionRunId;
   const cannotLoadResults = weval.executionRunId && !execution && !isExecuting && !hasError && !hasResults;
+
+  console.log('[Workshop Weval] UI State:', {
+    executionStatus,
+    isExecuting,
+    hasError,
+    hasResults,
+    neverStarted,
+    cannotLoadResults,
+    resultDataKeys: execution?.result ? Object.keys(execution.result) : null,
+    resultType: execution?.result ? typeof execution.result : null,
+  });
 
   // Always show blueprint in a two-column layout
   const renderLayout = () => {
@@ -200,9 +226,14 @@ export default function WevalViewPage({ params }: PageProps) {
                 <Card className="p-8">
                   <div className="flex flex-col items-center text-center">
                     <Loader2 className="h-16 w-16 animate-spin text-primary mb-4" />
-                    <h2 className="text-2xl font-semibold mb-2">Evaluation Running</h2>
+                    <h2 className="text-2xl font-semibold mb-2">
+                      {executionStatus === 'saving' ? 'Finalizing Results' : 'Evaluation Running'}
+                    </h2>
                     <p className="text-muted-foreground mb-4">
-                      {execution?.message || 'Testing this evaluation against multiple AI models...'}
+                      {executionStatus === 'saving'
+                        ? 'Aggregating results and preparing the analysis...'
+                        : execution?.message || 'Testing this evaluation against multiple AI models...'
+                      }
                     </p>
                     {execution?.progress && (
                       <div className="w-full max-w-md mt-4">
@@ -287,18 +318,29 @@ export default function WevalViewPage({ params }: PageProps) {
                 </Card>
               )}
 
-              {hasResults && (
-                <div className="h-full">
-                  <AnalysisProvider
-                    initialData={execution.result}
-                    configId={`workshop_${workshopId}`}
-                    runLabel={wevalId}
-                    timestamp={toSafeTimestamp(weval.createdAt)}
-                  >
-                    <SimpleClientPage />
-                  </AnalysisProvider>
-                </div>
-              )}
+              {hasResults && (() => {
+                console.log('[Workshop Weval] Rendering results with AnalysisProvider:', {
+                  configId: `workshop_${workshopId}`,
+                  runLabel: wevalId,
+                  timestamp: toSafeTimestamp(weval.createdAt),
+                  hasResultData: !!execution?.result,
+                  resultKeys: execution?.result ? Object.keys(execution.result).slice(0, 10) : [],
+                });
+                return (
+                  <div className="h-full">
+                    <WorkshopResultsErrorBoundary workshopId={workshopId}>
+                      <AnalysisProvider
+                        initialData={execution.result}
+                        configId={`workshop_${workshopId}`}
+                        runLabel={wevalId}
+                        timestamp={toSafeTimestamp(weval.createdAt)}
+                      >
+                        <SimpleClientPage />
+                      </AnalysisProvider>
+                    </WorkshopResultsErrorBoundary>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>

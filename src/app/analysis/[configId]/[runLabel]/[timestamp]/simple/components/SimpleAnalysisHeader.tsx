@@ -20,6 +20,9 @@ export const SimpleAnalysisHeader: React.FC = () => {
     const description = config.description;
     const tags = config.tags || [];
 
+    // Check if this is a workshop run (ephemeral, different storage pattern)
+    const isWorkshopRun = configId?.startsWith('workshop_');
+
     return (
         <div className="space-y-6 mb-12">
             {/* Title and subtitle */}
@@ -56,21 +59,23 @@ export const SimpleAnalysisHeader: React.FC = () => {
                     ))}
                 </div>
 
-                {/* Quick Actions */}
-                <div className="flex flex-wrap items-center gap-2">
-                    <Button asChild variant="outline" size="sm" className="gap-2">
-                        <Link href={`/analysis/${configId}/${runLabel}/${timestamp}`}>
-                            <Icon name="sliders-horizontal" className="w-4 h-4" />
-                            Advanced Analysis
-                        </Link>
-                    </Button>
-                    <Button asChild variant="outline" size="sm" className="gap-2">
-                        <Link href={`/analysis/${configId}/${runLabel}/${timestamp}/thread`}>
-                            <Icon name="git-merge" className="w-4 h-4" />
-                            Conversation Tree
-                        </Link>
-                    </Button>
-                </div>
+                {/* Quick Actions - Only show for non-workshop runs */}
+                {!isWorkshopRun && (
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button asChild variant="outline" size="sm" className="gap-2">
+                            <Link href={`/analysis/${configId}/${runLabel}/${timestamp}`}>
+                                <Icon name="sliders-horizontal" className="w-4 h-4" />
+                                Advanced Analysis
+                            </Link>
+                        </Button>
+                        <Button asChild variant="outline" size="sm" className="gap-2">
+                            <Link href={`/analysis/${configId}/${runLabel}/${timestamp}/thread`}>
+                                <Icon name="git-merge" className="w-4 h-4" />
+                                Conversation Tree
+                            </Link>
+                        </Button>
+                    </div>
+                )}
             </div>
         </div>
     );

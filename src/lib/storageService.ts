@@ -508,8 +508,43 @@ export async function saveConfigSummary(configId: string, summaryData: EnhancedC
 // Companion artefact READ HELPERS (core.json, responses, etc.)
 // ----------------------
 
+/**
+ * Check if a configId represents a workshop run.
+ * Workshop runs use the format: workshop_{workshopId}
+ */
+function isWorkshopRun(configId: string): boolean {
+  return configId.startsWith('workshop_');
+}
+
+/**
+ * Extract workshopId from a workshop configId.
+ * Example: workshop_foo-bar-222 -> foo-bar-222
+ */
+function extractWorkshopId(configId: string): string {
+  return configId.replace(/^workshop_/, '');
+}
+
+/**
+ * Build paths for workshop runs.
+ * Workshop storage: live/workshop/runs/{workshopId}/{wevalId}/_comparison.json
+ * The runBase parameter for workshops is just the wevalId.
+ */
+function workshopPaths(configId: string, wevalId: string, relative: string = '_comparison.json') {
+  const workshopId = extractWorkshopId(configId);
+  // Workshop runs don't use artefacts, everything is in _comparison.json
+  const s3Key = path.join(LIVE_DIR, 'workshop', 'runs', workshopId, wevalId, relative);
+  const localPath = path.join(RESULTS_DIR, s3Key);
+  const cachePath = path.join(CACHE_DIR, 'workshop', workshopId, wevalId, relative);
+  return { s3Key, localPath, cachePath };
+}
+
 /** Build artefact paths */
 function artefactPaths(configId: string, runBase: string, relative: string) {
+  // Workshop runs use a different storage structure
+  if (isWorkshopRun(configId)) {
+    return workshopPaths(configId, runBase, relative);
+  }
+
   const s3Key = path.join(LIVE_DIR, 'blueprints', configId, runBase, relative);
   const localPath = path.join(RESULTS_DIR, s3Key);
   const cachePath = path.join(CACHE_DIR, configId, runBase, relative);
@@ -562,8 +597,19 @@ async function readJsonFromStorage(configId: string, runBase: string, relative: 
  * Fetch the lightweight core.json artefact if present; otherwise fall back to legacy _comparison.json.
  */
 export async function getCoreResult(configId: string, runLabel: string, timestamp: string): Promise<any | null> {
+  // Workshop runs: use wevalId directly, no artefacts
+  if (isWorkshopRun(configId)) {
+    const wevalId = runLabel; // For workshops, runLabel is the wevalId
+    console.log(`[StorageService] getCoreResult → workshop run ${configId}/${wevalId}, reading _comparison.json`);
+    const workshopData = await readJsonFromStorage(configId, wevalId, '_comparison.json');
+    if (workshopData) {
+      console.log(`[StorageService] getCoreResult → workshop data found (promptIds: ${workshopData.promptIds?.length || 0}, models: ${workshopData.effectiveModels?.length || 0})`);
+    }
+    return workshopData;
+  }
+
+  // Production runs: try artefacts first, then legacy
   const runBase = `${runLabel}_${timestamp}`;
-  // Try artefact first
   const coreData = await readJsonFromStorage(configId, runBase, 'core.json');
 
   if (coreData) {
@@ -581,6 +627,14 @@ export async function getCoreResult(configId: string, runLabel: string, timestam
  * Fetch detailed coverage result for a prompt+model
  */
 export async function getCoverageResult(configId: string, runLabel: string, timestamp: string, promptId: string, modelId: string): Promise<any | null> {
+  // Workshop runs: read from _comparison.json
+  if (isWorkshopRun(configId)) {
+    const wevalId = runLabel;
+    const workshopData = await readJsonFromStorage(configId, wevalId, '_comparison.json');
+    return workshopData?.evaluationResults?.llmCoverageScores?.[promptId]?.[modelId] || null;
+  }
+
+  // Production runs: try artefact first, then legacy
   const runBase = `${runLabel}_${timestamp}`;
   const artefact = await readJsonFromStorage(configId, runBase, path.join('coverage', promptId, `${getSafeModelId(modelId)}.json`));
   if (artefact) return artefact;
@@ -594,6 +648,18 @@ export async function getCoverageResult(configId: string, runLabel: string, time
  * Fetch responses for a specific promptId. Falls back to legacy file if artefact missing.
  */
 export async function getPromptResponses(configId: string, runLabel: string, timestamp: string, promptId: string): Promise<Record<string,string> | null> {
+  // Workshop runs: read from _comparison.json
+  if (isWorkshopRun(configId)) {
+    const wevalId = runLabel;
+    const workshopData = await readJsonFromStorage(configId, wevalId, '_comparison.json');
+    if (workshopData?.allFinalAssistantResponses) {
+      const decodedPromptId = decodeURIComponent(promptId);
+      return workshopData.allFinalAssistantResponses[decodedPromptId] || null;
+    }
+    return null;
+  }
+
+  // Production runs: try artefact first, then legacy
   const runBase = `${runLabel}_${timestamp}`;
   const artefact = await readJsonFromStorage(configId, runBase, path.join('responses', `${promptId}.json`));
   if (artefact) return artefact;
@@ -619,6 +685,12 @@ export async function getConversationHistory(
   promptId: string,
   modelId: string
 ): Promise<any[] | null> {
+  // Workshop runs: conversation histories not stored separately
+  if (isWorkshopRun(configId)) {
+    return null;
+  }
+
+  // Production runs: check for history artefact
   const runBase = `${runLabel}_${timestamp}`;
   // Match the same safe model id logic used when writing artefacts
   const safeModel = getSafeModelId(modelId);
