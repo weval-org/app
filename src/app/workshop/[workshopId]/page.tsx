@@ -11,10 +11,11 @@ import { PublishModal } from './components/PublishModal';
 import { ShareModal } from './components/ShareModal';
 import { WorkshopHeader } from '../components/WorkshopHeader';
 import { ControlSignalHelpers } from '@/lib/story-utils/control-signals';
-import { Bot, User, RefreshCcw, Share2, ExternalLink, Users, Play, CheckCircle } from 'lucide-react';
+import { Bot, User, RefreshCcw, Share2, ExternalLink, Users, Play, CheckCircle, Download } from 'lucide-react';
 import ResponseRenderer from '@/app/components/ResponseRenderer';
 import { QuickRunFallback } from '@/app/story/components/QuickRunFallback';
 import { TestPlanWithResults } from './components/TestPlanWithResults';
+import yaml from 'js-yaml';
 
 interface PageProps {
   params: Promise<{ workshopId: string }>;
@@ -119,6 +120,31 @@ export default function WorkshopBuilderPage({ params }: PageProps) {
     return await publishBlueprint(metadata);
   };
 
+  const handleDownloadYaml = () => {
+    if (!outlineObj) return;
+
+    // Convert to YAML
+    const yamlContent = yaml.dump(outlineObj, {
+      indent: 2,
+      lineWidth: -1,
+      noRefs: true,
+    });
+
+    // Create blob and download
+    const blob = new Blob([yamlContent], { type: 'text/yaml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const filename = outlineObj.title
+      ? `${outlineObj.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.yaml`
+      : 'weval.yaml';
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <>
       <div className="flex flex-col h-screen">
@@ -179,6 +205,14 @@ export default function WorkshopBuilderPage({ params }: PageProps) {
                   </Button>
                   {outlineObj && (
                     <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleDownloadYaml}
+                      >
+                        <Download className="mr-2 h-4 w-4" />
+                        Download YAML
+                      </Button>
                       <Button
                         variant="outline"
                         size="sm"
