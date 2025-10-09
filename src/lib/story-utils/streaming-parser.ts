@@ -29,8 +29,27 @@ export class StreamingParser {
 
   // Finalize and get the complete result
   public finalize(): ParsedStreamResult {
-    // Unlike before, we don't flush the buffer to visibleContent.
-    // Any remaining buffer content is considered unprocessed/malformed.
+    // Check for incomplete USER_RESPONSE tag and extract its content
+    const incompleteUserResponse = this.buffer.match(/<USER_RESPONSE>([\s\S]*)/i);
+    if (incompleteUserResponse && incompleteUserResponse[1]) {
+      console.warn(`[StreamingParser] Stream ended with incomplete USER_RESPONSE tag, extracting content...`);
+      this.result.visibleContent += incompleteUserResponse[1];
+      this.buffer = '';
+    }
+
+    // Check for incomplete SYSTEM_INSTRUCTIONS tag and extract its content
+    const incompleteSystemInstructions = this.buffer.match(/<SYSTEM_INSTRUCTIONS>([\s\S]*)/i);
+    if (incompleteSystemInstructions && incompleteSystemInstructions[1]) {
+      console.warn(`[StreamingParser] Stream ended with incomplete SYSTEM_INSTRUCTIONS tag, attempting to parse...`);
+      try {
+        this.result.systemInstructions = JSON.parse(incompleteSystemInstructions[1]);
+        this.buffer = '';
+      } catch (e) {
+        console.error('[StreamingParser] Failed to parse incomplete system instructions:', incompleteSystemInstructions[1], e);
+      }
+    }
+
+    // Any remaining buffer content is considered unprocessed/malformed
     if (this.buffer.trim()) {
         console.warn(`[StreamingParser] Finalizing with non-empty buffer: "${this.buffer}"`);
     }

@@ -29,7 +29,7 @@ Your primary focus is understanding what the user wants to test. Ask short, poin
 - Any specific constraints, contexts, or edge cases they care about
 
 **OUTPUT FORMAT**
-Respond naturally inside <USER_RESPONSE> tags:
+Respond naturally inside <USER_RESPONSE> tags. You MUST include both the opening <USER_RESPONSE> and closing </USER_RESPONSE> tags:
 <USER_RESPONSE>
 [Your response here - ask clarifying questions, acknowledge their input, show empathy for their frustration with AI systems]
 </USER_RESPONSE>
@@ -58,8 +58,9 @@ A few clarifying questions:
 </USER_RESPONSE>
 
 **CONSTRAINTS**
-- ALWAYS wrap your response in <USER_RESPONSE> tags
+- ALWAYS wrap your response in <USER_RESPONSE> tags with BOTH opening and closing tags
 - NEVER leave <USER_RESPONSE> empty
+- NEVER forget to close the </USER_RESPONSE> tag
 - NEVER include the tags (<SYSTEM_STATUS>, <USER_MESSAGE>, etc.) in your response text
 - Focus on asking questions and understanding intent - do not try to create evaluation plans yet
 `;
