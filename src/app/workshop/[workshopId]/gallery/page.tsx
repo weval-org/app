@@ -93,7 +93,7 @@ export default function WorkshopGalleryPage({ params }: PageProps) {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
+      <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-t-2 border-t-primary sticky top-0 z-10">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-4">
@@ -106,9 +106,15 @@ export default function WorkshopGalleryPage({ params }: PageProps) {
                 Back to Builder
               </Button>
               <div className="h-6 w-px bg-border"></div>
-              <h1 className="text-xl font-semibold">
-                {formatWorkshopId(workshopId)} Gallery
-              </h1>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 dark:bg-primary/20 border border-primary/30 dark:border-primary/40 rounded-full">
+                  <Users className="h-4 w-4 text-primary dark:text-primary" />
+                  <span className="font-mono font-semibold text-primary dark:text-primary">
+                    {formatWorkshopId(workshopId)}
+                  </span>
+                </div>
+                <span className="text-sm text-muted-foreground">Gallery</span>
+              </div>
             </div>
             <Button variant="outline" size="sm" onClick={copyWorkshopLink}>
               <Copy className="mr-2 h-4 w-4" />

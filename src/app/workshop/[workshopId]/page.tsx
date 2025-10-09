@@ -9,9 +9,9 @@ import { Card } from '@/components/ui/card';
 import { useWorkshopOrchestrator } from '@/hooks/useWorkshopOrchestrator';
 import { PublishModal } from './components/PublishModal';
 import { ShareModal } from './components/ShareModal';
+import { WorkshopHeader } from '../components/WorkshopHeader';
 import { ControlSignalHelpers } from '@/lib/story-utils/control-signals';
-import { Bot, User, RefreshCcw, Share2, ExternalLink, Copy, Users, Play, CheckCircle } from 'lucide-react';
-import { formatWorkshopId } from '@/lib/workshop-utils';
+import { Bot, User, RefreshCcw, Share2, ExternalLink, Users, Play, CheckCircle } from 'lucide-react';
 import ResponseRenderer from '@/app/components/ResponseRenderer';
 import { QuickRunFallback } from '@/app/story/components/QuickRunFallback';
 import { TestPlanWithResults } from './components/TestPlanWithResults';
@@ -119,103 +119,22 @@ export default function WorkshopBuilderPage({ params }: PageProps) {
     return await publishBlueprint(metadata);
   };
 
-  const copyWorkshopLink = () => {
-    const url = `${window.location.origin}/workshop/${workshopId}`;
-    navigator.clipboard.writeText(url);
-  };
-
-  const renderToolbar = () => (
-    <div className="flex justify-between items-center p-4 border-b bg-background">
-      <div className="flex items-center gap-4">
-        <h1 className="text-xl font-semibold">
-          <a href="/" className="hover:underline">Weval</a>
-          {' / '}
-          <a href="/workshop" className="hover:underline">Workshop</a>
-        </h1>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Users className="h-4 w-4" />
-          <span className="font-mono">{formatWorkshopId(workshopId)}</span>
-          <Button variant="ghost" size="sm" onClick={copyWorkshopLink}>
-            <Copy className="h-3 w-3" />
-          </Button>
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          asChild
-        >
-          <a href={`/workshop/${workshopId}/gallery`} target="_blank" rel="noopener noreferrer">
-            <Users className="mr-2 h-4 w-4" />
-            Gallery
-          </a>
-        </Button>
-        {outlineObj && (
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={shareBlueprint}
-              disabled={isSharing}
-            >
-              {isSharing ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent mr-2"></div>
-                  Sharing...
-                </>
-              ) : (
-                <>
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Share
-                </>
-              )}
-            </Button>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => setShowPublishModal(true)}
-              disabled={isPublishing}
-            >
-              <Share2 className="mr-2 h-4 w-4" />
-              Publish
-            </Button>
-          </>
-        )}
-        <Button variant="ghost" size="sm" onClick={onReset}>
-          <RefreshCcw className="mr-2 h-4 w-4" />
-          Start Over
-        </Button>
-      </div>
-    </div>
-  );
-
   return (
     <>
       <div className="flex flex-col h-screen">
         {phase === 'intro' ? (
           <div className="flex-1 flex flex-col">
-            <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-              <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground border rounded-md px-2 py-1.5">
-                  <Users className="h-3.5 w-3.5" />
-                  <span className="font-mono">{formatWorkshopId(workshopId)}</span>
-                  <Button variant="ghost" size="sm" className="h-5 w-5 p-0 hover:bg-accent" onClick={copyWorkshopLink}>
-                    <Copy className="h-3 w-3" />
-                  </Button>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  asChild
-                >
+            <WorkshopHeader
+              workshopId={workshopId}
+              rightContent={
+                <Button variant="outline" size="sm" asChild>
                   <a href={`/workshop/${workshopId}/gallery`} target="_blank" rel="noopener noreferrer">
                     <Users className="mr-2 h-4 w-4" />
-                    Gallery
+                    Workshop Gallery
                   </a>
                 </Button>
-              </div>
-            </div>
+              }
+            />
 
             <div className="flex-1 flex flex-col items-center justify-center p-4">
               <div className="w-full max-w-5xl">
@@ -248,7 +167,54 @@ export default function WorkshopBuilderPage({ params }: PageProps) {
           </div>
         ) : (
           <div className="flex flex-col h-full">
-            {renderToolbar()}
+            <WorkshopHeader
+              workshopId={workshopId}
+              rightContent={
+                <>
+                  <Button variant="outline" size="sm" asChild>
+                    <a href={`/workshop/${workshopId}/gallery`} target="_blank" rel="noopener noreferrer">
+                      <Users className="mr-2 h-4 w-4" />
+                      Workshop Gallery
+                    </a>
+                  </Button>
+                  {outlineObj && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={shareBlueprint}
+                        disabled={isSharing}
+                      >
+                        {isSharing ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent mr-2"></div>
+                            Sharing...
+                          </>
+                        ) : (
+                          <>
+                            <ExternalLink className="mr-2 h-4 w-4" />
+                            Share this Weval
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => setShowPublishModal(true)}
+                        disabled={isPublishing}
+                      >
+                        <Share2 className="mr-2 h-4 w-4" />
+                        Publish to Gallery
+                      </Button>
+                    </>
+                  )}
+                  <Button variant="ghost" size="sm" onClick={onReset}>
+                    <RefreshCcw className="mr-2 h-4 w-4" />
+                    Start Over
+                  </Button>
+                </>
+              }
+            />
             <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-4 lg:grid-cols-3 gap-4 p-4">
               <div className="xl:col-span-2 lg:col-span-2 flex flex-col min-h-0">
                 <Card className="p-0 flex-1 flex flex-col min-h-0">

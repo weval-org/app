@@ -3,8 +3,8 @@
 import { use, useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { formatWorkshopId } from '@/lib/workshop-utils';
-import { Users, ExternalLink, AlertCircle, Loader2, XCircle } from 'lucide-react';
+import { WorkshopHeader } from '../../../components/WorkshopHeader';
+import { ExternalLink, AlertCircle, Loader2, XCircle } from 'lucide-react';
 import { WorkshopResultsView } from './WorkshopResultsView';
 
 interface PageProps {
@@ -150,29 +150,17 @@ export default function WevalViewPage({ params }: PageProps) {
     return (
       <div className="flex flex-col min-h-screen">
         {/* Header */}
-        <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="max-w-5xl mx-auto px-4 py-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <h1 className="text-xl font-semibold mb-1">
-                  <a href="/" className="hover:underline">Weval</a>
-                  {' / '}
-                  <a href="/workshop" className="hover:underline">Workshop</a>
-                </h1>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Users className="h-4 w-4" />
-                  <span className="font-mono">{formatWorkshopId(workshopId)}</span>
-                </div>
-              </div>
-              <Button variant="default" size="sm" asChild>
-                <a href={`/workshop/${workshopId}`}>
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Create Your Own
-                </a>
-              </Button>
-            </div>
-          </div>
-        </div>
+        <WorkshopHeader
+          workshopId={workshopId}
+          rightContent={
+            <Button variant="default" size="sm" asChild>
+              <a href={`/workshop/${workshopId}`}>
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Create Your Own
+              </a>
+            </Button>
+          }
+        />
 
         {/* Main Content */}
         <div className="flex-1">

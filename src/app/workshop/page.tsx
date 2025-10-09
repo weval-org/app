@@ -43,8 +43,8 @@ export default function WorkshopEntryPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 flex flex-col">
       {/* Header */}
-      <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center">
+      <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 w-full">
+        <div className="flex h-16 items-center px-4 md:px-8 w-full">
           <a href="/" className="text-xl font-semibold">
             Weval
           </a>
