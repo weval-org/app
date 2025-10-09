@@ -170,7 +170,7 @@ export function WorkshopResultsView({ data, weval }: WorkshopResultsViewProps) {
             {/* Criteria with Scores */}
             <div className="space-y-4 pt-4 border-t">
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                What to Look For:
+                Key Criteria:
               </h3>
 
               <div className="space-y-4">

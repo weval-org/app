@@ -29,17 +29,14 @@ const createWevalSchema = z.object({
 const CORE_MODELS = [
   "openrouter:openai/gpt-4o",
   "openrouter:openai/gpt-4o-mini",
-  "openrouter:openai/gpt-4.1-mini",
-  "openrouter:openai/gpt-4.1-nano",
-  "openrouter:openai/gpt-4.1",
+  "openrouter:google/gemma-3-12b-it",
   "openrouter:anthropic/claude-3.5-haiku",
-  "anthropic:claude-3-7-sonnet-20250219",
-  "anthropic:claude-3-5-sonnet-20241022",
-  "openrouter:anthropic/claude-sonnet-4",
+  "openrouter:qwen3-30b-a3b-instruct-2507",
+  "openrouter:anthropic/claude-sonnet-4.5",
   "openrouter:mistralai/mistral-medium-3",
-  "openrouter:mistralai/mistral-large-2411",
-  "openrouter:mistralai/mistral-nemo",
+  "openrouter:meta-llama/llama-3-70b-instruct",
   "openrouter:google/gemini-2.5-flash",
+  "openrouter:deepseek/deepseek-chat-v3.1"
 ];
 
 // Generate random weval ID

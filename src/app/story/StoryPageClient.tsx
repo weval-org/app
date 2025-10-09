@@ -472,7 +472,7 @@ export default function StoryPageClient() {
                             <p className="font-medium text-sm text-foreground/90">{p.promptText}</p>
                             {Array.isArray(p.points) && p.points.length > 0 && (
                               <div className="mt-3">
-                                <h4 className="text-xs font-semibold text-muted-foreground mb-2">What to Look For:</h4>
+                                <h4 className="text-xs font-semibold text-muted-foreground mb-2">Key Criteria:</h4>
                                 <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
                                   {(Array.isArray(p.points[0]) ? p.points[0] : p.points).slice(0, 5).map((pt: any, idx: number) => (
                                     <li key={idx}>{typeof pt === 'string' ? pt : (pt?.text || String(pt))}</li>
