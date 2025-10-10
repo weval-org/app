@@ -112,6 +112,9 @@ const MODEL_NAME_NORMALIZATIONS: Record<string, string> = {
   'claude-opus-4-20250514': 'claude-opus-4',
   // 'claude-opus-4.1': 'claude-opus-4',
   'claude-3-opus-20240229': 'claude-3-opus',
+  // "gpt-4o-2024-11-20": "gpt-4o",
+  // "gpt-4o-2024-08-06": "gpt-4o",
+  // "gpt-4o-2024-05-13": "gpt-4o",
   
   
   // Gemini models - normalize preview/dated versions to their base versions

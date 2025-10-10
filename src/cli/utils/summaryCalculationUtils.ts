@@ -918,55 +918,64 @@ export function calculateCapabilityLeaderboards(
   const modelConfigs: Record<string, Record<string, number>> = {};
   const qualifyingModels: string[] = [];
 
-  // Extract qualifying models from leaderboards
-  const allQualifyingModels = new Set<string>();
-  leaderboards.forEach((bucket) => {
-    bucket.leaderboard.forEach((model: CapabilityScoreInfo) => {
-      allQualifyingModels.add(model.modelId);
+  // Collect ALL models that have any data (dimensions, topics, or configs)
+  // This ensures capability-tuning page can recalculate scores for all models
+  const allModelsWithData = new Set<string>();
+  modelDimensionGrades.forEach((_, rawModelId) => {
+    allModelsWithData.add(parseModelIdForDisplay(rawModelId).baseId);
+  });
+  topicModelScores.forEach((models) => {
+    models.forEach((_, rawModelId) => {
+      allModelsWithData.add(parseModelIdForDisplay(rawModelId).baseId);
     });
   });
-  qualifyingModels.push(...Array.from(allQualifyingModels));
+  configModelScores.forEach((models) => {
+    models.forEach((_, rawModelId) => {
+      allModelsWithData.add(parseModelIdForDisplay(rawModelId).baseId);
+    });
+  });
+  qualifyingModels.push(...Array.from(allModelsWithData));
 
-  // Extract raw dimension scores for qualifying models
+  // Extract raw dimension scores for ALL models with data (not just qualifying)
+  // This ensures capability-tuning page has access to same data as pre-computed leaderboards
   modelDimensionGrades.forEach((dimensions, rawModelId) => {
     const modelId = parseModelIdForDisplay(rawModelId).baseId;
-    if (qualifyingModels.includes(modelId)) {
-      if (!modelDimensions[modelId]) {
-        modelDimensions[modelId] = {};
-      }
-      dimensions.forEach((data, dimensionKey) => {
-        const avgDimensionScore = data.totalScore / data.count;
-        const normalizedScore = (avgDimensionScore - 1) / 9; // Normalize 1-10 to 0-1
-        modelDimensions[modelId][dimensionKey] = normalizedScore;
-      });
+    // Include ALL models, not just qualifying ones
+    if (!modelDimensions[modelId]) {
+      modelDimensions[modelId] = {};
     }
+    dimensions.forEach((data, dimensionKey) => {
+      const avgDimensionScore = data.totalScore / data.count;
+      const normalizedScore = (avgDimensionScore - 1) / 9; // Normalize 1-10 to 0-1
+      modelDimensions[modelId][dimensionKey] = normalizedScore;
+    });
   });
 
-  // Extract raw topic scores for qualifying models
+  // Extract raw topic scores for ALL models with data (not just qualifying)
+  // This ensures capability-tuning page has access to same data as pre-computed leaderboards
   topicModelScores.forEach((models, topicKey) => {
     const normalizedTopicKey = normalizeTopicKey(topicKey);
     models.forEach((data, rawModelId) => {
       const modelId = parseModelIdForDisplay(rawModelId).baseId;
-      if (qualifyingModels.includes(modelId)) {
-        if (!modelTopics[modelId]) {
-          modelTopics[modelId] = {};
-        }
-        const avgTopicScore = data.scores.reduce((sum, s) => sum + s.score, 0) / data.scores.length;
-        modelTopics[modelId][normalizedTopicKey] = avgTopicScore;
+      // Include ALL models, not just qualifying ones
+      if (!modelTopics[modelId]) {
+        modelTopics[modelId] = {};
       }
+      const avgTopicScore = data.scores.reduce((sum, s) => sum + s.score, 0) / data.scores.length;
+      modelTopics[modelId][normalizedTopicKey] = avgTopicScore;
     });
   });
 
-  // Extract raw config scores for qualifying models (only for configs used in capabilities)
+  // Extract raw config scores for ALL models with data (not just qualifying)
+  // This ensures capability-tuning page has access to same data as pre-computed leaderboards
   configModelScores.forEach((models, configId) => {
     models.forEach((score, rawModelId) => {
       const modelId = parseModelIdForDisplay(rawModelId).baseId;
-      if (qualifyingModels.includes(modelId)) {
-        if (!modelConfigs[modelId]) {
-          modelConfigs[modelId] = {};
-        }
-        modelConfigs[modelId][configId] = score;
+      // Include ALL models, not just qualifying ones
+      if (!modelConfigs[modelId]) {
+        modelConfigs[modelId] = {};
       }
+      modelConfigs[modelId][configId] = score;
     });
   });
 

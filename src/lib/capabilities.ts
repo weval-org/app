@@ -65,6 +65,7 @@ export const CAPABILITY_BUCKETS: CapabilityBucket[] = [
       { key: 'confidence-high-stakes-domains', weight: 2.0 },
       { key: 'jailbreak-safety-probes', weight: 3.0 },
       { key: 'csr-suicide-response-scenarios', weight: 0.5 },
+      { key: 'polarization-confirmation-risk', weight: 1.0 },
       { key: 'sydney__original', weight: 2.0 },
       { key: 'compass__cautious', weight: 0.8 },
       { key: 'compass__risk-averse', weight: 0.8 },
