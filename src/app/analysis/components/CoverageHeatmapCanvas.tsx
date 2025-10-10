@@ -129,6 +129,67 @@ const CoverageHeatmapCanvas: React.FC<CoverageHeatmapCanvasProps> = ({
         return [...promptIds].sort((a, b) => a.localeCompare(b));
     }, [promptIds]);
 
+    /**
+     * Filters assessments to show only the winning alternative path (highest scoring)
+     * plus all required points (those without a pathId).
+     * This ensures visual representation matches the semantic OR logic used in scoring.
+     */
+    const filterToWinningPath = useCallback((assessments: PointAssessment[]): PointAssessment[] => {
+        if (assessments.length === 0) return [];
+
+        // Separate required points from path-based points
+        const requiredPoints: PointAssessment[] = [];
+        const pathGroups: { [pathId: string]: PointAssessment[] } = {};
+
+        for (const assessment of assessments) {
+            const pathId = assessment.pathId;
+            if (!pathId || pathId.trim() === '') {
+                // Required point (no pathId)
+                requiredPoints.push(assessment);
+            } else {
+                // Path-based point
+                if (!pathGroups[pathId]) {
+                    pathGroups[pathId] = [];
+                }
+                pathGroups[pathId].push(assessment);
+            }
+        }
+
+        // If no alternative paths exist, return all assessments
+        if (Object.keys(pathGroups).length === 0) {
+            return assessments;
+        }
+
+        // Calculate average score for each path to find the winner
+        let bestPathId: string | null = null;
+        let bestPathScore = -1;
+
+        for (const pathId in pathGroups) {
+            const pathAssessments = pathGroups[pathId];
+            let totalWeightedScore = 0;
+            let totalMultiplier = 0;
+
+            for (const assessment of pathAssessments) {
+                if (assessment.coverageExtent !== undefined && !isNaN(assessment.coverageExtent)) {
+                    const multiplier = assessment.multiplier ?? 1;
+                    totalWeightedScore += assessment.coverageExtent * multiplier;
+                    totalMultiplier += multiplier;
+                }
+            }
+
+            const pathScore = totalMultiplier > 0 ? totalWeightedScore / totalMultiplier : 0;
+
+            if (pathScore > bestPathScore) {
+                bestPathScore = pathScore;
+                bestPathId = pathId;
+            }
+        }
+
+        // Return required points + winning path points only
+        const winningPathAssessments = bestPathId ? pathGroups[bestPathId] : [];
+        return [...requiredPoints, ...winningPathAssessments];
+    }, []);
+
     useEffect(() => {
         if (!canvasRef.current || !allCoverageScores || sortedModels.length === 0 || sortedPromptIds.length === 0) {
             return;
@@ -156,7 +217,9 @@ const CoverageHeatmapCanvas: React.FC<CoverageHeatmapCanvasProps> = ({
                 sortedModels.forEach(modelId => {
                     const result = allCoverageScores[promptId]?.[modelId];
                     if (result && !('error' in result) && result.pointAssessments) {
-                        allAssessmentsForPrompt.push(...result.pointAssessments);
+                        // Filter each model's assessments to winning path only
+                        const filtered = filterToWinningPath(result.pointAssessments);
+                        allAssessmentsForPrompt.push(...filtered);
                     }
                 });
 
@@ -223,15 +286,16 @@ const CoverageHeatmapCanvas: React.FC<CoverageHeatmapCanvasProps> = ({
                     const cellYPos = y * cellHeight;
 
                     if (result && !('error' in result) && result.pointAssessments && result.pointAssessments.length > 0) {
-                        const assessments = result.pointAssessments;
-                        
+                        // Filter to winning path only for accurate visual representation
+                        const assessments = filterToWinningPath(result.pointAssessments);
+
                         const totalMultiplier = assessments.reduce((sum, assessment) => sum + (assessment.multiplier ?? 1), 0);
                         let currentXOffset = 0;
 
                         for (let k = 0; k < assessments.length; k++) {
                             const assessment = assessments[k];
                             const score = (assessment.coverageExtent !== undefined && !isNaN(assessment.coverageExtent)) ? assessment.coverageExtent : null;
-                            
+
                             const pointMultiplier = assessment.multiplier ?? 1;
                             const segmentWidth = totalMultiplier > 0 ? (pointMultiplier / totalMultiplier) * cellWidth : cellWidth / assessments.length;
 
@@ -252,7 +316,7 @@ const CoverageHeatmapCanvas: React.FC<CoverageHeatmapCanvasProps> = ({
             }
         }
 
-    }, [allCoverageScores, sortedPromptIds, sortedModels, width, height, getCoverageColor, viewMode]);
+    }, [allCoverageScores, sortedPromptIds, sortedModels, width, height, getCoverageColor, viewMode, filterToWinningPath]);
 
     const averageOverallScoreText = useMemo(() => {
         if (!allCoverageScores) return 'N/A';
