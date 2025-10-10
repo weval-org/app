@@ -45,6 +45,7 @@ import { litRoundCommand } from './commands/lit-round';
 import { backfillArticleCommand } from './commands/backfill-article';
 import { generatePainPointsCommand } from './commands/generate-pain-points';
 import { annotatePainPointsCommand } from './commands/annotate-pain-points';
+import { generateRegressionsCommand } from './commands/generate-regressions';
 
 let isTerminating = false
 const cleanup = () => {
@@ -128,6 +129,7 @@ cli.addCommand(prepMacroCommand);
 cli.addCommand(litRoundCommand);
 cli.addCommand(generatePainPointsCommand);
 cli.addCommand(annotatePainPointsCommand);
+cli.addCommand(generateRegressionsCommand);
 
 cli.parseAsync(process.argv).catch(err => {
   console.error('CLI Error:', err); 

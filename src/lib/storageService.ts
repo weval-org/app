@@ -1674,6 +1674,98 @@ export async function saveLatestRunsSummary(summaryData: LatestRunsSummaryFileCo
     }
 }
 
+/**
+ * Save regressions summary data to storage
+ */
+export async function saveRegressionsSummary(summaryData: any): Promise<void> {
+  const fileName = 'regressions-summary.json';
+  const s3Key = path.join(LIVE_DIR, 'aggregates', fileName);
+  const localPath = path.join(RESULTS_DIR, s3Key);
+
+  const fileContent = JSON.stringify(summaryData, null, 2);
+  const fileSizeInKB = (Buffer.byteLength(fileContent, 'utf8') / 1024).toFixed(2);
+
+  if (storageProvider === 's3' && s3Client && s3BucketName) {
+    try {
+      const command = new PutObjectCommand({
+        Bucket: s3BucketName,
+        Key: s3Key,
+        Body: fileContent,
+        ContentType: 'application/json',
+      });
+      await s3Client.send(command);
+      console.log(`[StorageService] Regressions summary saved to S3: ${s3Key} (${fileSizeInKB} KB)`);
+    } catch (error) {
+      console.error(`[StorageService] Error saving regressions summary to S3: ${s3Key}`, error);
+      throw error;
+    }
+  } else if (storageProvider === 'local') {
+    try {
+      await fs.mkdir(path.dirname(localPath), { recursive: true });
+      await fs.writeFile(localPath, fileContent, 'utf-8');
+      console.log(`[StorageService] Regressions summary saved to local disk: ${localPath} (${fileSizeInKB} KB)`);
+    } catch (error) {
+      console.error(`[StorageService] Error saving regressions summary to local disk: ${localPath}`, error);
+      throw error;
+    }
+  } else {
+    console.warn(`[StorageService] No valid storage provider configured for saveRegressionsSummary. Data not saved.`);
+  }
+}
+
+/**
+ * Get regressions summary data from storage
+ */
+export async function getRegressionsSummary(): Promise<any | null> {
+  const fileName = 'regressions-summary.json';
+  const s3Key = path.join(LIVE_DIR, 'aggregates', fileName);
+  const localPath = path.join(RESULTS_DIR, s3Key);
+  let fileContent: string | null = null;
+
+  if (storageProvider === 's3' && s3Client && s3BucketName) {
+    try {
+      const command = new GetObjectCommand({ Bucket: s3BucketName, Key: s3Key });
+      const { Body } = await s3Client.send(command);
+      if (Body) {
+        fileContent = await streamToString(Body as Readable);
+      }
+    } catch (error: any) {
+      if (error.name === 'NoSuchKey') {
+        console.log(`[StorageService] Regressions summary file not found in S3: ${s3Key}`);
+        return null;
+      }
+      console.error(`[StorageService] Error fetching regressions summary from S3: ${s3Key}`, error);
+      return null;
+    }
+  } else if (storageProvider === 'local') {
+    try {
+      if (fsSync.existsSync(localPath)) {
+        fileContent = await fs.readFile(localPath, 'utf-8');
+      } else {
+        console.log(`[StorageService] Regressions summary file not found locally: ${localPath}`);
+        return null;
+      }
+    } catch (error) {
+      console.error(`[StorageService] Error reading regressions summary locally: ${localPath}`, error);
+      return null;
+    }
+  } else {
+    console.warn(`[StorageService] No valid storage provider configured for getRegressionsSummary.`);
+    return null;
+  }
+
+  if (!fileContent) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(fileContent);
+  } catch (error) {
+    console.error(`[StorageService] Error parsing regressions summary JSON:`, error);
+    return null;
+  }
+}
+
 export async function saveModelSummary(modelId: string, summaryData: ModelSummary): Promise<void> {
   const safeModelId = getSafeModelId(modelId);
   const fileName = `${safeModelId}.json`;

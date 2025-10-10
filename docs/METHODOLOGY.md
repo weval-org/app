@@ -127,6 +127,35 @@ The Hybrid Score is a composite metric designed to provide a single, balanced me
 
 *   **(Legacy) Geometric Mean**: Previously, the platform used a geometric mean ($\sqrt{S_{\text{sim}} \cdot S_{\text{cov}}}$). While statistically sound for averaging normalized ratios, it was replaced because the weighted arithmetic mean makes the platform's priorities more explicit and easier for users to understand.
 
+### 5.1a. Prompt-Level Weighting
+
+When calculating a model's overall performance across multiple prompts in a blueprint, the platform supports **prompt-level weighting** to reflect that some test cases may be more important than others.
+
+*   **Configuration**: Blueprints can specify a `weight` field on individual prompts (default: 1.0):
+    ```yaml
+    prompts:
+      - id: "critical-safety-test"
+        promptText: "..."
+        weight: 2.0  # This prompt counts 2x in aggregation
+      - id: "basic-formatting-test"
+        promptText: "..."
+        weight: 0.5  # This prompt counts 0.5x in aggregation
+    ```
+
+*   **Aggregation Formula**: When calculating a model's average hybrid score across prompts, the weighted average is used:
+    ```math
+    \bar{S}_{\text{model}} = \frac{\sum_{p=1}^{P} (S_{p} \times w_{p})}{\sum_{p=1}^{P} w_{p}}
+    ```
+    Where $S_{p}$ is the hybrid score for prompt $p$ and $w_{p}$ is its weight.
+
+*   **Logging**: The system logs when prompt weights are detected, showing which prompts have non-default weights and the total count of weighted prompts in the run.
+
+*   **Use Cases**: This feature is valuable for:
+    - Prioritizing safety-critical test cases
+    - Emphasizing core functionality over edge cases
+    - Balancing evaluation sets with varying difficulty levels
+    - Reflecting real-world usage patterns where certain tasks are more common
+
 ### 5.2. Model Performance Drift Detection
 
 This is a statistical check to flag potential changes in a model's performance over time on an identical test.
@@ -179,7 +208,7 @@ Traditional leaderboards can overwhelm users with dozens of individual metrics a
 
 #### 5.5.2. Data Sources and Methodology
 
-Each capability bucket combines two distinct data sources using weighted averaging:
+Each capability bucket combines three distinct data sources using weighted averaging:
 
 **Source 1: Dimension Scores (from Executive Summaries)**
 * Derived from structured `grades` in evaluation `executiveSummary` fields
@@ -189,9 +218,15 @@ Each capability bucket combines two distinct data sources using weighted averagi
 
 **Source 2: Topic Scores (from Hybrid Scores)**
 * Derived from topic-specific hybrid scores across evaluation blueprints
-* Uses the standard hybrid score formula: `0.35 × similarity + 0.65 × coverage`
+* Uses the current hybrid score weighting: `0% × similarity + 100% × coverage` (coverage-only by default, see Section 5.1)
 * Topics are matched to capability buckets using normalized topic names (kebab-case → Title Case)
 * Each topic can contribute to multiple capability buckets with different weights
+
+**Source 3: Config Scores (from Blueprint-Specific Performance)**
+* Derived from hybrid scores on explicitly listed evaluation blueprints
+* Certain capability buckets define specific blueprints that directly measure that capability
+* Models are scored on their performance in these targeted evaluations
+* Config scores use the same hybrid score formula as topics (currently coverage-only)
 
 #### 5.5.2a. Tag Collection and Auto-Tags
 
@@ -207,41 +242,58 @@ These two lists are merged, run through `normalizeTag()` (case-folding, kebab-ca
 For each model in each capability bucket, the final score is calculated as:
 
 ```math
-S_{\text{capability}} = \frac{\sum_{i} (D_i \times w_{d,i}) + \sum_{j} (T_j \times w_{t,j})}{\sum_{i} w_{d,i} + \sum_{j} w_{t,j}}
+S_{\text{capability}} = \frac{\sum_{i} (D_i \times w_{d,i}) + \sum_{j} (T_j \times w_{t,j}) + \sum_{k} (C_k \times w_{c,k})}{\sum_{i} w_{d,i} + \sum_{j} w_{t,j} + \sum_{k} w_{c,k}}
 ```
 
 Where:
 * $D_i$ = normalized dimension score for dimension $i$
-* $T_j$ = topic hybrid score for topic $j$  
+* $T_j$ = topic hybrid score for topic $j$
+* $C_k$ = config (blueprint-specific) hybrid score for config $k$
 * $w_{d,i}$ = weight assigned to dimension $i$ in this capability bucket
 * $w_{t,j}$ = weight assigned to topic $j$ in this capability bucket
+* $w_{c,k}$ = weight assigned to config $k$ in this capability bucket
 
 **Example Weighting Scheme:**
 ```yaml
 Helpfulness & Reasoning:
   dimensions:
     - helpfulness: 1.0x weight
-    - adherence: 1.0x weight  
+    - adherence: 1.0x weight
     - depth: 0.75x weight
   topics:
     - "Instruction Following & Prompt Adherence": 1.0x weight
     - "Reasoning": 1.0x weight
     - "Coding": 0.75x weight
+  configs:
+    - "legal-reasoning-benchmark": 1.0x weight
+    - "math-word-problems": 0.75x weight
 ```
 
-#### 5.5.4. Quality Assurance Mechanisms
+#### 5.5.4. Deduplication and Priority Rules
+
+When an evaluation run could contribute to a capability bucket through multiple pathways (e.g., both a topic tag and an explicit config listing), the system applies deduplication rules to prevent double-counting:
+
+**Priority Hierarchy:**
+1. **Config pathway takes precedence over topic pathway** - If a run is listed as both an explicit config for a capability and matches a topic tag, only the config score (with its configured weight) is counted
+2. **Among topics, maximum weight wins** - If a run matches multiple topic tags for the same capability, only the topic with the highest weight is counted
+3. **No deduplication across different configs** - The same run appearing in multiple configs contributes separately to each
+
+**Rationale**: This ensures that deliberately targeted capability evaluations (explicit configs) are preferred over incidental topical matches, while preventing artificial score inflation from the same run being counted multiple times through different tags.
+
+#### 5.5.5. Quality Assurance Mechanisms
 
 **Minimum Participation Thresholds:**
-To prevent artificially inflated scores from limited data, models must meet both criteria to appear in capability leaderboards:
-* **≥10 total contributing runs** across all topics/dimensions for this capability
-* **≥5 unique evaluation configs** (estimated from run distribution)
+To prevent artificially inflated scores from limited data, models must meet **global** criteria to appear in capability leaderboards:
+* **≥10 total runs** across the entire platform (not capability-specific)
+* **≥5 unique evaluation configs** across the entire platform
+* **Config presence requirement**: For capabilities with explicit config lists, models must appear in ≥50% of those configs
 
 **Data Validation:**
 * Topic names are normalized using `normalizeTopicKey()` to handle kebab-case → Title Case conversion
 * Models with insufficient data are excluded with detailed logging: `"✗ model-name: score% → Excluded: needs ≥X runs (has Y)"`
-* Only successful dimension/topic matches contribute to the weighted average
+* Only successful dimension/topic/config matches contribute to the weighted average
 
-#### 5.5.5. Interpretation Guidelines and Limitations
+#### 5.5.6. Interpretation Guidelines and Limitations
 
 **Strengths:**
 * **Intuitive Categories**: Broad buckets are more accessible than dozens of individual metrics
@@ -262,7 +314,7 @@ To prevent artificially inflated scores from limited data, models must meet both
 * **Consider domain-specific needs** - a model's capability ranking may not reflect its suitability for your specific use case
 * **Interpret scores relative to peer models**, not as absolute measures of capability
 
-#### 5.5.6. Technical Implementation Notes
+#### 5.5.7. Technical Implementation Notes
 
 The capability leaderboards are calculated in `calculateCapabilityLeaderboards()` within the summary calculation pipeline. Key implementation details:
 
@@ -272,7 +324,7 @@ The capability leaderboards are calculated in `calculateCapabilityLeaderboards()
 *   **Storage**: Saved in `homepage-summary.json` as `capabilityLeaderboards` array
 *   **Display Thresholds**: UI applies same ≥10 runs, ≥5 configs filter as calculation logic
 
-This multi-stage derivation process—from raw LLM outputs → dimension grades → topic scores → weighted capability aggregates—represents multiple layers of interpretation and should be understood as a **commentary on model performance patterns** rather than ground truth about model capabilities.
+This multi-stage derivation process—from raw LLM outputs → dimension grades → topic scores → config scores → weighted capability aggregates—represents multiple layers of interpretation and should be understood as a **commentary on model performance patterns** rather than ground truth about model capabilities.
 
 ### 5.6. Dimension Champions
 
@@ -334,7 +386,7 @@ Weval's methodology is designed to be robust, but like any quantitative system, 
 
 The validity of Weval's metrics rests on these core assumptions:
 
-*   **Assumption of Appropriate Weighting in Hybrid Score**: The Hybrid Score's weighted average (35% similarity, 65% coverage) assumes that this is a reasonable and balanced reflection of importance for most general use cases. While this explicit weighting is more transparent than an unweighted mean, the specific ratio may not be optimal for every evaluation's unique goals.
+*   **Assumption of Appropriate Weighting in Hybrid Score**: The Hybrid Score currently uses 0% similarity and 100% coverage (coverage-only). This assumes that rubric adherence is the dominant signal of model quality and that semantic similarity to an ideal response (when available) adds no additional information. While this explicit choice is more transparent than an implicit weighting, it may not be optimal for all evaluation contexts, and future versions may offer configurable weights.
 *   **Assumption of Linearity in Score Mapping**: The 5-point categorical scale from the LLM judge is mapped to a linear, equidistant numerical scale. This assumes the qualitative gap between "Absent" and "Slightly Present" is the same as between "Majorly Present" and "Fully Present," which may not be perceptually true.
 *   **Assumption of Criterion Independence**: The rubric score (`avgCoverageExtent`) is a weighted average that treats each criterion as an independent variable. It does not account for potential correlations between criteria (e.g., "clarity" and "conciseness").
 *   **Assumption of Effective Bias Reduction via Anonymization**: The model anonymization system assumes that removing real model names and providers significantly reduces analyst LLM bias, while preserving maker-level information provides meaningful comparative insights. This assumes that brand bias is primarily driven by explicit name recognition rather than subtle patterns in response style that might persist even when anonymized.

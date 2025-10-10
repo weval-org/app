@@ -20,6 +20,7 @@
     "cli": "tsx --no-cache -r dotenv/config src/cli/index.ts",
     "cli:generate-pain-points": "pnpm cli generate-pain-points",
     "cli:annotate-pain-points": "pnpm cli annotate-pain-points",
+    "cli:generate-regressions": "pnpm cli generate-regressions",
     "prep-macro": "pnpm cli prep-macro",
     "cli:backfill-summary": "pnpm cli backfill-summary",
     "cli:repair-run": "pnpm cli repair-run",
