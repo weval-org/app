@@ -193,6 +193,12 @@ export async function populatePairwiseQueue(
                 const responseA = promptResponses[modelA];
                 const responseB = promptResponses[modelB];
 
+                // Skip if responses are identical - no point comparing
+                if (responseA === responseB) {
+                    logger.info(`[PairwiseQueueService] Skipping task for prompt '${promptId}': ${modelA} and ${modelB} produced identical responses`);
+                    continue;
+                }
+
                 const canonicalKey = [promptId, modelA, responseA, modelB, responseB].sort().join('|');
                 const taskId = sha256(canonicalKey);
 

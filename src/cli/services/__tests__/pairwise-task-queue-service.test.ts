@@ -598,6 +598,112 @@ describe('populatePairwiseQueue', () => {
     });
   });
 
+  it('should skip pairs with identical responses', async () => {
+    const resultData: ComparisonDataV2 = {
+      configId: 'test-config',
+      promptIds: ['prompt-1'],
+      promptContexts: { 'prompt-1': 'Test' },
+      allFinalAssistantResponses: {
+        'prompt-1': {
+          [OFFICIAL_ANCHOR_MODEL]: 'Identical response',
+          'openrouter:anthropic/claude-3.5-sonnet': 'Identical response', // Same as anchor
+        },
+      },
+      modelSystemPrompts: {},
+      config: {} as any,
+    };
+
+    mockStore.get.mockResolvedValue([]);
+
+    const result = await populatePairwiseQueue(resultData, { logger: mockLogger });
+
+    // No tasks should be created since responses are identical
+    expect(result.tasksAdded).toBe(0);
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      expect.stringContaining('produced identical responses')
+    );
+
+    // Verify no tasks were saved
+    const taskCalls = mockStore.setJSON.mock.calls.filter((call: any) => !call[0].startsWith('_index'));
+    expect(taskCalls).toHaveLength(0);
+  });
+
+  it('should skip only pairs with identical responses, create others', async () => {
+    const resultData: ComparisonDataV2 = {
+      configId: 'test-config',
+      promptIds: ['prompt-1'],
+      promptContexts: { 'prompt-1': 'Test' },
+      allFinalAssistantResponses: {
+        'prompt-1': {
+          [OFFICIAL_ANCHOR_MODEL]: 'Anchor response',
+          'openrouter:anthropic/claude-3.5-sonnet': 'Anchor response', // Identical
+          'openrouter:meta/llama-3.2-70b': 'Different response', // Different
+          'openrouter:google/gemini-pro': 'Anchor response', // Identical again
+        },
+      },
+      modelSystemPrompts: {},
+      config: {} as any,
+    };
+
+    mockStore.get.mockResolvedValue([]);
+
+    const result = await populatePairwiseQueue(resultData, { logger: mockLogger });
+
+    // Only 1 task should be created (anchor vs llama, which has different response)
+    expect(result.tasksAdded).toBe(1);
+
+    // Verify we logged skipping 2 identical pairs
+    const skipLogs = (mockLogger.info as jest.Mock).mock.calls.filter(
+      (call: any) => call[0]?.includes('produced identical responses')
+    );
+    expect(skipLogs).toHaveLength(2); // Claude and Gemini both have identical responses
+
+    // Verify the task was created with different responses
+    const taskCalls = mockStore.setJSON.mock.calls.filter((call: any) => !call[0].startsWith('_index'));
+    expect(taskCalls).toHaveLength(1);
+    const task: PairwiseTask = taskCalls[0][1];
+    expect(task.responseA).toBe('Anchor response');
+    expect(task.responseB).toBe('Different response');
+    expect(task.modelIdB).toBe('openrouter:meta/llama-3.2-70b');
+  });
+
+  it('should handle all models producing identical responses', async () => {
+    const resultData: ComparisonDataV2 = {
+      configId: 'test-config',
+      promptIds: ['prompt-1', 'prompt-2'],
+      promptContexts: {
+        'prompt-1': 'Test 1',
+        'prompt-2': 'Test 2',
+      },
+      allFinalAssistantResponses: {
+        'prompt-1': {
+          [OFFICIAL_ANCHOR_MODEL]: 'Same response',
+          'openrouter:anthropic/claude-3.5-sonnet': 'Same response',
+          'openrouter:meta/llama-3.2-70b': 'Same response',
+        },
+        'prompt-2': {
+          [OFFICIAL_ANCHOR_MODEL]: 'Another same response',
+          'openrouter:anthropic/claude-3.5-sonnet': 'Another same response',
+        },
+      },
+      modelSystemPrompts: {},
+      config: {} as any,
+    };
+
+    mockStore.get.mockResolvedValue([]);
+
+    const result = await populatePairwiseQueue(resultData, { logger: mockLogger });
+
+    // No tasks created - all responses are identical
+    expect(result.tasksAdded).toBe(0);
+
+    // Verify we logged skipping multiple pairs
+    const skipLogs = (mockLogger.info as jest.Mock).mock.calls.filter(
+      (call: any) => call[0]?.includes('produced identical responses')
+    );
+    expect(skipLogs.length).toBeGreaterThan(0);
+  });
+
   it('should log progress when saving many tasks', async () => {
     // Create 150 prompts to trigger progress logging (every 100 tasks)
     const promptIds = Array.from({ length: 150 }, (_, i) => `prompt-${i}`);

@@ -1,17 +1,9 @@
 import { Metadata } from 'next';
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ configId: string }>;
-}): Promise<Metadata> {
-  const { configId } = await params;
-
-  return {
-    title: `${configId} Pairs | Weval`,
-    description: `Compare AI model responses for the ${configId} configuration`,
-  };
-}
+export const metadata: Metadata = {
+  title: 'AI Comparison Pairs | Weval',
+  description: 'Help evaluate AI by comparing model responses side by side',
+};
 
 export default function ConfigPairsLayout({
   children,
