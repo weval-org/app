@@ -92,6 +92,8 @@ export interface PairwiseTask {
   };
   responseA: string;
   responseB: string;
+  modelIdA: string;
+  modelIdB: string;
   configId: string;
 }
 
@@ -141,6 +143,8 @@ export async function populatePairwiseQueue(
                     prompt: { system: systemPrompt, messages },
                     responseA,
                     responseB,
+                    modelIdA: modelA,
+                    modelIdB: modelB,
                     configId: resultData.configId,
                 });
             }

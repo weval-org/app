@@ -90,6 +90,13 @@ import {
   Shield,
   Compass,
   Globe,
+  AlignLeft,
+  GitBranch,
+  Minimize2,
+  Maximize2,
+  Cpu,
+  Undo,
+  Keyboard,
   type LucideProps
 } from 'lucide-react';
 
@@ -186,7 +193,14 @@ const iconMap = {
   'puzzle': Puzzle,
   'shield': Shield,
   'compass': Compass,
-  'globe': Globe
+  'globe': Globe,
+  'align-left': AlignLeft,
+  'git-branch': GitBranch,
+  'minimize-2': Minimize2,
+  'maximize-2': Maximize2,
+  'cpu': Cpu,
+  'undo': Undo,
+  'keyboard': Keyboard
 };
 
 export type IconName = keyof typeof iconMap;

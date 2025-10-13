@@ -85,7 +85,24 @@ graph TD;
         -   **If anchor is NOT present**: It logs a warning and **skips generating pairs for that prompt**. This "strict mode" enforces data consistency and prevents low-quality comparisons from entering the queue.
     5.  For each valid pair, it computes the canonical `taskId`.
     6.  It reads the `_index` file to build a `Set` of existing task IDs for efficient de-duplication.
-    7.  For any new task, it saves the `PairwiseTask` object to the store and appends the new `taskId` to the index.
+    7.  For any new task, it saves the `PairwiseTask` object (including `modelIdA` and `modelIdB` fields) to the store and appends the new `taskId` to the index.
+
+#### PairwiseTask Data Structure
+
+```typescript
+interface PairwiseTask {
+  taskId: string;
+  prompt: {
+    system: string | null;
+    messages: ConversationMessage[];
+  };
+  responseA: string;
+  responseB: string;
+  modelIdA: string;  // Added for model reveal feature
+  modelIdB: string;  // Added for model reveal feature
+  configId: string;
+}
+```
 
 ### API Endpoints (Backend)
 
@@ -96,7 +113,7 @@ graph TD;
     4.  It returns the task to the client.
 
 -   **`POST /api/pairs/submit-preference`** (`src/app/api/pairs/submit-preference/route.ts`): This endpoint handles user submissions.
-    1.  It receives the `taskId`, the user's `preference` (`A`, `B`, or `Indifferent`), and an optional `reason`.
+    1.  It receives the `taskId`, the user's `preference` (`A`, `B`, `Indifferent`, or `Unknown`), and an optional `reason`.
     2.  It uses the `taskId` as the key to read the corresponding record from the `pairwise-preferences-v2` store.
     3.  It appends the new preference record to the array of existing records (or creates a new array if none exist).
     4.  It saves the updated array back to the store.
@@ -105,12 +122,75 @@ graph TD;
 
 -   **Location**: `src/app/pairs/page.tsx`
 -   **Component**: The page uses a client-side component, `PairwiseComparisonForm`, to manage the interactive state.
--   **Logic**:
-    1.  On page load, it calls the `GET /api/pairs/get-task` endpoint to fetch a comparison.
-    2.  It displays the prompt and the two responses, along with radio buttons for selection and a textarea for the reasoning.
-    3.  It handles loading and error states gracefully.
-    4.  When the user submits the form, it sends the `taskId` and their selections to the `POST /api/pairs/submit-preference` endpoint.
-    5.  On successful submission, it automatically fetches the next task.
+
+#### User Interface Flow
+
+The UI implements a clear three-phase interaction pattern:
+
+**1. Selection Phase**
+-   User reads the prompt (with collapsible system prompt if present)
+-   User reads both Response A and Response B
+-   Responses are **randomly positioned** (left/right) to eliminate position bias
+-   Long responses (>1000 chars) are shown in scrollable areas with expand/collapse functionality
+-   User clicks "Select A" or "Select B" button
+-   **Visual Feedback**:
+    -   Selected button changes from outline to solid style with ring highlight
+    -   Button text changes to "A Selected" / "B Selected" with check icon
+    -   Selected response card gains a ring border
+    -   User can change selection before submitting (not permanent)
+
+**2. Reasoning Phase (Optional)**
+-   Reasoning section appears only after A or B is selected
+-   Displays clear message: "You selected Response X"
+-   **Quick Reason Templates**: 8 clickable badge options for common reasons:
+    -   More concise, Better accuracy, Clearer explanation, More creative
+    -   Safer response, More helpful, Better structured, More thorough
+-   **Free-text area**: Optional additional explanation
+-   Templates and text are combined into the final reason
+
+**3. Submission Phase**
+-   Large "Submit My Choice" button appears in reasoning section
+-   User explicitly confirms their selection
+-   On submission:
+    -   Model IDs are revealed briefly beneath each response
+    -   Session progress counter updates
+    -   Toast notification confirms submission
+    -   Next task loads after 2-second delay
+
+#### Alternative Actions (Always Available)
+
+Three alternative buttons are always visible below the main responses:
+
+1.  **"About the Same"** (Yellow/amber button)
+    -   For responses of equal quality
+    -   Submits as `Indifferent` preference
+    -   Immediate submission (no reasoning section)
+
+2.  **"I Don't Know"** (Secondary button)
+    -   For when user lacks expertise to judge
+    -   Submits as `Unknown` preference
+    -   Immediate submission
+
+3.  **"Skip This Comparison"** (Outline button)
+    -   For when user wants to move on without submitting
+    -   No data submitted, fetches next task immediately
+
+#### Accessibility Features
+
+-   All interactive elements are proper semantic buttons
+-   ARIA labels on all buttons (`aria-label`, `aria-pressed`)
+-   Keyboard-navigable template badges (Enter/Space to toggle)
+-   Focus indicators on all interactive elements
+-   Screen reader announcements for state changes
+-   Collapsible system prompt has proper `aria-expanded` state
+
+#### Technical Implementation
+
+1.  On page load, it calls `GET /api/pairs/get-task` to fetch a comparison
+2.  Position randomization (A/B swap) is determined on task load
+3.  Selection updates local state without immediate submission
+4.  Submission sends `taskId`, `preference`, and combined `reason` to `POST /api/pairs/submit-preference`
+5.  Loading and error states are handled gracefully with appropriate ARIA roles
 
 ## 4. Queue Management (CLI)
 
@@ -187,4 +267,18 @@ The free-text "reason" field is a goldmine of qualitative data.
 
 -   **Confidence Intervals**: Calculate and display confidence intervals for ELO scores based on the number of "games" (judgments) each model has participated in.
 -   **CLI Data Export**: Add a command `pnpm cli export-preferences` to download the raw preference data as a CSV for external analysis.
--   **Preference Browser UI**: Create a simple internal tool to browse the individual judgments and reasons submitted for any given task. 
+-   **Preference Browser UI**: Create a simple internal tool to browse the individual judgments and reasons submitted for any given task.
+
+## 7. User Experience & Design
+
+For a comprehensive walkthrough of the UI interaction patterns and user story scenarios, see [PAIRS_USER_STORIES.md](../PAIRS_USER_STORIES.md).
+
+The current implementation supports:
+-   ✅ Clear selection → reasoning → submission flow
+-   ✅ Visual feedback at every interaction step
+-   ✅ Error recovery (user can change selection before submitting)
+-   ✅ Multiple alternative actions for different user needs
+-   ✅ Full keyboard and screen reader accessibility
+-   ✅ Position randomization to reduce response bias
+-   ✅ Model reveal after submission for user satisfaction
+-   ✅ Session progress tracking for gamification 
