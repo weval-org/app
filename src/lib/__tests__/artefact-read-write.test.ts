@@ -40,8 +40,6 @@ describe('artefact read/write round-trip', () => {
 
   beforeAll(async () => {
     process.env.STORAGE_PROVIDER = 'local';
-    // ensure clean dir
-    await fs.rm(RESULTS_DIR, { recursive: true, force: true });
     await saveResult(configId, fileName, sampleData);
   });
 
