@@ -17,7 +17,11 @@ const TASK_INDEX_KEY = '_index';
 
 export async function GET() {
   try {
-    const store = getStore(TASK_QUEUE_BLOB_STORE_NAME);
+    const store = getStore({
+      name: TASK_QUEUE_BLOB_STORE_NAME,
+      siteID: process.env.NETLIFY_SITE_ID,
+      token: process.env.NETLIFY_AUTH_TOKEN,
+    });
     const taskIndex = await store.get(TASK_INDEX_KEY, { type: 'json' }) as string[] | undefined;
 
     if (!taskIndex || taskIndex.length === 0) {

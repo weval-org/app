@@ -6,17 +6,24 @@ export const revalidate = 0;
 const PREFERENCES_STORE_NAME = 'pairwise-preferences-v2';
 
 interface PreferenceRecord {
-  preference: 'A' | 'B' | 'Indifferent';
+  preference: 'A' | 'B' | 'Indifferent' | 'Unknown';
   reason?: string;
   timestamp: string;
-  user?: {
-    github_username: string;
-  };
+  userToken?: string;
+  // Task metadata
+  modelIdA?: string;
+  modelIdB?: string;
+  configId?: string;
+  promptPreview?: string;
 }
 
 export async function GET() {
   try {
-    const store = getStore(PREFERENCES_STORE_NAME);
+    const store = getStore({
+      name: PREFERENCES_STORE_NAME,
+      siteID: process.env.NETLIFY_SITE_ID,
+      token: process.env.NETLIFY_AUTH_TOKEN,
+    });
     const { blobs } = await store.list();
     
     let allPreferences: (PreferenceRecord & { taskId: string })[] = [];

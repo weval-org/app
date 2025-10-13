@@ -10,13 +10,19 @@ import { getStore } from '@netlify/blobs';
 // 5. Implement user fingerprinting/identification for data quality.
 
 interface PreferenceRecord {
-  preference: 'A' | 'B' | 'Indifferent';
+  preference: 'A' | 'B' | 'Indifferent' | 'Unknown';
   reason?: string;
   userToken: string; // Placeholder for a future user fingerprint/ID
   timestamp: string;
+  // Task metadata for analysis
+  modelIdA?: string;
+  modelIdB?: string;
+  configId?: string;
+  promptPreview?: string; // First 200 chars of prompt for quick reference
 }
 
 const PREFERENCES_BLOB_STORE_NAME = 'pairwise-preferences-v2';
+const TASK_QUEUE_BLOB_STORE_NAME = 'pairwise-tasks-v2';
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -30,7 +36,25 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    
+
+    // Fetch the task to get metadata
+    const taskStore = getStore({
+      name: TASK_QUEUE_BLOB_STORE_NAME,
+      siteID: process.env.NETLIFY_SITE_ID,
+      token: process.env.NETLIFY_AUTH_TOKEN,
+    });
+    const task = await taskStore.get(taskId, { type: 'json' }) as any;
+
+    // Extract prompt preview
+    let promptPreview = '';
+    if (task?.prompt) {
+      if (typeof task.prompt === 'string') {
+        promptPreview = task.prompt.substring(0, 200);
+      } else if (task.prompt.messages?.length > 0) {
+        promptPreview = task.prompt.messages[0].content?.substring(0, 200) || '';
+      }
+    }
+
     // In a real app, this would come from a fingerprinting service or session
     const userToken = `user_${Math.random().toString(36).substring(2, 10)}`;
 
@@ -39,9 +63,17 @@ export async function POST(request: Request) {
       reason: reason || undefined,
       userToken,
       timestamp: new Date().toISOString(),
+      modelIdA: task?.modelIdA,
+      modelIdB: task?.modelIdB,
+      configId: task?.configId,
+      promptPreview,
     };
 
-    const store = getStore(PREFERENCES_BLOB_STORE_NAME);
+    const store = getStore({
+      name: PREFERENCES_BLOB_STORE_NAME,
+      siteID: process.env.NETLIFY_SITE_ID,
+      token: process.env.NETLIFY_AUTH_TOKEN,
+    });
     
     // Get existing records for this task, or start a new array
     const existingRecords = await store.get(taskId, { type: 'json' }) as PreferenceRecord[] | undefined || [];
