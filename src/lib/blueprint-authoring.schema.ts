@@ -47,6 +47,7 @@ export const BlueprintAuthoringSchema = {
         context: { type: 'object' },
         prompts: { $ref: '#/$defs/promptList' },
         noCache: { type: 'boolean' },
+        render_as: { type: 'string', enum: ['markdown', 'html', 'plaintext'], description: 'Default rendering mode for all prompts. Can be overridden at prompt level.' },
       },
       required: ['prompts'],
       additionalProperties: true,
@@ -155,6 +156,7 @@ export const BlueprintAuthoringSchema = {
         weight: { type: 'number', minimum: 0.1, maximum: 10 },
         multiplier: { type: 'number', minimum: 0.1, maximum: 10, deprecated: true },
         noCache: { type: 'boolean', description: 'If true, forces a fresh generation for this prompt, ignoring the cache.' },
+        render_as: { type: 'string', enum: ['markdown', 'html', 'plaintext'], description: 'Rendering mode for this prompt output, overriding global setting.' },
       },
       // Either prompt or messages is required (but parser enforces exactly-one at runtime)
       anyOf: [

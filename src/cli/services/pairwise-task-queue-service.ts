@@ -108,6 +108,7 @@ export interface PairwiseTask {
   modelIdA: string;
   modelIdB: string;
   configId: string;
+  renderAs?: 'markdown' | 'html' | 'plaintext';
 }
 
 export interface GenerationStatus {
@@ -181,6 +182,10 @@ export async function populatePairwiseQueue(
             ? promptContext
             : [{ role: 'user', content: promptContext }];
 
+        // Get render instructions from config
+        const promptConfig = resultData.config.prompts?.find(p => p.id === promptId);
+        const renderAs = promptConfig?.render_as || 'markdown';
+
         // Find anchor model by checking base IDs (stripping suffixes)
         const anchorModelId = modelIds.find(id => parseModelIdForApiCall(id).originalModelId === OFFICIAL_ANCHOR_MODEL);
 
@@ -210,6 +215,7 @@ export async function populatePairwiseQueue(
                     modelIdA: modelA,
                     modelIdB: modelB,
                     configId: resultData.configId,
+                    renderAs,
                 });
             }
         } else {

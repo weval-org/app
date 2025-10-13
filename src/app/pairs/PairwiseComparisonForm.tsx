@@ -10,8 +10,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { useToast } from '@/components/ui/use-toast';
 import { ConversationMessage } from '@/types/shared';
 import Icon from '@/components/ui/icon';
-import ReactMarkdown from 'react-markdown';
-import RemarkGfmPlugin from 'remark-gfm';
+import ResponseRenderer, { type RenderAsType } from '@/app/components/ResponseRenderer';
 
 interface Prompt {
   system?: string | null;
@@ -26,6 +25,7 @@ interface ComparisonTask {
   modelIdA?: string;
   modelIdB?: string;
   configId: string;
+  renderAs?: RenderAsType;
 }
 
 interface DisplayedResponse {
@@ -107,6 +107,7 @@ interface ResponseCardProps {
   onToggleExpand: () => void;
   onSelect: () => void;
   isSelected: boolean;
+  renderAs?: RenderAsType;
 }
 
 const ResponseCard: React.FC<ResponseCardProps> = ({
@@ -114,7 +115,8 @@ const ResponseCard: React.FC<ResponseCardProps> = ({
   isExpanded,
   onToggleExpand,
   onSelect,
-  isSelected
+  isSelected,
+  renderAs = 'markdown'
 }) => {
   const isLong = response.text.length > 1000;
 
@@ -124,18 +126,10 @@ const ResponseCard: React.FC<ResponseCardProps> = ({
         <CardContent className="p-4">
           {isLong && !isExpanded ? (
             <ScrollArea className="h-[400px]">
-              <div className="prose prose-sm prose-inherit max-w-none dark:prose-invert">
-                <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
-                  {response.text}
-                </ReactMarkdown>
-              </div>
+              <ResponseRenderer content={response.text} renderAs={renderAs} />
             </ScrollArea>
           ) : (
-            <div className="prose prose-sm prose-inherit max-w-none dark:prose-invert">
-              <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
-                {response.text}
-              </ReactMarkdown>
-            </div>
+            <ResponseRenderer content={response.text} renderAs={renderAs} />
           )}
         </CardContent>
         {isLong && (
@@ -373,6 +367,7 @@ export const PairwiseComparisonForm: React.FC<PairwiseComparisonFormProps> = ({ 
                 setAlternativeSelection(null);
               }}
               isSelected={selectedResponse === displayedResponses.left.side}
+              renderAs={task.renderAs}
             />
           </div>
 
@@ -386,6 +381,7 @@ export const PairwiseComparisonForm: React.FC<PairwiseComparisonFormProps> = ({ 
                 setAlternativeSelection(null);
               }}
               isSelected={selectedResponse === displayedResponses.right.side}
+              renderAs={task.renderAs}
             />
           </div>
         </div>

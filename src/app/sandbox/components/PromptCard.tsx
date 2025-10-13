@@ -18,6 +18,13 @@ import {
     DropdownMenuSeparator,
     DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useMobile } from '../hooks/useMobile';
 import Icon from '@/components/ui/icon';
@@ -153,6 +160,13 @@ export function PromptCard({ prompt, onUpdate, onRemove, onDuplicate, isEditable
     if (!prompt.citation) return '';
     if (typeof prompt.citation === 'string') return prompt.citation;
     return prompt.citation.title || prompt.citation.name || prompt.citation.url || '';
+  };
+
+  const handleRenderAsChange = (value: string) => {
+    const nextState = produce(prompt, draft => {
+        draft.render_as = value as 'markdown' | 'html' | 'plaintext';
+    });
+    onUpdate(nextState);
   };
 
   const setShouldNotField = (value: any) => {
@@ -323,6 +337,25 @@ export function PromptCard({ prompt, onUpdate, onRemove, onDuplicate, isEditable
                                 className="text-sm"
                                 readOnly={!isEditable}
                             />
+                        </div>
+
+                        <div>
+                            <label className="text-sm font-semibold text-foreground" htmlFor={`prompt-render-as-${prompt.id}`}>Response Rendering Mode <span className="text-xs font-normal text-muted-foreground">(Optional)</span></label>
+                            <p className="text-xs text-muted-foreground mb-1.5">Override the global rendering format for this prompt's responses.</p>
+                            <Select
+                                value={prompt.render_as || 'markdown'}
+                                onValueChange={handleRenderAsChange}
+                                disabled={!isEditable}
+                            >
+                                <SelectTrigger id={`prompt-render-as-${prompt.id}`} className="text-sm">
+                                    <SelectValue placeholder="Select rendering mode" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="markdown">Markdown (default)</SelectItem>
+                                    <SelectItem value="html">HTML</SelectItem>
+                                    <SelectItem value="plaintext">Plain Text</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
                     </>
                 )}

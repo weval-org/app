@@ -25,6 +25,13 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import Icon from '@/components/ui/icon';
 import { PointDefsEditor } from './PointDefsEditor';
 
@@ -430,6 +437,26 @@ export function GlobalConfigCard({ blueprint, onUpdate, isEditable, isAdvancedMo
                             onChange={(defs)=> onUpdate({ ...blueprint, point_defs: defs })}
                             isEditable={isEditable}
                         />
+                    </div>
+
+                    {/* Response Rendering Mode */}
+                    <div>
+                        <label className="text-sm font-semibold text-foreground" htmlFor="blueprint-render-as">Response Rendering Mode (optional)</label>
+                        <p className="text-xs text-muted-foreground mb-1.5">Default rendering format for model responses. Can be overridden per-prompt.</p>
+                        <Select
+                            value={(blueprint as any).render_as || 'markdown'}
+                            onValueChange={(value) => handleFieldChange('render_as' as any, value === 'markdown' ? undefined : value)}
+                            disabled={!isEditable}
+                        >
+                            <SelectTrigger id="blueprint-render-as" className="text-sm">
+                                <SelectValue placeholder="Select rendering mode" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="markdown">Markdown (default)</SelectItem>
+                                <SelectItem value="html">HTML</SelectItem>
+                                <SelectItem value="plaintext">Plain Text</SelectItem>
+                            </SelectContent>
+                        </Select>
                     </div>
                 </>
             )}

@@ -117,6 +117,11 @@ export function generateMinimalBlueprintYaml(config: ComparisonConfig): string {
             newPrompt.system = p.system;
         }
 
+        // Preserve render_as at the prompt level
+        if (p.render_as) {
+            newPrompt.render_as = p.render_as;
+        }
+
         return newPrompt;
     });
 
