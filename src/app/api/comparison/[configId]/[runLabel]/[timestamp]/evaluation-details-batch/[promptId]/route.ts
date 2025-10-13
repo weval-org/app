@@ -28,8 +28,10 @@ export async function GET(
     }
 
     const pLimit = (await import('@/lib/pLimit')).default;
-    const limit = pLimit(8);
+    const limit = pLimit(32); // Increased from 8 to 32 for faster parallel S3 fetches
     const evaluations: Record<string, any> = {};
+    const fetchStartTime = Date.now();
+
     await Promise.all(
       coreData.effectiveModels.map((modelId: string) =>
         limit(async () => {
@@ -38,6 +40,9 @@ export async function GET(
         })
       )
     );
+
+    const fetchDuration = Date.now() - fetchStartTime;
+    console.log(`[Evaluation Details Batch API] Fetched ${Object.keys(evaluations).length} evaluations for ${decodedPromptId} in ${fetchDuration}ms (${coreData.effectiveModels.length} models total)`);
 
     if (Object.keys(evaluations).length === 0) {
       return NextResponse.json({ error: 'No evaluation results for the specified prompt' }, { status: 404 });

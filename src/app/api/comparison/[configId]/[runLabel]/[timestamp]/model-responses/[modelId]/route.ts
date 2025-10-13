@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPromptResponses, getCoreResult } from '@/lib/storageService';
+import { getSingleModelResponse, getCoreResult } from '@/lib/storageService';
 
 /**
  * API endpoint that returns all response data for a specific model across all prompts.
@@ -30,9 +30,9 @@ export async function GET(
 
     const modelResponses: Record<string, string> = {};
     for (const promptId of coreData.promptIds) {
-      const promptResponses = await getPromptResponses(configId, runLabel, timestamp, promptId);
-      if (promptResponses && promptResponses[decodedModelId] !== undefined) {
-        modelResponses[promptId] = promptResponses[decodedModelId];
+      const response = await getSingleModelResponse(configId, runLabel, timestamp, promptId, decodedModelId);
+      if (response !== null) {
+        modelResponses[promptId] = response;
       }
     }
 

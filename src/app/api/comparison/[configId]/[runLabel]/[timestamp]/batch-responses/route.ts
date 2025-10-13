@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getPromptResponses } from '@/lib/storageService';
+import { getSingleModelResponse } from '@/lib/storageService';
 
 type RouteContext = {
     params: Promise<{
@@ -22,25 +22,14 @@ export async function POST(request: Request, context: RouteContext) {
             return NextResponse.json({ error: 'Missing "pairs" array in request body' }, { status: 400 });
         }
 
-        const responsesByPrompt = new Map<string, string[]>();
-        for (const pair of pairs) {
-            if (pair.promptId && pair.modelId) {
-                if (!responsesByPrompt.has(pair.promptId)) {
-                    responsesByPrompt.set(pair.promptId, []);
-                }
-                responsesByPrompt.get(pair.promptId)!.push(pair.modelId);
-            }
-        }
-
         const flattenedResponses: Record<string, string> = {};
 
-        for (const [promptId, modelIds] of responsesByPrompt.entries()) {
-            const promptResponses = await getPromptResponses(configId, runLabel, timestamp, promptId);
-            if (promptResponses) {
-                for (const modelId of modelIds) {
-                    if (promptResponses[modelId] !== undefined) {
-                        flattenedResponses[`${promptId}:${modelId}`] = promptResponses[modelId];
-                    }
+        // Fetch each (promptId, modelId) pair using optimized granular access
+        for (const pair of pairs) {
+            if (pair.promptId && pair.modelId) {
+                const response = await getSingleModelResponse(configId, runLabel, timestamp, pair.promptId, pair.modelId);
+                if (response !== null) {
+                    flattenedResponses[`${pair.promptId}:${pair.modelId}`] = response;
                 }
             }
         }

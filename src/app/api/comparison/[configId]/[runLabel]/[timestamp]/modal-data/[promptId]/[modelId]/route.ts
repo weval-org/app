@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getPromptResponses, getCoreResult, getConversationHistory } from '@/lib/storageService';
+import { getSingleModelResponse, getCoreResult, getConversationHistory } from '@/lib/storageService';
 import { WevalConfig } from '@/types/shared';
 
 type RouteContext = {
@@ -20,9 +20,8 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     try {
-        // Fetch response content
-        const responses = await getPromptResponses(configId, runLabel, timestamp, promptId);
-        const responseContent = responses ? responses[modelId] : null;
+        // Fetch response content using optimized single-model function
+        const responseContent = await getSingleModelResponse(configId, runLabel, timestamp, promptId, modelId);
 
         if (responseContent === undefined || responseContent === null) {
             return NextResponse.json({ error: 'Response not found' }, { status: 404 });
