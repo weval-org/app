@@ -14,6 +14,8 @@ export default function FullWidthLayout({
   const pathname = usePathname();
   const isArticle = pathname?.includes('/article');
   const isCompare = pathname?.includes('/compare');
+  const isEng = pathname?.includes('/eng');
+  const isFullWidth = isCompare || isEng;
 
   if (isArticle) {
     return (
@@ -29,15 +31,15 @@ export default function FullWidthLayout({
         <TopProgressBar />
         <NavigationEvents />
       </Suspense>
-      {!isCompare && (
+      {!isFullWidth && (
         <SiteHeader contentMaxWidth={'max-w-[1800px]'} />
       )}
       <main className="flex-grow w-full bg-background text-foreground">
-        <div className={isCompare ? 'w-full' : 'max-w-[1800px] mx-auto'}>
+        <div className={isFullWidth ? 'w-full' : 'max-w-[1800px] mx-auto'}>
           {children}
         </div>
       </main>
-      {!isCompare && (
+      {!isFullWidth && (
         <SiteFooter contentMaxWidth={'max-w-[1800px]'} />
       )}
     </div>

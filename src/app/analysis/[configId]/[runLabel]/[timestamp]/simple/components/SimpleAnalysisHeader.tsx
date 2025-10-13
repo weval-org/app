@@ -74,6 +74,12 @@ export const SimpleAnalysisHeader: React.FC = () => {
                                 Conversation Tree
                             </Link>
                         </Button>
+                        <Button asChild variant="outline" size="sm" className="gap-2">
+                            <Link href={`/analysis/${configId}/${runLabel}/${timestamp}/textual`}>
+                                <Icon name="align-left" className="w-4 h-4" />
+                                Textual View
+                            </Link>
+                        </Button>
                     </div>
                 )}
             </div>

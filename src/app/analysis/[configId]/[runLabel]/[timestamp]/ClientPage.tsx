@@ -187,6 +187,12 @@ export const ClientPage: React.FC = () => {
                     Dialog Tree
                 </Link>
             </Button>
+            <Button asChild variant="outline" size="sm" className="px-3 py-1.5 text-xs">
+                <Link href={`/analysis/${configId}/${runLabel}/${timestamp}/textual`}>
+                    <Icon name="align-left" className="w-4 h-4 mr-2" />
+                    Textual View
+                </Link>
+            </Button>
             <DownloadResultsButton data={data} label={`${data.configTitle || configId} - ${data.runLabel || runLabel}${timestamp ? ' (' + formatTimestampForDisplay(fromSafeTimestamp(timestamp)) + ')' : ''}`} />
             <Button asChild variant="outline" size="sm" className="text-green-600 dark:text-green-400 border-green-600/70 dark:border-green-700/70 hover:bg-green-600/10 dark:hover:bg-green-700/30 hover:text-green-700 dark:hover:text-green-300 px-3 py-1.5 text-xs">
                 <Link href={`/api/comparison/${configId}/${runLabel}/${timestamp}/markdown`} download>
