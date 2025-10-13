@@ -14,15 +14,19 @@ To handle a potentially massive number of unique comparison pairs without sacrif
 
 ### Data Stores
 
-The system relies on two distinct Netlify Blob stores:
+The system relies on three distinct Netlify Blob stores:
 
 -   **`pairwise-tasks-v2`**: This store holds the individual comparison tasks.
     -   Each unique task is stored as a separate JSON object.
     -   The key for each object is its **Canonical Task ID**.
     -   A special `_index` file within this store contains a simple JSON array of all available Task IDs. This lightweight index is the key to fast task retrieval.
+    -   Each task includes a `configId` field to support config-specific filtering.
 -   **`pairwise-preferences-v2`**: This store holds the user-submitted preferences.
     -   Each entry is keyed by the **Canonical Task ID** of the comparison the user judged.
     -   The value is a JSON array of all preference records submitted for that specific task, allowing multiple users to judge the same pair over time.
+-   **`pairwise-generation-status`**: This store tracks the status of background pair generation jobs.
+    -   Each entry is keyed by the `configId`.
+    -   Contains status information: `pending`, `generating`, `complete`, or `error`.
 
 ### Canonical Task ID
 
@@ -106,6 +110,8 @@ interface PairwiseTask {
 
 ### API Endpoints (Backend)
 
+#### Global Pairs Endpoints
+
 -   **`GET /api/pairs/get-task`** (`src/app/api/pairs/get-task/route.ts`): This endpoint is designed for speed.
     1.  It makes one cheap request to fetch the `_index` file.
     2.  It selects a random `taskId` from the array in memory.
@@ -117,11 +123,49 @@ interface PairwiseTask {
     2.  It uses the `taskId` as the key to read the corresponding record from the `pairwise-preferences-v2` store.
     3.  It appends the new preference record to the array of existing records (or creates a new array if none exist).
     4.  It saves the updated array back to the store.
+    5.  **Local Development**: In dev mode (`NODE_ENV === 'development'`), this endpoint proxies requests to the deployed dev environment to bypass local blob storage complexities.
+
+#### Config-Specific Pairs Endpoints
+
+-   **`GET /api/pairs/config/[configId]/get-task`** (`src/app/api/pairs/config/[configId]/get-task/route.ts`): Similar to the global endpoint but filters tasks by `configId`.
+    1.  Fetches the `_index` file.
+    2.  Iterates through all tasks to find those matching the specified `configId`.
+    3.  Selects a random task from the filtered set.
+    4.  Returns the task to the client.
+
+-   **`GET /api/pairs/config/[configId]/check-status`** (`src/app/api/pairs/config/[configId]/check-status/route.ts`): Checks if pairs are available and generation status.
+    1.  Counts tasks available for the specified `configId`.
+    2.  Retrieves generation status from `pairwise-generation-status` store.
+    3.  Returns task availability and generation status information.
+
+-   **`POST /api/pairs/config/[configId]/start-generation`** (`src/app/api/pairs/config/[configId]/start-generation/route.ts`): Initiates background pair generation.
+    1.  Checks if generation is already in progress.
+    2.  Sets initial status to `pending`.
+    3.  Triggers the `generate-pairs-background` Netlify function.
+    4.  Returns immediately without blocking.
 
 ### Data Collection UI (Frontend)
 
+The system provides two interfaces for collecting preference data:
+
+#### Global Pairs Interface
+
 -   **Location**: `src/app/pairs/page.tsx`
+-   **URL**: `/pairs`
+-   **Purpose**: Collect preferences from all available comparison pairs across all configs
 -   **Component**: The page uses a client-side component, `PairwiseComparisonForm`, to manage the interactive state.
+
+#### Config-Specific Pairs Interface
+
+-   **Location**: `src/app/pairs/[configId]/page.tsx`
+-   **URL**: `/pairs/{configId}`
+-   **Purpose**: Collect preferences from comparison pairs for a specific evaluation configuration
+-   **Features**:
+    -   Automatic status checking (no pairs, generating, ready, error)
+    -   On-demand pair generation via background function
+    -   Real-time generation status polling
+    -   Graceful error handling with retry options
+    -   Stale status detection (jobs stuck >2 minutes)
 
 #### User Interface Flow
 
@@ -209,14 +253,44 @@ While the queue is populated automatically from runs of blueprints tagged with `
     -   `--all`: Wipes the **entire** `pairwise-tasks-v2` store, including the index. It will prompt for confirmation before executing.
 -   **Legacy Cleanup**: For historical reasons, the command also cleans up an older, deprecated `pairwise-tasks` store when run.
 
-## 5. Local Development Considerations
+## 5. Background Pair Generation
 
-Interacting with Netlify Blob Storage from a local development environment can be complex. To provide a seamless developer experience, the API routes for the Pairs feature use a **proxy mechanism** when running locally (`pnpm dev`).
+For config-specific pairs, generation is handled asynchronously via a Netlify background function to avoid blocking the user interface.
 
--   **Local Behavior**: When running the app locally, the `GET /api/pairs/get-task` and `POST /api/pairs/submit-preference` endpoints do **not** connect to a local blob store.
--   **Proxy to Dev**: Instead, they make server-to-server `fetch` requests to the deployed `dev--weval-dev.netlify.app` API, retrieve the data, and pass it back to the local client.
+### Background Function
 
-This approach completely bypasses local blob storage complexities and potential CORS issues, allowing developers to work on the Pairs UI using a live, populated task queue from the shared development environment.
+-   **Location**: `netlify/functions/generate-pairs-background.ts`
+-   **Trigger**: Invoked by `POST /api/pairs/config/[configId]/start-generation`
+-   **Process**:
+    1.  Updates generation status to `generating`
+    2.  Fetches the latest run for the specified config
+    3.  Calls `populatePairwiseQueue` to generate comparison pairs
+    4.  Updates status to `complete` with task counts, or `error` if generation fails
+-   **Status Updates**: Stored in `pairwise-generation-status` blob store, polled by UI every 2 seconds
+
+### Local Development Limitations
+
+**Important**: Background functions have limited support in `netlify dev` and cannot access Netlify Blobs properly in local development.
+
+#### What Works Locally
+
+-   **Global Pairs UI** (`/pairs`): The `POST /api/pairs/submit-preference` endpoint proxies writes to the deployed dev environment (`dev--weval-dev.netlify.app`) in development mode.
+-   **CLI Commands**: Direct pair generation using `pnpm cli generate-pairs --config-id <id>` works locally by reading credentials from `.netlify/state.json` and `~/.netlify/config.json`.
+
+#### What Doesn't Work Locally
+
+-   **Config-Specific Background Generation** (`/pairs/{configId}`): The background function detects local development and returns an error message directing users to either:
+    1.  Use the CLI directly: `pnpm cli generate-pairs --config-id <id>`
+    2.  Test on deployed environment: `netlify deploy --build`
+
+#### Why Background Functions Fail Locally
+
+Background functions in `netlify dev` run in an isolated context that doesn't receive the same automatic environment variable injection as Next.js API routes. The `getBlobStore()` function in `pairwise-task-queue-service.ts` attempts multiple fallback strategies:
+1.  Check for `NETLIFY_SITE_ID` + `NETLIFY_AUTH_TOKEN` env vars (not available in background function context)
+2.  Read from `.netlify/state.json` + `~/.netlify/config.json` (filesystem access may fail)
+3.  Fall back to anonymous store (throws MissingBlobsEnvironmentError)
+
+This is a known limitation of Netlify's local development environment. All background function features work correctly in deployed environments (preview deploys, dev, production).
 
 ## 6. Future Work & Downstream Analysis (TODO)
 

@@ -7,6 +7,7 @@ import { ComparisonDataV2 as FetchedComparisonData } from '../../app/utils/types
 import { ConversationMessage } from '@/types/shared';
 
 const TASK_QUEUE_BLOB_STORE_NAME = 'pairwise-tasks-v2';
+const GENERATION_STATUS_BLOB_STORE_NAME = 'pairwise-generation-status';
 const TASK_INDEX_KEY = '_index';
 const IDEAL_MODEL_ID = 'IDEAL_MODEL_ID';
 const OFFICIAL_ANCHOR_MODEL = 'openrouter:openai/gpt-4.1-mini';
@@ -95,6 +96,15 @@ export interface PairwiseTask {
   modelIdA: string;
   modelIdB: string;
   configId: string;
+}
+
+export interface GenerationStatus {
+  status: 'pending' | 'generating' | 'complete' | 'error';
+  message: string;
+  timestamp: string;
+  tasksGenerated?: number;
+  totalTasksInQueue?: number;
+  error?: string;
 }
 
 export async function populatePairwiseQueue(
@@ -254,4 +264,46 @@ export async function deletePairwiseTasks(options: { configId?: string, logger: 
     }
     
     return { deletedCount: totalDeletedCount };
+}
+
+export async function updateGenerationStatus(
+    configId: string,
+    status: GenerationStatus,
+    options?: { siteId?: string }
+): Promise<void> {
+    const store = await getBlobStore({
+        storeName: GENERATION_STATUS_BLOB_STORE_NAME,
+        siteId: options?.siteId
+    });
+    await store.setJSON(configId, status);
+}
+
+export async function getGenerationStatus(
+    configId: string,
+    options?: { siteId?: string }
+): Promise<GenerationStatus | null> {
+    const store = await getBlobStore({
+        storeName: GENERATION_STATUS_BLOB_STORE_NAME,
+        siteId: options?.siteId
+    });
+    const status = await store.get(configId, { type: 'json' }) as GenerationStatus | undefined;
+    return status || null;
+}
+
+export async function getConfigTaskCount(
+    configId: string,
+    options?: { siteId?: string }
+): Promise<number> {
+    const store = await getBlobStore({ siteId: options?.siteId });
+    const taskIndex = await store.get(TASK_INDEX_KEY, { type: 'json' }) as string[] | undefined || [];
+
+    let count = 0;
+    for (const taskId of taskIndex) {
+        const task = await store.get(taskId, { type: 'json' }) as PairwiseTask | undefined;
+        if (task && task.configId === configId) {
+            count++;
+        }
+    }
+
+    return count;
 }
