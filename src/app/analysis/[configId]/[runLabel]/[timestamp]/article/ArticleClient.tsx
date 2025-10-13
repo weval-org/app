@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import ResponseRenderer from '@/app/components/ResponseRenderer';
+import ResponseRenderer, { RenderAsType } from '@/app/components/ResponseRenderer';
 import RemarkGfmPlugin from 'remark-gfm';
 
 export function ArticleClient({
@@ -12,6 +12,7 @@ export function ArticleClient({
   deck,
   content,
   readingTimeMin,
+  renderAs = 'markdown',
 }: {
   configId: string;
   runLabel: string;
@@ -20,6 +21,7 @@ export function ArticleClient({
   deck?: string;
   content: string;
   readingTimeMin?: number;
+  renderAs?: RenderAsType;
 }) {
   const handleClick = React.useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
@@ -52,7 +54,7 @@ export function ArticleClient({
         )}
       </header>
       <div onClick={handleClick}>
-        <ResponseRenderer content={content} />
+        <ResponseRenderer content={content} renderAs={renderAs} />
       </div>
     </article>
   );

@@ -22,6 +22,7 @@ import { Label } from '@/components/ui/label';
 import KeyPointCoverageTable from '@/app/analysis/components/KeyPointCoverageTable';
 import Icon from '@/components/ui/icon';
 import { usePreloadIcons } from '@/components/ui/use-preload-icons';
+import { RenderAsType } from '@/app/components/ResponseRenderer';
 
 const CitationInline: React.FC<{ citation: any }> = ({ citation }) => {
     if (!citation) return null;
@@ -195,6 +196,7 @@ export const AggregateAnalysisView: React.FC = () => {
                                         data={data}
                                         promptId={promptId}
                                         displayedModels={displayedModels}
+                                        renderAs={data.config.prompts?.find(p => p.id === promptId)?.render_as as RenderAsType}
                                     />
                                 ) : (
                                     <div className="text-center py-4 text-muted-foreground text-sm">

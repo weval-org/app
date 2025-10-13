@@ -1,7 +1,7 @@
 'use client';
 import React, { useState } from 'react';
 import { Handle, Position, NodeProps } from 'reactflow';
-import ResponseRenderer from '@/app/components/ResponseRenderer';
+import ResponseRenderer, { RenderAsType } from '@/app/components/ResponseRenderer';
 import { parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -22,7 +22,7 @@ const makerColorMap: Record<string, string> = {
 };
 
 const MessageNode: React.FC<NodeProps> = ({ data }) => {
-    const { role, isContext, baseModelId, responses } = data;
+    const { role, isContext, baseModelId, responses, renderAs } = data;
     const [activeIndex, setActiveIndex] = useState(0);
 
     // Determine the active response and its details
@@ -69,7 +69,7 @@ const MessageNode: React.FC<NodeProps> = ({ data }) => {
             </CardHeader>
             <CardContent className="p-2 text-xs overflow-y-auto">
                  <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <ResponseRenderer content={text} />
+                    <ResponseRenderer content={text} renderAs={renderAs as RenderAsType} />
                 </div>
             </CardContent>
             {Array.isArray(responses) && responses.length > 1 && (
