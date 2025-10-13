@@ -103,11 +103,38 @@ interface PairwiseTask {
   };
   responseA: string;
   responseB: string;
-  modelIdA: string;  // Added for model reveal feature
-  modelIdB: string;  // Added for model reveal feature
+  modelIdA: string;  // Full model ID including suffixes like [sp_idx:0]
+  modelIdB: string;  // Full model ID including suffixes like [sp_idx:0]
   configId: string;
 }
 ```
+
+#### PreferenceRecord Data Structure
+
+```typescript
+interface PreferenceRecord {
+  preference: 'A' | 'B' | 'Indifferent' | 'Unknown';
+  reason?: string;
+  userToken: string;
+  timestamp: string;
+  // Enriched task metadata for analysis
+  modelIdA?: string;
+  modelIdB?: string;
+  configId?: string;
+  promptPreview?: string;  // First 200 chars of prompt
+}
+```
+
+#### Model ID Suffix Handling
+
+Model IDs in evaluations may include suffixes for system prompt and temperature variants:
+- `[sp_idx:X]` - System prompt index (e.g., `[sp_idx:0]`, `[sp_idx:1]`)
+- `[temp:X]` - Temperature variant (e.g., `[temp:0.7]`)
+- `[sys:X]` - System prompt hash (e.g., `[sys:abc123]`)
+
+Example: `openrouter:openai/gpt-4.1-mini[sp_idx:0]`
+
+The anchor model matching uses `parseModelIdForApiCall()` from `src/app/utils/modelIdUtils.ts` to strip these suffixes for comparison while preserving the full ID for response lookup. This ensures the anchor model is correctly detected across all its variants.
 
 ### API Endpoints (Backend)
 
@@ -121,9 +148,15 @@ interface PairwiseTask {
 
 -   **`POST /api/pairs/submit-preference`** (`src/app/api/pairs/submit-preference/route.ts`): This endpoint handles user submissions.
     1.  It receives the `taskId`, the user's `preference` (`A`, `B`, `Indifferent`, or `Unknown`), and an optional `reason`.
-    2.  It uses the `taskId` as the key to read the corresponding record from the `pairwise-preferences-v2` store.
-    3.  It appends the new preference record to the array of existing records (or creates a new array if none exist).
-    4.  It saves the updated array back to the store.
+    2.  It fetches the task object from `pairwise-tasks-v2` to extract metadata.
+    3.  It creates an enriched preference record containing:
+        -   User preference and reason
+        -   `modelIdA` and `modelIdB` - Which models were compared
+        -   `configId` - Which evaluation config this came from
+        -   `promptPreview` - First 200 characters of the prompt
+    4.  It uses the `taskId` as the key to read existing records from the `pairwise-preferences-v2` store.
+    5.  It appends the new enriched preference record to the array of existing records (or creates a new array if none exist).
+    6.  It saves the updated array back to the store.
 
 #### Config-Specific Pairs Endpoints
 
@@ -144,6 +177,12 @@ interface PairwiseTask {
     2.  Sets initial status to `pending`.
     3.  Triggers the `generate-pairs-background` Netlify function.
     4.  Returns immediately without blocking.
+
+-   **`GET /api/pairs/log`** (`src/app/api/pairs/log/route.ts`): Retrieves recent preference submissions for analysis.
+    1.  Lists all entries from the `pairwise-preferences-v2` store.
+    2.  Flattens all preference arrays into a single list.
+    3.  Sorts by timestamp descending.
+    4.  Returns the last 100 preference records with enriched metadata.
 
 ### Data Collection UI (Frontend)
 
@@ -167,6 +206,23 @@ The system provides two interfaces for collecting preference data:
     -   Real-time generation status polling
     -   Graceful error handling with retry options
     -   Stale status detection (jobs stuck >2 minutes)
+
+#### Preference Log Interface
+
+-   **Location**: `src/app/pairs/log/page.tsx`
+-   **URL**: `/pairs/log`
+-   **Purpose**: View recent preference submissions with full context for analysis
+-   **Features**:
+    -   Displays last 100 preference submissions
+    -   Shows enriched metadata for each preference:
+        -   **Timestamp**: When the preference was recorded
+        -   **Preference**: A (blue), B (green), Indifferent (yellow), Unknown (purple)
+        -   **Model A & Model B**: Which models were compared (with hover tooltips for full IDs)
+        -   **Config**: Clickable link to the config's pairs page
+        -   **Prompt**: First 200 chars with hover tooltip
+        -   **Reason**: User's optional explanation
+    -   Enables analysis by model comparison, config, and prompt type
+    -   Horizontal scrolling for wide tables on narrow screens
 
 #### User Interface Flow
 
@@ -271,7 +327,7 @@ For config-specific pairs, generation is handled asynchronously via a Netlify ba
 
 ### Local Development Setup
 
-To enable background functions to work with remote Netlify Blobs in local development, you need to configure environment variables.
+To enable both **API routes** and **background functions** to work with remote Netlify Blobs in local development, you need to configure environment variables.
 
 #### Setup Instructions
 
@@ -291,13 +347,23 @@ To enable background functions to work with remote Netlify Blobs in local develo
 
 #### How It Works
 
-Background functions in `netlify dev` run in an isolated context separate from Next.js API routes. The `getBlobStore()` function in `pairwise-task-queue-service.ts` uses these fallback strategies:
+Both background functions and Next.js API routes need explicit credentials in local development:
 
+**Background Functions**: Run in an isolated Netlify context. The `getBlobStore()` function in `pairwise-task-queue-service.ts` uses these fallback strategies:
 1.  **Environment variables** (preferred): Check for `NETLIFY_SITE_ID` + `NETLIFY_AUTH_TOKEN` from `.env`
 2.  **Filesystem credentials**: Read from `.netlify/state.json` + `~/.netlify/config.json`
 3.  **Anonymous store**: Falls back (throws error)
 
-With environment variables configured, background functions can access remote blobs just like deployed environments.
+**API Routes**: All pairs API routes (`get-task`, `submit-preference`, `log`) explicitly pass credentials to `getStore()`:
+```typescript
+const store = getStore({
+  name: STORE_NAME,
+  siteID: process.env.NETLIFY_SITE_ID,
+  token: process.env.NETLIFY_AUTH_TOKEN,
+});
+```
+
+Without these environment variables, API routes would fall back to "sandbox mode" (in-memory/local storage), causing a mismatch where background functions write to remote blobs but API routes read from local storage.
 
 #### Alternative: Use CLI Directly
 
