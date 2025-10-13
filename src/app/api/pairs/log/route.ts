@@ -4,7 +4,6 @@ import { getStore } from '@netlify/blobs';
 export const revalidate = 0;
 
 const PREFERENCES_STORE_NAME = 'pairwise-preferences-v2';
-const DEV_API_ENDPOINT = 'https://dev--weval-dev.netlify.app/api/pairs/log';
 
 interface PreferenceRecord {
   preference: 'A' | 'B' | 'Indifferent';
@@ -16,21 +15,6 @@ interface PreferenceRecord {
 }
 
 export async function GET() {
-  if (process.env.NODE_ENV === 'development') {
-    try {
-      console.log(`[API /pairs/log] Development mode: Proxying request to ${DEV_API_ENDPOINT}`);
-      const response = await fetch(DEV_API_ENDPOINT, { next: { revalidate: 0 } });
-      const data = await response.json();
-      if (!response.ok) {
-        return NextResponse.json(data, { status: response.status });
-      }
-      return NextResponse.json(data);
-    } catch (error: any) {
-      console.error(`[API /pairs/log] Error proxying request: ${error.message}`);
-      return NextResponse.json({ error: 'Failed to proxy request to dev environment.' }, { status: 500 });
-    }
-  }
-
   try {
     const store = getStore(PREFERENCES_STORE_NAME);
     const { blobs } = await store.list();

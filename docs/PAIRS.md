@@ -16,11 +16,12 @@ To handle a potentially massive number of unique comparison pairs without sacrif
 
 The system relies on three distinct Netlify Blob stores:
 
--   **`pairwise-tasks-v2`**: This store holds the individual comparison tasks.
+-   **`pairwise-tasks-v2`**: This store holds the individual comparison tasks and indexes.
     -   Each unique task is stored as a separate JSON object.
     -   The key for each object is its **Canonical Task ID**.
-    -   A special `_index` file within this store contains a simple JSON array of all available Task IDs. This lightweight index is the key to fast task retrieval.
-    -   Each task includes a `configId` field to support config-specific filtering.
+    -   **Global Index (`_index`)**: Contains all task IDs across all configs for the `/pairs` route.
+    -   **Config-Specific Indexes (`_index_{configId}`)**: Each config has its own index containing only its task IDs for fast filtering.
+    -   Each task includes a `configId` field for organization.
 -   **`pairwise-preferences-v2`**: This store holds the user-submitted preferences.
     -   Each entry is keyed by the **Canonical Task ID** of the comparison the user judged.
     -   The value is a JSON array of all preference records submitted for that specific task, allowing multiple users to judge the same pair over time.
@@ -123,20 +124,20 @@ interface PairwiseTask {
     2.  It uses the `taskId` as the key to read the corresponding record from the `pairwise-preferences-v2` store.
     3.  It appends the new preference record to the array of existing records (or creates a new array if none exist).
     4.  It saves the updated array back to the store.
-    5.  **Local Development**: In dev mode (`NODE_ENV === 'development'`), this endpoint proxies requests to the deployed dev environment to bypass local blob storage complexities.
 
 #### Config-Specific Pairs Endpoints
 
--   **`GET /api/pairs/config/[configId]/get-task`** (`src/app/api/pairs/config/[configId]/get-task/route.ts`): Similar to the global endpoint but filters tasks by `configId`.
-    1.  Fetches the `_index` file.
-    2.  Iterates through all tasks to find those matching the specified `configId`.
-    3.  Selects a random task from the filtered set.
-    4.  Returns the task to the client.
+-   **`GET /api/pairs/config/[configId]/get-task`** (`src/app/api/pairs/config/[configId]/get-task/route.ts`): Fetches a random task for a specific config.
+    1.  Fetches the config-specific index `_index_{configId}`.
+    2.  Selects a random task ID from the config index.
+    3.  Fetches and returns the task.
+    4.  **Performance**: O(1) - Only 2 blob reads regardless of total task count.
 
 -   **`GET /api/pairs/config/[configId]/check-status`** (`src/app/api/pairs/config/[configId]/check-status/route.ts`): Checks if pairs are available and generation status.
-    1.  Counts tasks available for the specified `configId`.
+    1.  Reads the config-specific index `_index_{configId}` and returns its length.
     2.  Retrieves generation status from `pairwise-generation-status` store.
     3.  Returns task availability and generation status information.
+    4.  **Performance**: O(1) - Only 2 blob reads, no task fetching required.
 
 -   **`POST /api/pairs/config/[configId]/start-generation`** (`src/app/api/pairs/config/[configId]/start-generation/route.ts`): Initiates background pair generation.
     1.  Checks if generation is already in progress.

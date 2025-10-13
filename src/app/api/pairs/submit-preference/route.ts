@@ -17,32 +17,10 @@ interface PreferenceRecord {
 }
 
 const PREFERENCES_BLOB_STORE_NAME = 'pairwise-preferences-v2';
-const DEV_API_ENDPOINT = 'https://dev--weval-dev.netlify.app/api/pairs/submit-preference';
 
 export async function POST(request: Request) {
   const body = await request.json();
 
-  // In development, proxy the request to the deployed dev environment
-  if (process.env.NODE_ENV === 'development') {
-    try {
-      console.log(`[API /submit-preference] Development mode: Proxying request to ${DEV_API_ENDPOINT}`);
-      const response = await fetch(DEV_API_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        return NextResponse.json(data, { status: response.status });
-      }
-      return NextResponse.json(data);
-    } catch (error: any) {
-      console.error(`[API /submit-preference] Error proxying request: ${error.message}`);
-      return NextResponse.json({ error: 'Failed to proxy preference submission to dev environment.' }, { status: 500 });
-    }
-  }
-
-  // Production logic
   try {
     const { taskId, preference, reason } = body;
 
