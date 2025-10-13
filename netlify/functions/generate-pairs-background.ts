@@ -66,6 +66,18 @@ export const handler: BackgroundHandler = async (event) => {
     // Generate the pairs
     const result = await populatePairwiseQueue(resultData, { logger });
 
+    // Check if we failed due to missing anchor model
+    if (result.anchorModelMissing) {
+      await updateGenerationStatus(configId, {
+        status: 'error',
+        message: `Cannot generate pairs: evaluation results don't include the required anchor model 'openrouter:openai/gpt-4.1-mini'. Please run an evaluation that includes this model.`,
+        timestamp: new Date().toISOString(),
+        error: 'Missing anchor model',
+      });
+      logger.error(`Failed to generate pairs for ${configId}: anchor model missing from evaluation results.`);
+      return;
+    }
+
     // Update status to complete
     await updateGenerationStatus(configId, {
       status: 'complete',
