@@ -268,29 +268,44 @@ For config-specific pairs, generation is handled asynchronously via a Netlify ba
     4.  Updates status to `complete` with task counts, or `error` if generation fails
 -   **Status Updates**: Stored in `pairwise-generation-status` blob store, polled by UI every 2 seconds
 
-### Local Development Limitations
+### Local Development Setup
 
-**Important**: Background functions have limited support in `netlify dev` and cannot access Netlify Blobs properly in local development.
+To enable background functions to work with remote Netlify Blobs in local development, you need to configure environment variables.
 
-#### What Works Locally
+#### Setup Instructions
 
--   **Global Pairs UI** (`/pairs`): The `POST /api/pairs/submit-preference` endpoint proxies writes to the deployed dev environment (`dev--weval-dev.netlify.app`) in development mode.
--   **CLI Commands**: Direct pair generation using `pnpm cli generate-pairs --config-id <id>` works locally by reading credentials from `.netlify/state.json` and `~/.netlify/config.json`.
+1. **Extract your Netlify credentials** (already authenticated via `netlify login`):
+   ```bash
+   # On macOS, credentials are stored at:
+   cat ~/Library/Preferences/netlify/config.json | jq -r '.users | to_entries | .[0].value.auth.token'
+   ```
 
-#### What Doesn't Work Locally
+2. **Add to your `.env` file**:
+   ```bash
+   NETLIFY_SITE_ID=your-site-id-from-.netlify/state.json
+   NETLIFY_AUTH_TOKEN=your-token-from-above
+   ```
 
--   **Config-Specific Background Generation** (`/pairs/{configId}`): The background function detects local development and returns an error message directing users to either:
-    1.  Use the CLI directly: `pnpm cli generate-pairs --config-id <id>`
-    2.  Test on deployed environment: `netlify deploy --build`
+3. **Restart `netlify dev`** to pick up the new environment variables.
 
-#### Why Background Functions Fail Locally
+#### How It Works
 
-Background functions in `netlify dev` run in an isolated context that doesn't receive the same automatic environment variable injection as Next.js API routes. The `getBlobStore()` function in `pairwise-task-queue-service.ts` attempts multiple fallback strategies:
-1.  Check for `NETLIFY_SITE_ID` + `NETLIFY_AUTH_TOKEN` env vars (not available in background function context)
-2.  Read from `.netlify/state.json` + `~/.netlify/config.json` (filesystem access may fail)
-3.  Fall back to anonymous store (throws MissingBlobsEnvironmentError)
+Background functions in `netlify dev` run in an isolated context separate from Next.js API routes. The `getBlobStore()` function in `pairwise-task-queue-service.ts` uses these fallback strategies:
 
-This is a known limitation of Netlify's local development environment. All background function features work correctly in deployed environments (preview deploys, dev, production).
+1.  **Environment variables** (preferred): Check for `NETLIFY_SITE_ID` + `NETLIFY_AUTH_TOKEN` from `.env`
+2.  **Filesystem credentials**: Read from `.netlify/state.json` + `~/.netlify/config.json`
+3.  **Anonymous store**: Falls back (throws error)
+
+With environment variables configured, background functions can access remote blobs just like deployed environments.
+
+#### Alternative: Use CLI Directly
+
+For quick testing without configuring environment variables:
+```bash
+pnpm cli generate-pairs --config-id <id>
+```
+
+This bypasses the background function and generates pairs directly from the CLI.
 
 ## 6. Future Work & Downstream Analysis (TODO)
 

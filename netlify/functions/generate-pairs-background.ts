@@ -15,27 +15,6 @@ export const handler: BackgroundHandler = async (event) => {
     return;
   }
 
-  // In development, background functions don't have proper Blobs access
-  // This is a known limitation of netlify dev
-  if (process.env.NODE_ENV === 'development' || !process.env.CONTEXT) {
-    logger.error('Background functions are not fully supported in local development.');
-    logger.error('Please run: netlify deploy --build && use the deployed version for testing pair generation.');
-
-    // Try to update status to show error
-    try {
-      await updateGenerationStatus(configId, {
-        status: 'error',
-        message: 'Background functions require deployment to work properly. Please deploy to test this feature.',
-        timestamp: new Date().toISOString(),
-        error: 'Local development limitation',
-      });
-    } catch (e) {
-      // Can't even update status - blobs not configured at all
-      logger.error('Unable to update status - Netlify Blobs not configured in local dev');
-    }
-    return;
-  }
-
   try {
     // Try to update status to 'generating'
     try {
