@@ -312,6 +312,11 @@ export async function deletePairwiseTasks(options: { configId?: string, logger: 
             // Delete config index
             await store.delete(configIndexKey);
 
+            // Delete generation status for this config
+            const statusStore = await getBlobStore({ storeName: GENERATION_STATUS_BLOB_STORE_NAME, siteId });
+            await statusStore.delete(effectiveConfigId);
+            logger.info(`[PairwiseQueueService] Deleted generation status for config: ${effectiveConfigId}`);
+
             logger.info(`[PairwiseQueueService] Deleted ${configIndex.length} tasks and removed config index.`);
             totalDeletedCount += configIndex.length;
         } else {
@@ -338,7 +343,17 @@ export async function deletePairwiseTasks(options: { configId?: string, logger: 
                 await store.delete(configIndex.key);
             }
 
-            logger.info(`[PairwiseQueueService] Deleted ${globalIndex.length} tasks, global index, and ${configIndexes.length} config indexes.`);
+            // Delete all generation statuses
+            const statusStore = await getBlobStore({ storeName: GENERATION_STATUS_BLOB_STORE_NAME, siteId });
+            const { blobs: statusBlobs } = await statusStore.list();
+            if (statusBlobs.length > 0) {
+                logger.info(`[PairwiseQueueService] Deleting ${statusBlobs.length} generation status records...`);
+                for (const statusBlob of statusBlobs) {
+                    await statusStore.delete(statusBlob.key);
+                }
+            }
+
+            logger.info(`[PairwiseQueueService] Deleted ${globalIndex.length} tasks, global index, ${configIndexes.length} config indexes, and all generation statuses.`);
             totalDeletedCount += globalIndex.length;
         }
     }
