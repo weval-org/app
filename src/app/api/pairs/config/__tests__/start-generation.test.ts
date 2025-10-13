@@ -228,7 +228,7 @@ describe('POST /api/pairs/config/[configId]/start-generation', () => {
       method: 'POST',
     });
 
-    await POST(req, { params: { configId: 'test-config' } });
+    await POST(req, { params: Promise.resolve({ configId: 'test-config' }) });
 
     expect(global.fetch).toHaveBeenCalledWith(
       'https://weval.org/.netlify/functions/generate-pairs-background',
@@ -246,7 +246,7 @@ describe('POST /api/pairs/config/[configId]/start-generation', () => {
       method: 'POST',
     });
 
-    await POST(req, { params: { configId: 'test-config' } });
+    await POST(req, { params: Promise.resolve({ configId: 'test-config' }) });
 
     expect(global.fetch).toHaveBeenCalledWith(
       'http://localhost:8888/.netlify/functions/generate-pairs-background',

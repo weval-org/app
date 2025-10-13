@@ -47,12 +47,11 @@ describe('populatePairwiseQueue', () => {
       info: jest.fn(),
       warn: jest.fn(),
       error: jest.fn(),
-      log: jest.fn(),
     };
   });
 
   it('should create pairwise tasks pairing all models with the anchor model', async () => {
-    const resultData: ComparisonDataV2 = {
+    const resultData = {
       configId: 'test-config',
       promptIds: ['prompt-1'],
       promptContexts: {
@@ -69,7 +68,7 @@ describe('populatePairwiseQueue', () => {
         [OFFICIAL_ANCHOR_MODEL]: 'You are a helpful assistant.',
       },
       config: {} as any,
-    };
+    } as any as ComparisonDataV2;
 
     mockStore.get.mockResolvedValue([]); // Empty indexes initially
 
@@ -106,7 +105,7 @@ describe('populatePairwiseQueue', () => {
     const modelA = OFFICIAL_ANCHOR_MODEL;
     const modelB = 'openrouter:anthropic/claude-3.5-sonnet';
 
-    const resultData: ComparisonDataV2 = {
+    const resultData = {
       configId: 'test-config',
       promptIds: ['prompt-1'],
       promptContexts: { 'prompt-1': 'Test' },
@@ -118,7 +117,7 @@ describe('populatePairwiseQueue', () => {
       },
       modelSystemPrompts: {},
       config: {} as any,
-    };
+    } as any as ComparisonDataV2;
 
     mockStore.get.mockResolvedValue([]);
 
@@ -136,7 +135,7 @@ describe('populatePairwiseQueue', () => {
   });
 
   it('should create both global and config-specific indexes', async () => {
-    const resultData: ComparisonDataV2 = {
+    const resultData = {
       configId: 'test-config',
       promptIds: ['prompt-1'],
       promptContexts: { 'prompt-1': 'Test' },
@@ -148,7 +147,7 @@ describe('populatePairwiseQueue', () => {
       },
       modelSystemPrompts: {},
       config: {} as any,
-    };
+    } as any as ComparisonDataV2;
 
     mockStore.get.mockResolvedValue([]);
 
@@ -188,7 +187,7 @@ describe('populatePairwiseQueue', () => {
       return Promise.resolve([]);
     });
 
-    const resultData: ComparisonDataV2 = {
+    const resultData = {
       configId: 'test-config',
       promptIds: ['prompt-1'],
       promptContexts: { 'prompt-1': 'Test' },
@@ -200,7 +199,7 @@ describe('populatePairwiseQueue', () => {
       },
       modelSystemPrompts: {},
       config: {} as any,
-    };
+    } as any as ComparisonDataV2;
 
     const result = await populatePairwiseQueue(resultData, { logger: mockLogger });
 
@@ -220,7 +219,7 @@ describe('populatePairwiseQueue', () => {
     const taskId = 'task-sha256-hash';
     mockStore.get.mockResolvedValue([taskId]); // Task already exists
 
-    const resultData: ComparisonDataV2 = {
+    const resultData = {
       configId: 'test-config',
       promptIds: ['prompt-1'],
       promptContexts: { 'prompt-1': 'Test' },
@@ -232,7 +231,7 @@ describe('populatePairwiseQueue', () => {
       },
       modelSystemPrompts: {},
       config: {} as any,
-    };
+    } as any as ComparisonDataV2;
 
     const result = await populatePairwiseQueue(resultData, { logger: mockLogger });
 
@@ -242,7 +241,7 @@ describe('populatePairwiseQueue', () => {
   });
 
   it('should handle multiple prompts correctly', async () => {
-    const resultData: ComparisonDataV2 = {
+    const resultData = {
       configId: 'test-config',
       promptIds: ['prompt-1', 'prompt-2', 'prompt-3'],
       promptContexts: {
@@ -266,7 +265,7 @@ describe('populatePairwiseQueue', () => {
       },
       modelSystemPrompts: {},
       config: {} as any,
-    };
+    } as any as ComparisonDataV2;
 
     mockStore.get.mockResolvedValue([]);
 
@@ -278,7 +277,7 @@ describe('populatePairwiseQueue', () => {
   });
 
   it('should convert string prompt to messages array', async () => {
-    const resultData: ComparisonDataV2 = {
+    const resultData = {
       configId: 'test-config',
       promptIds: ['prompt-1'],
       promptContexts: {
@@ -292,7 +291,7 @@ describe('populatePairwiseQueue', () => {
       },
       modelSystemPrompts: {},
       config: {} as any,
-    };
+    } as any as ComparisonDataV2;
 
     mockStore.get.mockResolvedValue([]);
 
@@ -308,12 +307,12 @@ describe('populatePairwiseQueue', () => {
 
   it('should preserve messages array prompt format', async () => {
     const messages = [
-      { role: 'user', content: 'First message' },
-      { role: 'assistant', content: 'First response' },
-      { role: 'user', content: 'Second message' },
+      { role: 'user' as const, content: 'First message' },
+      { role: 'assistant' as const, content: 'First response' },
+      { role: 'user' as const, content: 'Second message' },
     ];
 
-    const resultData: ComparisonDataV2 = {
+    const resultData = {
       configId: 'test-config',
       promptIds: ['prompt-1'],
       promptContexts: {
@@ -327,7 +326,7 @@ describe('populatePairwiseQueue', () => {
       },
       modelSystemPrompts: {},
       config: {} as any,
-    };
+    } as any as ComparisonDataV2;
 
     mockStore.get.mockResolvedValue([]);
 
@@ -342,7 +341,7 @@ describe('populatePairwiseQueue', () => {
   it('should include system prompt when available', async () => {
     const systemPrompt = 'You are a helpful assistant specialized in geography.';
 
-    const resultData: ComparisonDataV2 = {
+    const resultData = {
       configId: 'test-config',
       promptIds: ['prompt-1'],
       promptContexts: { 'prompt-1': 'Test' },
@@ -357,7 +356,7 @@ describe('populatePairwiseQueue', () => {
         'openrouter:anthropic/claude-3.5-sonnet': systemPrompt,
       },
       config: {} as any,
-    };
+    } as any as ComparisonDataV2;
 
     mockStore.get.mockResolvedValue([]);
 
@@ -370,7 +369,7 @@ describe('populatePairwiseQueue', () => {
   });
 
   it('should return anchorModelMissing flag when anchor model not found', async () => {
-    const resultData: ComparisonDataV2 = {
+    const resultData = {
       configId: 'test-config',
       promptIds: ['prompt-1', 'prompt-2'],
       promptContexts: {
@@ -389,7 +388,7 @@ describe('populatePairwiseQueue', () => {
       },
       modelSystemPrompts: {},
       config: {} as any,
-    };
+    } as any as ComparisonDataV2;
 
     mockStore.get.mockResolvedValue([]);
 
@@ -403,7 +402,7 @@ describe('populatePairwiseQueue', () => {
   });
 
   it('should skip prompts without anchor model but continue with others', async () => {
-    const resultData: ComparisonDataV2 = {
+    const resultData = {
       configId: 'test-config',
       promptIds: ['prompt-1', 'prompt-2'],
       promptContexts: {
@@ -422,7 +421,7 @@ describe('populatePairwiseQueue', () => {
       },
       modelSystemPrompts: {},
       config: {} as any,
-    };
+    } as any as ComparisonDataV2;
 
     mockStore.get.mockResolvedValue([]);
 
@@ -436,7 +435,7 @@ describe('populatePairwiseQueue', () => {
   });
 
   it('should return early when missing required fields', async () => {
-    const resultData: ComparisonDataV2 = {
+    const resultData = {
       configId: 'test-config',
       promptIds: ['prompt-1'],
       // Missing promptContexts, allFinalAssistantResponses, config
@@ -454,14 +453,14 @@ describe('populatePairwiseQueue', () => {
   });
 
   it('should handle empty promptIds array', async () => {
-    const resultData: ComparisonDataV2 = {
+    const resultData = {
       configId: 'test-config',
       promptIds: [],
       promptContexts: {},
       allFinalAssistantResponses: {},
       modelSystemPrompts: {},
       config: {} as any,
-    };
+    } as any as ComparisonDataV2;
 
     mockStore.get.mockResolvedValue([]);
 
@@ -472,7 +471,7 @@ describe('populatePairwiseQueue', () => {
   });
 
   it('should skip prompts with missing responses', async () => {
-    const resultData: ComparisonDataV2 = {
+    const resultData = {
       configId: 'test-config',
       promptIds: ['prompt-1', 'prompt-2'],
       promptContexts: {
@@ -488,7 +487,7 @@ describe('populatePairwiseQueue', () => {
       },
       modelSystemPrompts: {},
       config: {} as any,
-    };
+    } as any as ComparisonDataV2;
 
     mockStore.get.mockResolvedValue([]);
 
@@ -499,7 +498,7 @@ describe('populatePairwiseQueue', () => {
   });
 
   it('should filter out IDEAL_MODEL_ID from pairings', async () => {
-    const resultData: ComparisonDataV2 = {
+    const resultData = {
       configId: 'test-config',
       promptIds: ['prompt-1'],
       promptContexts: { 'prompt-1': 'Test' },
@@ -512,7 +511,7 @@ describe('populatePairwiseQueue', () => {
       },
       modelSystemPrompts: {},
       config: {} as any,
-    };
+    } as any as ComparisonDataV2;
 
     mockStore.get.mockResolvedValue([]);
 
@@ -529,7 +528,7 @@ describe('populatePairwiseQueue', () => {
   });
 
   it('should generate unique taskIds for different prompt-model combinations', async () => {
-    const resultData: ComparisonDataV2 = {
+    const resultData = {
       configId: 'test-config',
       promptIds: ['prompt-1', 'prompt-2'],
       promptContexts: {
@@ -548,7 +547,7 @@ describe('populatePairwiseQueue', () => {
       },
       modelSystemPrompts: {},
       config: {} as any,
-    };
+    } as any as ComparisonDataV2;
 
     mockStore.get.mockResolvedValue([]);
 
@@ -564,7 +563,7 @@ describe('populatePairwiseQueue', () => {
   });
 
   it('should pair anchor with multiple other models', async () => {
-    const resultData: ComparisonDataV2 = {
+    const resultData = {
       configId: 'test-config',
       promptIds: ['prompt-1'],
       promptContexts: { 'prompt-1': 'Test' },
@@ -578,7 +577,7 @@ describe('populatePairwiseQueue', () => {
       },
       modelSystemPrompts: {},
       config: {} as any,
-    };
+    } as any as ComparisonDataV2;
 
     mockStore.get.mockResolvedValue([]);
 
@@ -599,7 +598,7 @@ describe('populatePairwiseQueue', () => {
   });
 
   it('should skip pairs with identical responses', async () => {
-    const resultData: ComparisonDataV2 = {
+    const resultData = {
       configId: 'test-config',
       promptIds: ['prompt-1'],
       promptContexts: { 'prompt-1': 'Test' },
@@ -611,7 +610,7 @@ describe('populatePairwiseQueue', () => {
       },
       modelSystemPrompts: {},
       config: {} as any,
-    };
+    } as any as ComparisonDataV2;
 
     mockStore.get.mockResolvedValue([]);
 
@@ -629,7 +628,7 @@ describe('populatePairwiseQueue', () => {
   });
 
   it('should skip only pairs with identical responses, create others', async () => {
-    const resultData: ComparisonDataV2 = {
+    const resultData = {
       configId: 'test-config',
       promptIds: ['prompt-1'],
       promptContexts: { 'prompt-1': 'Test' },
@@ -643,7 +642,7 @@ describe('populatePairwiseQueue', () => {
       },
       modelSystemPrompts: {},
       config: {} as any,
-    };
+    } as any as ComparisonDataV2;
 
     mockStore.get.mockResolvedValue([]);
 
@@ -668,7 +667,7 @@ describe('populatePairwiseQueue', () => {
   });
 
   it('should handle all models producing identical responses', async () => {
-    const resultData: ComparisonDataV2 = {
+    const resultData = {
       configId: 'test-config',
       promptIds: ['prompt-1', 'prompt-2'],
       promptContexts: {
@@ -688,7 +687,7 @@ describe('populatePairwiseQueue', () => {
       },
       modelSystemPrompts: {},
       config: {} as any,
-    };
+    } as any as ComparisonDataV2;
 
     mockStore.get.mockResolvedValue([]);
 
@@ -718,14 +717,14 @@ describe('populatePairwiseQueue', () => {
       };
     });
 
-    const resultData: ComparisonDataV2 = {
+    const resultData = {
       configId: 'test-config',
       promptIds,
       promptContexts,
       allFinalAssistantResponses: responses,
       modelSystemPrompts: {},
       config: {} as any,
-    };
+    } as any as ComparisonDataV2;
 
     mockStore.get.mockResolvedValue([]);
 

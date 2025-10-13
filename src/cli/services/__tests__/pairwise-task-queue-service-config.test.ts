@@ -82,7 +82,7 @@ describe('pairwise-task-queue-service - config-specific functions', () => {
     it('should respect siteId option', async () => {
       // Mock fs to provide credentials for siteId override path
       const fs = require('fs/promises');
-      (fs.readFile as jest.Mock).mockResolvedValue(JSON.stringify({ 'access-token': 'test-token' }));
+      (fs.readFile as any).mockResolvedValue(JSON.stringify({ 'access-token': 'test-token' }));
 
       mockStore.get.mockResolvedValue([]);
 
@@ -144,7 +144,7 @@ describe('pairwise-task-queue-service - config-specific functions', () => {
     it('should respect siteId option', async () => {
       // Mock fs to provide credentials for siteId override path
       const fs = require('fs/promises');
-      (fs.readFile as jest.Mock).mockResolvedValue(JSON.stringify({ 'access-token': 'test-token' }));
+      (fs.readFile as any).mockResolvedValue(JSON.stringify({ 'access-token': 'test-token' }));
 
       const status: GenerationStatus = {
         status: 'pending',
@@ -193,7 +193,7 @@ describe('pairwise-task-queue-service - config-specific functions', () => {
     it('should respect siteId option', async () => {
       // Mock fs to provide credentials for siteId override path
       const fs = require('fs/promises');
-      (fs.readFile as jest.Mock).mockResolvedValue(JSON.stringify({ 'access-token': 'test-token' }));
+      (fs.readFile as any).mockResolvedValue(JSON.stringify({ 'access-token': 'test-token' }));
 
       mockStore.get.mockResolvedValue(undefined);
 

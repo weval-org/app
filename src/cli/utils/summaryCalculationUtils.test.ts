@@ -192,14 +192,17 @@ describe('calculateHeadlineStats', () => {
     }];
     
     const result = calculateHeadlineStats(configs, new Map(), new Map(), mockLogger);
-    
+
     expect(result.capabilityLeaderboards).toBeDefined();
     expect(result.capabilityRawData).toBeDefined();
     expect(result.capabilityRawData?.modelConfigs).toBeDefined();
-    
-    // The raw data structure should exist, even if models don't qualify for leaderboards
-    // In a real scenario, models would need sufficient dimensions/topics to qualify
-    expect(result.capabilityRawData?.modelConfigs).toEqual({    });
+
+    // Raw data should include ALL models with config scores (not just qualifying ones)
+    // This supports the capability-tuning page which needs raw data to recalculate scores
+    expect(result.capabilityRawData?.modelConfigs['provider:model-a']).toBeDefined();
+    expect(result.capabilityRawData?.modelConfigs['provider:model-a']['uk-clinical-scenarios']).toBe(0.85);
+    expect(result.capabilityRawData?.modelConfigs['provider:model-b']).toBeDefined();
+    expect(result.capabilityRawData?.modelConfigs['provider:model-b']['uk-clinical-scenarios']).toBe(0.75);
   });
 
   describe('Global qualification vs capability-specific scoring', () => {
@@ -949,10 +952,20 @@ describe('calculateCapabilityLeaderboards', () => {
       mockLogger
     );
 
-    // Should include qualified model
+    // Raw data should include ALL models with config scores (not just qualifying ones)
+    // This supports the capability-tuning page which needs raw data to recalculate scores
     expect(result.rawData.modelConfigs['provider:model-a']['uk-clinical-scenarios']).toBe(0.85);
-    // Should NOT include unqualified model
-    expect(result.rawData.modelConfigs['provider:model-unqualified']).toBeUndefined();
+    // Unqualified model should also be included in raw data (even though not in leaderboard)
+    expect(result.rawData.modelConfigs['provider:model-unqualified']).toBeDefined();
+    expect(result.rawData.modelConfigs['provider:model-unqualified']['uk-clinical-scenarios']).toBe(0.9);
+
+    // However, the leaderboard should only include the qualifying model
+    const safetyCapability = result.leaderboards.find(cap => cap.id === 'test-safety');
+    expect(safetyCapability).toBeDefined();
+    const qualifiedModel = safetyCapability!.leaderboard.find(m => m.modelId === 'provider:model-a');
+    expect(qualifiedModel).toBeDefined();
+    const unqualifiedModel = safetyCapability!.leaderboard.find(m => m.modelId === 'provider:model-unqualified');
+    expect(unqualifiedModel).toBeUndefined(); // Should NOT be in leaderboard
   });
 
   it('should combine config scores with dimensions and topics in capability calculation', () => {
