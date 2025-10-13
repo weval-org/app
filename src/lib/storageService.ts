@@ -552,13 +552,17 @@ function artefactPaths(configId: string, runBase: string, relative: string) {
 }
 
 async function readJsonFromStorage(configId: string, runBase: string, relative: string): Promise<any | null> {
+  const startTime = Date.now();
   const { s3Key, localPath, cachePath } = artefactPaths(configId, runBase, relative);
 
   // 1. cache
   try {
     if (fsSync.existsSync(cachePath)) {
       const cached = await fs.readFile(cachePath, 'utf-8');
-      return JSON.parse(cached);
+      const parsed = JSON.parse(cached);
+      const duration = Date.now() - startTime;
+      if (duration > 100) console.log(`[StorageService] Cache hit ${relative} (${duration}ms, ${cached.length} bytes)`);
+      return parsed;
     }
   } catch {}
 
@@ -572,12 +576,23 @@ async function readJsonFromStorage(configId: string, runBase: string, relative: 
 
   if (storageProvider === 's3' && s3Client && s3BucketName) {
     try {
+      const s3FetchStart = Date.now();
       const obj = await s3Client.send(new GetObjectCommand({ Bucket: s3BucketName, Key: s3Key }));
+      const s3FetchDuration = Date.now() - s3FetchStart;
+
       if (obj.Body) {
         const lastMod = obj.LastModified ? obj.LastModified.toISOString() : 'unknown';
-        console.log(`[StorageService] S3 GET ${s3Key} (LastModified: ${lastMod})`);
+        const streamStart = Date.now();
         const content = await streamToString(obj.Body as Readable);
-        return await loadAndCache(content);
+        const streamDuration = Date.now() - streamStart;
+
+        const parseStart = Date.now();
+        const result = await loadAndCache(content);
+        const parseDuration = Date.now() - parseStart;
+
+        const totalDuration = Date.now() - startTime;
+        console.log(`[StorageService] S3 GET ${s3Key} (${totalDuration}ms: fetch=${s3FetchDuration}ms, stream=${streamDuration}ms, parse=${parseDuration}ms, ${content.length} bytes)`);
+        return result;
       }
     } catch (err: any) {
       if (err.name !== 'NoSuchKey') console.warn('[StorageService] readJsonFromStorage error:', err.message);
@@ -665,6 +680,7 @@ export async function getPromptResponses(configId: string, runLabel: string, tim
   if (artefact) return artefact;
 
   // legacy fallback
+  console.warn(`[StorageService] Bulk response artefact not found for ${configId}/${runLabel}/${timestamp}/${promptId}, falling back to legacy monolith file. This run uses an old storage format.`);
   const legacyFile = `${runBase}_comparison.json`;
   const legacy = await getResultByFileName(configId, legacyFile);
   if (legacy?.allFinalAssistantResponses) {
@@ -672,6 +688,39 @@ export async function getPromptResponses(configId: string, runLabel: string, tim
     return legacy.allFinalAssistantResponses[decodedPromptId] || null;
   }
   return null;
+}
+
+/**
+ * Fetch a single model's response for a specific prompt. Optimized for granular access.
+ * Falls back to bulk file if individual artefact doesn't exist.
+ */
+export async function getSingleModelResponse(
+  configId: string,
+  runLabel: string,
+  timestamp: string,
+  promptId: string,
+  modelId: string
+): Promise<string | null> {
+  // Workshop runs: use bulk responses
+  if (isWorkshopRun(configId)) {
+    const responses = await getPromptResponses(configId, runLabel, timestamp, promptId);
+    return responses?.[modelId] || null;
+  }
+
+  // Production runs: try individual artefact first (optimized)
+  const runBase = `${runLabel}_${timestamp}`;
+  const safeModel = getSafeModelId(modelId);
+  const individualPath = path.join('responses', promptId, `${safeModel}.json`);
+  const individual = await readJsonFromStorage(configId, runBase, individualPath);
+  if (individual !== null) {
+    // Individual artefact is just the string response
+    return typeof individual === 'string' ? individual : null;
+  }
+
+  // Fallback to bulk file (backward compatibility)
+  console.warn(`[StorageService] Granular response not found for ${configId}/${runLabel}/${timestamp}/${promptId}/${modelId}, falling back to bulk file. Consider running: npm run cli -- backfill-granular-responses --config ${configId}`);
+  const responses = await getPromptResponses(configId, runLabel, timestamp, promptId);
+  return responses?.[modelId] || null;
 }
 
 /**
@@ -899,9 +948,21 @@ export async function saveResult(configId: string, fileNameWithTimestamp: string
     // Prompt-level responses
     if (data.allFinalAssistantResponses) {
       for (const promptId of Object.keys(data.allFinalAssistantResponses)) {
+        // Keep bulk file for backward compatibility
         artefactWrites.push(
           limit(() => writeJsonArtefact(path.join('responses', `${promptId}.json`), data.allFinalAssistantResponses[promptId]))
         );
+
+        // NEW: Write individual response files per model for optimized lazy loading
+        const responsesForPrompt = data.allFinalAssistantResponses[promptId];
+        for (const modelId of Object.keys(responsesForPrompt)) {
+          artefactWrites.push(
+            limit(() => writeJsonArtefact(
+              path.join('responses', promptId, `${getSafeModelId(modelId)}.json`),
+              responsesForPrompt[modelId]
+            ))
+          );
+        }
       }
     }
 
