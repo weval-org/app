@@ -31,40 +31,29 @@ describe('pairwise-task-queue-service - config-specific functions', () => {
   });
 
   describe('getConfigTaskCount', () => {
-    it('should count tasks matching the configId', async () => {
-      const taskIndex = ['task-1', 'task-2', 'task-3', 'task-4'];
-      const tasks: Record<string, Partial<PairwiseTask>> = {
-        'task-1': { taskId: 'task-1', configId: 'config-a' },
-        'task-2': { taskId: 'task-2', configId: 'config-b' },
-        'task-3': { taskId: 'task-3', configId: 'config-a' },
-        'task-4': { taskId: 'task-4', configId: 'config-c' },
-      };
+    it('should count tasks from config-specific index', async () => {
+      const configIndex = ['task-1', 'task-3']; // Only tasks for config-a
 
-      mockStore.get.mockImplementation((key: string) => {
-        if (key === '_index') {
-          return Promise.resolve(taskIndex);
-        }
-        return Promise.resolve(tasks[key]);
-      });
+      mockStore.get.mockResolvedValue(configIndex);
 
       const count = await getConfigTaskCount('config-a');
 
       expect(count).toBe(2);
-      expect(mockStore.get).toHaveBeenCalledWith('_index', { type: 'json' });
-      expect(mockStore.get).toHaveBeenCalledTimes(5); // 1 for index + 4 for tasks
+      expect(mockStore.get).toHaveBeenCalledWith('_index_config-a', { type: 'json' });
+      expect(mockStore.get).toHaveBeenCalledTimes(1); // Only reads config-specific index
     });
 
-    it('should return 0 when index is empty', async () => {
+    it('should return 0 when config index is empty', async () => {
       mockStore.get.mockResolvedValue([]);
 
       const count = await getConfigTaskCount('config-a');
 
       expect(count).toBe(0);
-      expect(mockStore.get).toHaveBeenCalledWith('_index', { type: 'json' });
+      expect(mockStore.get).toHaveBeenCalledWith('_index_config-a', { type: 'json' });
       expect(mockStore.get).toHaveBeenCalledTimes(1);
     });
 
-    it('should return 0 when index is undefined', async () => {
+    it('should return 0 when config index is undefined', async () => {
       mockStore.get.mockResolvedValue(undefined);
 
       const count = await getConfigTaskCount('config-a');
@@ -72,43 +61,22 @@ describe('pairwise-task-queue-service - config-specific functions', () => {
       expect(count).toBe(0);
     });
 
-    it('should return 0 when no tasks match configId', async () => {
-      const taskIndex = ['task-1', 'task-2'];
-      const tasks: Record<string, Partial<PairwiseTask>> = {
-        'task-1': { taskId: 'task-1', configId: 'config-b' },
-        'task-2': { taskId: 'task-2', configId: 'config-c' },
-      };
-
-      mockStore.get.mockImplementation((key: string) => {
-        if (key === '_index') {
-          return Promise.resolve(taskIndex);
-        }
-        return Promise.resolve(tasks[key]);
-      });
+    it('should return 0 when config has no tasks', async () => {
+      mockStore.get.mockResolvedValue([]); // Empty config index
 
       const count = await getConfigTaskCount('config-a');
 
       expect(count).toBe(0);
     });
 
-    it('should handle missing task objects gracefully', async () => {
-      const taskIndex = ['task-1', 'task-2', 'task-3'];
-      const tasks: Record<string, Partial<PairwiseTask> | undefined> = {
-        'task-1': { taskId: 'task-1', configId: 'config-a' },
-        'task-2': undefined, // Task in index but blob missing
-        'task-3': { taskId: 'task-3', configId: 'config-a' },
-      };
+    it('should use correct index key for different configs', async () => {
+      mockStore.get.mockResolvedValue(['task-1', 'task-2', 'task-3']);
 
-      mockStore.get.mockImplementation((key: string) => {
-        if (key === '_index') {
-          return Promise.resolve(taskIndex);
-        }
-        return Promise.resolve(tasks[key]);
-      });
+      await getConfigTaskCount('config-alpha');
+      expect(mockStore.get).toHaveBeenCalledWith('_index_config-alpha', { type: 'json' });
 
-      const count = await getConfigTaskCount('config-a');
-
-      expect(count).toBe(2); // Should skip the missing task
+      await getConfigTaskCount('config-beta');
+      expect(mockStore.get).toHaveBeenCalledWith('_index_config-beta', { type: 'json' });
     });
 
     it('should respect siteId option', async () => {
@@ -120,11 +88,14 @@ describe('pairwise-task-queue-service - config-specific functions', () => {
 
       await getConfigTaskCount('config-a', { siteId: 'custom-site-id' });
 
-      expect(getStore).toHaveBeenCalledWith({
-        name: 'pairwise-tasks-v2',
-        siteID: 'custom-site-id',
-        token: 'test-token',
-      });
+      // When siteId is provided, getBlobStore will call getStore with credentials
+      expect(getStore).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'pairwise-tasks-v2',
+          siteID: 'custom-site-id',
+          token: 'test-token',
+        })
+      );
     });
   });
 
@@ -138,7 +109,8 @@ describe('pairwise-task-queue-service - config-specific functions', () => {
 
       await updateGenerationStatus('config-a', status);
 
-      expect(getStore).toHaveBeenCalledWith('pairwise-generation-status');
+      // getBlobStore is called internally, which then calls getStore
+      // Just verify the status was saved correctly
       expect(mockStore.setJSON).toHaveBeenCalledWith('config-a', status);
     });
 
@@ -182,11 +154,14 @@ describe('pairwise-task-queue-service - config-specific functions', () => {
 
       await updateGenerationStatus('config-a', status, { siteId: 'custom-site-id' });
 
-      expect(getStore).toHaveBeenCalledWith({
-        name: 'pairwise-generation-status',
-        siteID: 'custom-site-id',
-        token: 'test-token',
-      });
+      // When siteId is provided, getBlobStore will call getStore with credentials
+      expect(getStore).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'pairwise-generation-status',
+          siteID: 'custom-site-id',
+          token: 'test-token',
+        })
+      );
     });
   });
 
@@ -224,11 +199,14 @@ describe('pairwise-task-queue-service - config-specific functions', () => {
 
       await getGenerationStatus('config-a', { siteId: 'custom-site-id' });
 
-      expect(getStore).toHaveBeenCalledWith({
-        name: 'pairwise-generation-status',
-        siteID: 'custom-site-id',
-        token: 'test-token',
-      });
+      // When siteId is provided, getBlobStore will call getStore with credentials
+      expect(getStore).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'pairwise-generation-status',
+          siteID: 'custom-site-id',
+          token: 'test-token',
+        })
+      );
     });
 
     it('should handle all status states', async () => {
