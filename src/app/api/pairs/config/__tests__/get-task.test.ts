@@ -22,8 +22,9 @@ describe('GET /api/pairs/config/[configId]/get-task', () => {
     (getStore as jest.Mock).mockReturnValue(mockStore);
   });
 
-  it('should return a random task matching the configId', async () => {
-    const taskIndex = ['task-1', 'task-2', 'task-3', 'task-4'];
+  it('should return a random task from the config-specific index', async () => {
+    // Config-specific index contains only tasks for this config
+    const configIndex = ['task-1', 'task-3'];
     const tasks: Record<string, any> = {
       'task-1': {
         taskId: 'task-1',
@@ -31,15 +32,6 @@ describe('GET /api/pairs/config/[configId]/get-task', () => {
         prompt: { system: null, messages: [{ role: 'user', content: 'Test prompt 1' }] },
         responseA: 'Response A1',
         responseB: 'Response B1',
-        modelIdA: 'model-a',
-        modelIdB: 'model-b',
-      },
-      'task-2': {
-        taskId: 'task-2',
-        configId: 'other-config',
-        prompt: { system: null, messages: [{ role: 'user', content: 'Test prompt 2' }] },
-        responseA: 'Response A2',
-        responseB: 'Response B2',
         modelIdA: 'model-a',
         modelIdB: 'model-b',
       },
@@ -52,20 +44,11 @@ describe('GET /api/pairs/config/[configId]/get-task', () => {
         modelIdA: 'model-a',
         modelIdB: 'model-b',
       },
-      'task-4': {
-        taskId: 'task-4',
-        configId: 'another-config',
-        prompt: { system: null, messages: [{ role: 'user', content: 'Test prompt 4' }] },
-        responseA: 'Response A4',
-        responseB: 'Response B4',
-        modelIdA: 'model-a',
-        modelIdB: 'model-b',
-      },
     };
 
     mockStore.get.mockImplementation((key: string) => {
-      if (key === '_index') {
-        return Promise.resolve(taskIndex);
+      if (key === '_index_test-config') {
+        return Promise.resolve(configIndex);
       }
       return Promise.resolve(tasks[key]);
     });
@@ -82,19 +65,9 @@ describe('GET /api/pairs/config/[configId]/get-task', () => {
     expect(data).toHaveProperty('responseB');
   });
 
-  it('should return 404 when no tasks match configId', async () => {
-    const taskIndex = ['task-1', 'task-2'];
-    const tasks: Record<string, any> = {
-      'task-1': { taskId: 'task-1', configId: 'other-config' },
-      'task-2': { taskId: 'task-2', configId: 'another-config' },
-    };
-
-    mockStore.get.mockImplementation((key: string) => {
-      if (key === '_index') {
-        return Promise.resolve(taskIndex);
-      }
-      return Promise.resolve(tasks[key]);
-    });
+  it('should return 404 when config index does not exist', async () => {
+    // Config-specific index doesn't exist
+    mockStore.get.mockResolvedValue(undefined);
 
     const req = new NextRequest('http://localhost:3000/api/pairs/config/test-config/get-task');
     const response = await GET(req, { params: Promise.resolve({ configId: 'test-config' }) });
@@ -104,7 +77,7 @@ describe('GET /api/pairs/config/[configId]/get-task', () => {
     expect(data.error).toContain('No comparison tasks found for config: test-config');
   });
 
-  it('should return 404 when index is empty', async () => {
+  it('should return 404 when config index is empty', async () => {
     mockStore.get.mockResolvedValue([]);
 
     const req = new NextRequest('http://localhost:3000/api/pairs/config/test-config/get-task');
@@ -112,33 +85,21 @@ describe('GET /api/pairs/config/[configId]/get-task', () => {
     const data = await response.json();
 
     expect(response.status).toBe(404);
-    expect(data.error).toBe('No comparison tasks are available in the index.');
+    expect(data.error).toContain('No comparison tasks found for config: test-config');
   });
 
-  it('should return 404 when index is undefined', async () => {
-    mockStore.get.mockResolvedValue(undefined);
-
-    const req = new NextRequest('http://localhost:3000/api/pairs/config/test-config/get-task');
-    const response = await GET(req, { params: Promise.resolve({ configId: 'test-config' }) });
-    const data = await response.json();
-
-    expect(response.status).toBe(404);
-    expect(data.error).toBe('No comparison tasks are available in the index.');
-  });
-
-  it('should only return tasks from the specified config', async () => {
-    const taskIndex = ['task-1', 'task-2', 'task-3', 'task-4', 'task-5'];
+  it('should only return tasks from the config-specific index', async () => {
+    // Config-alpha index contains only alpha tasks
+    const configAlphaIndex = ['task-1', 'task-3', 'task-4'];
     const tasks: Record<string, any> = {
-      'task-1': { taskId: 'task-1', configId: 'config-alpha', prompt: {} },
-      'task-2': { taskId: 'task-2', configId: 'config-beta', prompt: {} },
-      'task-3': { taskId: 'task-3', configId: 'config-alpha', prompt: {} },
-      'task-4': { taskId: 'task-4', configId: 'config-alpha', prompt: {} },
-      'task-5': { taskId: 'task-5', configId: 'config-beta', prompt: {} },
+      'task-1': { taskId: 'task-1', configId: 'config-alpha', prompt: { messages: [] } },
+      'task-3': { taskId: 'task-3', configId: 'config-alpha', prompt: { messages: [] } },
+      'task-4': { taskId: 'task-4', configId: 'config-alpha', prompt: { messages: [] } },
     };
 
     mockStore.get.mockImplementation((key: string) => {
-      if (key === '_index') {
-        return Promise.resolve(taskIndex);
+      if (key === '_index_config-alpha') {
+        return Promise.resolve(configAlphaIndex);
       }
       return Promise.resolve(tasks[key]);
     });
@@ -155,28 +116,23 @@ describe('GET /api/pairs/config/[configId]/get-task', () => {
     }
   });
 
-  it('should handle stale index gracefully', async () => {
-    const taskIndex = ['task-1', 'task-2', 'task-3'];
-    const tasks: Record<string, any | undefined> = {
-      'task-1': { taskId: 'task-1', configId: 'test-config', prompt: {} },
-      'task-2': undefined, // Task in index but blob missing
-      'task-3': { taskId: 'task-3', configId: 'test-config', prompt: {} },
-    };
+  it('should return 404 when task blob is missing from index', async () => {
+    const configIndex = ['task-1', 'task-2'];
 
     mockStore.get.mockImplementation((key: string) => {
-      if (key === '_index') {
-        return Promise.resolve(taskIndex);
+      if (key === '_index_test-config') {
+        return Promise.resolve(configIndex);
       }
-      return Promise.resolve(tasks[key]);
+      // Task blob is missing
+      return Promise.resolve(undefined);
     });
 
     const req = new NextRequest('http://localhost:3000/api/pairs/config/test-config/get-task');
     const response = await GET(req, { params: Promise.resolve({ configId: 'test-config' }) });
     const data = await response.json();
 
-    // Should still succeed with one of the existing tasks
-    expect(response.status).toBe(200);
-    expect(['task-1', 'task-3']).toContain(data.taskId);
+    expect(response.status).toBe(404);
+    expect(data.error).toContain('Task object not found for ID');
   });
 
   it('should return 400 when configId is missing', async () => {
@@ -197,31 +153,5 @@ describe('GET /api/pairs/config/[configId]/get-task', () => {
 
     expect(response.status).toBe(500);
     expect(data.error).toBe('An internal server error occurred while fetching a comparison task.');
-  });
-
-  it('should return 404 when selected task blob is missing', async () => {
-    const taskIndex = ['task-1'];
-
-    mockStore.get.mockImplementation((key: string) => {
-      if (key === '_index') {
-        return Promise.resolve(taskIndex);
-      }
-      if (key === 'task-1') {
-        // First call returns the task for filtering
-        if (mockStore.get.mock.calls.length <= 2) {
-          return Promise.resolve({ taskId: 'task-1', configId: 'test-config' });
-        }
-        // Second call (after filtering) returns undefined
-        return Promise.resolve(undefined);
-      }
-      return Promise.resolve(undefined);
-    });
-
-    const req = new NextRequest('http://localhost:3000/api/pairs/config/test-config/get-task');
-    const response = await GET(req, { params: Promise.resolve({ configId: 'test-config' }) });
-    const data = await response.json();
-
-    expect(response.status).toBe(404);
-    expect(data.error).toContain('Task object not found for ID');
   });
 });
