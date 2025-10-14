@@ -201,7 +201,7 @@ export const EngClientPage: React.FC = () => {
 
       // Calculate average score across all models for this scenario
       const scores = models.map(modelId => {
-        const result = allCoverageScores[promptId]?.[modelId];
+        const result = allCoverageScores?.[promptId]?.[modelId];
         return result && !('error' in result) ? result.avgCoverageExtent : null;
       }).filter((s): s is number => s !== null);
 
