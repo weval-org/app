@@ -171,6 +171,8 @@ export const EngClientPage: React.FC = () => {
   const updateUrl = (scenario: string | null, items: string[], viewSummary = false) => {
     if (!isInitialized) return;
 
+    console.log('[updateUrl] START', { timestamp: performance.now() });
+
     const params = new URLSearchParams();
 
     if (viewSummary) {
@@ -189,7 +191,9 @@ export const EngClientPage: React.FC = () => {
     }
 
     const newUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+    console.log('[updateUrl] About to call router.replace', { newUrl, timestamp: performance.now() });
     router.replace(newUrl, { scroll: false });
+    console.log('[updateUrl] router.replace called', { timestamp: performance.now() });
   };
 
   // Select executive summary
@@ -215,6 +219,8 @@ export const EngClientPage: React.FC = () => {
   const toggleModel = (baseId: string) => {
     if (!selectedScenario) return;
 
+    console.log('[toggleModel] START', { baseId, timestamp: performance.now() });
+
     // Find all model variants that match this baseId
     const variantIds = models.filter(modelId => {
       const parsed = parseModelIdForDisplay(modelId);
@@ -237,9 +243,13 @@ export const EngClientPage: React.FC = () => {
       newItems = [...comparisonItems, ...itemsToAdd];
     }
 
-    setComparisonItems(newItems);
-    // Update URL immediately
+    console.log('[toggleModel] About to update URL', { timestamp: performance.now() });
+    // Update URL FIRST before state updates trigger re-renders
     updateUrl(selectedScenario, newItems);
+    console.log('[toggleModel] URL updated', { timestamp: performance.now() });
+
+    setComparisonItems(newItems);
+    console.log('[toggleModel] State updated', { timestamp: performance.now() });
   };
 
   const removeFromComparison = (key: string) => {
