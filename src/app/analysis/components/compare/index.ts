@@ -1,0 +1,1 @@
+export { ComparePageClient } from './ComparePageClient';
