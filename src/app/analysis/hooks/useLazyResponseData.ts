@@ -28,7 +28,10 @@ export function useLazyResponseData(configId: string, runLabel: string, timestam
       for (const promptId in initialResponses) {
         for (const modelId in initialResponses[promptId]) {
           const cacheKey = `${promptId}:${modelId}`;
-          cache.set(cacheKey, initialResponses[promptId][modelId]);
+          const value = initialResponses[promptId][modelId];
+          if (value !== null && value !== undefined) {
+            cache.set(cacheKey, value);
+          }
         }
       }
       return cache;
@@ -65,7 +68,7 @@ export function useLazyResponseData(configId: string, runLabel: string, timestam
    */
   const fetchModalResponse = useCallback(async (promptId: string, modelId: string): Promise<string | null> => {
     const cacheKey = `${promptId}:${modelId}`;
-    
+
     // Return cached response if available
     if (responseCache.has(cacheKey)) {
       return responseCache.get(cacheKey)!;
@@ -73,26 +76,27 @@ export function useLazyResponseData(configId: string, runLabel: string, timestam
 
     // Promise-level dedupe
     const existing = inflightModalResponsePromises.current.get(cacheKey);
-    if (existing) return existing;
+    if (existing) {
+      return existing;
+    }
 
     setLoading(prev => new Set([...prev, cacheKey]));
 
     const promise = (async (): Promise<string | null> => {
       try {
-        const response = await fetch(
-          `${baseUrl}/modal-data/${encodeURIComponent(promptId)}/${encodeURIComponent(modelId)}`
-        );
+        const url = `${baseUrl}/modal-data/${encodeURIComponent(promptId)}/${encodeURIComponent(modelId)}`;
+        const response = await fetch(url);
 
         if (!response.ok) {
-          console.error(`Failed to fetch modal response for ${promptId}/${modelId}:`, response.statusText);
+          console.error(`Failed to fetch modal response for ${promptId}/${modelId}:`, response.statusText, response.status);
           return null;
         }
 
         const data: ResponseData = await response.json();
-        
+
         // Cache the response
         setResponseCache(prev => new Map(prev).set(cacheKey, data.response));
-        
+
         return data.response;
 
       } catch (error) {

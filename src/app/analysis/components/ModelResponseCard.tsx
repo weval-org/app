@@ -1,31 +1,56 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { getModelDisplayLabel, parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
 import { useAnalysis } from '../context/AnalysisContext';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { getHybridScoreColorClass } from '@/app/analysis/utils/colorUtils';
+import ResponseRenderer, { RenderAsType } from '@/app/components/ResponseRenderer';
 
 interface ModelResponseCardProps {
     modelId: string;
 }
 
 const ModelResponseCard: React.FC<ModelResponseCardProps> = ({ modelId }) => {
-    const { data, analysisStats, currentPromptId, openModelEvaluationDetailModal } = useAnalysis();
+    const {
+        data,
+        analysisStats,
+        currentPromptId,
+        openModelEvaluationDetailModal,
+        getCachedResponse,
+        fetchModalResponse,
+        isLoadingResponse,
+    } = useAnalysis();
 
     if (!data || !currentPromptId) return null;
-    
+
     const { allFinalAssistantResponses, evaluationResults } = data;
     const { calculatedPerModelHybridScores, calculatedPerModelSemanticScores } = analysisStats || {};
 
-    const response = allFinalAssistantResponses?.[currentPromptId]?.[modelId];
+    // Try to get cached response first, fallback to allFinalAssistantResponses
+    const cachedResponse = getCachedResponse(currentPromptId, modelId);
+    const initialResponse = allFinalAssistantResponses?.[currentPromptId]?.[modelId];
+    const response = cachedResponse || initialResponse;
+    const isLoading = isLoadingResponse(currentPromptId, modelId);
+
+    // Fetch response on mount if not available
+    useEffect(() => {
+        if (!response && !isLoading) {
+            fetchModalResponse(currentPromptId, modelId);
+        }
+    }, [currentPromptId, modelId, response, isLoading, fetchModalResponse]);
     const llmCoverageResult = evaluationResults?.llmCoverageScores?.[currentPromptId]?.[modelId];
     const hybridScoreData = calculatedPerModelHybridScores?.get(modelId);
     const semanticScoreData = calculatedPerModelSemanticScores?.get(modelId);
 
     const { baseId: modelBaseId } = parseModelIdForDisplay(modelId);
+
+    // Get renderAs from prompt config
+    const promptConfig = data.config.prompts?.find(p => p.id === currentPromptId);
+    const renderAs = promptConfig?.render_as as RenderAsType | undefined;
 
     const similarityToIdeal = useMemo(() => {
         if (!evaluationResults?.perPromptSimilarities?.[currentPromptId] || !evaluationResults.perPromptSimilarities[currentPromptId][modelId]) {
@@ -48,9 +73,7 @@ const ModelResponseCard: React.FC<ModelResponseCardProps> = ({ modelId }) => {
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="flex-grow overflow-y-auto custom-scrollbar">
-                    <div className="prose prose-sm dark:prose-invert max-w-none">
-                        {response}
-                    </div>
+                    {response && <ResponseRenderer content={response} renderAs={renderAs} />}
                 </CardContent>
             </Card>
         );
@@ -81,9 +104,19 @@ const ModelResponseCard: React.FC<ModelResponseCardProps> = ({ modelId }) => {
                 </div>
             </CardHeader>
             <CardContent className="flex-grow overflow-y-auto custom-scrollbar">
-                <div className="prose prose-sm dark:prose-invert max-w-none mb-4">
-                    {response || <span className="text-muted-foreground italic">No response generated.</span>}
-                </div>
+                {isLoading ? (
+                    <div className="space-y-2">
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-5/6" />
+                        <Skeleton className="h-4 w-4/5" />
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-3/4" />
+                    </div>
+                ) : response ? (
+                    <ResponseRenderer content={response} renderAs={renderAs} />
+                ) : (
+                    <span className="text-muted-foreground italic">No response generated.</span>
+                )}
             </CardContent>
             <div className="p-4 border-t border-border/80 mt-auto">
                 <div className="flex flex-wrap gap-2">
