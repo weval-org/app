@@ -101,13 +101,86 @@ The following fields can be included in the header section (Structure 1) or the 
 | `system` | `string` | **(Optional)** A global system prompt to be used for all prompts in the blueprint, unless overridden at the prompt level. Aliased as `systemPrompt`. |
 | `temperature` | `number` | **(Optional)** A single temperature setting to run for each model. This is overridden if the `temperatures` array is present. |
 | `temperatures`| `number[]` | **(Optional)** An array of temperature settings to run for each model. This will create separate evaluations for each temperature. **Note:** Using this feature will append a suffix like `[temp:0.5]` to the model ID in the final output file, creating a unique identifier for each run variant. |
-| `evaluationConfig` | `object` | **(Optional)** Advanced configuration for evaluation methods. For example, you can specify judge models for `llm-coverage`. |
+| `evaluationConfig` | `object` | **(Optional)** Advanced configuration for evaluation methods. See detailed options below. |
 | `point_defs` | `object` | **(Optional)** Map of reusable point-function snippets. Keys are definition names; values are either JavaScript strings (expanded as `$js`) or full point objects. Reuse them inside prompts with `$ref`. |
 | `tools` | `object[]` | **(Optional)** Trace-only tool inventory for tool-use evaluation. Each tool has `{ name: string, description?: string, schema?: object }` (JSON Schema for arguments, recommended). |
 | `toolUse` | `object` | **(Optional)** Tool-use policy (trace-only). Supported keys: `{ enabled?: boolean, mode?: 'trace-only', maxSteps?: number, outputFormat?: 'json-line' }`. Default mode is trace-only; no execution is performed. |
 | `context` | `object` | **(Optional)** Frozen, deterministic data available to prompts (e.g., a small corpus). Shape is user-defined. |
 | `render_as` | `string` | **(Optional)** Sets the default rendering mode for all prompts in the blueprint. Can be `markdown`, `html`, or `plaintext`. Defaults to `markdown`. Overridden by prompt-level `render_as`. |
 | `noCache` | `boolean` | **(Optional)** If `true`, sets the default caching behavior for all prompts to `noCache`. This can be overridden by a per-prompt `noCache` setting. This only affects the initial model response generation, not subsequent evaluation steps like `llm-coverage`, which have their own caching. |
+
+### Evaluation Configuration (`evaluationConfig`)
+
+The `evaluationConfig` field allows you to customize how evaluations are performed. Currently, only `llm-coverage` evaluation can be configured.
+
+**Structure:**
+
+```yaml
+evaluationConfig:
+  llm-coverage:
+    judges: [...]           # Custom judge configuration
+    useExperimentalScale: true  # Use 9-point scale instead of 5-point
+```
+
+#### LLM Coverage Evaluation Options
+
+| Field | Type | Description |
+|---|---|---|
+| `judges` | `Judge[]` | **(Optional)** Custom judge configuration. If omitted, uses the default judges. Each judge is an object with `id`, `model`, and `approach` fields. See below for details. |
+| `useExperimentalScale` | `boolean` | **(Optional)** If `true`, uses the experimental 9-point classification scale (0.0, 0.001, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0) instead of the default 5-point scale (0.0, 0.25, 0.5, 0.75, 1.0). This provides finer granularity in rubric scoring. |
+| `judgeModels` | `string[]` | **(Deprecated)** Legacy field for backwards compatibility. Use `judges` instead. |
+| `judgeMode` | `'failover' \| 'consensus'` | **(Deprecated)** Legacy field for backwards compatibility. The system now always uses consensus mode across all configured judges. |
+
+#### Judge Configuration
+
+Each judge in the `judges` array is an object with the following fields:
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | `string` | ❌ | Optional identifier for the judge (e.g., `'holistic-gpt4'`). Used for logging and result tracking. |
+| `model` | `string` | ✅ | Model identifier in `provider:model` format (e.g., `'openai:gpt-4o-mini'`, `'anthropic:claude-3.5-haiku'`). |
+| `approach` | `'standard' \| 'prompt-aware' \| 'holistic'` | ✅ | Evaluation approach. Currently, all approaches use the same prompt format that includes full conversation context. |
+
+**Default Judges:**
+
+If no custom judges are specified, the system uses these default judges:
+```yaml
+judges:
+  - id: 'holistic-qwen3-30b-a3b-instruct-2507'
+    model: 'openrouter:qwen/qwen3-30b-a3b-instruct-2507'
+    approach: 'holistic'
+  - id: 'holistic-openai-gpt-oss-120b'
+    model: 'openrouter:openai/gpt-oss-120b'
+    approach: 'holistic'
+```
+
+**Example with Custom Judges:**
+
+```yaml
+title: "Custom Judge Configuration Example"
+models:
+  - openai:gpt-4o-mini
+evaluationConfig:
+  llm-coverage:
+    judges:
+      - id: 'primary-judge'
+        model: 'anthropic:claude-3-5-sonnet'
+        approach: 'holistic'
+      - id: 'secondary-judge'
+        model: 'openai:gpt-4o'
+        approach: 'prompt-aware'
+    useExperimentalScale: true
+---
+- id: p1
+  prompt: "Explain the benefits of electric vehicles."
+  should:
+    - "Mentions environmental benefits"
+    - "Discusses cost savings"
+```
+
+**Backup Judge:**
+
+If all configured judges fail to return a valid assessment, the system automatically attempts to use a backup judge (`anthropic:claude-3.5-haiku` with `holistic` approach) to ensure evaluation can complete. This backup is only used when custom judges are not configured.
 
 ### Model Configuration
 
