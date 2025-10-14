@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
+import { useDebouncedCallback } from 'use-debounce';
 import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
 import { parseModelIdForDisplay, getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
@@ -10,6 +11,11 @@ import { formatPercentage, truncateText } from '../textual/utils/textualUtils';
 import { cn } from '@/lib/utils';
 import ResponseRenderer, { RenderAsType } from '@/app/components/ResponseRenderer';
 import { StructuredSummary } from '@/app/analysis/components/StructuredSummary';
+import { createClientLogger } from '@/app/utils/clientLogger';
+import { ErrorBoundary } from '@/app/components/ErrorBoundary';
+
+// Debug loggers
+const debug = createClientLogger('EngClientPage');
 
 // Path colors matching MacroCoverageTable
 const PATH_COLORS = [
@@ -153,27 +159,46 @@ export const EngClientPage: React.FC = () => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+  // Optimistic UI state - updates immediately before URL catches up
+  // null = no optimistic update, Set (even if empty) = optimistic state active
+  const [optimisticState, setOptimisticState] = useState<{
+    scenario: string | null;
+    models: Set<string> | null;
+    view: 'summary' | null;
+  }>({
+    scenario: null,
+    models: null,
+    view: null,
+  });
+
   // Monitor URL changes to see when browser actually updates
   useEffect(() => {
-    console.log('[URL CHANGE] Browser URL updated', {
+    debug.log('URL CHANGE - Browser URL updated', {
       url: window.location.href,
       timestamp: performance.now()
     });
   }, [searchParams]);
 
-  // Extract timestamp from pathname
+  // Extract timestamp from pathname with error handling
   const timestamp = useMemo(() => {
-    // pathname format: /analysis/[configId]/[runLabel]/[timestamp]/eng
-    const parts = pathname.split('/');
-    const timestampStr = parts[parts.length - 2]; // Second to last segment
-    if (!timestampStr) return null;
-
-    // Convert timestamp format: 2025-10-14T00-30-41-094Z -> 2025-10-14T00:30:41.094Z
-    const isoTimestamp = timestampStr
-      .replace(/T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z/, 'T$1:$2:$3.$4Z');
-
     try {
+      // pathname format: /analysis/[configId]/[runLabel]/[timestamp]/eng
+      const parts = pathname.split('/');
+      const timestampStr = parts[parts.length - 2]; // Second to last segment
+      if (!timestampStr) return null;
+
+      // Convert timestamp format: 2025-10-14T00-30-41-094Z -> 2025-10-14T00:30:41.094Z
+      const isoTimestamp = timestampStr
+        .replace(/T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z/, 'T$1:$2:$3.$4Z');
+
       const date = new Date(isoTimestamp);
+
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        debug.warn('Invalid timestamp in pathname:', timestampStr);
+        return null;
+      }
+
       // Format as: "Oct 14, 2025 at 12:30 AM"
       return date.toLocaleString('en-US', {
         month: 'short',
@@ -183,15 +208,16 @@ export const EngClientPage: React.FC = () => {
         minute: '2-digit',
         hour12: true
       });
-    } catch {
+    } catch (err) {
+      debug.error('Failed to parse timestamp from pathname:', err);
       return null;
     }
   }, [pathname]);
 
   // Derive all state from URL (single source of truth)
-  const showExecutiveSummary = searchParams.get('view') === 'summary';
-  const selectedScenario = showExecutiveSummary ? null : searchParams.get('scenario');
-  const comparisonItems = useMemo(() => {
+  const urlShowExecutiveSummary = searchParams.get('view') === 'summary';
+  const urlSelectedScenario = urlShowExecutiveSummary ? null : searchParams.get('scenario');
+  const urlComparisonItems = useMemo(() => {
     const scenario = searchParams.get('scenario');
     const modelsParam = searchParams.get('models');
     if (scenario && modelsParam) {
@@ -200,6 +226,49 @@ export const EngClientPage: React.FC = () => {
     }
     return [];
   }, [searchParams]);
+
+  // Effective state: merge optimistic state with URL state
+  const showExecutiveSummary = optimisticState.view === 'summary' || urlShowExecutiveSummary;
+  const selectedScenario = optimisticState.scenario || urlSelectedScenario;
+  const comparisonItems = useMemo(() => {
+    // If we have optimistic models (even if empty), use those
+    if (optimisticState.models !== null && selectedScenario) {
+      return Array.from(optimisticState.models).map(modelId => `${selectedScenario}::${modelId}`);
+    }
+    return urlComparisonItems;
+  }, [optimisticState.models, selectedScenario, urlComparisonItems]);
+
+  // Clear optimistic state once URL catches up
+  useEffect(() => {
+    let shouldClear = false;
+
+    // Check if view caught up
+    if (optimisticState.view === 'summary' && urlShowExecutiveSummary) {
+      shouldClear = true;
+    }
+
+    // Check if scenario caught up
+    if (optimisticState.scenario && optimisticState.scenario === urlSelectedScenario) {
+      shouldClear = true;
+    }
+
+    // Check if models caught up (including empty state)
+    if (optimisticState.models !== null) {
+      const optimisticModels = Array.from(optimisticState.models);
+      const urlModels = urlComparisonItems.map(item => item.split('::')[1]);
+      const allPresent = optimisticModels.every(m => urlModels.includes(m));
+      const sameLeng = optimisticModels.length === urlModels.length;
+
+      if (allPresent && sameLeng) {
+        shouldClear = true;
+      }
+    }
+
+    if (shouldClear) {
+      debug.log('URL caught up - clearing optimistic state');
+      setOptimisticState({ scenario: null, models: null, view: null });
+    }
+  }, [urlShowExecutiveSummary, urlSelectedScenario, urlComparisonItems, optimisticState.view, optimisticState.scenario, optimisticState.models]);
 
   // Get models without IDEAL
   const models = useMemo(() => {
@@ -212,46 +281,54 @@ export const EngClientPage: React.FC = () => {
     return queryString ? `${pathname}?${queryString}` : pathname;
   };
 
-  // Select executive summary
-  const selectExecutiveSummary = () => {
-    console.log('[selectExecutiveSummary] START', { timestamp: performance.now() });
+  // Select executive summary (debounced to prevent double-clicks)
+  const selectExecutiveSummary = useDebouncedCallback(() => {
+    debug.log('selectExecutiveSummary START', { timestamp: performance.now() });
+
+    // Optimistic update
+    setOptimisticState({ scenario: null, models: null, view: 'summary' });
+
     const params = new URLSearchParams();
     params.set('view', 'summary');
     const newUrl = buildUrl(params);
-    console.log('[selectExecutiveSummary] Calling router.replace', { newUrl, timestamp: performance.now() });
+    debug.log('selectExecutiveSummary - Calling router.replace', { newUrl, timestamp: performance.now() });
     router.replace(newUrl, { scroll: false });
-    console.log('[selectExecutiveSummary] Done', { timestamp: performance.now() });
-  };
+    debug.log('selectExecutiveSummary Done', { timestamp: performance.now() });
+  }, 100);
 
-  // Select a scenario (middle column shows its models)
-  const selectScenario = (promptId: string) => {
-    console.log('[selectScenario] START', {
+  // Select a scenario (middle column shows its models) (debounced to prevent double-clicks)
+  const selectScenario = useDebouncedCallback((promptId: string) => {
+    debug.log('selectScenario START', {
       promptId,
       currentSelectedScenario: selectedScenario,
       timestamp: performance.now()
     });
+
+    // Optimistic update - clear models when switching scenarios
+    setOptimisticState({ scenario: promptId, models: new Set([]), view: null });
+
     const params = new URLSearchParams();
     params.set('scenario', promptId);
     const newUrl = buildUrl(params);
-    console.log('[selectScenario] Calling router.replace', { newUrl, timestamp: performance.now() });
+    debug.log('selectScenario - Calling router.replace', { newUrl, timestamp: performance.now() });
     router.replace(newUrl, { scroll: false });
-    console.log('[selectScenario] Done', { timestamp: performance.now() });
-  };
+    debug.log('selectScenario Done', { timestamp: performance.now() });
+  }, 100);
 
-  // Toggle all variants of a base model in/out of comparison
-  const toggleModel = (baseId: string) => {
-    console.log('[toggleModel] Called with', {
+  // Toggle all variants of a base model in/out of comparison (debounced to prevent double-clicks)
+  const toggleModel = useDebouncedCallback((baseId: string) => {
+    debug.log('toggleModel - Called with', {
       baseId,
       selectedScenario,
       timestamp: performance.now()
     });
 
     if (!selectedScenario) {
-      console.log('[toggleModel] ABORT - no selectedScenario', { timestamp: performance.now() });
+      debug.log('toggleModel ABORT - no selectedScenario', { timestamp: performance.now() });
       return;
     }
 
-    console.log('[toggleModel] START', { baseId, selectedScenario, timestamp: performance.now() });
+    debug.log('toggleModel START', { baseId, selectedScenario, timestamp: performance.now() });
 
     // Find all model variants that match this baseId
     const variantIds = models.filter(modelId => {
@@ -278,20 +355,27 @@ export const EngClientPage: React.FC = () => {
       newModelIds = [...comparisonItems, ...itemsToAdd].map(key => key.split('::')[1]);
     }
 
-    console.log('[toggleModel] Building new URL', { timestamp: performance.now() });
+    // Optimistic update
+    setOptimisticState(prev => ({
+      ...prev,
+      models: new Set(newModelIds),
+      view: null,
+    }));
+
+    debug.log('toggleModel - Building new URL', { timestamp: performance.now() });
     const params = new URLSearchParams();
     params.set('scenario', selectedScenario);
     if (newModelIds.length > 0) {
       params.set('models', newModelIds.join(','));
     }
     const newUrl = buildUrl(params);
-    console.log('[toggleModel] Calling router.replace', { newUrl, timestamp: performance.now() });
+    debug.log('toggleModel - Calling router.replace', { newUrl, timestamp: performance.now() });
     router.replace(newUrl, { scroll: false });
-    console.log('[toggleModel] Done', { timestamp: performance.now() });
-  };
+    debug.log('toggleModel Done', { timestamp: performance.now() });
+  }, 100);
 
   const removeFromComparison = (key: string) => {
-    console.log('[removeFromComparison] START', { key, timestamp: performance.now() });
+    debug.log('removeFromComparison START', { key, timestamp: performance.now() });
     if (!selectedScenario) return;
 
     const newModelIds = comparisonItems
@@ -304,18 +388,18 @@ export const EngClientPage: React.FC = () => {
       params.set('models', newModelIds.join(','));
     }
     const newUrl = buildUrl(params);
-    console.log('[removeFromComparison] Calling router.replace', { newUrl, timestamp: performance.now() });
+    debug.log('removeFromComparison - Calling router.replace', { newUrl, timestamp: performance.now() });
     router.replace(newUrl, { scroll: false });
   };
 
   const clearAllComparisons = () => {
-    console.log('[clearAllComparisons] START', { timestamp: performance.now() });
+    debug.log('clearAllComparisons START', { timestamp: performance.now() });
     if (!selectedScenario) return;
 
     const params = new URLSearchParams();
     params.set('scenario', selectedScenario);
     const newUrl = buildUrl(params);
-    console.log('[clearAllComparisons] Calling router.replace', { newUrl, timestamp: performance.now() });
+    debug.log('clearAllComparisons - Calling router.replace', { newUrl, timestamp: performance.now() });
     router.replace(newUrl, { scroll: false });
   };
 
@@ -345,7 +429,7 @@ export const EngClientPage: React.FC = () => {
   const { evaluationResults: { llmCoverageScores: allCoverageScores }, promptIds, config } = data;
 
   // Debug: log data availability
-  console.log('[EngClientPage] Data loaded:', {
+  debug.log('Data loaded:', {
     hasPromptIds: !!promptIds,
     promptIdsLength: promptIds?.length,
     promptIdsArray: promptIds,
@@ -354,23 +438,30 @@ export const EngClientPage: React.FC = () => {
     dataKeys: Object.keys(data),
   });
 
-  // Calculate scenario stats
+  // Calculate scenario stats with error handling
   const scenarioStats = useMemo(() => {
-    return promptIds.map((promptId, index) => {
-      const promptText = promptTextsForMacroTable[promptId] || promptId;
+    try {
+      return promptIds.map((promptId, index) => {
+        const promptText = promptTextsForMacroTable[promptId] || promptId;
 
-      // Calculate average score across all models for this scenario
-      const scores = models.map(modelId => {
-        const result = allCoverageScores?.[promptId]?.[modelId];
-        return result && !('error' in result) ? result.avgCoverageExtent : null;
-      }).filter((s): s is number => s !== null);
+        // Calculate average score across all models for this scenario
+        const scores = models.map(modelId => {
+          const result = allCoverageScores?.[promptId]?.[modelId];
+          return result && !('error' in result) && typeof result.avgCoverageExtent === 'number'
+            ? result.avgCoverageExtent
+            : null;
+        }).filter((s): s is number => s !== null);
 
-      const avgScore = scores.length > 0
-        ? scores.reduce((sum, s) => sum + s, 0) / scores.length
-        : 0;
+        const avgScore = scores.length > 0
+          ? scores.reduce((sum, s) => sum + s, 0) / scores.length
+          : 0;
 
-      return { promptId, promptText, index, avgScore };
-    });
+        return { promptId, promptText, index, avgScore };
+      });
+    } catch (err) {
+      debug.error('Failed to calculate scenario stats:', err);
+      return [];
+    }
   }, [promptIds, promptTextsForMacroTable, models, allCoverageScores]);
 
   return (
@@ -396,64 +487,82 @@ export const EngClientPage: React.FC = () => {
       <div className="flex-1 flex overflow-hidden">
         {/* Left: Scenarios Column */}
         <div className="w-[280px] flex-shrink-0 border-r border-border overflow-auto">
-          <ScenariosColumn
-            scenarios={scenarioStats}
-            selectedScenario={selectedScenario}
-            selectScenario={selectScenario}
-            executiveSummary={data.executiveSummary}
-            showExecutiveSummary={showExecutiveSummary}
-            selectExecutiveSummary={selectExecutiveSummary}
-          />
+          <ErrorBoundary
+            fallback={
+              <div className="p-4 text-center text-sm text-muted-foreground">
+                Failed to load scenarios
+              </div>
+            }
+          >
+            <ScenariosColumn
+              scenarios={scenarioStats}
+              selectedScenario={selectedScenario}
+              selectScenario={selectScenario}
+              executiveSummary={data.executiveSummary}
+              showExecutiveSummary={showExecutiveSummary}
+              selectExecutiveSummary={selectExecutiveSummary}
+            />
+          </ErrorBoundary>
         </div>
 
         {/* Middle: Models Column (only visible when scenario selected) */}
         {selectedScenario && (
           <div className="w-[280px] flex-shrink-0 border-r border-border overflow-auto">
-            <ModelsColumn
-              promptId={selectedScenario}
-              models={models}
-              allCoverageScores={allCoverageScores}
-              comparisonItems={comparisonItems}
-              toggleModel={toggleModel}
-            />
+            <ErrorBoundary
+              fallback={
+                <div className="p-4 text-center text-sm text-muted-foreground">
+                  Failed to load models
+                </div>
+              }
+            >
+              <ModelsColumn
+                promptId={selectedScenario}
+                models={models}
+                allCoverageScores={allCoverageScores}
+                comparisonItems={comparisonItems}
+                toggleModel={toggleModel}
+              />
+            </ErrorBoundary>
           </div>
         )}
 
         {/* Right: Comparison View */}
         <div className="flex-1 overflow-auto">
           <div className="p-4">
-            {showExecutiveSummary && data.executiveSummary ? (
-              <ExecutiveSummaryView executiveSummary={data.executiveSummary} />
-            ) : comparisonItems.length > 0 ? (
-              <ComparisonView
-                comparisonItems={comparisonItems}
-                removeFromComparison={removeFromComparison}
-                clearAllComparisons={clearAllComparisons}
-                getCachedResponse={getCachedResponse}
-                getCachedEvaluation={getCachedEvaluation}
-                fetchModalResponse={fetchModalResponse}
-                fetchEvaluationDetails={fetchEvaluationDetails}
-                isLoadingResponse={isLoadingResponse}
-                isLoadingEvaluation={isLoadingEvaluation}
-                allCoverageScores={allCoverageScores}
-                promptTexts={promptTextsForMacroTable}
-                config={config}
-              />
-            ) : selectedScenario ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center text-muted-foreground">
-                  <p className="mb-2">No models selected</p>
-                  <p className="text-sm">Click on models in the middle column to view their details</p>
+            <ErrorBoundary>
+              {showExecutiveSummary && data.executiveSummary ? (
+                <ExecutiveSummaryView executiveSummary={data.executiveSummary} />
+              ) : comparisonItems.length > 0 ? (
+                <ComparisonView
+                  comparisonItems={comparisonItems}
+                  removeFromComparison={removeFromComparison}
+                  clearAllComparisons={clearAllComparisons}
+                  getCachedResponse={getCachedResponse}
+                  getCachedEvaluation={getCachedEvaluation}
+                  fetchModalResponse={fetchModalResponse}
+                  fetchEvaluationDetails={fetchEvaluationDetails}
+                  isLoadingResponse={isLoadingResponse}
+                  isLoadingEvaluation={isLoadingEvaluation}
+                  allCoverageScores={allCoverageScores}
+                  promptTexts={promptTextsForMacroTable}
+                  config={config}
+                />
+              ) : selectedScenario ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center text-muted-foreground">
+                    <p className="mb-2">No models selected</p>
+                    <p className="text-sm">Click on models in the middle column to view their details</p>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center text-muted-foreground">
-                  <p className="mb-2">No scenario selected</p>
-                  <p className="text-sm">Select a scenario from the left column</p>
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center text-muted-foreground">
+                    <p className="mb-2">No scenario selected</p>
+                    <p className="text-sm">Select a scenario from the left column</p>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </ErrorBoundary>
           </div>
         </div>
       </div>
@@ -471,16 +580,54 @@ interface ScenariosColumnProps {
   selectExecutiveSummary: () => void;
 }
 
-function ScenariosColumn({
+const ScenariosColumn = React.memo<ScenariosColumnProps>(function ScenariosColumn({
   scenarios,
   selectedScenario,
   selectScenario,
   executiveSummary,
   showExecutiveSummary,
   selectExecutiveSummary,
-}: ScenariosColumnProps) {
+}) {
+  const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    const totalItems = (executiveSummary ? 1 : 0) + scenarios.length;
+    if (totalItems === 0) return;
+
+    const currentFocus = focusedIndex ?? -2; // -2 = no focus, -1 = exec summary, 0+ = scenarios
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const nextIndex = currentFocus === -2 ? (executiveSummary ? -1 : 0) : Math.min(currentFocus + 1, totalItems - 1);
+      setFocusedIndex(nextIndex);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prevIndex = Math.max(currentFocus - 1, executiveSummary ? -1 : 0);
+      setFocusedIndex(prevIndex);
+    } else if (e.key === 'Enter' && focusedIndex !== null) {
+      e.preventDefault();
+      if (focusedIndex === -1 && executiveSummary) {
+        selectExecutiveSummary();
+      } else {
+        const scenarioIndex = executiveSummary ? focusedIndex : focusedIndex;
+        const scenario = scenarios[scenarioIndex];
+        if (scenario) {
+          selectScenario(scenario.promptId);
+        }
+      }
+    }
+  };
+
   return (
-    <div className="p-2 font-mono text-sm">
+    <div
+      ref={containerRef}
+      className="p-2 font-mono text-sm animate-in fade-in duration-200 focus-within:outline-none"
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      onFocus={() => setFocusedIndex(null)}
+      onBlur={() => setFocusedIndex(null)}
+    >
       <div className="text-xs font-semibold text-muted-foreground mb-2 px-2">
         SCENARIOS
       </div>
@@ -489,21 +636,28 @@ function ScenariosColumn({
       {executiveSummary && (
         <div
           className={cn(
-            "flex items-center gap-2 px-2 py-1 mb-0.5 rounded cursor-pointer hover:bg-muted/50 transition-colors",
-            showExecutiveSummary && "bg-primary/10"
+            "flex items-center justify-between gap-2 px-2 py-1 mb-0.5 rounded cursor-pointer transition-all duration-200",
+            showExecutiveSummary
+              ? "bg-primary/10 shadow-sm"
+              : "hover:bg-muted/50 hover:shadow-sm",
+            focusedIndex === -1 && "ring-2 ring-primary/50"
           )}
           onClick={selectExecutiveSummary}
         >
           <span className="flex-1 font-medium text-xs">Executive Summary</span>
+          {showExecutiveSummary && (
+            <span className="text-primary text-xs animate-in fade-in duration-150">●</span>
+          )}
         </div>
       )}
 
       {/* Scenario List */}
       <div className="space-y-0.5">
-        {scenarios.map((scenario) => {
+        {scenarios.map((scenario, idx) => {
           const isSelected = selectedScenario === scenario.promptId;
           const score = scenario.avgScore;
           const hasScore = score > 0;
+          const isFocused = focusedIndex === (executiveSummary ? idx : idx);
 
           // Color based on score
           const scoreColor = hasScore && score >= 0.8
@@ -518,13 +672,14 @@ function ScenariosColumn({
             <div
               key={scenario.promptId}
               className={cn(
-                "flex flex-col gap-0.5 px-2 py-1 rounded cursor-pointer transition-colors",
+                "flex flex-col gap-0.5 px-2 py-1 rounded cursor-pointer transition-all duration-200",
                 isSelected
-                  ? "bg-primary/10"
-                  : "hover:bg-muted/30"
+                  ? "bg-primary/10 shadow-sm scale-[1.01]"
+                  : "hover:bg-muted/30 hover:shadow-sm hover:scale-[1.005]",
+                isFocused && "ring-2 ring-primary/50"
               )}
               onClick={() => {
-                console.log('[ScenariosColumn onClick] CLICK EVENT', {
+                debug.log('ScenariosColumn onClick - CLICK EVENT', {
                   promptId: scenario.promptId,
                   timestamp: performance.now()
                 });
@@ -538,7 +693,10 @@ function ScenariosColumn({
                 <span className="flex-1 truncate text-xs">
                   {truncateText(scenario.promptText, 30)}
                 </span>
-                {hasScore && (
+                {isSelected && (
+                  <span className="text-primary text-xs animate-pulse">●</span>
+                )}
+                {hasScore && !isSelected && (
                   <span className={cn("text-right text-xs min-w-[3ch] font-mono", scoreColor)}>
                     {formatPercentage(score, 0)}
                   </span>
@@ -555,7 +713,7 @@ function ScenariosColumn({
       </div>
     </div>
   );
-}
+});
 
 // Models Column (Middle)
 interface ModelsColumnProps {
@@ -566,13 +724,16 @@ interface ModelsColumnProps {
   toggleModel: (baseId: string) => void;
 }
 
-function ModelsColumn({
+const ModelsColumn = React.memo<ModelsColumnProps>(function ModelsColumn({
   promptId,
   models,
   allCoverageScores,
   comparisonItems,
   toggleModel,
-}: ModelsColumnProps) {
+}) {
+  const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
   // Group models by baseId
   const baseModels = useMemo(() => {
     const baseModelMap = new Map<string, {
@@ -626,19 +787,56 @@ function ModelsColumn({
     });
   }, [models, promptId, allCoverageScores]);
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (baseModels.length === 0) return;
+
+    const currentFocus = focusedIndex ?? -1;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const nextIndex = currentFocus === -1 ? 0 : Math.min(currentFocus + 1, baseModels.length - 1);
+      setFocusedIndex(nextIndex);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prevIndex = Math.max(currentFocus - 1, 0);
+      setFocusedIndex(prevIndex);
+    } else if (e.key === 'Enter' && focusedIndex !== null && focusedIndex >= 0) {
+      e.preventDefault();
+      const model = baseModels[focusedIndex];
+      if (model) {
+        toggleModel(model.baseId);
+      }
+    } else if (e.key === ' ' && focusedIndex !== null && focusedIndex >= 0) {
+      // Spacebar also toggles
+      e.preventDefault();
+      const model = baseModels[focusedIndex];
+      if (model) {
+        toggleModel(model.baseId);
+      }
+    }
+  };
+
   return (
-    <div className="p-2 font-mono text-sm">
+    <div
+      ref={containerRef}
+      className="p-2 font-mono text-sm animate-in fade-in slide-in-from-left-2 duration-200 focus-within:outline-none"
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      onFocus={() => setFocusedIndex(null)}
+      onBlur={() => setFocusedIndex(null)}
+    >
       <div className="text-xs font-semibold text-muted-foreground mb-2 px-2">
         MODELS
       </div>
 
       <div className="space-y-0.5">
-        {baseModels.map(baseModel => {
+        {baseModels.map((baseModel, idx) => {
           // Check if this model is selected
           const variantKeys = baseModel.variants.map(v => `${promptId}::${v}`);
           const isSelected = variantKeys.some(key => comparisonItems.includes(key));
           const score = baseModel.avgScore;
           const hasScore = score !== null;
+          const isFocused = focusedIndex === idx;
 
           // Color based on score
           const scoreColor = hasScore && score >= 0.8
@@ -653,19 +851,20 @@ function ModelsColumn({
             <div
               key={baseModel.baseId}
               className={cn(
-                "flex flex-col gap-0.5 px-2 py-1 rounded cursor-pointer transition-colors",
+                "flex flex-col gap-0.5 px-2 py-1 rounded cursor-pointer transition-all duration-200",
                 isSelected
-                  ? "bg-primary/10"
-                  : "hover:bg-muted/30"
+                  ? "bg-primary/10 shadow-sm scale-[1.01]"
+                  : "hover:bg-muted/30 hover:shadow-sm hover:scale-[1.005]",
+                isFocused && "ring-2 ring-primary/50"
               )}
               onClick={() => {
-                console.log('[ModelsColumn onClick] CLICK EVENT', { baseId: baseModel.baseId, timestamp: performance.now() });
+                debug.log('ModelsColumn onClick - CLICK EVENT', { baseId: baseModel.baseId, timestamp: performance.now() });
                 toggleModel(baseModel.baseId);
               }}
             >
               <div className="flex items-center gap-2">
-                {/* Checkbox */}
-                <span className="text-xs min-w-[1ch]">
+                {/* Checkbox with visual feedback */}
+                <span className={cn("text-xs min-w-[1ch]", isSelected && "text-primary")}>
                   {isSelected ? '☑' : '☐'}
                 </span>
 
@@ -695,7 +894,7 @@ function ModelsColumn({
       </div>
     </div>
   );
-}
+});
 
 // Comparison View Component
 interface ComparisonViewProps {
@@ -713,7 +912,7 @@ interface ComparisonViewProps {
   config: any;
 }
 
-function ComparisonView({
+const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
   comparisonItems,
   removeFromComparison,
   clearAllComparisons,
@@ -726,7 +925,7 @@ function ComparisonView({
   allCoverageScores,
   promptTexts,
   config,
-}: ComparisonViewProps) {
+}) {
   // Get common scenario (all items should be from same scenario)
   const firstItem = comparisonItems[0];
   const promptId = firstItem?.split('::')[0];
@@ -736,22 +935,65 @@ function ComparisonView({
   const promptConfig = config?.prompts?.find((p: any) => p.id === promptId);
   const renderAs = (promptConfig?.render_as as RenderAsType) || 'markdown';
 
-  // Fetch responses and evaluations for all comparison items
+  // Batch fetch responses and evaluations for all comparison items
   useEffect(() => {
+    if (comparisonItems.length === 0) return;
+
+    // Collect items that need fetching
+    const responsePairs: { promptId: string; modelId: string }[] = [];
+    const evaluationPairs: { promptId: string; modelId: string }[] = [];
+
     comparisonItems.forEach(itemKey => {
       const parts = itemKey.split('::');
       const itemPromptId = parts[0];
       const modelId = parts[1];
 
-      // Trigger fetches if not already cached
       if (!getCachedResponse?.(itemPromptId, modelId)) {
-        fetchModalResponse?.(itemPromptId, modelId);
+        responsePairs.push({ promptId: itemPromptId, modelId });
       }
       if (!getCachedEvaluation?.(itemPromptId, modelId)) {
-        fetchEvaluationDetails?.(itemPromptId, modelId);
+        evaluationPairs.push({ promptId: itemPromptId, modelId });
       }
     });
+
+    // Batch fetch responses in parallel
+    if (responsePairs.length > 0) {
+      debug.log('ComparisonView - Batch fetching responses', { count: responsePairs.length });
+      Promise.all(
+        responsePairs.map(({ promptId: pid, modelId }) =>
+          fetchModalResponse?.(pid, modelId)
+        )
+      ).catch(err => {
+        debug.error('ComparisonView - Batch response fetch failed', err);
+      });
+    }
+
+    // Batch fetch evaluations in parallel
+    if (evaluationPairs.length > 0) {
+      debug.log('ComparisonView - Batch fetching evaluations', { count: evaluationPairs.length });
+      Promise.all(
+        evaluationPairs.map(({ promptId: pid, modelId }) =>
+          fetchEvaluationDetails?.(pid, modelId)
+        )
+      ).catch(err => {
+        debug.error('ComparisonView - Batch evaluation fetch failed', err);
+      });
+    }
   }, [comparisonItems, getCachedResponse, getCachedEvaluation, fetchModalResponse, fetchEvaluationDetails]);
+
+  // Create stable evaluation data cache to prevent unnecessary recalculations
+  const evaluationData = useMemo(() => {
+    const cache: Record<string, any> = {};
+    comparisonItems.forEach(itemKey => {
+      const parts = itemKey.split('::');
+      const modelId = parts[1];
+      const evaluation = getCachedEvaluation?.(promptId, modelId);
+      if (evaluation) {
+        cache[modelId] = evaluation;
+      }
+    });
+    return cache;
+  }, [comparisonItems, promptId, getCachedEvaluation]);
 
   // Debug: Log what data we're receiving
   useEffect(() => {
@@ -759,9 +1001,9 @@ function ComparisonView({
       const firstItem = comparisonItems[0];
       const parts = firstItem.split('::');
       const modelId = parts[1];
-      const evaluation = getCachedEvaluation?.(promptId, modelId);
+      const evaluation = evaluationData[modelId];
 
-      console.log('[ComparisonView] Evaluation data check:', {
+      debug.log('ComparisonView - Evaluation data check:', {
         promptId,
         modelId,
         hasEvaluation: !!evaluation,
@@ -771,10 +1013,10 @@ function ComparisonView({
         pathIds: evaluation?.pointAssessments?.map((a: any) => a.pathId).filter(Boolean)
       });
     }
-  }, [comparisonItems, getCachedEvaluation, promptId]);
+  }, [comparisonItems, promptId, evaluationData]);
 
   // Collect all unique criteria across all models with full assessment details
-  // Now organized by path
+  // Now organized by path - OPTIMIZED to use stable evaluationData
   const criteriaByPath = useMemo(() => {
     const requiredCriteria: Array<{
       text: string;
@@ -807,7 +1049,7 @@ function ComparisonView({
     comparisonItems.forEach(itemKey => {
       const parts = itemKey.split('::');
       const modelId = parts[1];
-      const evaluation = getCachedEvaluation?.(promptId, modelId);
+      const evaluation = evaluationData[modelId];
 
       if (evaluation?.pointAssessments) {
         evaluation.pointAssessments.forEach((assessment: any) => {
@@ -840,7 +1082,7 @@ function ComparisonView({
       }
     });
 
-    console.log('[ComparisonView] Path grouping results:', {
+    debug.log('ComparisonView - Path grouping results:', {
       requiredCount: requiredCriteria.length,
       pathCount: pathGroups.size,
       pathIds: Array.from(pathGroups.keys()),
@@ -848,10 +1090,10 @@ function ComparisonView({
     });
 
     return { requiredCriteria, pathGroups };
-  }, [comparisonItems, getCachedEvaluation, promptId]);
+  }, [comparisonItems, evaluationData]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 animate-in fade-in slide-in-from-right-2 duration-300">
       {/* Header */}
       <div className="border-b border-border pb-3">
         <div className="flex items-center justify-between mb-2">
@@ -860,7 +1102,7 @@ function ComparisonView({
           </h2>
           <button
             onClick={clearAllComparisons}
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors duration-150"
           >
             {comparisonItems.length === 1 ? 'Close' : 'Clear all'}
           </button>
@@ -869,7 +1111,7 @@ function ComparisonView({
       </div>
 
       {/* Unified comparison table */}
-      <div className="border border-border rounded overflow-hidden">
+      <div className="border border-border rounded overflow-hidden transition-all duration-200">
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             {/* Column headers: Model names with overall scores */}
@@ -934,12 +1176,12 @@ function ComparisonView({
                     <td key={itemKey} className="px-3 py-2 align-top">
                       <div className={cn(
                         "border border-border rounded bg-background overflow-auto",
-                        renderAs === 'html' ? "h-[400px]" : "max-h-64"
+                        renderAs === 'html' ? "h-[300px]" : "max-h-64"
                       )}>
                         {loading ? (
                           <ResponseSkeleton />
                         ) : response ? (
-                          <div className="p-2">
+                          <div className="p-2 h-[100%]">
                             <ResponseRenderer content={response} renderAs={renderAs} />
                           </div>
                         ) : (
@@ -1160,7 +1402,7 @@ function ComparisonView({
       )}
     </div>
   );
-}
+});
 
 // Executive Summary View Component
 interface ExecutiveSummaryViewProps {
@@ -1186,7 +1428,7 @@ function ExecutiveSummaryView({ executiveSummary }: ExecutiveSummaryViewProps) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 animate-in fade-in slide-in-from-right-2 duration-300">
       <div className="border-b border-border pb-3">
         <h2 className="text-2xl font-semibold">Executive Summary</h2>
       </div>
