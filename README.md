@@ -137,7 +137,11 @@ pnpm cli run-config local --config path/to/your_blueprint.yml --run-label <your_
 
 -   `--config <path>`: **(Required)** Path to the local blueprint file (`.yml`, `.yaml`, or `.json`).
 -   `--run-label <runLabelValue>`: A user-defined label for the run. A content hash is always appended.
--   `--eval-method <methods>`: Comma-separated methods. Defaults to `embedding`. (`embedding`, `llm-coverage`, `all`).
+-   `--eval-method <methods>`: Comma-separated methods. Defaults to `embedding,llm-coverage`. Options:
+    - `embedding`: Calculate semantic similarity between model responses
+    - `llm-coverage`: Evaluate responses against rubric points
+    - `all`: Run both embedding and llm-coverage
+    - `none`: Skip all evaluations (generate responses only)
 -   `--cache`: Enables caching for model responses.
 -   `--collections-repo-path <path>`: Path to a local `weval/configs` repo to resolve model collections.
 -   `--update-summaries`: Updates platform-wide summaries (homepage, model leaderboards, etc.) after the evaluation. **Default: false** (only runs the evaluation and updates per-config summary).
@@ -264,7 +268,11 @@ pnpm cli update-run-metadata my-config/my-run/2024-01-01T12-00-00-000Z --config 
 
 **Parameters for `clone-run`:**
 
--   `--eval-method <methods>`: Comma-separated methods. Defaults to `embedding`. (`embedding`, `llm-coverage`, `all`).
+-   `--eval-method <methods>`: Comma-separated methods. Defaults to `embedding,llm-coverage`. Options:
+    - `embedding`: Calculate semantic similarity between model responses
+    - `llm-coverage`: Evaluate responses against rubric points
+    - `all`: Run both embedding and llm-coverage
+    - `none`: Skip all evaluations (use cached/reused responses without re-evaluating)
 -   `--cache`: Enables caching for model responses when generating missing pairs.
 -   `--gen-timeout-ms <number>`: Timeout in milliseconds for each candidate generation API call. **Default: 30000**.
 -   `--gen-retries <number>`: Number of retries for each candidate generation API call. **Default: 1**.
