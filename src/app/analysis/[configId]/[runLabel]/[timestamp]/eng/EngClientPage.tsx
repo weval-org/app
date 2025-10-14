@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
 import { parseModelIdForDisplay, getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
@@ -111,14 +112,64 @@ export const EngClientPage: React.FC = () => {
     fetchEvaluationDetails,
   } = useAnalysis();
 
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   const [selectedScenario, setSelectedScenario] = useState<string | null>(null);
   const [comparisonItems, setComparisonItems] = useState<string[]>([]);
   const [showExecutiveSummary, setShowExecutiveSummary] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // Get models without IDEAL
   const models = useMemo(() => {
     return displayedModels.filter(m => m.toUpperCase() !== IDEAL_MODEL_ID.toUpperCase());
   }, [displayedModels]);
+
+  // Initialize state from URL params on mount
+  useEffect(() => {
+    if (!data || isInitialized) return;
+
+    const scenario = searchParams.get('scenario');
+    const modelsParam = searchParams.get('models');
+
+    if (scenario) {
+      setSelectedScenario(scenario);
+      setShowExecutiveSummary(false);
+    }
+
+    if (modelsParam && scenario) {
+      // Decode and parse model IDs
+      const modelIds = modelsParam.split(',').filter(Boolean);
+      const items = modelIds.map(modelId => `${scenario}::${modelId}`);
+      setComparisonItems(items);
+    }
+
+    setIsInitialized(true);
+  }, [data, searchParams, isInitialized]);
+
+  // Update URL when state changes (without creating history entries)
+  useEffect(() => {
+    if (!isInitialized) return;
+
+    const params = new URLSearchParams();
+
+    if (selectedScenario) {
+      params.set('scenario', selectedScenario);
+
+      // Extract model IDs from comparisonItems
+      const modelIds = comparisonItems
+        .filter(item => item.startsWith(`${selectedScenario}::`))
+        .map(item => item.split('::')[1]);
+
+      if (modelIds.length > 0) {
+        params.set('models', modelIds.join(','));
+      }
+    }
+
+    const newUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+    router.replace(newUrl, { scroll: false });
+  }, [selectedScenario, comparisonItems, pathname, router, isInitialized]);
 
   // Select a scenario (middle column shows its models)
   const selectScenario = (promptId: string) => {
