@@ -215,19 +215,35 @@ export const EngClientPage: React.FC = () => {
 
   // Select a scenario (middle column shows its models)
   const selectScenario = (promptId: string) => {
+    console.log('[selectScenario] START', {
+      promptId,
+      currentSelectedScenario: selectedScenario,
+      timestamp: performance.now()
+    });
     setShowExecutiveSummary(false);
+    console.log('[selectScenario] About to update URL', { timestamp: performance.now() });
+    updateUrl(promptId, []);
+    console.log('[selectScenario] URL updated, now setting state', { timestamp: performance.now() });
     setSelectedScenario(promptId);
     // Clear comparison when switching scenarios
     setComparisonItems([]);
-    // Update URL immediately
-    updateUrl(promptId, []);
+    console.log('[selectScenario] State updated', { timestamp: performance.now() });
   };
 
   // Toggle all variants of a base model in/out of comparison
   const toggleModel = (baseId: string) => {
-    if (!selectedScenario) return;
+    console.log('[toggleModel] Called with', {
+      baseId,
+      selectedScenario,
+      timestamp: performance.now()
+    });
 
-    console.log('[toggleModel] START', { baseId, timestamp: performance.now() });
+    if (!selectedScenario) {
+      console.log('[toggleModel] ABORT - no selectedScenario', { timestamp: performance.now() });
+      return;
+    }
+
+    console.log('[toggleModel] START', { baseId, selectedScenario, timestamp: performance.now() });
 
     // Find all model variants that match this baseId
     const variantIds = models.filter(modelId => {
@@ -472,7 +488,13 @@ function ScenariosColumn({
                   ? "bg-primary/10"
                   : "hover:bg-muted/30"
               )}
-              onClick={() => selectScenario(scenario.promptId)}
+              onClick={() => {
+                console.log('[ScenariosColumn onClick] CLICK EVENT', {
+                  promptId: scenario.promptId,
+                  timestamp: performance.now()
+                });
+                selectScenario(scenario.promptId);
+              }}
             >
               <div className="flex items-center gap-2">
                 <span className="text-muted-foreground text-xs min-w-[2ch]">
