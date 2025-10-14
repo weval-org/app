@@ -13,6 +13,8 @@ import ResponseRenderer, { RenderAsType } from '@/app/components/ResponseRendere
 import { StructuredSummary } from '@/app/analysis/components/StructuredSummary';
 import { createClientLogger } from '@/app/utils/clientLogger';
 import { ErrorBoundary } from '@/app/components/ErrorBoundary';
+import CIPLogo from '@/components/icons/CIPLogo';
+import Link from 'next/link';
 
 // Debug loggers
 const debug = createClientLogger('EngClientPage');
@@ -382,6 +384,13 @@ export const EngClientPage: React.FC = () => {
       .filter(k => k !== key)
       .map(k => k.split('::')[1]);
 
+    // Optimistic update - immediately update UI
+    setOptimisticState(prev => ({
+      ...prev,
+      models: new Set(newModelIds),
+      view: null,
+    }));
+
     const params = new URLSearchParams();
     params.set('scenario', selectedScenario);
     if (newModelIds.length > 0) {
@@ -395,6 +404,13 @@ export const EngClientPage: React.FC = () => {
   const clearAllComparisons = () => {
     debug.log('clearAllComparisons START', { timestamp: performance.now() });
     if (!selectedScenario) return;
+
+    // Optimistic update - immediately clear all models from UI
+    setOptimisticState(prev => ({
+      ...prev,
+      models: new Set([]),
+      view: null,
+    }));
 
     const params = new URLSearchParams();
     params.set('scenario', selectedScenario);
@@ -465,19 +481,41 @@ export const EngClientPage: React.FC = () => {
   }, [promptIds, promptTextsForMacroTable, models, allCoverageScores]);
 
   return (
-    <div className="h-screen flex flex-col bg-background">
+    <div className="h-screen flex flex-col bg-background font-mono">
       {/* Top bar */}
       <div className="border-b border-border px-4 py-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <h1 className="text-lg font-semibold font-mono">Data Explorer</h1>
-            <div className="text-sm text-muted-foreground">
-              {config.id || 'Unknown config'}
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-4">
+              {/* Logo section */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <CIPLogo className="w-6 h-6 text-foreground flex-shrink-0" />
+                <Link href="/">
+                  <h2 className="text-xl font-bold text-foreground hover:text-primary transition-colors">
+                    <span style={{ fontWeight: 700 }}>w</span>
+                    <span style={{ fontWeight: 200 }}>eval</span>
+                  </h2>
+                </Link>
+              </div>
+
+              {/* Vertical separator */}
+              <div className="h-8 w-px bg-border flex-shrink-0" />
+
+              {/* Title section */}
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="min-w-0">
+                  <h1 className="text-base font-bold tracking-tight truncate sm:text-lg" title={config.id || 'Unknown config'}>
+                    {config.id || 'Unknown config'}
+                  </h1>
+                  <p className="text-xs text-muted-foreground">Data Explorer</p>
+                </div>
+              </div>
             </div>
           </div>
+
           {timestamp && (
-            <div className="text-xs text-muted-foreground font-mono">
-              Eval run: {timestamp}
+            <div className="text-xs text-muted-foreground flex-shrink-0 mt-2">
+              {timestamp}
             </div>
           )}
         </div>
@@ -486,7 +524,7 @@ export const EngClientPage: React.FC = () => {
       {/* Main content area: 3-column layout */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left: Scenarios Column */}
-        <div className="w-[280px] flex-shrink-0 border-r border-border overflow-auto">
+        <div className="w-[280px] flex-shrink-0 border-r border-border overflow-auto" role="navigation" aria-label="Scenarios">
           <ErrorBoundary
             fallback={
               <div className="p-4 text-center text-sm text-muted-foreground">
@@ -507,7 +545,7 @@ export const EngClientPage: React.FC = () => {
 
         {/* Middle: Models Column (only visible when scenario selected) */}
         {selectedScenario && (
-          <div className="w-[280px] flex-shrink-0 border-r border-border overflow-auto">
+          <div className="w-[280px] flex-shrink-0 border-r border-border overflow-auto" role="navigation" aria-label="Models">
             <ErrorBoundary
               fallback={
                 <div className="p-4 text-center text-sm text-muted-foreground">
@@ -527,7 +565,7 @@ export const EngClientPage: React.FC = () => {
         )}
 
         {/* Right: Comparison View */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto" role="main" aria-label="Comparison view">
           <div className="p-4">
             <ErrorBoundary>
               {showExecutiveSummary && data.executiveSummary ? (
@@ -635,6 +673,10 @@ const ScenariosColumn = React.memo<ScenariosColumnProps>(function ScenariosColum
       {/* Executive Summary Option */}
       {executiveSummary && (
         <div
+          role="button"
+          tabIndex={-1}
+          aria-label="Executive Summary"
+          aria-pressed={showExecutiveSummary}
           className={cn(
             "flex items-center justify-between gap-2 px-2 py-1 mb-0.5 rounded cursor-pointer transition-all duration-200",
             showExecutiveSummary
@@ -646,7 +688,7 @@ const ScenariosColumn = React.memo<ScenariosColumnProps>(function ScenariosColum
         >
           <span className="flex-1 font-medium text-xs">Executive Summary</span>
           {showExecutiveSummary && (
-            <span className="text-primary text-xs animate-in fade-in duration-150">●</span>
+            <span className="text-primary text-xs animate-in fade-in duration-150" aria-hidden="true">●</span>
           )}
         </div>
       )}
@@ -671,6 +713,10 @@ const ScenariosColumn = React.memo<ScenariosColumnProps>(function ScenariosColum
           return (
             <div
               key={scenario.promptId}
+              role="button"
+              tabIndex={-1}
+              aria-label={`Scenario ${scenario.index + 1}: ${scenario.promptText}`}
+              aria-pressed={isSelected}
               className={cn(
                 "flex flex-col gap-0.5 px-2 py-1 rounded cursor-pointer transition-all duration-200",
                 isSelected
@@ -687,23 +733,23 @@ const ScenariosColumn = React.memo<ScenariosColumnProps>(function ScenariosColum
               }}
             >
               <div className="flex items-center gap-2">
-                <span className="text-muted-foreground text-xs min-w-[2ch]">
+                <span className="text-muted-foreground text-xs min-w-[2ch]" aria-hidden="true">
                   {String(scenario.index + 1).padStart(2, '0')}
                 </span>
                 <span className="flex-1 truncate text-xs">
                   {truncateText(scenario.promptText, 30)}
                 </span>
                 {isSelected && (
-                  <span className="text-primary text-xs animate-pulse">●</span>
+                  <span className="text-primary text-xs animate-pulse" aria-hidden="true">●</span>
                 )}
                 {hasScore && !isSelected && (
-                  <span className={cn("text-right text-xs min-w-[3ch] font-mono", scoreColor)}>
+                  <span className={cn("text-right text-xs min-w-[3ch] font-mono", scoreColor)} aria-hidden="true">
                     {formatPercentage(score, 0)}
                   </span>
                 )}
               </div>
               {hasScore && (
-                <div className="ml-6 h-[0.35rem] overflow-hidden">
+                <div className="ml-6 h-[0.35rem] overflow-hidden" aria-hidden="true">
                   <TextualBar score={score} length={18} />
                 </div>
               )}
@@ -850,6 +896,10 @@ const ModelsColumn = React.memo<ModelsColumnProps>(function ModelsColumn({
           return (
             <div
               key={baseModel.baseId}
+              role="checkbox"
+              tabIndex={-1}
+              aria-checked={isSelected}
+              aria-label={`${baseModel.displayName}${baseModel.variants.length > 1 ? ` (${baseModel.variants.length} variants)` : ''}${hasScore ? `, score ${formatPercentage(score, 0)}` : ''}`}
               className={cn(
                 "flex flex-col gap-0.5 px-2 py-1 rounded cursor-pointer transition-all duration-200",
                 isSelected
@@ -864,7 +914,7 @@ const ModelsColumn = React.memo<ModelsColumnProps>(function ModelsColumn({
             >
               <div className="flex items-center gap-2">
                 {/* Checkbox with visual feedback */}
-                <span className={cn("text-xs min-w-[1ch]", isSelected && "text-primary")}>
+                <span className={cn("text-xs min-w-[1ch]", isSelected && "text-primary")} aria-hidden="true">
                   {isSelected ? '☑' : '☐'}
                 </span>
 
@@ -878,13 +928,13 @@ const ModelsColumn = React.memo<ModelsColumnProps>(function ModelsColumn({
                 </span>
 
                 {hasScore && (
-                  <span className={cn("text-right text-xs min-w-[3ch] font-mono", scoreColor)}>
+                  <span className={cn("text-right text-xs min-w-[3ch] font-mono", scoreColor)} aria-hidden="true">
                     {formatPercentage(score, 0)}
                   </span>
                 )}
               </div>
               {hasScore && (
-                <div className="ml-4 h-[0.35rem] overflow-hidden">
+                <div className="ml-4 h-[0.35rem] overflow-hidden" aria-hidden="true">
                   <TextualBar score={score} length={16} />
                 </div>
               )}
@@ -1021,6 +1071,7 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
     const requiredCriteria: Array<{
       text: string;
       citation: string | null;
+      isInverted: boolean;
       assessments: Map<string, {
         score: number;
         individualJudgements: Array<{ judgeModelId: string; reflection: string; coverageExtent: number }> | null;
@@ -1030,6 +1081,7 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
     const pathGroups: Map<string, Array<{
       text: string;
       citation: string | null;
+      isInverted: boolean;
       assessments: Map<string, {
         score: number;
         individualJudgements: Array<{ judgeModelId: string; reflection: string; coverageExtent: number }> | null;
@@ -1040,6 +1092,7 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
       text: string;
       citation: string | null;
       pathId: string | null;
+      isInverted: boolean;
       assessments: Map<string, {
         score: number;
         individualJudgements: Array<{ judgeModelId: string; reflection: string; coverageExtent: number }> | null;
@@ -1059,6 +1112,7 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
               text: criterionText,
               citation: assessment.citation || null,
               pathId: assessment.pathId || null,
+              isInverted: assessment.isInverted || false,
               assessments: new Map()
             });
           }
@@ -1102,6 +1156,7 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
           </h2>
           <button
             onClick={clearAllComparisons}
+            aria-label={comparisonItems.length === 1 ? 'Close model detail' : `Clear all ${comparisonItems.length} models from comparison`}
             className="text-sm text-muted-foreground hover:text-foreground transition-colors duration-150"
           >
             {comparisonItems.length === 1 ? 'Close' : 'Clear all'}
@@ -1117,7 +1172,7 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
             {/* Column headers: Model names with overall scores */}
             <thead className="bg-muted/30">
               <tr>
-                <th className="text-left px-3 py-3 font-medium border-b border-r border-border sticky left-0 bg-muted/30 min-w-[200px]">
+                <th scope="col" className="text-left px-3 py-3 font-medium border-b border-r border-border sticky left-0 bg-muted min-w-[200px]">
                   Criterion
                 </th>
                 {comparisonItems.map(itemKey => {
@@ -1134,15 +1189,16 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
                   });
 
                   return (
-                    <th key={itemKey} className="text-center px-3 py-3 border-b border-border min-w-[250px]">
+                    <th key={itemKey} scope="col" className="text-center px-3 py-3 border-b border-border min-w-[250px]">
                       <div className="space-y-2">
                         <div className="flex items-center justify-between gap-2">
                           <div className="font-medium truncate flex-1 text-left">{modelLabel}</div>
                           <button
                             onClick={() => removeFromComparison(itemKey)}
+                            aria-label={`Remove ${modelLabel} from comparison`}
                             className="text-xs text-muted-foreground hover:text-destructive"
                           >
-                            ✕
+                            <span aria-hidden="true">✕</span>
                           </button>
                         </div>
                         {hasScore && (
@@ -1163,9 +1219,9 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
             <tbody className="divide-y divide-border">
               {/* Response row */}
               <tr className="bg-muted/10">
-                <td className="px-3 py-2 font-medium border-r border-border sticky left-0 bg-muted/10">
+                <th scope="row" className="px-3 py-2 font-medium border-r border-border sticky left-0 bg-background">
                   Response
-                </td>
+                </th>
                 {comparisonItems.map(itemKey => {
                   const parts = itemKey.split('::');
                   const modelId = parts[1];
@@ -1211,7 +1267,15 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
                   <tr key={`req-${idx}`} className="hover:bg-muted/20">
                     <td className="px-3 py-3 text-left border-r border-border sticky left-0 bg-background">
                       <div className="space-y-2">
-                        <CriterionText text={criterion.text} />
+                        <div className="flex items-start gap-2">
+                          <CriterionText text={criterion.text} />
+                          {criterion.isInverted && (
+                            <div className="flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400 flex-shrink-0" title="Inverted criterion: should NOT be present" role="img" aria-label="Inverted criterion">
+                              <span aria-hidden="true">🚫</span>
+                              <span className="font-semibold">NOT</span>
+                            </div>
+                          )}
+                        </div>
                         {criterion.citation && (
                           <div className="text-xs text-muted-foreground italic pl-3 border-l-2 border-primary/30">
                             "{truncateText(criterion.citation, 150)}"
@@ -1243,17 +1307,22 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
 
                       const { score, individualJudgements } = assessment;
                       const statusIcon = score >= 0.8 ? '✓' : score >= 0.5 ? '~' : '✗';
+                      const statusLabel = score >= 0.8 ? 'Pass' : score >= 0.5 ? 'Partial' : 'Fail';
 
                       return (
                         <td key={itemKey} className="px-3 py-3 align-top">
                           <div className="space-y-2">
                             <div className="flex items-center gap-2">
-                              <span className={cn(
-                                "text-lg font-bold",
-                                score >= 0.8 ? "text-green-600 dark:text-green-400" :
-                                score >= 0.5 ? "text-amber-600 dark:text-amber-400" :
-                                "text-red-600 dark:text-red-400"
-                              )}>
+                              <span
+                                className={cn(
+                                  "text-lg font-bold",
+                                  score >= 0.8 ? "text-green-600 dark:text-green-400" :
+                                  score >= 0.5 ? "text-amber-600 dark:text-amber-400" :
+                                  "text-red-600 dark:text-red-400"
+                                )}
+                                aria-label={statusLabel}
+                                role="img"
+                              >
                                 {statusIcon}
                               </span>
                               <span className="font-mono text-sm">{formatPercentage(score, 0)}</span>
@@ -1316,7 +1385,15 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
                               style={{ backgroundColor: pathColor }}
                             />
                             <div className="space-y-2 flex-1">
-                              <CriterionText text={criterion.text} />
+                              <div className="flex items-start gap-2">
+                                <CriterionText text={criterion.text} />
+                                {criterion.isInverted && (
+                                  <div className="flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400 flex-shrink-0" title="Inverted criterion: should NOT be present" role="img" aria-label="Inverted criterion">
+                                    <span aria-hidden="true">🚫</span>
+                                    <span className="font-semibold">NOT</span>
+                                  </div>
+                                )}
+                              </div>
                               {criterion.citation && (
                                 <div className="text-xs text-muted-foreground italic pl-3 border-l-2 border-primary/30">
                                   "{truncateText(criterion.citation, 150)}"
@@ -1349,17 +1426,22 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
 
                           const { score, individualJudgements } = assessment;
                           const statusIcon = score >= 0.8 ? '✓' : score >= 0.5 ? '~' : '✗';
+                          const statusLabel = score >= 0.8 ? 'Pass' : score >= 0.5 ? 'Partial' : 'Fail';
 
                           return (
                             <td key={itemKey} className="px-3 py-3 align-top">
                               <div className="space-y-2">
                                 <div className="flex items-center gap-2">
-                                  <span className={cn(
-                                    "text-lg font-bold",
-                                    score >= 0.8 ? "text-green-600 dark:text-green-400" :
-                                    score >= 0.5 ? "text-amber-600 dark:text-amber-400" :
-                                    "text-red-600 dark:text-red-400"
-                                  )}>
+                                  <span
+                                    className={cn(
+                                      "text-lg font-bold",
+                                      score >= 0.8 ? "text-green-600 dark:text-green-400" :
+                                      score >= 0.5 ? "text-amber-600 dark:text-amber-400" :
+                                      "text-red-600 dark:text-red-400"
+                                    )}
+                                    aria-label={statusLabel}
+                                    role="img"
+                                  >
                                     {statusIcon}
                                   </span>
                                   <span className="font-mono text-sm">{formatPercentage(score, 0)}</span>
@@ -1432,7 +1514,7 @@ function ExecutiveSummaryView({ executiveSummary }: ExecutiveSummaryViewProps) {
       <div className="border-b border-border pb-3">
         <h2 className="text-2xl font-semibold">Executive Summary</h2>
       </div>
-      <div className="prose prose-sm max-w-none dark:prose-invert">
+      <div className="prose prose-sm max-w-none dark:prose-invert font-mono">
         {hasStructured ? (
           <StructuredSummary insights={executiveSummary.structured} />
         ) : (
