@@ -116,37 +116,24 @@ export const EngClientPage: React.FC = () => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const [selectedScenario, setSelectedScenario] = useState<string | null>(null);
-  const [comparisonItems, setComparisonItems] = useState<string[]>([]);
+  // Initialize state directly from URL params (no flash of empty state)
+  const [selectedScenario, setSelectedScenario] = useState<string | null>(() => searchParams.get('scenario'));
+  const [comparisonItems, setComparisonItems] = useState<string[]>(() => {
+    const scenario = searchParams.get('scenario');
+    const modelsParam = searchParams.get('models');
+    if (scenario && modelsParam) {
+      const modelIds = modelsParam.split(',').filter(Boolean);
+      return modelIds.map(modelId => `${scenario}::${modelId}`);
+    }
+    return [];
+  });
   const [showExecutiveSummary, setShowExecutiveSummary] = useState(false);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(true); // Already initialized from URL
 
   // Get models without IDEAL
   const models = useMemo(() => {
     return displayedModels.filter(m => m.toUpperCase() !== IDEAL_MODEL_ID.toUpperCase());
   }, [displayedModels]);
-
-  // Initialize state from URL params on mount
-  useEffect(() => {
-    if (!data || isInitialized) return;
-
-    const scenario = searchParams.get('scenario');
-    const modelsParam = searchParams.get('models');
-
-    if (scenario) {
-      setSelectedScenario(scenario);
-      setShowExecutiveSummary(false);
-    }
-
-    if (modelsParam && scenario) {
-      // Decode and parse model IDs
-      const modelIds = modelsParam.split(',').filter(Boolean);
-      const items = modelIds.map(modelId => `${scenario}::${modelId}`);
-      setComparisonItems(items);
-    }
-
-    setIsInitialized(true);
-  }, [data, searchParams, isInitialized]);
 
   // Helper to immediately update URL (synchronous)
   const updateUrl = (scenario: string | null, items: string[]) => {
