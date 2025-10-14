@@ -23,7 +23,7 @@ import type { BreadcrumbItem } from '@/app/components/Breadcrumbs';
 interface AnalysisProviderProps {
     // For full analysis mode
     initialData?: ComparisonDataV2;
-    
+
     // For minimal/listing mode
     pageTitle?: string;
     breadcrumbItems?: BreadcrumbItem[];
@@ -32,13 +32,15 @@ interface AnalysisProviderProps {
     tags?: string[];
     author?: string | { name: string; url?: string; image_url?: string };
     reference?: string | { title: string; url?: string };
-    
+
     // Common props
     configId: string;
     runLabel?: string;
     timestamp?: string;
     isSandbox?: boolean;
     sandboxId?: string;
+    workshopId?: string;
+    wevalId?: string;
     children: React.ReactNode;
 }
 
@@ -46,8 +48,8 @@ const EMPTY_BREADCRUMBS: BreadcrumbItem[] = [];
 const EMPTY_SENSITIVITY_MAP = new Map<string, 'temp' | 'sys' | 'both'>();
 const EMPTY_PROMPT_TEXTS = {};
 
-export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({ 
-    initialData, 
+export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
+    initialData,
     pageTitle: propPageTitle,
     breadcrumbItems: propBreadcrumbItems,
     configTitle: propConfigTitle,
@@ -60,7 +62,9 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
     timestamp: timestampFromProps,
     isSandbox: isSandboxFromProps,
     sandboxId: sandboxIdFromProps,
-    children 
+    workshopId: workshopIdFromProps,
+    wevalId: wevalIdFromProps,
+    children
 }) => {
     const [latchedInitialData] = useState(initialData);
     const router = useRouter();
@@ -126,10 +130,12 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
     const analysisStats = useAnalysisStats(isFullMode ? data : null);
 
     // Lazy loading for response data (only in full mode)
+    // Pre-populate with initial responses if available (for workshop/sandbox with all data loaded)
     const lazyResponseData = useLazyResponseData(
         isFullMode ? configId : '',
         isFullMode ? runLabel : '',
-        isFullMode ? timestamp : ''
+        isFullMode ? timestamp : '',
+        latchedInitialData?.allFinalAssistantResponses
     );
 
     const { displayedModels, modelsForMacroTable, modelsForAggregateView } = useModelFiltering({
@@ -500,6 +506,8 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
         summaryStats,
         isSandbox,
         sandboxId: sandboxIdFromProps,
+        workshopId: workshopIdFromProps,
+        wevalId: wevalIdFromProps,
         normalizedExecutiveSummary,
         modelPerformanceModal,
         openModelPerformanceModal,
@@ -534,9 +542,9 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
         canonicalModels, analysisStats, modelEvaluationModal, openModelEvaluationDetailModal,
         closeModelEvaluationDetailModal, resolvedTheme, permutationSensitivityMap,
         promptTextsForMacroTable, currentPromptId, pageTitle, breadcrumbItems, summaryStats,
-        isSandbox, sandboxIdFromProps, normalizedExecutiveSummary, modelPerformanceModal,
+        isSandbox, sandboxIdFromProps, workshopIdFromProps, wevalIdFromProps, normalizedExecutiveSummary, modelPerformanceModal,
         openModelPerformanceModal, closeModelPerformanceModal, similarityModal, openSimilarityModal, closeSimilarityModal, promptDetailModal,
-        openPromptDetailModal, closePromptDetailModal, lazyResponseData
+        openPromptDetailModal, closePromptDetailModal, lazyResponseData, promptSimilarityModal, openPromptSimilarityModal, closePromptSimilarityModal
     ]);
 
     return (

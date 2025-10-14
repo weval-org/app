@@ -20,8 +20,21 @@ interface PromptResponses {
  * Custom hook for lazy loading response data on demand.
  * Caches responses to avoid duplicate network requests.
  */
-export function useLazyResponseData(configId: string, runLabel: string, timestamp: string) {
-  const [responseCache, setResponseCache] = useState<Map<string, string>>(new Map());
+export function useLazyResponseData(configId: string, runLabel: string, timestamp: string, initialResponses?: Record<string, Record<string, string>>) {
+  const [responseCache, setResponseCache] = useState<Map<string, string>>(() => {
+    // Pre-populate cache if initial responses provided
+    if (initialResponses) {
+      const cache = new Map<string, string>();
+      for (const promptId in initialResponses) {
+        for (const modelId in initialResponses[promptId]) {
+          const cacheKey = `${promptId}:${modelId}`;
+          cache.set(cacheKey, initialResponses[promptId][modelId]);
+        }
+      }
+      return cache;
+    }
+    return new Map();
+  });
   const [loading, setLoading] = useState<Set<string>>(new Set());
   // Track per-prompt loads to avoid repeated network requests
   const [promptLoads, setPromptLoads] = useState<Set<string>>(new Set()); // in-flight
