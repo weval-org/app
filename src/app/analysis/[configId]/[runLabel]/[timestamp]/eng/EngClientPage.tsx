@@ -100,6 +100,40 @@ const CriterionText: React.FC<{ text: string }> = ({ text }) => {
   return <div className="font-medium break-words">{formatted.display}</div>;
 };
 
+// Skeleton loader for response cells
+const ResponseSkeleton: React.FC = () => (
+  <div className="animate-pulse space-y-2 p-2">
+    <div className="h-3 bg-muted rounded w-full"></div>
+    <div className="h-3 bg-muted rounded w-5/6"></div>
+    <div className="h-3 bg-muted rounded w-4/6"></div>
+    <div className="h-3 bg-muted rounded w-full"></div>
+    <div className="h-3 bg-muted rounded w-3/6"></div>
+  </div>
+);
+
+// Skeleton loader for evaluation cells
+const EvaluationSkeleton: React.FC = () => (
+  <div className="animate-pulse space-y-2">
+    <div className="flex items-center gap-2">
+      <div className="h-5 w-5 bg-muted rounded"></div>
+      <div className="h-4 bg-muted rounded w-12"></div>
+      <div className="h-2 bg-muted rounded flex-1"></div>
+    </div>
+    <div className="h-3 bg-muted rounded w-full"></div>
+    <div className="h-3 bg-muted rounded w-4/5"></div>
+  </div>
+);
+
+// Global loading overlay for sections
+const SectionLoadingOverlay: React.FC<{ message?: string }> = ({ message = 'Loading...' }) => (
+  <div className="flex items-center justify-center h-full min-h-[400px]">
+    <div className="text-center space-y-4">
+      <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <p className="text-muted-foreground">{message}</p>
+    </div>
+  </div>
+);
+
 export const EngClientPage: React.FC = () => {
   const {
     data,
@@ -111,6 +145,8 @@ export const EngClientPage: React.FC = () => {
     getCachedEvaluation,
     fetchModalResponse,
     fetchEvaluationDetails,
+    isLoadingResponse,
+    isLoadingEvaluation,
   } = useAnalysis();
 
   const router = useRouter();
@@ -397,6 +433,8 @@ export const EngClientPage: React.FC = () => {
                 getCachedEvaluation={getCachedEvaluation}
                 fetchModalResponse={fetchModalResponse}
                 fetchEvaluationDetails={fetchEvaluationDetails}
+                isLoadingResponse={isLoadingResponse}
+                isLoadingEvaluation={isLoadingEvaluation}
                 allCoverageScores={allCoverageScores}
                 promptTexts={promptTextsForMacroTable}
                 config={config}
@@ -668,6 +706,8 @@ interface ComparisonViewProps {
   getCachedEvaluation: any;
   fetchModalResponse: any;
   fetchEvaluationDetails: any;
+  isLoadingResponse: (promptId: string, modelId: string) => boolean;
+  isLoadingEvaluation?: (key: string) => boolean;
   allCoverageScores: any;
   promptTexts: Record<string, string>;
   config: any;
@@ -681,6 +721,8 @@ function ComparisonView({
   getCachedEvaluation,
   fetchModalResponse,
   fetchEvaluationDetails,
+  isLoadingResponse,
+  isLoadingEvaluation,
   allCoverageScores,
   promptTexts,
   config,
@@ -886,17 +928,22 @@ function ComparisonView({
                   const parts = itemKey.split('::');
                   const modelId = parts[1];
                   const response = getCachedResponse?.(promptId, modelId);
+                  const loading = isLoadingResponse(promptId, modelId);
 
                   return (
                     <td key={itemKey} className="px-3 py-2 align-top">
                       <div className={cn(
                         "border border-border rounded bg-background overflow-auto",
-                        renderAs === 'html' ? "h-[400px]" : "max-h-64 p-2"
+                        renderAs === 'html' ? "h-[400px]" : "max-h-64"
                       )}>
-                        {response ? (
-                          <ResponseRenderer content={response} renderAs={renderAs} />
+                        {loading ? (
+                          <ResponseSkeleton />
+                        ) : response ? (
+                          <div className="p-2">
+                            <ResponseRenderer content={response} renderAs={renderAs} />
+                          </div>
                         ) : (
-                          <p className="text-xs text-muted-foreground p-2">Loading...</p>
+                          <p className="text-xs text-muted-foreground p-2">No response data</p>
                         )}
                       </div>
                     </td>
@@ -934,6 +981,15 @@ function ComparisonView({
                       const parts = itemKey.split('::');
                       const modelId = parts[1];
                       const assessment = criterion.assessments.get(modelId);
+                      const evalLoading = isLoadingEvaluation?.(`${promptId}:${modelId}`) || false;
+
+                      if (evalLoading) {
+                        return (
+                          <td key={itemKey} className="px-3 py-3 align-top">
+                            <EvaluationSkeleton />
+                          </td>
+                        );
+                      }
 
                       if (!assessment) {
                         return (
@@ -1031,6 +1087,15 @@ function ComparisonView({
                           const parts = itemKey.split('::');
                           const modelId = parts[1];
                           const assessment = criterion.assessments.get(modelId);
+                          const evalLoading = isLoadingEvaluation?.(`${promptId}:${modelId}`) || false;
+
+                          if (evalLoading) {
+                            return (
+                              <td key={itemKey} className="px-3 py-3 align-top">
+                                <EvaluationSkeleton />
+                              </td>
+                            );
+                          }
 
                           if (!assessment) {
                             return (
