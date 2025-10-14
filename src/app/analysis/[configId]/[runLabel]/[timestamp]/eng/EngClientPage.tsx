@@ -9,6 +9,7 @@ import { TextualBar } from '../textual/components/TextualBar';
 import { formatPercentage, truncateText } from '../textual/utils/textualUtils';
 import { cn } from '@/lib/utils';
 import ResponseRenderer, { RenderAsType } from '@/app/components/ResponseRenderer';
+import { StructuredSummary } from '@/app/analysis/components/StructuredSummary';
 
 // Path colors matching MacroCoverageTable
 const PATH_COLORS = [
@@ -1047,7 +1048,14 @@ interface ExecutiveSummaryViewProps {
 }
 
 function ExecutiveSummaryView({ executiveSummary }: ExecutiveSummaryViewProps) {
-  // Handle different executive summary formats
+  // Check for structured data
+  const hasStructured = executiveSummary &&
+    typeof executiveSummary === 'object' &&
+    'isStructured' in executiveSummary &&
+    executiveSummary.isStructured &&
+    executiveSummary.structured;
+
+  // Handle different executive summary formats for fallback
   let content: string;
   if (typeof executiveSummary === 'string') {
     content = executiveSummary;
@@ -1063,7 +1071,11 @@ function ExecutiveSummaryView({ executiveSummary }: ExecutiveSummaryViewProps) {
         <h2 className="text-2xl font-semibold">Executive Summary</h2>
       </div>
       <div className="prose prose-sm max-w-none dark:prose-invert">
-        <div className="whitespace-pre-wrap leading-relaxed">{content}</div>
+        {hasStructured ? (
+          <StructuredSummary insights={executiveSummary.structured} />
+        ) : (
+          <div className="whitespace-pre-wrap leading-relaxed">{content}</div>
+        )}
       </div>
     </div>
   );
