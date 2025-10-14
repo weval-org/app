@@ -547,6 +547,8 @@ temperatures: [0.0, 0.5, 0.8]
 
 For full details on rubric syntax (`should` and `should_not` blocks), system prompt usage, and convenience aliases, please see the [Blueprint Format Documentation](docs/BLUEPRINT_FORMAT.md) and the [Points Documentation](docs/POINTS_DOCUMENTATION.md).
 
+> ⚠️ **Common Pitfall:** Single-element nested arrays in the `should` block can dramatically lower scores. See the [troubleshooting section in BLUEPRINT_FORMAT.md](docs/BLUEPRINT_FORMAT.md#troubleshooting-why-is-my-score-lower-than-expected) if your blueprint produces unexpectedly low scores.
+
 ### Experimental: Tool-use and tracing
 
 This project includes early, experimental support for evaluating and tracing model tool calls within blueprints. Expect breaking changes as we iterate.

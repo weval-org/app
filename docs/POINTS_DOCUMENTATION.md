@@ -174,9 +174,12 @@ This path is for `fn`-based points and is deterministic.
 For each model response, after all its `points` have been evaluated down one of the two paths:
 
 1.  **Collect Assessments**: The system collects all the individual `PointAssessment` objects.
-2.  **Calculate Final Score**: It calculates the final `avgCoverageExtent` using the `aggregateCoverageScores` function. This function handles both simple lists and alternative paths:
+2.  **Calculate Final Score**: It calculates the final `avgCoverageExtent` using the `aggregateCoverageScores` function (implemented in `src/cli/evaluators/coverage-logic.ts`). This function handles both simple lists and alternative paths:
     *   **For a simple list of points**: It calculates a weighted average. The `coverageExtent` of each point is multiplied by its `multiplier` (which defaults to 1), and the sum is divided by the sum of all multipliers.
     *   **For alternative paths**: It first calculates the weighted average score for *each* path. Then, it takes the **highest** of these path scores as the final score for the OR block. If there are other "required" points outside the OR block, the best path score is averaged with them.
+
+    > 📐 **For a detailed numerical walkthrough of the aggregation formula**, including worked examples with multiple paths and multipliers, see the [Understanding the Aggregation Formula section in BLUEPRINT_FORMAT.md](./BLUEPRINT_FORMAT.md#understanding-the-aggregation-formula).
+
 3.  **Package Result**: The final average score, plus the list of all individual `PointAssessment` objects, is packaged into a `CoverageResult` object.
 
 ---
