@@ -10,7 +10,8 @@ import {
 import {
     IndividualJudgement,
     PointAssessment,
-    Judge
+    Judge,
+    LLMCoverageEvaluationConfig
 } from '@/types/shared';
 import { extractKeyPoints } from '../services/llm-evaluation-service';
 import { dispatchMakeApiCall } from '../../lib/llm-clients/client-dispatcher';
@@ -28,14 +29,6 @@ type Logger = ReturnType<typeof getConfig>['logger'];
 
 // Global override to force experimental classification scale
 const FORCE_EXPERIMENTAL = true;
-
-// Add local interface to fix TS error until types can be globally updated
-interface LLMCoverageEvaluationConfig {
-    judgeModels?: string[];
-    judgeMode?: 'failover' | 'consensus';
-    judges?: Judge[];
-    useExperimentalScale?: boolean;
-}
 
 type ClassificationScaleItem = { name: string; score: number; description: string };
 

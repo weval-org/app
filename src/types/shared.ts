@@ -153,11 +153,7 @@ export interface WevalConfig {
     tags?: string[];
     embeddingModel?: string; // Add it here
     evaluationConfig?: {
-        'llm-coverage'?: {
-            judgeModels?: string[];
-            judgeMode?: 'failover' | 'consensus';
-            judges?: Judge[];
-        }
+        'llm-coverage'?: LLMCoverageEvaluationConfig;
     }
     // Tool-use (trace-only) config
     tools?: ToolDefinition[];
@@ -269,6 +265,7 @@ export interface LLMCoverageEvaluationConfig {
     judgeModels?: string[]; // Backwards compatibility
     judgeMode?: 'failover' | 'consensus'; // Backwards compatibility
     judges?: Judge[];
+    useExperimentalScale?: boolean; // Use 9-point classification scale instead of 5-point
 }
 
 // --- New Types for Model-Specific Summaries ---
