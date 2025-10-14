@@ -117,6 +117,14 @@ export const EngClientPage: React.FC = () => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+  // Monitor URL changes to see when browser actually updates
+  useEffect(() => {
+    console.log('[URL CHANGE] Browser URL updated', {
+      url: window.location.href,
+      timestamp: performance.now()
+    });
+  }, [searchParams]);
+
   // Extract timestamp from pathname
   const timestamp = useMemo(() => {
     // pathname format: /analysis/[configId]/[runLabel]/[timestamp]/eng
@@ -593,7 +601,10 @@ function ModelsColumn({
                   ? "bg-primary/10"
                   : "hover:bg-muted/30"
               )}
-              onClick={() => toggleModel(baseModel.baseId)}
+              onClick={() => {
+                console.log('[ModelsColumn onClick] CLICK EVENT', { baseId: baseModel.baseId, timestamp: performance.now() });
+                toggleModel(baseModel.baseId);
+              }}
             >
               <div className="flex items-center gap-2">
                 {/* Checkbox */}
