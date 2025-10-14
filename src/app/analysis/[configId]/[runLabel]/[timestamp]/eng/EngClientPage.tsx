@@ -152,13 +152,10 @@ export const EngClientPage: React.FC = () => {
     }
   }, [pathname]);
 
-  // Initialize state directly from URL params (no flash of empty state)
-  const [selectedScenario, setSelectedScenario] = useState<string | null>(() => {
-    // If viewing summary, don't select a scenario
-    if (searchParams.get('view') === 'summary') return null;
-    return searchParams.get('scenario');
-  });
-  const [comparisonItems, setComparisonItems] = useState<string[]>(() => {
+  // Derive all state from URL (single source of truth)
+  const showExecutiveSummary = searchParams.get('view') === 'summary';
+  const selectedScenario = showExecutiveSummary ? null : searchParams.get('scenario');
+  const comparisonItems = useMemo(() => {
     const scenario = searchParams.get('scenario');
     const modelsParam = searchParams.get('models');
     if (scenario && modelsParam) {
@@ -166,51 +163,28 @@ export const EngClientPage: React.FC = () => {
       return modelIds.map(modelId => `${scenario}::${modelId}`);
     }
     return [];
-  });
-  const [showExecutiveSummary, setShowExecutiveSummary] = useState(() => searchParams.get('view') === 'summary');
-  const [isInitialized, setIsInitialized] = useState(true); // Already initialized from URL
+  }, [searchParams]);
 
   // Get models without IDEAL
   const models = useMemo(() => {
     return displayedModels.filter(m => m.toUpperCase() !== IDEAL_MODEL_ID.toUpperCase());
   }, [displayedModels]);
 
-  // Helper to immediately update URL (synchronous)
-  const updateUrl = (scenario: string | null, items: string[], viewSummary = false) => {
-    if (!isInitialized) return;
-
-    console.log('[updateUrl] START', { timestamp: performance.now() });
-
-    const params = new URLSearchParams();
-
-    if (viewSummary) {
-      params.set('view', 'summary');
-    } else if (scenario) {
-      params.set('scenario', scenario);
-
-      // Extract model IDs from items
-      const modelIds = items
-        .filter(item => item.startsWith(`${scenario}::`))
-        .map(item => item.split('::')[1]);
-
-      if (modelIds.length > 0) {
-        params.set('models', modelIds.join(','));
-      }
-    }
-
-    const newUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
-    console.log('[updateUrl] About to call router.replace', { newUrl, timestamp: performance.now() });
-    router.replace(newUrl, { scroll: false });
-    console.log('[updateUrl] router.replace called', { timestamp: performance.now() });
+  // Helper to build URL with params
+  const buildUrl = (params: URLSearchParams) => {
+    const queryString = params.toString();
+    return queryString ? `${pathname}?${queryString}` : pathname;
   };
 
   // Select executive summary
   const selectExecutiveSummary = () => {
-    setShowExecutiveSummary(true);
-    setSelectedScenario(null);
-    setComparisonItems([]);
-    // Update URL immediately
-    updateUrl(null, [], true);
+    console.log('[selectExecutiveSummary] START', { timestamp: performance.now() });
+    const params = new URLSearchParams();
+    params.set('view', 'summary');
+    const newUrl = buildUrl(params);
+    console.log('[selectExecutiveSummary] Calling router.replace', { newUrl, timestamp: performance.now() });
+    router.replace(newUrl, { scroll: false });
+    console.log('[selectExecutiveSummary] Done', { timestamp: performance.now() });
   };
 
   // Select a scenario (middle column shows its models)
@@ -220,14 +194,12 @@ export const EngClientPage: React.FC = () => {
       currentSelectedScenario: selectedScenario,
       timestamp: performance.now()
     });
-    setShowExecutiveSummary(false);
-    console.log('[selectScenario] About to update URL', { timestamp: performance.now() });
-    updateUrl(promptId, []);
-    console.log('[selectScenario] URL updated, now setting state', { timestamp: performance.now() });
-    setSelectedScenario(promptId);
-    // Clear comparison when switching scenarios
-    setComparisonItems([]);
-    console.log('[selectScenario] State updated', { timestamp: performance.now() });
+    const params = new URLSearchParams();
+    params.set('scenario', promptId);
+    const newUrl = buildUrl(params);
+    console.log('[selectScenario] Calling router.replace', { newUrl, timestamp: performance.now() });
+    router.replace(newUrl, { scroll: false });
+    console.log('[selectScenario] Done', { timestamp: performance.now() });
   };
 
   // Toggle all variants of a base model in/out of comparison
@@ -257,30 +229,58 @@ export const EngClientPage: React.FC = () => {
     const existingKeys = new Set(comparisonItems);
     const allVariantsPresent = newItemKeys.every(key => existingKeys.has(key));
 
-    let newItems: string[];
+    let newModelIds: string[];
     if (allVariantsPresent) {
       // Remove all variants (toggle off)
-      newItems = comparisonItems.filter(key => !newItemKeys.includes(key));
+      const keysToRemove = new Set(newItemKeys);
+      newModelIds = comparisonItems
+        .filter(key => !keysToRemove.has(key))
+        .map(key => key.split('::')[1]);
     } else {
       // Add missing variants (toggle on)
       const itemsToAdd = newItemKeys.filter(key => !existingKeys.has(key));
-      newItems = [...comparisonItems, ...itemsToAdd];
+      newModelIds = [...comparisonItems, ...itemsToAdd].map(key => key.split('::')[1]);
     }
 
-    console.log('[toggleModel] About to update URL', { timestamp: performance.now() });
-    // Update URL FIRST before state updates trigger re-renders
-    updateUrl(selectedScenario, newItems);
-    console.log('[toggleModel] URL updated', { timestamp: performance.now() });
-
-    setComparisonItems(newItems);
-    console.log('[toggleModel] State updated', { timestamp: performance.now() });
+    console.log('[toggleModel] Building new URL', { timestamp: performance.now() });
+    const params = new URLSearchParams();
+    params.set('scenario', selectedScenario);
+    if (newModelIds.length > 0) {
+      params.set('models', newModelIds.join(','));
+    }
+    const newUrl = buildUrl(params);
+    console.log('[toggleModel] Calling router.replace', { newUrl, timestamp: performance.now() });
+    router.replace(newUrl, { scroll: false });
+    console.log('[toggleModel] Done', { timestamp: performance.now() });
   };
 
   const removeFromComparison = (key: string) => {
-    const newItems = comparisonItems.filter(k => k !== key);
-    setComparisonItems(newItems);
-    // Update URL immediately
-    updateUrl(selectedScenario, newItems);
+    console.log('[removeFromComparison] START', { key, timestamp: performance.now() });
+    if (!selectedScenario) return;
+
+    const newModelIds = comparisonItems
+      .filter(k => k !== key)
+      .map(k => k.split('::')[1]);
+
+    const params = new URLSearchParams();
+    params.set('scenario', selectedScenario);
+    if (newModelIds.length > 0) {
+      params.set('models', newModelIds.join(','));
+    }
+    const newUrl = buildUrl(params);
+    console.log('[removeFromComparison] Calling router.replace', { newUrl, timestamp: performance.now() });
+    router.replace(newUrl, { scroll: false });
+  };
+
+  const clearAllComparisons = () => {
+    console.log('[clearAllComparisons] START', { timestamp: performance.now() });
+    if (!selectedScenario) return;
+
+    const params = new URLSearchParams();
+    params.set('scenario', selectedScenario);
+    const newUrl = buildUrl(params);
+    console.log('[clearAllComparisons] Calling router.replace', { newUrl, timestamp: performance.now() });
+    router.replace(newUrl, { scroll: false });
   };
 
   if (loading) {
@@ -392,10 +392,7 @@ export const EngClientPage: React.FC = () => {
               <ComparisonView
                 comparisonItems={comparisonItems}
                 removeFromComparison={removeFromComparison}
-                clearAllComparisons={() => {
-                  setComparisonItems([]);
-                  updateUrl(selectedScenario, []);
-                }}
+                clearAllComparisons={clearAllComparisons}
                 getCachedResponse={getCachedResponse}
                 getCachedEvaluation={getCachedEvaluation}
                 fetchModalResponse={fetchModalResponse}
