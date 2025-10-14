@@ -550,6 +550,17 @@ If no nesting is used, the block is parsed as a single path, preserving full bac
       - $contains_all_of: ["fiduciary", "duty"]  # Graded score (0.5 if 1 of 2 is found)
       - $contains_at_least_n_of: [2, ["apples", "oranges", "pears"]]
 
+      # Case-insensitive list-based checks
+      - $icontains_any_of: ["Fiduciary", "DUTY"]  # Case-insensitive: true if any are found
+      - $icontains_all_of: ["Fiduciary", "DUTY"]  # Case-insensitive: graded score
+      - $icontains_at_least_n_of: [2, ["Apples", "ORANGES", "pears"]]
+
+      # String position checks
+      - $starts_with: "The ruling"   # Case-sensitive: must start with exact text
+      - $istarts_with: "the ruling"  # Case-insensitive: can start with any case
+      - $ends_with: "conclusion."    # Case-sensitive: must end with exact text
+      - $iends_with: "CONCLUSION."   # Case-insensitive: can end with any case
+
       # Regex checks
       - $matches: "^The ruling states" # Case-sensitive regex
       - $imatches: "^the ruling"       # Case-insensitive regex
@@ -564,6 +575,7 @@ If no nesting is used, the block is parsed as a single path, preserving full bac
 
     should_not:
       - $contains_any_of: ["I feel", "I believe", "As an AI"]
+      - $icontains_any_of: ["GUARANTEED returns", "Risk-Free"]  # Case-insensitive
       - $contains: "guaranteed returns"
     ```
 4.  **Full Object (Maximum Control)**: For weighting points or adding citations. This is the most verbose, legacy-compatible format.

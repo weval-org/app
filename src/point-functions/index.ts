@@ -15,6 +15,10 @@ import { contains_at_least_n_of } from './contains_at_least_n_of';
 import { icontains_at_least_n_of } from './icontains_at_least_n_of';
 import { matches_at_least_n_of } from './matches_at_least_n_of';
 import { imatch_at_least_n_of } from './imatch_at_least_n_of';
+import { icontains_all_of } from './icontains_all_of';
+import { icontains_any_of } from './icontains_any_of';
+import { istarts_with } from './istarts_with';
+import { iends_with } from './iends_with';
 import { js } from './js';
 import { tool_called } from './tool_called';
 import { tool_args_match } from './tool_args_match';
@@ -40,6 +44,14 @@ export const pointFunctions: Record<string, PointFunction> = {
     icontain: icontains,
     imatches,
     imatch: imatches,
+    icontains_all_of,
+    icontain_all_of: icontains_all_of,
+    icontains_any_of,
+    icontain_any_of: icontains_any_of,
+    istarts_with,
+    istart_with: istarts_with,
+    iends_with,
+    iend_with: iends_with,
     contains_at_least_n_of,
     contain_at_least_n_of: contains_at_least_n_of,
     icontains_at_least_n_of,

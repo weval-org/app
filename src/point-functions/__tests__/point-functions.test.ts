@@ -6,6 +6,10 @@ import { contains_all_of } from '@/point-functions/contains_all_of';
 import { word_count_between } from '@/point-functions/word_count_between';
 import { icontains } from '@/point-functions/icontains';
 import { imatches } from '@/point-functions/imatches';
+import { icontains_all_of } from '@/point-functions/icontains_all_of';
+import { icontains_any_of } from '@/point-functions/icontains_any_of';
+import { istarts_with } from '@/point-functions/istarts_with';
+import { iends_with } from '@/point-functions/iends_with';
 import { PointFunctionContext } from '../types';
 import { js } from '../js';
 
@@ -183,6 +187,60 @@ describe('Point Functions', () => {
                     error: expect.stringContaining('Script execution timed out'),
                 }),
             );
+        });
+    });
+
+    describe('icontains_all_of', () => {
+        it('should return 1.0 if all substrings are present (case-insensitive)', () => {
+            expect(icontains_all_of('Hello Cruel WORLD', ['world', 'HELLO'], mockContext)).toBe(1.0);
+        });
+        it('should return a fractional score if some substrings are not present', () => {
+            // Only 'hello' is present out of ['hello', 'foo']
+            expect(icontains_all_of('HELLO world', ['hello', 'foo'], mockContext)).toBe(0.5);
+        });
+        it('should return 0.0 if no substrings are present', () => {
+            expect(icontains_all_of('hello world', ['GOODBYE', 'FOO'], mockContext)).toBe(0.0);
+        });
+        it('should return an error for invalid args', () => {
+            expect(icontains_all_of('hello world', 'world', mockContext)).toHaveProperty('error');
+        });
+    });
+
+    describe('icontains_any_of', () => {
+        it('should return true if one of the substrings is present (case-insensitive)', () => {
+            expect(icontains_any_of('Hello WORLD', ['world', 'foo'], mockContext)).toBe(true);
+        });
+        it('should return false if none of the substrings are present', () => {
+            expect(icontains_any_of('hello world', ['FOO', 'BAR'], mockContext)).toBe(false);
+        });
+        it('should return an error for invalid args', () => {
+            expect(icontains_any_of('hello world', 'world', mockContext)).toHaveProperty('error');
+        });
+    });
+
+    describe('istarts_with', () => {
+        it('should return true if the text starts with the given prefix (case-insensitive)', () => {
+            expect(istarts_with('Hello world', 'hello', mockContext)).toBe(true);
+            expect(istarts_with('HELLO world', 'hello', mockContext)).toBe(true);
+        });
+        it('should return false if it does not', () => {
+            expect(istarts_with('Hello world', 'WORLD', mockContext)).toBe(false);
+        });
+        it('should return an error for invalid args', () => {
+            expect(istarts_with('Hello world', 123, mockContext)).toHaveProperty('error');
+        });
+    });
+
+    describe('iends_with', () => {
+        it('should return true if the text ends with the given suffix (case-insensitive)', () => {
+            expect(iends_with('Hello world', 'WORLD', mockContext)).toBe(true);
+            expect(iends_with('Hello WORLD', 'world', mockContext)).toBe(true);
+        });
+        it('should return false if it does not', () => {
+            expect(iends_with('Hello world', 'HELLO', mockContext)).toBe(false);
+        });
+        it('should return an error for invalid args', () => {
+            expect(iends_with('Hello world', 123, mockContext)).toHaveProperty('error');
         });
     });
 }); 
