@@ -148,18 +148,18 @@ export const EngClientPage: React.FC = () => {
     setIsInitialized(true);
   }, [data, searchParams, isInitialized]);
 
-  // Update URL when state changes (without creating history entries)
-  useEffect(() => {
+  // Helper to immediately update URL (synchronous)
+  const updateUrl = (scenario: string | null, items: string[]) => {
     if (!isInitialized) return;
 
     const params = new URLSearchParams();
 
-    if (selectedScenario) {
-      params.set('scenario', selectedScenario);
+    if (scenario) {
+      params.set('scenario', scenario);
 
-      // Extract model IDs from comparisonItems
-      const modelIds = comparisonItems
-        .filter(item => item.startsWith(`${selectedScenario}::`))
+      // Extract model IDs from items
+      const modelIds = items
+        .filter(item => item.startsWith(`${scenario}::`))
         .map(item => item.split('::')[1]);
 
       if (modelIds.length > 0) {
@@ -169,7 +169,7 @@ export const EngClientPage: React.FC = () => {
 
     const newUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
     router.replace(newUrl, { scroll: false });
-  }, [selectedScenario, comparisonItems, pathname, router, isInitialized]);
+  };
 
   // Select a scenario (middle column shows its models)
   const selectScenario = (promptId: string) => {
@@ -177,6 +177,8 @@ export const EngClientPage: React.FC = () => {
     setSelectedScenario(promptId);
     // Clear comparison when switching scenarios
     setComparisonItems([]);
+    // Update URL immediately
+    updateUrl(promptId, []);
   };
 
   // Toggle all variants of a base model in/out of comparison
@@ -195,19 +197,26 @@ export const EngClientPage: React.FC = () => {
     const existingKeys = new Set(comparisonItems);
     const allVariantsPresent = newItemKeys.every(key => existingKeys.has(key));
 
+    let newItems: string[];
     if (allVariantsPresent) {
       // Remove all variants (toggle off)
-      const filteredItems = comparisonItems.filter(key => !newItemKeys.includes(key));
-      setComparisonItems(filteredItems);
+      newItems = comparisonItems.filter(key => !newItemKeys.includes(key));
     } else {
       // Add missing variants (toggle on)
       const itemsToAdd = newItemKeys.filter(key => !existingKeys.has(key));
-      setComparisonItems([...comparisonItems, ...itemsToAdd]);
+      newItems = [...comparisonItems, ...itemsToAdd];
     }
+
+    setComparisonItems(newItems);
+    // Update URL immediately
+    updateUrl(selectedScenario, newItems);
   };
 
   const removeFromComparison = (key: string) => {
-    setComparisonItems(comparisonItems.filter(k => k !== key));
+    const newItems = comparisonItems.filter(k => k !== key);
+    setComparisonItems(newItems);
+    // Update URL immediately
+    updateUrl(selectedScenario, newItems);
   };
 
   if (loading) {
@@ -312,7 +321,10 @@ export const EngClientPage: React.FC = () => {
               <ComparisonView
                 comparisonItems={comparisonItems}
                 removeFromComparison={removeFromComparison}
-                clearAllComparisons={() => setComparisonItems([])}
+                clearAllComparisons={() => {
+                  setComparisonItems([]);
+                  updateUrl(selectedScenario, []);
+                }}
                 getCachedResponse={getCachedResponse}
                 getCachedEvaluation={getCachedEvaluation}
                 fetchModalResponse={fetchModalResponse}
