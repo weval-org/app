@@ -116,6 +116,33 @@ export const EngClientPage: React.FC = () => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+  // Extract timestamp from pathname
+  const timestamp = useMemo(() => {
+    // pathname format: /analysis/[configId]/[runLabel]/[timestamp]/eng
+    const parts = pathname.split('/');
+    const timestampStr = parts[parts.length - 2]; // Second to last segment
+    if (!timestampStr) return null;
+
+    // Convert timestamp format: 2025-10-14T00-30-41-094Z -> 2025-10-14T00:30:41.094Z
+    const isoTimestamp = timestampStr
+      .replace(/T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z/, 'T$1:$2:$3.$4Z');
+
+    try {
+      const date = new Date(isoTimestamp);
+      // Format as: "Oct 14, 2025 at 12:30 AM"
+      return date.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch {
+      return null;
+    }
+  }, [pathname]);
+
   // Initialize state directly from URL params (no flash of empty state)
   const [selectedScenario, setSelectedScenario] = useState<string | null>(() => searchParams.get('scenario'));
   const [comparisonItems, setComparisonItems] = useState<string[]>(() => {
@@ -264,11 +291,18 @@ export const EngClientPage: React.FC = () => {
     <div className="h-screen flex flex-col bg-background">
       {/* Top bar */}
       <div className="border-b border-border px-4 py-3">
-        <div className="flex items-center gap-4">
-          <h1 className="text-lg font-semibold font-mono">Data Explorer</h1>
-          <div className="text-sm text-muted-foreground">
-            {config.id || 'Unknown config'}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <h1 className="text-lg font-semibold font-mono">Data Explorer</h1>
+            <div className="text-sm text-muted-foreground">
+              {config.id || 'Unknown config'}
+            </div>
           </div>
+          {timestamp && (
+            <div className="text-xs text-muted-foreground font-mono">
+              Eval run: {timestamp}
+            </div>
+          )}
         </div>
       </div>
 
