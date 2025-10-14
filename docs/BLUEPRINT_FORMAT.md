@@ -1026,9 +1026,130 @@ toolUse:
 
 You can use these point functions in `should`/`should_not`:
 
-- `$tool_called(toolName: string)`
-- `$tool_args_match({ name: string, where: object|string })` – partial object match or boolean JS expression against `args`
-- `$tool_call_count_between([min, max, name?])`
-- `$tool_call_order(["toolA","toolB", ...])`
+#### `$tool_called(toolName: string)`
 
-These checks operate on the parsed `toolCalls` trace only; they do not execute tools and are fully deterministic.
+Returns `true` if the tool was called at least once, `false` otherwise.
+
+```yaml
+should:
+  - $tool_called: "calculator"
+  - $tool_called: "retrieve"
+```
+
+#### `$tool_args_match({ name: string, where: object|string, normalizeWhitespace?: boolean })`
+
+Validates that a specific tool was called with arguments matching the criteria:
+
+- **`name`** (required): Tool name to check
+- **`where`** (required): Either:
+  - An object for partial deep matching (checks if all specified keys/values exist in arguments)
+  - A JavaScript expression string evaluated against `args` (e.g., `"args.expression.includes('*')"`)
+- **`normalizeWhitespace`** (optional): If `true`, ignores whitespace differences in string comparisons
+
+```yaml
+should:
+  # Partial object match
+  - $tool_args_match:
+      name: "retrieve"
+      where:
+        docId: "41"
+        options:
+          snippet: true
+
+  # JavaScript expression
+  - $tool_args_match:
+      name: "calculator"
+      where: "args.expression.includes('+')"
+
+  # Normalize whitespace in argument strings
+  - $tool_args_match:
+      name: "search"
+      where: {query: "climate change"}
+      normalizeWhitespace: true
+```
+
+#### `$tool_call_count_between([min, max, name?])`
+
+Validates the number of tool calls falls within a range. Returns `true` if count is within bounds, `false` otherwise.
+
+- If `name` is provided (3rd argument), counts only that tool
+- Otherwise counts all tools
+
+```yaml
+should:
+  - $tool_call_count_between: [1, 3]              # 1-3 total calls
+  - $tool_call_count_between: [1, 1, "calculator"] # Exactly 1 calculator call
+  - $tool_call_count_between: [0, 2, "retrieve"]   # At most 2 retrieve calls
+```
+
+#### `$tool_call_order(["toolA", "toolB", ...])`
+
+Validates that tools were called in the specified relative order (not necessarily contiguous). Returns `true` if the order is found, `false` otherwise.
+
+```yaml
+should:
+  # These tools must appear in this order (other calls can appear between them)
+  - $tool_call_order: ["search", "retrieve", "answer"]
+```
+
+**Note:** All tool-use checks are deterministic and operate on the parsed `toolCalls` trace only—no execution occurs.
+
+### Multi-step example
+
+```yaml
+title: "Research Assistant Tool Use"
+models:
+  - openai:gpt-4o-mini
+tools:
+  - name: search
+    description: "Search the knowledge base"
+    schema:
+      type: object
+      properties:
+        query: {type: string}
+      required: [query]
+  - name: retrieve
+    description: "Retrieve a full document"
+    schema:
+      type: object
+      properties:
+        docId: {type: string}
+      required: [docId]
+  - name: answer
+    description: "Provide final answer to user"
+    schema:
+      type: object
+      properties:
+        text: {type: string}
+      required: [text]
+toolUse:
+  enabled: true
+  mode: trace-only
+  maxSteps: 5
+---
+- id: research-flow
+  messages:
+    - system: |
+        You are a research assistant. Use tools to find information.
+        Emit each tool call on its own line:
+        TOOL_CALL {"name":"<tool>","arguments":{...}}
+
+        Available tools: search, retrieve, answer
+    - user: "What were the key findings of the 2023 climate report?"
+  should:
+    - $tool_call_order: ["search", "retrieve", "answer"]
+    - $tool_called: "search"
+    - $tool_args_match:
+        name: "search"
+        where: {query: "2023 climate report"}
+        normalizeWhitespace: true
+    - $tool_call_count_between: [3, 5]
+  should_not:
+    - $tool_call_count_between: [6, 999]  # Too many calls
+```
+
+### Important considerations
+
+**Fairness:** When testing tool-use, clearly enumerate the available tools and their argument schemas in the system prompt. Requiring specific tool names or argument structures without documenting them in the prompt makes the evaluation unfair, as models cannot infer arbitrary conventions.
+
+**Experimental status:** The emission format (`TOOL_CALL {"name":"...","arguments":{...}}`) and point function semantics may change in future versions. This format was chosen for simplicity but is not based on any standard protocol.

@@ -551,35 +551,44 @@ For full details on rubric syntax (`should` and `should_not` blocks), system pro
 
 ### Experimental: Tool-use and tracing
 
-This project includes early, experimental support for evaluating and tracing model tool calls within blueprints. Expect breaking changes as we iterate.
+Weval includes experimental support for evaluating model tool-calling behavior without executing any tools. Models emit a standardized trace that is parsed and scored deterministically.
 
-- What it is: point functions that check a model’s emitted tool calls in responses.
-- How tool calls are emitted: the current convention expects each call on its own line as plain text:
-  - `TOOL_CALL {"name":"<tool>","arguments":{...}}`
-- Declaring tools: to make tests fair, declare the available tools (names and argument shapes) in the prompt, typically in the `system` message, and show a minimal example of a valid call.
-- Available checks (examples):
-  - `$tool_called`: assert a tool name was invoked at least once
-  - `$tool_args_match`: assert that a call’s arguments contain specific key/values (deep subset match)
-  - `$tool_call_count_between`: assert that the number of calls is within a range
-  - `$tool_call_order`: assert relative ordering of calls
+**How it works:**
+- Models are instructed to emit each tool call as: `TOOL_CALL {"name":"<tool>","arguments":{...}}`
+- Weval parses these traces and validates them using specialized point functions
+- No actual tool execution occurs (trace-only mode)
 
-Minimal example blueprint snippet:
+**Available point functions:**
+- `$tool_called(toolName)` - Checks if a tool was invoked at least once
+- `$tool_args_match({name, where, normalizeWhitespace?})` - Validates tool arguments using partial object matching or JavaScript expressions
+- `$tool_call_count_between([min, max, name?])` - Validates call count is within range (optionally for a specific tool)
+- `$tool_call_order([...toolNames])` - Validates tools were called in specified relative order
+
+**Quick example:**
 
 ```yaml
-- id: retrieve-with-options
+title: "Tool Use: Document Retrieval"
+tools:
+  - name: retrieve
+    description: "Retrieve a document"
+    schema:
+      type: object
+      properties:
+        docId: {type: string}
+        options: {type: object}
+toolUse:
+  enabled: true
+  mode: trace-only
+---
+- id: retrieve-test
   messages:
     - system: |
-        Emit each tool call on its own line and nothing else:
+        Emit each tool call on its own line:
         TOOL_CALL {"name":"<tool>","arguments":{...}}
 
         Available tools:
         - retrieve(docId: string, options?: { snippet?: boolean, maxChars?: number })
-
-        Example:
-        TOOL_CALL {"name":"retrieve","arguments":{"docId":"123","options":{"snippet":true,"maxChars":80}}}
-    - user: |
-        Retrieve docId "41" and include snippet, limited to 120 chars.
-        Keep calls to at most 2.
+    - user: "Retrieve docId '41' with snippet, limited to 120 chars."
   should:
     - $tool_called: "retrieve"
     - $tool_args_match:
@@ -592,10 +601,12 @@ Minimal example blueprint snippet:
     - $tool_call_count_between: [1, 2]
 ```
 
-Important caveats:
-- Experimental status: emission format, parsing, and point-function semantics may change without notice.
-- Fairness: unless you clearly enumerate the available tools and their argument shapes, requiring a specific tool name can be unfair; either declare tools in the system message or relax the rubric.
-- Internals: parsing lives in `src/cli/utils/tool-trace.ts`; point functions live under `src/point-functions/`.
+**Important considerations:**
+- **Experimental status:** The emission format and point function semantics may change in future versions
+- **Fairness:** Always declare available tools and their schemas in the system prompt. Requiring specific tool names or argument structures without documenting them makes the test unfair
+- **Trace-only:** No actual tool execution occurs. This tests whether models can correctly format and sequence tool calls, not whether they handle tool results
+
+For complete documentation and more examples, see [Blueprint Format Documentation](docs/BLUEPRINT_FORMAT.md#tool-use-trace-only-support).
 
 ## Web Dashboard & Visualizations
 
