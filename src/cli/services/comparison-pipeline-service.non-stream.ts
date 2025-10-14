@@ -19,7 +19,7 @@ import { exec } from 'child_process';
 
 export type ProgressCallback = (completed: number, total: number) => Promise<void>;
 
-const DEFAULT_GENERATION_CONCURRENCY = 20;
+const DEFAULT_GENERATION_CONCURRENCY = 30;
 const FAILURE_THRESHOLD = 10; // Consecutive failures to trip circuit breaker
 
 export async function generateAllResponses(
