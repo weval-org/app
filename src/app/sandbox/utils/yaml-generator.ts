@@ -135,6 +135,11 @@ export function generateMinimalBlueprintYaml(config: ComparisonConfig): string {
             if (!a.image_url) delete a.image_url;
         }
     }
+
+    // Preserve tools and toolUse (trace-only tool evaluation support)
+    // These are already included via the spread operator, but we ensure they're not filtered
+    // by yaml.dump's skipInvalid option
+
     const headerYaml = isHeaderMeaningful(headerForYaml) ? yaml.dump(headerForYaml, { skipInvalid: true, indent: 2, flowLevel: -1 }) : '';
     const promptsYaml = deNormalizedPrompts.length > 0 
         ? deNormalizedPrompts

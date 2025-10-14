@@ -382,6 +382,36 @@ export function parseAndNormalizeBlueprint(content: string, fileType: 'json' | '
         finalConfig.models.forEach(_validateModelDefinition);
     }
 
+    // Preserve tools and toolUse for trace-only tool evaluation
+    if ((finalConfig as any).tools) {
+        if (!Array.isArray((finalConfig as any).tools)) {
+            throw new Error('The \'tools\' field must be an array of tool definitions.');
+        }
+        // Validate each tool has at least a name
+        (finalConfig as any).tools.forEach((tool: any, index: number) => {
+            if (!tool || typeof tool !== 'object' || !tool.name || typeof tool.name !== 'string') {
+                throw new Error(`Invalid tool definition at index ${index}: each tool must have a 'name' string.`);
+            }
+        });
+    }
+
+    if ((finalConfig as any).toolUse) {
+        const toolUse = (finalConfig as any).toolUse;
+        if (typeof toolUse !== 'object' || toolUse === null) {
+            throw new Error('The \'toolUse\' field must be an object.');
+        }
+        // Validate toolUse fields if present
+        if (toolUse.mode && toolUse.mode !== 'trace-only') {
+            throw new Error('The \'toolUse.mode\' field, if provided, must be \'trace-only\'.');
+        }
+        if (toolUse.outputFormat && toolUse.outputFormat !== 'json-line') {
+            throw new Error('The \'toolUse.outputFormat\' field, if provided, must be \'json-line\'.');
+        }
+        if (toolUse.maxSteps !== undefined && (typeof toolUse.maxSteps !== 'number' || toolUse.maxSteps < 1)) {
+            throw new Error('The \'toolUse.maxSteps\' field, if provided, must be a positive number.');
+        }
+    }
+
     const globalNoCache = finalConfig.noCache;
 
     // Normalize prompts

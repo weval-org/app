@@ -32,6 +32,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import Icon from '@/components/ui/icon';
 import { PointDefsEditor } from './PointDefsEditor';
 
@@ -311,7 +312,238 @@ export function GlobalConfigCard({ blueprint, onUpdate, isEditable, isAdvancedMo
                             )}
                         </div>
                     </div>
-                    
+
+                    {/* Tool-Use Configuration (trace-only) */}
+                    <div>
+                        <label className="text-sm font-semibold text-foreground">Tool-Use Configuration (Trace-Only)</label>
+                        <p className="text-xs text-muted-foreground mb-3">
+                            Define tools and evaluation policy for trace-only tool-use testing. Models emit structured tool calls that are parsed and validated without execution.
+                        </p>
+
+                        {/* Tool-Use Policy */}
+                        <div className="space-y-3 p-3 bg-muted/30 rounded-md border mb-3">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <label className="text-sm font-medium text-foreground">Enable Tool-Use Evaluation</label>
+                                    <p className="text-xs text-muted-foreground">Test models on their ability to format and sequence tool calls correctly</p>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <Switch
+                                        id="tooluse-enabled"
+                                        checked={!!(blueprint as any).toolUse?.enabled}
+                                        onCheckedChange={(checked) => {
+                                            const next = produce(blueprint, draft => {
+                                                if (!draft.toolUse) (draft as any).toolUse = {};
+                                                (draft as any).toolUse.enabled = checked;
+                                                // Set defaults when enabling
+                                                if (checked) {
+                                                    if (!(draft as any).toolUse.mode) (draft as any).toolUse.mode = 'trace-only';
+                                                    if (!(draft as any).toolUse.outputFormat) (draft as any).toolUse.outputFormat = 'json-line';
+                                                }
+                                            });
+                                            onUpdate(next);
+                                        }}
+                                        disabled={!isEditable}
+                                    />
+                                </div>
+                            </div>
+
+                            {(blueprint as any).toolUse?.enabled && (
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t">
+                                    <div>
+                                        <label className="text-xs font-medium text-muted-foreground">Mode</label>
+                                        <Select
+                                            value={(blueprint as any).toolUse?.mode || 'trace-only'}
+                                            onValueChange={(value) => {
+                                                const next = produce(blueprint, draft => {
+                                                    if (!(draft as any).toolUse) (draft as any).toolUse = {};
+                                                    (draft as any).toolUse.mode = value;
+                                                });
+                                                onUpdate(next);
+                                            }}
+                                            disabled={!isEditable}
+                                        >
+                                            <SelectTrigger className="text-xs h-8">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="trace-only">trace-only</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-medium text-muted-foreground">Output Format</label>
+                                        <Select
+                                            value={(blueprint as any).toolUse?.outputFormat || 'json-line'}
+                                            onValueChange={(value) => {
+                                                const next = produce(blueprint, draft => {
+                                                    if (!(draft as any).toolUse) (draft as any).toolUse = {};
+                                                    (draft as any).toolUse.outputFormat = value;
+                                                });
+                                                onUpdate(next);
+                                            }}
+                                            disabled={!isEditable}
+                                        >
+                                            <SelectTrigger className="text-xs h-8">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="json-line">json-line</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-medium text-muted-foreground">Max Steps</label>
+                                        <Input
+                                            type="number"
+                                            placeholder="e.g., 4"
+                                            value={(blueprint as any).toolUse?.maxSteps || ''}
+                                            onChange={(e) => {
+                                                const next = produce(blueprint, draft => {
+                                                    if (!(draft as any).toolUse) (draft as any).toolUse = {};
+                                                    const val = parseInt(e.target.value);
+                                                    (draft as any).toolUse.maxSteps = isNaN(val) ? undefined : val;
+                                                });
+                                                onUpdate(next);
+                                            }}
+                                            className="text-xs h-8"
+                                            readOnly={!isEditable}
+                                            min={1}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Tools Definition */}
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <label className="text-sm font-medium text-foreground">Tools Inventory</label>
+                                {isEditable && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                            const next = produce(blueprint, draft => {
+                                                if (!(draft as any).tools) (draft as any).tools = [];
+                                                (draft as any).tools.push({ name: '', description: '', schema: { type: 'object', properties: {}, required: [] } });
+                                            });
+                                            onUpdate(next);
+                                        }}
+                                        className="h-7 text-xs"
+                                    >
+                                        <Icon name="plus" className="h-3 w-3 mr-1" />
+                                        Add Tool
+                                    </Button>
+                                )}
+                            </div>
+
+                            {((blueprint as any).tools && (blueprint as any).tools.length > 0) ? (
+                                <div className="space-y-3">
+                                    {(blueprint as any).tools.map((tool: any, index: number) => (
+                                        <div key={index} className="p-3 border rounded-md bg-background space-y-2">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="text-xs font-medium text-muted-foreground">Tool {index + 1}</span>
+                                                {isEditable && (
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                            >
+                                                                <Icon name="trash" className="h-3 w-3" />
+                                                            </Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent>
+                                                            <DropdownMenuLabel>Are you sure?</DropdownMenuLabel>
+                                                            <DropdownMenuSeparator />
+                                                            <DropdownMenuItem
+                                                                onClick={() => {
+                                                                    const next = produce(blueprint, draft => {
+                                                                        (draft as any).tools.splice(index, 1);
+                                                                    });
+                                                                    onUpdate(next);
+                                                                }}
+                                                                className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                                            >
+                                                                Delete Tool
+                                                            </DropdownMenuItem>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                )}
+                                            </div>
+
+                                            <div>
+                                                <label className="text-xs font-medium text-muted-foreground">Tool Name *</label>
+                                                <Input
+                                                    type="text"
+                                                    placeholder="e.g., calculator, search, retrieve"
+                                                    value={tool.name || ''}
+                                                    onChange={(e) => {
+                                                        const next = produce(blueprint, draft => {
+                                                            (draft as any).tools[index].name = e.target.value;
+                                                        });
+                                                        onUpdate(next);
+                                                    }}
+                                                    className="text-xs h-8 mt-1"
+                                                    readOnly={!isEditable}
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="text-xs font-medium text-muted-foreground">Description</label>
+                                                <AutoExpandTextarea
+                                                    placeholder="Brief description of what this tool does"
+                                                    value={tool.description || ''}
+                                                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
+                                                        const next = produce(blueprint, draft => {
+                                                            (draft as any).tools[index].description = e.target.value;
+                                                        });
+                                                        onUpdate(next);
+                                                    }}
+                                                    minRows={1}
+                                                    maxRows={3}
+                                                    className="text-xs mt-1"
+                                                    readOnly={!isEditable}
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="text-xs font-medium text-muted-foreground">JSON Schema (optional)</label>
+                                                <AutoExpandTextarea
+                                                    placeholder={'{\n  "type": "object",\n  "properties": {\n    "arg1": { "type": "string" }\n  },\n  "required": ["arg1"]\n}'}
+                                                    value={tool.schema ? JSON.stringify(tool.schema, null, 2) : ''}
+                                                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
+                                                        const next = produce(blueprint, draft => {
+                                                            try {
+                                                                const parsed = JSON.parse(e.target.value || '{}');
+                                                                (draft as any).tools[index].schema = parsed;
+                                                            } catch {
+                                                                // Keep existing schema if parse fails
+                                                            }
+                                                        });
+                                                        onUpdate(next);
+                                                    }}
+                                                    minRows={3}
+                                                    maxRows={10}
+                                                    className="text-xs mt-1 font-mono"
+                                                    readOnly={!isEditable}
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="p-4 text-center text-xs text-muted-foreground bg-muted/20 rounded-md border border-dashed">
+                                    No tools defined. Click &quot;Add Tool&quot; to create your first tool definition.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
                     <div>
                         <div className="flex items-center justify-between mb-2">
                             <label className="text-sm font-semibold text-foreground">

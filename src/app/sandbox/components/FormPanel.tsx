@@ -48,14 +48,15 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
         if (!parsedBlueprint) return;
 
         const hasGlobalAdvancedOptions = !!parsedBlueprint.description || !!parsedBlueprint.system || !!parsedBlueprint.systems;
-        const hasAlternativePaths = parsedBlueprint.prompts.some(p => 
+        const hasAlternativePaths = parsedBlueprint.prompts.some(p =>
             p.points && p.points.some(point => Array.isArray(point))
         );
-        const hasPromptLevelAdvancedFeatures = parsedBlueprint.prompts.some(p => 
+        const hasPromptLevelAdvancedFeatures = parsedBlueprint.prompts.some(p =>
             p.description || p.citation
         );
+        const hasToolUseFeatures = !!(parsedBlueprint as any).tools || !!(parsedBlueprint as any).toolUse;
 
-        if (hasGlobalAdvancedOptions || hasAlternativePaths || hasPromptLevelAdvancedFeatures) {
+        if (hasGlobalAdvancedOptions || hasAlternativePaths || hasPromptLevelAdvancedFeatures || hasToolUseFeatures) {
             setIsAdvancedMode(true);
         }
     }, [parsedBlueprint]);
