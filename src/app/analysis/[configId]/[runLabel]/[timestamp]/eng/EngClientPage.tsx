@@ -145,7 +145,11 @@ export const EngClientPage: React.FC = () => {
   }, [pathname]);
 
   // Initialize state directly from URL params (no flash of empty state)
-  const [selectedScenario, setSelectedScenario] = useState<string | null>(() => searchParams.get('scenario'));
+  const [selectedScenario, setSelectedScenario] = useState<string | null>(() => {
+    // If viewing summary, don't select a scenario
+    if (searchParams.get('view') === 'summary') return null;
+    return searchParams.get('scenario');
+  });
   const [comparisonItems, setComparisonItems] = useState<string[]>(() => {
     const scenario = searchParams.get('scenario');
     const modelsParam = searchParams.get('models');
@@ -155,7 +159,7 @@ export const EngClientPage: React.FC = () => {
     }
     return [];
   });
-  const [showExecutiveSummary, setShowExecutiveSummary] = useState(false);
+  const [showExecutiveSummary, setShowExecutiveSummary] = useState(() => searchParams.get('view') === 'summary');
   const [isInitialized, setIsInitialized] = useState(true); // Already initialized from URL
 
   // Get models without IDEAL
@@ -164,12 +168,14 @@ export const EngClientPage: React.FC = () => {
   }, [displayedModels]);
 
   // Helper to immediately update URL (synchronous)
-  const updateUrl = (scenario: string | null, items: string[]) => {
+  const updateUrl = (scenario: string | null, items: string[], viewSummary = false) => {
     if (!isInitialized) return;
 
     const params = new URLSearchParams();
 
-    if (scenario) {
+    if (viewSummary) {
+      params.set('view', 'summary');
+    } else if (scenario) {
       params.set('scenario', scenario);
 
       // Extract model IDs from items
@@ -184,6 +190,15 @@ export const EngClientPage: React.FC = () => {
 
     const newUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
     router.replace(newUrl, { scroll: false });
+  };
+
+  // Select executive summary
+  const selectExecutiveSummary = () => {
+    setShowExecutiveSummary(true);
+    setSelectedScenario(null);
+    setComparisonItems([]);
+    // Update URL immediately
+    updateUrl(null, [], true);
   };
 
   // Select a scenario (middle column shows its models)
@@ -317,7 +332,7 @@ export const EngClientPage: React.FC = () => {
             selectScenario={selectScenario}
             executiveSummary={data.executiveSummary}
             showExecutiveSummary={showExecutiveSummary}
-            setShowExecutiveSummary={setShowExecutiveSummary}
+            selectExecutiveSummary={selectExecutiveSummary}
           />
         </div>
 
@@ -384,7 +399,7 @@ interface ScenariosColumnProps {
   selectScenario: (promptId: string) => void;
   executiveSummary: any;
   showExecutiveSummary: boolean;
-  setShowExecutiveSummary: (value: boolean) => void;
+  selectExecutiveSummary: () => void;
 }
 
 function ScenariosColumn({
@@ -393,7 +408,7 @@ function ScenariosColumn({
   selectScenario,
   executiveSummary,
   showExecutiveSummary,
-  setShowExecutiveSummary,
+  selectExecutiveSummary,
 }: ScenariosColumnProps) {
   return (
     <div className="p-2 font-mono text-sm">
@@ -408,7 +423,7 @@ function ScenariosColumn({
             "flex items-center gap-2 px-2 py-1 mb-0.5 rounded cursor-pointer hover:bg-muted/50 transition-colors",
             showExecutiveSummary && "bg-primary/10"
           )}
-          onClick={() => setShowExecutiveSummary(true)}
+          onClick={selectExecutiveSummary}
         >
           <span className="flex-1 font-medium text-xs">Executive Summary</span>
         </div>
