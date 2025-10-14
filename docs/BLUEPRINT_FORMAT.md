@@ -518,6 +518,332 @@ should_not:
 
 If no nesting is used, the block is parsed as a single path, preserving full backward compatibility with older blueprints.
 
+#### ⚠️ Common Pitfall: Single-Element Nested Arrays
+
+**Before you use nested arrays, make sure you actually need OR logic!**
+
+Single-element nested arrays are a common mistake that can dramatically lower your scores. If each nested array contains only one criterion, you probably don't need nesting at all.
+
+**❌ DON'T DO THIS** (creates unnecessary OR logic between individual points):
+```yaml
+should:
+  - - $imatches: 'Lagos.{0,50}Nigeria'
+  - - $imatches: 'Kinshasa.{0,50}(?:Congo|DRC)'
+```
+
+This creates two separate single-element alternative paths. The system will:
+1. Score the first path: 0.0
+2. Score the second path: 0.0
+3. Take the maximum: max(0.0, 0.0) = 0.0
+4. Average with other points, **drastically lowering your overall score**
+
+**✅ DO THIS INSTEAD** (both points are required with standard AND logic):
+```yaml
+should:
+  - $imatches: 'Lagos.{0,50}Nigeria'
+  - $imatches: 'Kinshasa.{0,50}(?:Congo|DRC)'
+```
+
+This treats both as required points that are simply averaged together.
+
+**When nested arrays ARE appropriate:**
+
+Nested arrays should only be used when you have **multiple criteria that must be met together** as an alternative to other sets of criteria:
+
+```yaml
+should:
+  # Path 1: Both of these criteria together
+  - - "Response is polite and empathetic"
+    - $contains: "I understand your concern"
+
+  # Path 2: Both of these criteria together as an alternative
+  - - "Response asks clarifying questions"
+    - $word_count_between: [20, 100]
+```
+
+**Rule of thumb:** If you're creating nested arrays with only one item each, you almost certainly want a flat list instead.
+
+#### Understanding the Aggregation Formula
+
+Understanding how scores are calculated when mixing required points with alternative paths is crucial for predicting your blueprint's behavior.
+
+**The Algorithm:**
+
+1. **Group all points** by their `pathId`:
+   - Points without a `pathId` (or empty `pathId`) → Required points group
+   - Points with `pathId: "path_8"` → Path 8 group
+   - Points with `pathId: "path_9"` → Path 9 group
+
+2. **Calculate weighted average for each group:**
+   - Each point's score is multiplied by its `multiplier` (default: 1)
+   - Sum all weighted scores in the group
+   - Divide by sum of all multipliers in the group
+
+3. **For alternative paths, take the maximum:**
+   - Find the highest-scoring path from all alternative path groups
+   - This becomes the "best alternative path score"
+
+4. **Combine required and alternative scores:**
+   - If you have only required points: return their weighted average
+   - If you have only alternative paths: return the best path score
+   - If you have both: average the required score with the best path score
+
+**Worked Example:**
+
+```yaml
+should:
+  - "Point A"           # Score: 1.0, no pathId → required
+  - "Point B"           # Score: 0.75, no pathId → required
+  - "Point C"           # Score: 0.5, no pathId → required
+  - - "Path 1A"         # Score: 0.2, pathId: "path_3"
+    - "Path 1B"         # Score: 0.0, pathId: "path_3"
+  - - "Path 2A"         # Score: 0.0, pathId: "path_4"
+    - "Path 2B"         # Score: 0.0, pathId: "path_4"
+```
+
+**Step-by-step calculation:**
+
+1. **Required points** (no pathId):
+   - Points: A (1.0), B (0.75), C (0.5)
+   - Average: (1.0 + 0.75 + 0.5) / 3 = **0.75 (75%)**
+
+2. **Path 1** (path_3):
+   - Points: 1A (0.2), 1B (0.0)
+   - Average: (0.2 + 0.0) / 2 = **0.10 (10%)**
+
+3. **Path 2** (path_4):
+   - Points: 2A (0.0), 2B (0.0)
+   - Average: (0.0 + 0.0) / 2 = **0.00 (0%)**
+
+4. **Best alternative path:**
+   - max(0.10, 0.00) = **0.10 (10%)**
+
+5. **Final score:**
+   - Average of required (0.75) and best path (0.10)
+   - (0.75 + 0.10) / 2 = **0.425 (42.5%)**
+
+**Key insight:** Even though 3 out of 5 required points scored well (75% average), the low-scoring alternative paths dragged the final score down to 42.5%. This is why single-element paths with low scores can have such a dramatic impact.
+
+**With multipliers:**
+
+```yaml
+should:
+  - point: "Critical requirement"
+    weight: 3.0          # Score: 1.0, multiplier: 3
+  - "Standard point"     # Score: 0.5, multiplier: 1 (default)
+```
+
+Weighted average: (1.0 × 3 + 0.5 × 1) / (3 + 1) = 3.5 / 4 = **0.875 (87.5%)**
+
+#### When to Use Alternative Paths
+
+Alternative paths (OR logic) are powerful but should be used sparingly and intentionally. Here's guidance on appropriate use cases.
+
+**✅ Good Use Cases:**
+
+1. **Measurement Controversies or Disputed Facts**
+   ```yaml
+   should:
+     # Nile vs Amazon as longest river depends on measurement methodology
+     - - $imatches: 'Nile[\s\S]+Amazon'
+     - - $imatches: 'Amazon[\s\S]+Nile'
+   ```
+
+2. **Naming Variations for the Same Entity**
+   ```yaml
+   should:
+     # Accept either official name or common name
+     - - $imatches: 'Myanmar'
+     - - $imatches: 'Myanmar.{0,100}Burma|Burma.{0,100}Myanmar'
+   ```
+
+3. **Multiple Valid Solution Approaches**
+   ```yaml
+   should:
+     # Either approach is acceptable
+     - - "Provides a direct answer"
+       - $contains: "The answer is"
+     - - "Asks clarifying questions"
+       - "Requests more context before answering"
+   ```
+
+4. **Regional or Temporal Variations**
+   ```yaml
+   should:
+     # Different facts true in different time periods
+     - - $imatches: 'Constantinople.{0,50}capital'  # Historical
+     - - $imatches: 'Istanbul.{0,50}capital'        # Modern
+   ```
+
+5. **Multiple Correct Formats**
+   ```yaml
+   should:
+     # Accept various date formats
+     - - $matches: '\d{4}-\d{2}-\d{2}'  # ISO format
+     - - $matches: '\d{2}/\d{2}/\d{4}'  # US format
+     - - $matches: '\d{2}\.\d{2}\.\d{4}'  # European format
+   ```
+
+**❌ Poor Use Cases (Use Flat Lists Instead):**
+
+1. **When You Actually Want All Items Checked**
+   ```yaml
+   # ❌ WRONG: Creates OR logic, only best path counts
+   should:
+     - - $contains: "Lagos"
+     - - $contains: "Cairo"
+     - - $contains: "Nairobi"
+
+   # ✅ CORRECT: All three are required
+   should:
+     - $contains: "Lagos"
+     - $contains: "Cairo"
+     - $contains: "Nairobi"
+   ```
+
+2. **When Alternatives Aren't Truly Equivalent**
+   ```yaml
+   # ❌ WRONG: These have very different quality standards
+   should:
+     - - "Provides comprehensive, well-researched answer"
+       - $word_count_between: [200, 500]
+     - - "Mentions the topic briefly"
+   ```
+
+3. **When You Have Single-Element Paths**
+   ```yaml
+   # ❌ WRONG: Unnecessary nesting
+   should:
+     - - "First criterion"
+     - - "Second criterion"
+
+   # ✅ CORRECT: Simple flat list
+   should:
+     - "First criterion"
+     - "Second criterion"
+   ```
+
+**Decision Tree:**
+
+```
+Do you have multiple criteria that could satisfy the requirement?
+├─ NO → Use a flat list (standard AND logic)
+│
+└─ YES → Do each alternative have multiple related criteria?
+    ├─ NO → You probably want a flat list with $..._any_of functions
+    │       Example: $contains_any_of: ["option1", "option2", "option3"]
+    │
+    └─ YES → Are the alternatives truly equivalent in quality/completeness?
+        ├─ NO → Reconsider your rubric structure
+        │
+        └─ YES → Use nested arrays (OR logic) ✓
+```
+
+#### Troubleshooting: "Why Is My Score Lower Than Expected?"
+
+If your blueprint is producing unexpectedly low scores, here are common causes and fixes:
+
+**1. Accidental Single-Element Nested Arrays**
+
+**Symptom:** Score is roughly half of what you expected.
+
+**Check for:**
+```yaml
+should:
+  - - $imatches: 'point1'  # ⚠️ Single-element path
+  - - $imatches: 'point2'  # ⚠️ Single-element path
+```
+
+**Fix:** Remove extra nesting level:
+```yaml
+should:
+  - $imatches: 'point1'
+  - $imatches: 'point2'
+```
+
+**2. Low-Scoring Alternative Paths**
+
+**Symptom:** All required points pass (high scores), but overall score is much lower.
+
+**Diagnosis:** Calculate manually:
+- Required points average: 80%
+- Alternative paths: max(0%, 0%) = 0%
+- Final: (80% + 0%) / 2 = 40%
+
+**Fix:** Either:
+- Remove the alternative paths if they're not needed
+- Rewrite alternatives to be more lenient
+- Use `$contains_any_of` instead of multiple paths
+
+**3. Graded Functions Returning Partial Credit**
+
+**Symptom:** Scores like 0.33, 0.67, 0.75 when you expected 1.0.
+
+**Cause:** Functions like `$contains_all_of` give partial credit:
+```yaml
+- $contains_all_of: ["term1", "term2", "term3"]
+# If only 2 of 3 found: 0.67 score
+```
+
+**Fix:** If you need all-or-nothing:
+- Use `$contains_any_of` for "at least one"
+- Use multiple separate `$contains` checks for "must have all"
+- Use `$js` for custom logic
+
+**4. Inverted Points in Wrong Block**
+
+**Symptom:** Unexpected low scores on seemingly simple checks.
+
+**Cause:** Using `should` for negative criteria:
+```yaml
+should:
+  - "Response does not contain errors"  # ⚠️ Ambiguous
+```
+
+**Fix:** Use `should_not` for negative criteria:
+```yaml
+should_not:
+  - $contains: "ERROR"
+  - $contains: "undefined"
+```
+
+**5. Regex Pattern Too Strict**
+
+**Symptom:** Deterministic function checks always return 0.
+
+**Diagnosis:** Test your regex pattern separately. Common issues:
+- Forgot to escape special characters: `$matches: "2+2"` (should be `"2\\+2"`)
+- Overly specific whitespace: `$matches: "A  B"` (won't match "A B" with one space)
+- Case sensitivity: `$matches: "tokyo"` (won't match "Tokyo")
+
+**Fix:**
+- Use `$imatches` for case-insensitive matching
+- Use `\s+` for flexible whitespace
+- Use `[\s\S]+` or `.{0,50}` for flexible content between terms
+- Test with online regex tools (regex101.com)
+
+**Quick Diagnostic Commands:**
+
+If you have access to the evaluation output JSON, check:
+
+```javascript
+// Find the specific prompt result
+const result = evaluationResults.llmCoverageScores["your-prompt-id"]["model-id"];
+
+// Check individual point scores
+result.pointAssessments.forEach(p => {
+  console.log(p.keyPointText, p.coverageExtent, p.pathId);
+});
+
+// Expected score calculation
+const requiredPoints = result.pointAssessments.filter(p => !p.pathId);
+const pathGroups = {};
+result.pointAssessments.filter(p => p.pathId).forEach(p => {
+  if (!pathGroups[p.pathId]) pathGroups[p.pathId] = [];
+  pathGroups[p.pathId].push(p);
+});
+```
+
 #### Point Definition Formats
 
 1.  **Plain Language Rubric (LLM-Judged Check)**: This is the simplest and most powerful way to create a rubric. Each string is a criterion that an AI "judge" will evaluate for its conceptual presence in the model's response.

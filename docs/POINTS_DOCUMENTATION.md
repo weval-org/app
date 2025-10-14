@@ -2,6 +2,14 @@
 
 This document provides a detailed breakdown of the `should` system (formerly `points` and `expect`), which is the core of Weval's rubric-based evaluation capabilities. It explains how to define evaluation criteria in a blueprint and how the codebase processes them to generate a final score.
 
+> 📘 **For blueprint authoring guidance:** See [BLUEPRINT_FORMAT.md](./BLUEPRINT_FORMAT.md) for the complete specification, including:
+> - How to avoid common pitfalls like single-element nested arrays
+> - Detailed aggregation formula with worked examples
+> - When to use alternative paths (OR logic)
+> - Troubleshooting low scores
+>
+> This document focuses on the conceptual model and internal processing flow.
+
 ### Part 1: How to Define an Expectation (The Blueprint)
 
 From the perspective of a user creating a blueprint file (`.yml`), you have several flexible ways to define an evaluation criterion, or an "expectation." This is defined in the `should` block for any given prompt. (`expect`, `expects`, and `expectations` are also supported as aliases for backward compatibility).
@@ -81,6 +89,8 @@ The `should` block accepts a list where each item can be in one of these formats
         - "offers to find a recipe based on user's preferences."
     ```
     *   **What it means**: The evaluation will calculate a score for Path 1 and a score for Path 2. The final score for this `should` block will be the **higher** of the two path scores. The same logic applies to `should_not`.
+
+    > ⚠️ **Critical Warning:** Single-element nested arrays are a common mistake that can drastically lower scores. See the [Common Pitfall section in BLUEPRINT_FORMAT.md](./BLUEPRINT_FORMAT.md#️-common-pitfall-single-element-nested-arrays) for details and examples.
 
 ---
 
