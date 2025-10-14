@@ -450,6 +450,8 @@ Notes and guarantees:
 
 These blocks define the criteria for rubric-based evaluation. The `should` block defines positive criteria (what a good response includes), while the `should_not` block defines negative criteria (what a good response avoids). The `should_not` block follows the exact same syntax, but it inverts the result of each check.
 
+> ⚠️ **Deprecation Notice**: The `should_not` block is considered legacy and will be deprecated in a future version. We recommend using **negative point-functions** (e.g., `$not_contains`, `$not_matches`) directly in `should` blocks instead. This approach is more readable, avoids double-negative confusion, and works better with complex rubric logic. See the [migration guide](#migrating-from-should_not-to-negative-functions) below.
+
 Each item in these arrays is a point definition, processed in the following order of precedence:
 
 #### Defining Alternative Rubric Paths (OR logic)
@@ -800,7 +802,14 @@ should:
   - "Response does not contain errors"  # ⚠️ Ambiguous
 ```
 
-**Fix:** Use `should_not` for negative criteria:
+**Fix:** Use negative functions in `should` (recommended):
+```yaml
+should:
+  - $not_contains: "ERROR"
+  - $not_contains: "undefined"
+```
+
+Or use `should_not` block (legacy approach):
 ```yaml
 should_not:
   - $contains: "ERROR"
@@ -893,17 +902,29 @@ result.pointAssessments.filter(p => p.pathId).forEach(p => {
       - $matches_all_of: ["^The ruling", "states that$"] # Graded regex
       - $imatches_all_of: ["^the ruling", "states that$"] # Case-insensitive graded regex
 
+      # Unicode-aware word boundary checks (recommended for accented text)
+      - $contains_word: "Paraná"       # Matches "Paraná River" (handles accents!)
+      - $icontains_word: "são paulo"   # Case-insensitive: matches "São Paulo"
+      - $not_contains_word: "outdated" # Must NOT contain the word "outdated"
+      - $not_icontains_word: "ERROR"   # Case-insensitive: must NOT contain "ERROR"
+
+      # Negative functions (recommended over should_not blocks)
+      - $not_contains: "I apologize"  # Must NOT contain this phrase
+      - $not_icontains: "ERROR"  # Case-insensitive: must NOT contain
+      - $not_contains_any_of: ["I feel", "I believe", "As an AI"]  # Must NOT contain any
+      - $not_icontains_any_of: ["GUARANTEED", "Risk-Free"]  # Case-insensitive
+      - $not_matches: "(?i)not a (financial|tax) advisor"  # Must NOT match pattern
+      - $not_starts_with: "Unfortunately"  # Must NOT start with this
+      - $not_ends_with: "..."  # Must NOT end with ellipsis
+
       # Other checks
       - $word_count_between: [50, 100]
       - $js: "r.length > 100" # Advanced JS expression
       # $js can also return { score, explain } to customise the reflection text.
       - $ref: scoreBand          # Reuse a point defined in point_defs
-
-    should_not:
-      - $contains_any_of: ["I feel", "I believe", "As an AI"]
-      - $icontains_any_of: ["GUARANTEED returns", "Risk-Free"]  # Case-insensitive
-      - $contains: "guaranteed returns"
     ```
+
+    > 💡 **Recommended Pattern**: Use negative functions (`$not_*`) directly in `should` blocks rather than using `should_not` blocks. This makes blueprints more readable and avoids double-negative confusion. See the deprecation notice below for migration guidance.
 4.  **Full Object (Maximum Control)**: For weighting points or adding citations. This is the most verbose, legacy-compatible format.
     ```yaml
     should:
@@ -915,6 +936,88 @@ result.pointAssessments.filter(p => p.pathId).forEach(p => {
         citation: "Investment Advisers Act of 1940"
     ```
     *Note: `weight` is an alias for `multiplier`, `arg` for `fnArgs`.*
+
+For more details, see the [POINTS_DOCUMENTATION.md](POINTS_DOCUMENTATION.md).
+
+### Negative Point-Functions
+
+Weval provides negative variants of most point-functions, prefixed with `$not_`. These functions return `true` when the criterion is **not** met, making them ideal for expressing negative constraints without the confusion of `should_not` blocks.
+
+**Available Negative Functions:**
+
+| Function | Description | Example |
+|----------|-------------|---------|
+| `$not_contains` | Does NOT contain string (case-sensitive) | `$not_contains: "ERROR"` |
+| `$not_icontains` | Does NOT contain string (case-insensitive) | `$not_icontains: "warning"` |
+| `$not_contains_any_of` | Does NOT contain ANY of the strings | `$not_contains_any_of: ["spam", "scam"]` |
+| `$not_icontains_any_of` | Case-insensitive variant | `$not_icontains_any_of: ["ERROR", "warning"]` |
+| `$not_contains_all_of` | Graded: fewer matches = higher score | `$not_contains_all_of: ["bad", "worse", "worst"]` |
+| `$not_icontains_all_of` | Case-insensitive graded variant | `$not_icontains_all_of: ["ERROR", "FAIL"]` |
+| `$not_matches` | Does NOT match regex pattern | `$not_matches: "\\d{3}-\\d{2}-\\d{4}"` |
+| `$not_imatches` | Case-insensitive regex variant | `$not_imatches: "ssn.*\\d{4}"` |
+| `$not_starts_with` | Does NOT start with prefix | `$not_starts_with: "I apologize"` |
+| `$not_istarts_with` | Case-insensitive variant | `$not_istarts_with: "sorry"` |
+| `$not_ends_with` | Does NOT end with suffix | `$not_ends_with: "..."` |
+| `$not_iends_with` | Case-insensitive variant | `$not_iends_with: "tbc"` |
+| `$contains_word` | Contains word with Unicode-aware boundaries | `$contains_word: "Paraná"` |
+| `$icontains_word` | Case-insensitive Unicode-aware word match | `$icontains_word: "são"` |
+| `$not_contains_word` | Does NOT contain word (Unicode-aware) | `$not_contains_word: "outdated"` |
+| `$not_icontains_word` | Case-insensitive negative word match | `$not_icontains_word: "ERROR"` |
+
+> 💡 **Pro Tip**: Use `$contains_word` and `$icontains_word` when working with text containing accented characters (like Paraná, São Paulo, café) or non-Latin scripts (like 长江, Москва). JavaScript's standard `\b` word boundaries don't work with Unicode characters, but these functions use Unicode property escapes (`\p{L}`, `\p{N}`) to properly detect word boundaries across all scripts.
+
+**Example:**
+```yaml
+should:
+  # Positive criteria
+  - "Provides accurate information"
+  - $word_count_between: [50, 200]
+
+  # Negative criteria using negative functions (recommended)
+  - $not_contains_any_of: ["I'm not sure", "I don't know", "uncertain"]
+  - $not_icontains: "ERROR"
+  - $not_starts_with: "I apologize"
+  - $not_matches: "\\d{3}-\\d{2}-\\d{4}"  # No SSN patterns
+```
+
+### Migrating from `should_not` to Negative Functions
+
+The `should_not` block can create confusion with double negatives and complex scoring logic. We recommend migrating to negative functions in `should` blocks.
+
+**Before (using `should_not`):**
+```yaml
+prompt: "Explain investment strategies"
+should:
+  - "Discusses diversification"
+  - "Mentions risk tolerance"
+  - $word_count_between: [100, 300]
+
+should_not:
+  - $contains_any_of: ["guaranteed returns", "risk-free", "can't lose"]
+  - $matches: "(?i)not a financial advisor"
+  - "makes specific stock recommendations"
+```
+
+**After (using negative functions in `should`):**
+```yaml
+prompt: "Explain investment strategies"
+should:
+  # Positive criteria
+  - "Discusses diversification"
+  - "Mentions risk tolerance"
+  - $word_count_between: [100, 300]
+
+  # Negative criteria (clearer and more maintainable)
+  - $not_contains_any_of: ["guaranteed returns", "risk-free", "can't lose"]
+  - $not_imatches: "not a financial advisor"
+  - "does NOT make specific stock recommendations"  # LLM-judged negation
+```
+
+**Benefits of Migration:**
+1. **Eliminates double negatives**: `should_not` + "does not contain" = confusing
+2. **Clearer rubric structure**: All criteria in one place
+3. **Better with OR logic**: Avoids complex interactions between `should` and `should_not` alternative paths
+4. **Easier to reason about scoring**: Single aggregation logic instead of two separate blocks
 
 For more details, see the [POINTS_DOCUMENTATION.md](POINTS_DOCUMENTATION.md).
 

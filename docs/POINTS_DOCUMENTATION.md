@@ -53,6 +53,12 @@ The `should` block accepts a list where each item can be in one of these formats
       - $match_all_of: ["^The ruling", "states that$"] # Graded regex
       - $imatch_all_of: ["^the ruling", "states that$"] # Case-insensitive graded regex
 
+      # Unicode-aware word boundary checks (recommended for accented text)
+      - $contains_word: "Paraná"       # Handles accented characters properly
+      - $icontains_word: "são paulo"   # Case-insensitive with Unicode support
+      - $not_contains_word: "outdated" # Negative with Unicode boundaries
+      - $not_icontains_word: "ERROR"   # Case-insensitive negative
+
       # Other checks
       - $word_count_between: [50, 100]
       - $is_json: true
@@ -60,6 +66,39 @@ The `should` block accepts a list where each item can be in one of these formats
     ```
     *   **What it means**: "The response should pass a check against the built-in function (e.g., `contains`)."
     *   **Note**: For convenience, some function names are normalized. For example, the parser will treat `$contain` as `$contains`.
+
+    **Negative Point-Functions (`$not_*`)**: For every major point-function, there is a corresponding negative variant prefixed with `$not_`. These functions invert the result of their positive counterparts, making it easy to check for the **absence** of patterns without using `should_not` blocks (which are deprecated due to their complexity and error-prone behavior).
+
+    ```yaml
+    should:
+      # String absence checks
+      - $not_contains: "outdated information"     # Case-sensitive absence
+      - $not_icontains: "DEPRECATED"              # Case-insensitive absence
+
+      # List-based absence checks
+      - $not_contains_any_of: ["spam", "scam", "clickbait"]  # True if NONE are found
+      - $not_contains_all_of: ["error", "warning", "fatal"]  # Graded: 1.0 if none found
+
+      # Regex absence checks
+      - $not_match: "\\berror\\b"                 # True if pattern doesn't match
+      - $not_imatch: "warning"                    # Case-insensitive absence
+
+      # Position-based absence checks
+      - $not_starts_with: "Unfortunately,"        # True if doesn't start with phrase
+      - $not_ends_with: "I don't know."           # True if doesn't end with phrase
+    ```
+
+    **✅ Best Practice:** Use `$not_*` functions in `should` blocks instead of using positive functions in `should_not` blocks. This makes blueprints more explicit and easier to understand.
+
+    ```yaml
+    # ✅ Recommended: Clear and explicit
+    should:
+      - $not_contains: "inappropriate content"
+
+    # ⚠️ Deprecated: Avoid should_not blocks
+    should_not:
+      - $contains: "inappropriate content"  # Less clear, more error-prone
+    ```
 
 4.  **Full `Point` Object**: This provides the most control, allowing you to specify a weight, a citation, and explicitly choose between text-based or function-based evaluation. This is the most verbose, legacy-compatible format.
     ```yaml

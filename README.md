@@ -547,6 +547,28 @@ temperatures: [0.0, 0.5, 0.8]
 
 For full details on rubric syntax (`should` and `should_not` blocks), system prompt usage, and convenience aliases, please see the [Blueprint Format Documentation](docs/BLUEPRINT_FORMAT.md) and the [Points Documentation](docs/POINTS_DOCUMENTATION.md).
 
+**✅ Best Practice:** Use negative point-functions (like `$not_contains`, `$not_match`) in `should` blocks instead of `should_not` blocks. Negative functions provide clearer, more explicit evaluation logic and avoid the complexity of score inversion. For example:
+
+```yaml
+should:
+  - $not_contains: "inappropriate content"    # ✅ Clear and explicit
+  - $not_icontains: "DEPRECATED"              # ✅ Case-insensitive check
+  - $not_match: "\\berror\\b"                 # ✅ Regex negation
+```
+
+**🌍 Unicode Support:** When working with accented characters or non-Latin scripts, use the Unicode-aware word boundary functions:
+
+```yaml
+should:
+  - $contains_word: "Paraná"      # ✅ Handles accents correctly
+  - $icontains_word: "são paulo"  # ✅ Case-insensitive + Unicode
+  - $not_contains_word: "错误"    # ✅ Works with Chinese, Arabic, Cyrillic, etc.
+```
+
+Standard regex word boundaries (`\b`) don't work with accented characters—use `$contains_word` and `$icontains_word` instead for reliable matching across all languages.
+
+For a complete list of functions, see the [Blueprint Format Documentation](docs/BLUEPRINT_FORMAT.md#negative-point-functions).
+
 > ⚠️ **Common Pitfall:** Single-element nested arrays in the `should` block can dramatically lower scores. See the [troubleshooting section in BLUEPRINT_FORMAT.md](docs/BLUEPRINT_FORMAT.md#troubleshooting-why-is-my-score-lower-than-expected) if your blueprint produces unexpectedly low scores.
 
 ### Experimental: Tool-use and tracing
