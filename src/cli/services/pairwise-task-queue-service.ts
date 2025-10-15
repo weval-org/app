@@ -51,8 +51,7 @@ async function getBlobStore(options?: { storeName?: string, siteId?: string, con
             }
         }
         console.warn(`[PairwiseQueueService] Overriding site ID with provided: ${siteIdOverride}`);
-        return getStore({
-            name: storeName,
+        return getStore({ name: storeName,
             siteID: siteIdOverride,
             token: netlifyToken,
         });
@@ -60,8 +59,7 @@ async function getBlobStore(options?: { storeName?: string, siteId?: string, con
 
     if (process.env.NETLIFY_SITE_ID && process.env.NETLIFY_AUTH_TOKEN) {
         console.log('[getBlobStore] Using env vars - SITE_ID:', process.env.NETLIFY_SITE_ID, 'TOKEN:', process.env.NETLIFY_AUTH_TOKEN?.substring(0, 10) + '...');
-        return getStore({
-            name: storeName,
+        return getStore({ name: storeName,
             siteID: process.env.NETLIFY_SITE_ID,
             token: process.env.NETLIFY_AUTH_TOKEN,
         });
@@ -83,8 +81,7 @@ async function getBlobStore(options?: { storeName?: string, siteId?: string, con
 
         if (siteId && netlifyToken) {
             console.log('[getBlobStore] Using filesystem credentials - siteId:', siteId);
-            return getStore({
-                name: storeName,
+            return getStore({ name: storeName,
                 siteID: siteId,
                 token: netlifyToken,
             });
@@ -100,20 +97,12 @@ async function getBlobStore(options?: { storeName?: string, siteId?: string, con
         // Extract credentials from decoded blobs data (in background functions)
         if (netlifyContext.blobs && netlifyContext.blobs.token) {
             console.log('[getBlobStore] Found blobs credentials in context');
-            return getStore({
-                name: storeName,
+            // getStore signature: getStore(name, options)
+            // First param is the name string, second param is the options object
+            return getStore({ name: storeName,
                 token: netlifyContext.blobs.token,
                 edgeURL: netlifyContext.blobs.url
             });
-        }
-
-        // Fallback: try environment variables
-        const siteID = process.env.SITE_ID;
-        const token = netlifyContext.token || process.env.NETLIFY_BLOBS_TOKEN;
-
-        if (siteID && token) {
-            console.log('[getBlobStore] Using credentials from context env - siteID:', siteID);
-            return getStore({ name: storeName, siteID, token });
         }
 
         console.log('[getBlobStore] Context provided but missing credentials, falling through');
@@ -122,12 +111,12 @@ async function getBlobStore(options?: { storeName?: string, siteId?: string, con
     // Try Netlify Deploy Store (automatic in some production contexts)
     console.log('[getBlobStore] Trying Netlify Deploy Store (getDeployStore)');
     try {
-        return getDeployStore({ name: storeName });
+        return getDeployStore(storeName);
     } catch (deployStoreError: any) {
         console.log('[getBlobStore] getDeployStore failed:', deployStoreError.message);
-        console.log('[getBlobStore] Trying getStore with just name');
-        // Last resort: try getStore with just name (works in some Netlify contexts)
-        return getStore({ name: storeName });
+        console.log('[getBlobStore] Trying getStore with just name (auto-credentials)');
+        // Last resort: try getStore with just name (auto-discovers credentials in Netlify functions)
+        return getStore(storeName);
     }
 }
 
