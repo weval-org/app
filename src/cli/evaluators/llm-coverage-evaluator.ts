@@ -731,13 +731,14 @@ Output: <reflection>The text mentions empathy, which means the criterion is MET 
                         // 1. Evaluate function points using our new helper
                         const functionAssessments = await evaluateFunctionPoints(functionPoints, subjectText, context);
 
-                        // 2. Evaluate text points (LLM-judged)
-                        const textAssessments: PointAssessment[] = [];
+                        // 2. Evaluate text points (LLM-judged) - parallelized for performance
+                        let textAssessments: PointAssessment[] = [];
                         if (textPoints.length > 0) {
-                            const promptContextString = this.getPromptContextString(promptData);
-                            for (const point of textPoints) {
-                                // Always provide full transcript with markers to all judges
-                                const transcriptForModel = this.getTranscriptForModel(promptData, modelId);
+                            // Prepare transcript once for all points (doesn't vary per point)
+                            const transcriptForModel = this.getTranscriptForModel(promptData, modelId);
+
+                            // Evaluate all points in parallel
+                            const judgePromises = textPoints.map(async (point) => {
                                 const judgeResult = await this.evaluateSinglePoint(
                                     subjectText,
                                     point,
@@ -753,8 +754,8 @@ Output: <reflection>The text mentions empathy, which means the criterion is MET 
                                 if (finalScore !== undefined && point.isInverted) {
                                     finalScore = 1.0 - finalScore;
                                 }
-                                
-                                textAssessments.push({
+
+                                return {
                                     keyPointText: point.displayText,
                                     coverageExtent: finalScore,
                                     reflection: judgeResult.reflection ? `${point.isInverted ? '[INVERTED] ' : ''}${judgeResult.reflection}` : undefined,
@@ -765,8 +766,10 @@ Output: <reflection>The text mentions empathy, which means the criterion is MET 
                                     citation: point.citation,
                                     isInverted: point.isInverted,
                                     pathId: point.pathId,
-                                });
-                            }
+                                } as PointAssessment;
+                            });
+
+                            textAssessments = await Promise.all(judgePromises);
                         }
 
                         // 3. Combine and aggregate scores

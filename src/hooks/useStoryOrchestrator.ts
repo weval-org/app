@@ -1,12 +1,19 @@
 /**
  * Custom hook for Story orchestration logic
  * Separates business logic from UI components
+ *
+ * Uses shared chat orchestration logic from useSharedChatOrchestrator
  */
 
-import { useCallback, useState, useEffect, useRef } from 'react';
-import { ControlSignalHelpers } from '@/lib/story-utils/control-signals';
-import { StreamingParser } from '@/lib/story-utils/streaming-parser';
-import { Message, StoryState, QuickRunStatus, StorySessionSummary } from '@/types/story';
+import { useCallback, useState, useEffect } from 'react';
+import { Message, StoryState, StorySessionSummary } from '@/types/story';
+import {
+  useSharedChatOrchestrator,
+  nanoid,
+  isSystemInstruction,
+  type ChatMessage,
+  type SystemInstruction
+} from './useSharedChatOrchestrator';
 
 // A logging utility to provide observability during development
 const log = (label: string, ...data: any[]) => {
@@ -18,9 +25,6 @@ const log = (label: string, ...data: any[]) => {
     }
   }
 };
-
-// Dependency-free ID generator
-const nanoid = () => Math.random().toString(36).substring(2);
 
 export interface StoryActions {
   startChat: (initialStory: string) => Promise<void>;
@@ -55,16 +59,6 @@ const initialState: StoryState = {
   updatedAt: null,
   title: null,
 };
-
-// Type guard for system instructions
-type SystemInstruction = {
-  command: 'CREATE_OUTLINE' | 'UPDATE_OUTLINE' | 'NO_OP';
-  payload?: any;
-};
-
-function isSystemInstruction(obj: any): obj is SystemInstruction {
-  return obj && typeof obj.command === 'string';
-}
 
 
 export function useStoryOrchestrator(): StoryState & StoryActions {
@@ -165,245 +159,108 @@ export function useStoryOrchestrator(): StoryState & StoryActions {
     } catch {}
   }, [getIndex, putIndex]);
 
-  // Autosave whenever key state changes (throttle by microtask to coalesce bursts)
+  // Autosave whenever key state changes (debounced to prevent excessive writes)
   useEffect(() => {
-    const toSave = state;
-    Promise.resolve().then(() => saveSession(toSave));
-  }, [state.messages, state.outlineObj, state.outlineYaml, state.quickRunResult, state.phase]);
+    const timeoutId = setTimeout(() => {
+      saveSession(state);
+    }, 500);
 
-  const callCreate = useCallback(async (summary: string) => {
-    log('API Call: /api/story/create', { summary });
-    const res = await fetch('/api/story/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ summary }),
-    });
-    if (!res.ok) throw new Error('Create API failed');
-    return await res.json() as { yaml?: string; data?: any };
-  }, []);
+    return () => clearTimeout(timeoutId);
+  }, [state.messages, state.outlineObj, state.outlineYaml, state.quickRunResult, state.phase, saveSession]);
 
-  const callUpdate = useCallback(async (currentJson: any, guidance: string) => {
-    log('API Call: /api/story/update', { currentJson, guidance });
-    const res = await fetch('/api/story/update', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ currentJson, guidance }),
-    });
-    if (!res.ok) throw new Error('Update API failed');
-    return await res.json() as { yaml?: string; data?: any };
-  }, []);
+  // Initialize shared chat orchestrator with Story-specific configuration
+  const sharedOrchestrator = useSharedChatOrchestrator({
+    uiContext: {
+      pageName: 'Story Page',
+      pageUrl: typeof window !== 'undefined' ? window.location.href : 'https://weval.org/story',
+      availableActions: [
+        'Quick Run button (click to test your evaluation with a few models)',
+        'Reset button (start over with a new evaluation)',
+        'Save sessions (your work is auto-saved to browser storage)'
+      ]
+    },
+    log,
+    outlineYaml: state.outlineYaml,
+    outlineObj: state.outlineObj,
+    quickRunResult: state.quickRunResult,
+    quickRunId: state.quickRunId,
+    quickRunStatus: state.quickRunStatus,
+    setCreatePending: (pending) => updateState({ createPending: pending }),
+    setCreateError: (error) => updateState({ createError: error }),
+    setOutlineYaml: (yaml) => {
+      setState(prev => ({
+        ...prev,
+        outlineYaml: yaml,
+      }));
+    },
+    setOutlineObj: (obj) => {
+      setState(prev => ({
+        ...prev,
+        outlineObj: obj,
+        // Update title when outline is created/updated
+        title: (obj?.description ? String(obj.description).slice(0, 120) : prev.title) || prev.title || null,
+      }));
+    },
+    setPending: (pending) => updateState({ pending }),
+    setActiveStream: (stream) => updateState({ activeStream: stream }),
+    setChatError: (error) => updateState({ chatError: error }),
+    setQuickRunPending: (pending) => updateState({ quickRunPending: pending }),
+    setQuickRunError: (error) => updateState({ quickRunError: error }),
+    setQuickRunResult: (result) => updateState({ quickRunResult: result }),
+    setQuickRunId: (id) => updateState({ quickRunId: id }),
+    setQuickRunStatus: (status) => updateState({ quickRunStatus: status }),
+    addMessage: (message) => {
+      setState(prev => ({
+        ...prev,
+        messages: [...prev.messages, message as Message],
+      }));
+    },
+    setMessages: (updater) => {
+      setState(prev => ({
+        ...prev,
+        messages: updater(prev.messages as ChatMessage[]) as Message[],
+      }));
+    },
+  });
 
-  const callQuickRun = useCallback(async (outline: any) => {
-    log('API Call: /api/story/quick-run', outline);
-    const res = await fetch('/api/story/quick-run', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ outline }),
-    });
-    if (!res.ok) throw new Error('Quick run failed');
-    const data = await res.json();
-    return data?.result;
-  }, []);
+  // Story-specific wrapper for handleStream that adds sanitizeAgencyClaims logic
+  const handleStreamWithSanitization = useCallback(async (context: Message[]) => {
+    // First, call the shared stream handler
+    await sharedOrchestrator.handleStream(context as ChatMessage[]);
 
+    // Then apply Story-specific sanitization to the last message
+    setState(prev => {
+      const lastMsg = prev.messages[prev.messages.length - 1];
+      if (!lastMsg || lastMsg.role !== 'assistant') return prev;
 
-  const handleSystemInstruction = useCallback(async (instruction: SystemInstruction, opts?: { synthesizeIfEmpty?: boolean }) => {
-    log('Handling system instruction', instruction);
-    switch (instruction.command) {
-      case 'CREATE_OUTLINE':
-        updateState({ createPending: true, createError: null });
-        try {
-          const out = await callCreate(instruction.payload.summary);
-          updateState({
-            outlineYaml: String(out.yaml || ''),
-            outlineObj: out.data || null,
-            title: (out?.data?.description ? String(out.data.description).slice(0, 120) : undefined) || undefined,
-          });
-          // If the visible chat content was empty, synthesize a concise confirmation message
-          if (opts?.synthesizeIfEmpty) {
-            setState(prev => ({
-              ...prev,
-              messages: [...prev.messages, { id: nanoid(), role: 'assistant' as const, content: 'Created a draft evaluation outline.' }],
-            }));
-          }
-        } catch (e) {
-          log('Error creating outline', e);
-          updateState({ createError: 'Failed to create evaluation outline.' });
-        } finally {
-          updateState({ createPending: false });
+      const sanitizeAgencyClaims = (text: string) => {
+        if (!text) return text;
+        const claimRegex = /\b(I('|')?ll|I will|we('|')?ll|we will)\s+(start|set up|setup|run|process|kick\s*off|get (it )?started)/i;
+        if (claimRegex.test(text)) {
+          return `${text}\n\nNote: No evaluation has been started.`;
         }
-        break;
-
-      case 'UPDATE_OUTLINE':
-        if (!state.outlineObj) return;
-        updateState({ createPending: true });
-        try {
-          const updated = await callUpdate(state.outlineObj, instruction.payload.guidance);
-          const confirmationAndSuggestion = `I have updated the evaluation outline.`;
-          setState(prev => ({
-            ...prev,
-            outlineObj: updated.data || null,
-            outlineYaml: String(updated.yaml || ''),
-            title: (updated?.data?.description ? String(updated.data.description).slice(0, 120) : prev.title) || prev.title || null,
-            messages: [...prev.messages, { id: nanoid(), role: 'assistant' as const, content: confirmationAndSuggestion }],
-          }));
-        } catch (e) {
-          log('Error updating outline', e);
-          updateState({ messages: [...state.messages, { id: nanoid(), role: 'assistant' as const, content: 'Sorry - I could not update the evaluation this time.' }] });
-        } finally {
-          updateState({ createPending: false });
-        }
-        break;
-        
-      case 'NO_OP':
-        // Do nothing
-        break;
-    }
-  }, [state.outlineObj, state.messages, callCreate, callUpdate, updateState]);
-
-
-  const handleStream = useCallback(async (context: Message[]) => {
-    const messageId = nanoid();
-    updateState({ pending: true, activeStream: { messageId, visibleContent: '', systemInstructions: null, streamError: null } });
-
-    try {
-      log('Stream: starting /api/story/chat', { contextLen: context.length, hasOutline: Boolean(state.outlineYaml), hasQuickRunResult: Boolean(state.quickRunResult) });
-      const res = await fetch('/api/story/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: context,
-          blueprintYaml: state.outlineYaml,
-          quickRunResult: state.quickRunResult,
-          uiContext: {
-            pageName: 'Story Page',
-            pageUrl: typeof window !== 'undefined' ? window.location.href : 'https://weval.org/story',
-            availableActions: [
-              'Quick Run button (click to test your evaluation with a few models)',
-              'Reset button (start over with a new evaluation)',
-              'Save sessions (your work is auto-saved to browser storage)'
-            ]
-          },
-          debugStreamDelayMs: process.env.NODE_ENV === 'development' ? 50 : undefined,
-        }),
-      });
-
-      if (!res.ok || !res.body) throw new Error('Chat stream API failed');
-      
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      const parser = new StreamingParser();
-
-      let done = false;
-      let chunkCount = 0;
-      let totalBytes = 0;
-      while (!done) {
-        const { value, done: readerDone } = await reader.read();
-        done = readerDone;
-        const chunk = decoder.decode(value, { stream: true });
-        
-        if (chunk) {
-          chunkCount += 1;
-          totalBytes += chunk.length;
-          const parsed = parser.ingest(chunk);
-          updateState({ activeStream: { messageId, ...parsed } });
-          if (parsed.streamError) throw new Error(parsed.streamError);
-        }
-      }
-
-      const finalParsed = parser.finalize();
-    const hadVisible = (finalParsed.visibleContent || '').trim().length > 0;
-    const hadError = !!finalParsed.streamError;
-      const maybeInstruction = finalParsed.systemInstructions;
-    const instruction = isSystemInstruction(maybeInstruction) ? maybeInstruction : null;
-    const isNoOpInstruction = instruction?.command === 'NO_OP';
-    log('Stream: finalized', { hadVisible, hadError, hasInstruction: Boolean(instruction), instructionCmd: instruction?.command });
-
-    // If there was a stream error, show it to the user
-    if (hadError) {
-      const errorMessage: Message = {
-        id: messageId,
-        role: 'assistant',
-        content: finalParsed.streamError || 'An error occurred while processing your message.',
+        return text;
       };
-      setState(prev => ({
-        ...prev,
-        messages: [...prev.messages, errorMessage],
-        activeStream: null,
-        chatError: finalParsed.streamError || 'Stream error',
-      }));
-      return; // Don't process instructions if there was an error
-    }
 
-    if (hadVisible) {
-        const sanitizeAgencyClaims = (text: string, instr: SystemInstruction | null) => {
-          if (!text) return text;
-          const claimRegex = /\b(I('|')?ll|I will|we('|')?ll|we will)\s+(start|set up|setup|run|process|kick\s*off|get (it )?started)/i;
-          if (claimRegex.test(text) && (!instr || instr.command === 'NO_OP')) {
-            return `${text}\n\nNote: No evaluation has been started.`;
-          }
-          return text;
-        };
-        const safeVisible = sanitizeAgencyClaims(finalParsed.visibleContent, instruction);
-      const finalMessage: Message = {
-        id: messageId,
-        role: 'assistant',
-          content: safeVisible,
+      const sanitizedContent = sanitizeAgencyClaims(lastMsg.content);
+      if (sanitizedContent === lastMsg.content) return prev; // No change needed
+
+      const updatedMessages = [...prev.messages];
+      updatedMessages[updatedMessages.length - 1] = { ...lastMsg, content: sanitizedContent };
+
+      return {
+        ...prev,
+        messages: updatedMessages,
       };
-      setState(prev => ({
-        ...prev,
-        messages: [...prev.messages, finalMessage],
-        activeStream: null,
-      }));
-      } else {
-        // No visible content: if there's no instruction OR a NO_OP instruction, append a friendly fallback message.
-        const fallbackText = 'I received your message but did not produce a visible reply. Please try rephrasing.';
-
-        if (!instruction || isNoOpInstruction) {
-          const finalMessage: Message = {
-            id: messageId,
-            role: 'assistant',
-            content: fallbackText,
-          };
-          setState(prev => ({
-            ...prev,
-            messages: [...prev.messages, finalMessage],
-            activeStream: null,
-          }));
-        } else {
-          // Non-NO_OP instruction will be handled below; just clear active stream here.
-          setState(prev => ({
-            ...prev,
-            activeStream: null,
-          }));
-        }
-      }
-
-    // Handle instructions after stream is complete. If there was no visible text,
-    // request the handler to synthesize a short confirmation message instead.
-    if (instruction) {
-      await handleSystemInstruction(instruction, { synthesizeIfEmpty: !hadVisible && !isNoOpInstruction });
-    }
-
-    } catch (e) {
-      log('Error during stream handling', e);
-      const errorMsg = { id: nanoid(), role: 'assistant' as const, content: 'Sorry, something went wrong. Please try again.' };
-      setState(prev => ({
-        ...prev,
-        chatError: (e as Error)?.message || 'Sorry, something went wrong.',
-        messages: [...prev.messages, errorMsg],
-        activeStream: null,
-      }));
-    } finally {
-      updateState({ pending: false });
-    }
-  }, [state.outlineYaml, handleSystemInstruction]);
+    });
+  }, [sharedOrchestrator]);
 
   const startChat = useCallback(async (initialStory: string) => {
     log('Action: startChat', { initialStory });
     const seed: Message = { id: nanoid(), role: 'user' as const, content: initialStory.trim() };
     updateState({ messages: [seed], phase: 'chat', chatError: null, title: initialStory.trim().slice(0, 120) });
-    await handleStream([seed]);
-  }, [handleStream]);
+    await handleStreamWithSanitization([seed]);
+  }, [handleStreamWithSanitization, updateState]);
 
   const sendMessage = useCallback(async (content: string) => {
     log('Action: sendMessage', { content });
@@ -411,103 +268,18 @@ export function useStoryOrchestrator(): StoryState & StoryActions {
     const userMsg: Message = { id: nanoid(), role: 'user' as const, content: content.trim() };
     const newMessages = [...state.messages, userMsg];
     updateState({ messages: newMessages, chatError: null });
-    await handleStream(newMessages);
-  }, [state.messages, state.pending, handleStream]);
+    await handleStreamWithSanitization(newMessages);
+  }, [state.messages, state.pending, handleStreamWithSanitization, updateState]);
 
   const runQuickTest = useCallback(async () => {
     log('Action: runQuickTest');
-    if (!state.outlineObj) return;
-    
-    updateState({ 
-      quickRunPending: true, 
-      quickRunError: null,
-      quickRunResult: null,
-      quickRunId: null,
-      quickRunStatus: { status: 'pending', message: 'Initiating evaluation...' },
-    });
-    
-    try {
-      const res = await fetch('/api/story/quick-run/start', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ outline: state.outlineObj }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to start the quick test.');
-      }
-      
-      updateState({ quickRunId: data.runId });
-
-    } catch (e) {
-        log('Error in runQuickTest (start)', e);
-        updateState({
-          quickRunError: 'Failed to start the test. Please try again.',
-          quickRunPending: false,
-          quickRunStatus: { status: 'error', message: 'Failed to start the test.' },
-        });
-    }
-  }, [state.outlineObj, updateState]);
-
-
-useEffect(() => {
-  const { quickRunId, quickRunStatus } = state;
-  const inProgress = ['pending', 'generating_responses', 'evaluating'].includes(quickRunStatus?.status);
-
-  if (!quickRunId || !inProgress) {
-    return;
-  }
-
-  const poll = async () => {
-    try {
-      const res = await fetch(`/api/story/quick-run/status/${quickRunId}`);
-      if (res.status === 202 || res.status === 404) {
-        return;
-      }
-      if (!res.ok) {
-        throw new Error(`Status check failed with status ${res.status}`);
-      }
-      const newStatus: QuickRunStatus = await res.json();
-      
-      setState(prev => {
-        const nextState = { ...prev, quickRunStatus: newStatus };
-
-        if (newStatus.status === 'complete') {
-          nextState.quickRunResult = newStatus.result;
-          nextState.quickRunPending = false;
-          nextState.quickRunError = null;
-        } else if (newStatus.status === 'error') {
-          nextState.quickRunError = newStatus.message || 'The test failed.';
-          nextState.quickRunPending = false;
-        }
-
-        return nextState;
-      });
-
-    } catch (e) {
-      log('Error during status poll', e);
-      setState(prev => ({
-        ...prev,
-        quickRunStatus: { status: 'error', message: 'Failed to get test status.' },
-        quickRunError: 'Could not retrieve test status. Please try again.',
-        quickRunPending: false,
-      }));
-    }
-  };
-
-  const intervalId = setInterval(poll, 3000);
-  poll(); 
-
-  return () => clearInterval(intervalId);
-
-}, [state.quickRunId, state.quickRunStatus?.status, setState]);
-
+    await sharedOrchestrator.runQuickTest();
+  }, [sharedOrchestrator]);
 
   const clearErrors = useCallback(() => {
     log('Action: clearErrors');
-    updateState({ chatError: null, createError: null, quickRunError: null });
-  }, [updateState]);
+    sharedOrchestrator.clearErrors();
+  }, [sharedOrchestrator]);
 
   const resetChat = useCallback(() => {
     log('Action: resetChat');
