@@ -70,7 +70,7 @@ describe('POST /api/pairs/config/[configId]/start-generation', () => {
     const existingStatus: pairwiseService.GenerationStatus = {
       status: 'generating',
       message: 'Generation in progress...',
-      timestamp: '2024-01-01T00:00:00.000Z',
+      timestamp: new Date().toISOString(), // Use current timestamp (not stale)
     };
 
     mockedPairwiseService.getGenerationStatus.mockResolvedValue(existingStatus);
@@ -96,7 +96,7 @@ describe('POST /api/pairs/config/[configId]/start-generation', () => {
     const existingStatus: pairwiseService.GenerationStatus = {
       status: 'pending',
       message: 'Job queued...',
-      timestamp: '2024-01-01T00:00:00.000Z',
+      timestamp: new Date().toISOString(), // Use current timestamp (not stale)
     };
 
     mockedPairwiseService.getGenerationStatus.mockResolvedValue(existingStatus);
