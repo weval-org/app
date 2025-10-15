@@ -15,6 +15,10 @@ import { createClientLogger } from '@/app/utils/clientLogger';
 import { ErrorBoundary } from '@/app/components/ErrorBoundary';
 import CIPLogo from '@/components/icons/CIPLogo';
 import Link from 'next/link';
+import { Badge } from '@/components/ui/badge';
+import Icon from '@/components/ui/icon';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { prettifyTag, normalizeTag } from '@/app/utils/tagUtils';
 
 // Debug loggers
 const debug = createClientLogger('EngClientPage');
@@ -310,6 +314,11 @@ export const EngClientPage: React.FC = () => {
     return systems.length > 1;
   }, [data?.config]);
 
+  // Calculate link to full analysis page (remove /eng from pathname)
+  const fullAnalysisUrl = useMemo(() => {
+    return pathname.replace(/\/eng$/, '');
+  }, [pathname]);
+
   // Helper to build URL with params
   const buildUrl = (params: URLSearchParams) => {
     const queryString = params.toString();
@@ -556,10 +565,12 @@ export const EngClientPage: React.FC = () => {
               {/* Title section */}
               <div className="flex items-center gap-2 min-w-0">
                 <div className="min-w-0">
-                  <h1 className="text-base font-bold tracking-tight truncate sm:text-lg" title={config.id || 'Unknown config'}>
-                    {config.id || 'Unknown config'}
+                  <h1 className="text-base font-bold tracking-tight truncate sm:text-lg" title={config.title || config.configTitle || config.id || 'Unknown config'}>
+                    {config.title || config.configTitle || config.id || 'Unknown config'}
                   </h1>
-                  <p className="text-xs text-muted-foreground">Data Explorer</p>
+                  <p className="text-xs text-muted-foreground">
+                    Data Explorer / <Link href={fullAnalysisUrl} className="hover:text-foreground transition-colors underline underline-offset-2">Full Analysis</Link>
+                  </p>
                 </div>
               </div>
             </div>
@@ -622,7 +633,7 @@ export const EngClientPage: React.FC = () => {
           <div className="p-4">
             <ErrorBoundary>
               {showExecutiveSummary && data.executiveSummary ? (
-                <ExecutiveSummaryView executiveSummary={data.executiveSummary} />
+                <ExecutiveSummaryView executiveSummary={data.executiveSummary} config={config} />
               ) : comparisonItems.length > 0 ? (
                 <ComparisonView
                   comparisonItems={comparisonItems}
@@ -1571,9 +1582,10 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
 // Executive Summary View Component
 interface ExecutiveSummaryViewProps {
   executiveSummary: string | { content: string } | { modelId: string; content: string; structured?: any; isStructured?: boolean };
+  config: any;
 }
 
-function ExecutiveSummaryView({ executiveSummary }: ExecutiveSummaryViewProps) {
+function ExecutiveSummaryView({ executiveSummary, config }: ExecutiveSummaryViewProps) {
   // Check for structured data
   const hasStructured = executiveSummary &&
     typeof executiveSummary === 'object' &&
@@ -1591,11 +1603,113 @@ function ExecutiveSummaryView({ executiveSummary }: ExecutiveSummaryViewProps) {
     content = 'No executive summary available.';
   }
 
+  const hasDescription = config?.description && config.description.trim() !== '';
+  const tags = config?.tags || [];
+  const author = config?.author;
+  const references = (config as any)?.references;
+
   return (
-    <div className="space-y-4 animate-in fade-in slide-in-from-right-2 duration-300">
+    <div className="space-y-6 animate-in fade-in slide-in-from-right-2 duration-300">
       <div className="border-b border-border pb-3">
         <h2 className="text-2xl font-semibold">Executive Summary</h2>
       </div>
+
+      {/* Metadata section */}
+      {(hasDescription || tags.length > 0 || author || (references && references.length > 0)) && (
+        <div className="space-y-4 bg-muted/50 dark:bg-slate-900/40 p-4 rounded-lg">
+          {/* Description */}
+          {hasDescription && (
+            <div className="prose prose-sm dark:prose-invert max-w-none">
+              <ResponseRenderer content={config.description} />
+            </div>
+          )}
+
+          {/* Author */}
+          {author && (
+            <div>
+              {(() => {
+                const a: any = author;
+                const name: string = typeof a === 'string' ? a : a.name;
+                const url: string | undefined = typeof a === 'string' ? undefined : a.url;
+                const imageUrl: string | undefined = typeof a === 'string' ? undefined : a.image_url;
+                const content = (
+                  <span className="text-sm text-foreground">
+                    {imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={imageUrl} alt={name} className="h-5 w-5 rounded-full border border-border inline mr-1 align-text-bottom" />
+                    ) : (
+                      <Icon name="user" className="w-4 h-4 text-foreground inline mr-1 align-text-bottom" />
+                    )}
+                    By: <span className="font-bold">{name}</span>
+                  </span>
+                );
+                return (
+                  <span className="inline-flex items-center rounded-full bg-muted/60 px-2.5 py-1 border border-border/60" title="Blueprint author">
+                    {url ? (
+                      <a href={url} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                        {content}
+                      </a>
+                    ) : content}
+                  </span>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* References */}
+          {references && Array.isArray(references) && references.length > 0 && (
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center text-sm text-foreground mr-1">
+                  <Icon name="book-open" className="w-4 h-4 text-foreground inline mr-1.5 align-text-bottom" />
+                  <span>Reference{references.length > 1 ? 's' : ''}:</span>
+                </div>
+                {references.map((r: any, index: number) => {
+                  const title: string = typeof r === 'string' ? r : (r.title || r.name);
+                  const url: string | undefined = typeof r === 'string' ? undefined : r.url;
+                  const maxLength = 45;
+                  const displayTitle = title.length > maxLength ? `${title.substring(0, maxLength)}...` : title;
+                  const content = (
+                    <span className="font-bold text-sm">{displayTitle}</span>
+                  );
+                  return (
+                    <TooltipProvider key={index}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex items-center rounded-full bg-muted/60 px-2.5 py-1 border border-border/60 cursor-pointer">
+                            {url ? (
+                              <a href={url} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                                {content}
+                              </a>
+                            ) : content}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="max-w-md">{title}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Tags */}
+          {tags && tags.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 border-t border-border/60 pt-4">
+              <span className="text-xs font-semibold text-muted-foreground">TAGS:</span>
+              {tags.map((tag: string) => (
+                <Link href={`/tags/${normalizeTag(tag)}`} key={tag}>
+                  <Badge variant="secondary" className="hover:bg-primary/20 transition-colors">{prettifyTag(tag)}</Badge>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Executive summary content */}
       <div className="prose prose-sm max-w-none dark:prose-invert font-mono">
         {hasStructured ? (
           <StructuredSummary insights={executiveSummary.structured} disableModelLinks={true} />
