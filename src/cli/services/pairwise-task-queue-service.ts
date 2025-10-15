@@ -96,7 +96,27 @@ async function getBlobStore(options?: { storeName?: string, siteId?: string, con
     // Final fallback: use Netlify context if available
     if (netlifyContext) {
         console.log('[getBlobStore] Using provided Netlify context');
-        return getStore({ name: storeName, context: netlifyContext });
+
+        // Extract credentials from decoded blobs data (in background functions)
+        if (netlifyContext.blobs && netlifyContext.blobs.token) {
+            console.log('[getBlobStore] Found blobs credentials in context');
+            return getStore({
+                name: storeName,
+                token: netlifyContext.blobs.token,
+                edgeURL: netlifyContext.blobs.url
+            });
+        }
+
+        // Fallback: try environment variables
+        const siteID = process.env.SITE_ID;
+        const token = netlifyContext.token || process.env.NETLIFY_BLOBS_TOKEN;
+
+        if (siteID && token) {
+            console.log('[getBlobStore] Using credentials from context env - siteID:', siteID);
+            return getStore({ name: storeName, siteID, token });
+        }
+
+        console.log('[getBlobStore] Context provided but missing credentials, falling through');
     }
 
     // Try Netlify Deploy Store (automatic in some production contexts)

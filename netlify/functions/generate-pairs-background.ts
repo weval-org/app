@@ -14,6 +14,18 @@ export const handler: BackgroundHandler = async (event, context) => {
 
   console.log('[generate-pairs-background] Parsed configId:', configId);
 
+  // Extract blob credentials from event (available in background functions)
+  let blobContext = context;
+  if (event.blobs) {
+    try {
+      const blobsData = JSON.parse(Buffer.from(event.blobs, 'base64').toString('utf-8'));
+      console.log('[generate-pairs-background] Decoded blobs data:', blobsData);
+      blobContext = { ...context, blobs: blobsData };
+    } catch (e) {
+      console.warn('[generate-pairs-background] Failed to decode blobs data:', e);
+    }
+  }
+
   const logger = await getLogger(`pairs:generate-bg:${configId || 'unknown'}`);
   logger.info('Background function started');
 
@@ -32,7 +44,7 @@ export const handler: BackgroundHandler = async (event, context) => {
         status: 'generating',
         message: 'Fetching latest run for config...',
         timestamp: new Date().toISOString(),
-      }, { context });
+      }, { context: blobContext });
     } catch (statusError: any) {
       // If we can't even update status, log and fail early
       logger.error(`Failed to initialize status: ${statusError.message}`);
@@ -46,7 +58,7 @@ export const handler: BackgroundHandler = async (event, context) => {
         status: 'error',
         message: `No runs found for config ${configId}. Please run an evaluation first.`,
         timestamp: new Date().toISOString(),
-      }, { context });
+      }, { context: blobContext });
       logger.error(`No runs found for config ${configId}.`);
       return;
     }
@@ -61,7 +73,7 @@ export const handler: BackgroundHandler = async (event, context) => {
         status: 'error',
         message: 'Could not fetch result data for latest run.',
         timestamp: new Date().toISOString(),
-      }, { context });
+      }, { context: blobContext });
       logger.error(`Could not fetch result data for file: ${latestRun.fileName}`);
       return;
     }
@@ -71,10 +83,10 @@ export const handler: BackgroundHandler = async (event, context) => {
       status: 'generating',
       message: 'Generating comparison pairs...',
       timestamp: new Date().toISOString(),
-    }, { context });
+    }, { context: blobContext });
 
     // Generate the pairs
-    const result = await populatePairwiseQueue(resultData, { logger, context });
+    const result = await populatePairwiseQueue(resultData, { logger, context: blobContext });
 
     // Check if we failed due to missing anchor model
     if (result.anchorModelMissing) {
@@ -83,7 +95,7 @@ export const handler: BackgroundHandler = async (event, context) => {
         message: `Cannot generate pairs: evaluation results don't include the required anchor model 'openrouter:openai/gpt-4.1-mini'. Please run an evaluation that includes this model.`,
         timestamp: new Date().toISOString(),
         error: 'Missing anchor model',
-      }, { context });
+      }, { context: blobContext });
       logger.error(`Failed to generate pairs for ${configId}: anchor model missing from evaluation results.`);
       return;
     }
@@ -95,7 +107,7 @@ export const handler: BackgroundHandler = async (event, context) => {
       timestamp: new Date().toISOString(),
       tasksGenerated: result.tasksAdded,
       totalTasksInQueue: result.totalTasksInQueue,
-    }, { context });
+    }, { context: blobContext });
 
     logger.info(`Successfully generated ${result.tasksAdded} pairs for config ${configId}.`);
     console.log('[generate-pairs-background] Success! Generated', result.tasksAdded, 'pairs');
@@ -111,7 +123,7 @@ export const handler: BackgroundHandler = async (event, context) => {
         message: 'An error occurred during pair generation.',
         timestamp: new Date().toISOString(),
         error: error.message,
-      }, { context });
+      }, { context: blobContext });
     } catch (statusUpdateError: any) {
       console.error('[generate-pairs-background] Failed to update error status:', statusUpdateError.message);
     }
