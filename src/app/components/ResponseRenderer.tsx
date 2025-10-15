@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import RemarkGfmPlugin from 'remark-gfm';
