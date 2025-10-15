@@ -92,9 +92,9 @@ async function getBlobStore(options?: { storeName?: string, siteId?: string }) {
         console.log('[getBlobStore] Filesystem fallback failed:', error.message);
     }
 
-    // Final fallback to anonymous store if no credentials can be found
-    console.log('[getBlobStore] Falling back to anonymous store (will likely fail)');
-    return getStore(storeName);
+    // Final fallback: use Netlify function context (automatic in production)
+    console.log('[getBlobStore] Using automatic Netlify function context');
+    return getStore({ name: storeName });
 }
 
 export interface PairwiseTask {
