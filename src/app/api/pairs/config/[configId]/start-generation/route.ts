@@ -22,11 +22,20 @@ export async function POST(
     // Check if generation is already in progress
     const existingStatus = await getGenerationStatus(configId);
     if (existingStatus && (existingStatus.status === 'generating' || existingStatus.status === 'pending')) {
-      return NextResponse.json({
-        status: existingStatus.status,
-        message: 'Generation is already in progress for this config.',
-        generationStatus: existingStatus,
-      });
+      // Check if status is stale (more than 5 minutes old)
+      const statusAge = Date.now() - new Date(existingStatus.timestamp).getTime();
+      const fiveMinutes = 5 * 60 * 1000;
+
+      if (statusAge > fiveMinutes) {
+        logger.warn(`Found stale ${existingStatus.status} status from ${existingStatus.timestamp} (${Math.round(statusAge / 1000)}s ago). Allowing retry.`);
+      } else {
+        logger.info(`Generation already in progress (status: ${existingStatus.status}, age: ${Math.round(statusAge / 1000)}s). Blocking duplicate request.`);
+        return NextResponse.json({
+          status: existingStatus.status,
+          message: 'Generation is already in progress for this config.',
+          generationStatus: existingStatus,
+        });
+      }
     }
 
     // Set initial status to pending
