@@ -1054,6 +1054,9 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
   const promptConfig = config?.prompts?.find((p: any) => p.id === promptId);
   const renderAs = (promptConfig?.render_as as RenderAsType) || 'markdown';
 
+  // Track which model column's α badge is expanded
+  const [expandedAlphaColumn, setExpandedAlphaColumn] = useState<string | null>(null);
+
   // Batch fetch responses and evaluations for all comparison items
   useEffect(() => {
     if (comparisonItems.length === 0) return;
@@ -1249,6 +1252,7 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
                   const modelId = parts[1];
                   const result = allCoverageScores?.[promptId]?.[modelId];
                   const hasScore = result && !('error' in result) && result.avgCoverageExtent !== undefined;
+                  const judgeAgreement = result && !('error' in result) ? (result as any).judgeAgreement : null;
                   const parsed = parseModelIdForDisplay(modelId);
                   const modelLabel = getModelDisplayLabel(parsed, {
                     hideProvider: true,
@@ -1278,6 +1282,75 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
                             </div>
                           </div>
                         )}
+                        {judgeAgreement && (() => {
+                          const isExpanded = expandedAlphaColumn === itemKey;
+                          return (
+                            <div className="relative">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedAlphaColumn(isExpanded ? null : itemKey);
+                                }}
+                                className="flex items-center justify-center gap-0.5 px-1 py-0.5 rounded-sm hover:bg-muted/50 transition-colors"
+                              >
+                                <Icon name="users" className={cn(
+                                  "w-3 h-3",
+                                  judgeAgreement.interpretation === 'reliable' && "text-green-600 dark:text-green-400",
+                                  judgeAgreement.interpretation === 'tentative' && "text-amber-600 dark:text-amber-400",
+                                  judgeAgreement.interpretation === 'unreliable' && "text-red-600 dark:text-red-400"
+                                )} />
+                                <span className={cn(
+                                  "font-mono font-semibold",
+                                  judgeAgreement.interpretation === 'reliable' && "text-green-600 dark:text-green-400",
+                                  judgeAgreement.interpretation === 'tentative' && "text-amber-600 dark:text-amber-400",
+                                  judgeAgreement.interpretation === 'unreliable' && "text-red-600 dark:text-red-400"
+                                )}>
+                                  α={judgeAgreement.krippendorffsAlpha.toFixed(2)}
+                                </span>
+                                <Icon name={isExpanded ? "chevron-up" : "chevron-down"} className="w-2.5 h-2.5 text-muted-foreground" />
+                              </button>
+
+                              {isExpanded && (
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-72 p-3 rounded-md bg-white dark:bg-slate-800 border border-border shadow-lg z-50">
+                                  <div className="space-y-2 text-xs">
+                                    <div className="font-semibold border-b border-border pb-1">Judge Agreement</div>
+                                    <p className="text-muted-foreground leading-relaxed">
+                                      This measures how consistently multiple AI judges scored this evaluation.
+                                      Higher values mean judges agreed more on their assessments.
+                                    </p>
+                                    <div className="space-y-1 pt-1">
+                                      <div className="flex justify-between gap-4">
+                                        <span className="text-muted-foreground">Krippendorff's α:</span>
+                                        <span className="font-medium">{judgeAgreement.krippendorffsAlpha.toFixed(3)}</span>
+                                      </div>
+                                      <div className="flex justify-between gap-4">
+                                        <span className="text-muted-foreground">Interpretation:</span>
+                                        <span className={cn(
+                                          "font-medium capitalize",
+                                          judgeAgreement.interpretation === 'reliable' && "text-green-600 dark:text-green-400",
+                                          judgeAgreement.interpretation === 'tentative' && "text-amber-600 dark:text-amber-400",
+                                          judgeAgreement.interpretation === 'unreliable' && "text-red-600 dark:text-red-400"
+                                        )}>{judgeAgreement.interpretation}</span>
+                                      </div>
+                                      <div className="flex justify-between gap-4">
+                                        <span className="text-muted-foreground">Judges:</span>
+                                        <span>{judgeAgreement.numJudges}</span>
+                                      </div>
+                                      <div className="flex justify-between gap-4">
+                                        <span className="text-muted-foreground">Items:</span>
+                                        <span>{judgeAgreement.numItems}</span>
+                                      </div>
+                                      <div className="flex justify-between gap-4">
+                                        <span className="text-muted-foreground">Comparisons:</span>
+                                        <span>{judgeAgreement.numComparisons}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     </th>
                   );
@@ -1423,20 +1496,38 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
                                 <TextualBar score={score} length={8} />
                               </div>
                             </div>
-                            {individualJudgements && individualJudgements.length > 0 && (
-                              <div className="space-y-2">
-                                {individualJudgements.map((judgement, jIdx) => (
-                                  <div key={jIdx} className="text-xs text-muted-foreground pl-3 border-l-2 border-border leading-relaxed">
-                                    {individualJudgements.length > 1 && (
-                                      <div className="font-semibold mb-1 opacity-70">
-                                        Judge {jIdx + 1} ({formatPercentage(judgement.coverageExtent, 0)}):
-                                      </div>
-                                    )}
-                                    <JudgeReflection text={judgement.reflection} />
-                                  </div>
-                                ))}
-                              </div>
-                            )}
+                            {individualJudgements && individualJudgements.length > 0 && (() => {
+                              // Calculate judge disagreement if we have multiple judges
+                              let hasDisagreement = false;
+                              let judgeStdDev = 0;
+                              if (individualJudgements.length > 1) {
+                                const scores = individualJudgements.map(j => j.coverageExtent);
+                                const mean = scores.reduce((a, b) => a + b) / scores.length;
+                                judgeStdDev = Math.sqrt(scores.reduce((sum, s) => sum + Math.pow(s - mean, 2), 0) / scores.length);
+                                hasDisagreement = judgeStdDev > 0.3;
+                              }
+
+                              return (
+                                <div className="space-y-2">
+                                  {hasDisagreement && (
+                                    <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-500 bg-amber-50 dark:bg-amber-900/10 px-2 py-1 rounded">
+                                      <Icon name="users" className="w-3 h-3" />
+                                      <span className="font-medium">Judge disagreement (StdDev: {judgeStdDev.toFixed(2)})</span>
+                                    </div>
+                                  )}
+                                  {individualJudgements.map((judgement, jIdx) => (
+                                    <div key={jIdx} className="text-xs text-muted-foreground pl-3 border-l-2 border-border leading-relaxed">
+                                      {individualJudgements.length > 1 && (
+                                        <div className="font-semibold mb-1 opacity-70">
+                                          Judge {jIdx + 1} ({formatPercentage(judgement.coverageExtent, 0)}):
+                                        </div>
+                                      )}
+                                      <JudgeReflection text={judgement.reflection} />
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })()}
                           </div>
                         </td>
                       );
@@ -1542,20 +1633,38 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
                                     <TextualBar score={score} length={8} />
                                   </div>
                                 </div>
-                                {individualJudgements && individualJudgements.length > 0 && (
-                                  <div className="space-y-2">
-                                    {individualJudgements.map((judgement, jIdx) => (
-                                      <div key={jIdx} className="text-xs text-muted-foreground pl-3 border-l-2 border-border leading-relaxed">
-                                        {individualJudgements.length > 1 && (
-                                          <div className="font-semibold mb-1 opacity-70">
-                                            Judge {jIdx + 1} ({formatPercentage(judgement.coverageExtent, 0)}):
-                                          </div>
-                                        )}
-                                        <JudgeReflection text={judgement.reflection} />
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
+                                {individualJudgements && individualJudgements.length > 0 && (() => {
+                                  // Calculate judge disagreement if we have multiple judges
+                                  let hasDisagreement = false;
+                                  let judgeStdDev = 0;
+                                  if (individualJudgements.length > 1) {
+                                    const scores = individualJudgements.map(j => j.coverageExtent);
+                                    const mean = scores.reduce((a, b) => a + b) / scores.length;
+                                    judgeStdDev = Math.sqrt(scores.reduce((sum, s) => sum + Math.pow(s - mean, 2), 0) / scores.length);
+                                    hasDisagreement = judgeStdDev > 0.3;
+                                  }
+
+                                  return (
+                                    <div className="space-y-2">
+                                      {hasDisagreement && (
+                                        <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-500 bg-amber-50 dark:bg-amber-900/10 px-2 py-1 rounded">
+                                          <Icon name="users" className="w-3 h-3" />
+                                          <span className="font-medium">Judge disagreement (StdDev: {judgeStdDev.toFixed(2)})</span>
+                                        </div>
+                                      )}
+                                      {individualJudgements.map((judgement, jIdx) => (
+                                        <div key={jIdx} className="text-xs text-muted-foreground pl-3 border-l-2 border-border leading-relaxed">
+                                          {individualJudgements.length > 1 && (
+                                            <div className="font-semibold mb-1 opacity-70">
+                                              Judge {jIdx + 1} ({formatPercentage(judgement.coverageExtent, 0)}):
+                                            </div>
+                                          )}
+                                          <JudgeReflection text={judgement.reflection} />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  );
+                                })()}
                               </div>
                             </td>
                           );

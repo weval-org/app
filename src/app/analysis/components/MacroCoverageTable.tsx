@@ -277,6 +277,7 @@ const MacroCoverageTable: React.FC = () => {
     } = useAnalysis();
 
     const [selectedModelForModal, setSelectedModelForModal] = useState<string | null>(null);
+    const [expandedJudgeAgreementCell, setExpandedJudgeAgreementCell] = useState<string | null>(null);
 
     // Preload icons used in this table and modal components
     // usePreloadIcons([
@@ -1074,25 +1075,23 @@ const MacroCoverageTable: React.FC = () => {
                                             }
                                         }
 
-                                        // Check for high judge disagreement and critical failures
-                                        let hasHighDisagreement = false;
+                                        // Check for judge agreement and critical failures
+                                        let judgeAgreementMetrics = null;
+                                        let showJudgeAgreementBadge = false;
                                         let hasCriticalFailure = false;
+                                        if (result && !('error' in result)) {
+                                            // Check for judge agreement metrics - only show badge if tentative or unreliable
+                                            if ((result as any).judgeAgreement) {
+                                                judgeAgreementMetrics = (result as any).judgeAgreement;
+                                                const interpretation = judgeAgreementMetrics.interpretation;
+                                                showJudgeAgreementBadge = interpretation === 'tentative' || interpretation === 'unreliable';
+                                                const agreementDetails = `Judge Agreement (Krippendorff's α): ${judgeAgreementMetrics.krippendorffsAlpha.toFixed(3)}\nInterpretation: ${judgeAgreementMetrics.interpretation}\nJudges: ${judgeAgreementMetrics.numJudges}, Items: ${judgeAgreementMetrics.numItems}, Comparisons: ${judgeAgreementMetrics.numComparisons}`;
+                                                if (titleText) titleText += '\n---\n';
+                                                titleText += agreementDetails;
+                                            }
+                                        }
                                         if (result && !('error' in result) && result.pointAssessments) {
                                             for (const assessment of result.pointAssessments) {
-                                                if (!hasHighDisagreement && assessment.individualJudgements && assessment.individualJudgements.length > 1) {
-                                                    const scores = assessment.individualJudgements.map(j => j.coverageExtent);
-                                                    const n = scores.length;
-                                                    const mean = scores.reduce((a, b) => a + b) / n;
-                                                    const stdDev = Math.sqrt(scores.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b) / n);
-                                                    
-                                                    if (stdDev > HIGH_DISAGREEMENT_THRESHOLD_STD_DEV) {
-                                                        hasHighDisagreement = true;
-                                                        const disagreementDetails = `High Judge Disagreement: Found on key point "${assessment.keyPointText}". Scores: [${scores.map(s => s.toFixed(2)).join(', ')}], StdDev: ${stdDev.toFixed(2)}.`;
-                                                        if (titleText) titleText += '\n---\n';
-                                                        titleText += disagreementDetails;
-                                                    }
-                                                }
-                                                
                                                 if (!hasCriticalFailure && (assessment as any).isInverted) {
                                                     const isPassing = assessment.coverageExtent !== undefined && assessment.coverageExtent >= 0.7;
                                                     if (!isPassing) {
@@ -1173,11 +1172,71 @@ const MacroCoverageTable: React.FC = () => {
                                                 {!simplifiedView && (
                                                     <>
                                                         <div className="absolute bottom-0.5 right-0.5 flex items-center gap-0.5">
-                                                            {hasHighDisagreement && (
-                                                                <span title="High judge disagreement on a criterion">
-                                                                    <Icon name="users" className="w-3 h-3 text-sky-600 dark:text-sky-500" />
-                                                                </span>
-                                                            )}
+                                                            {showJudgeAgreementBadge && judgeAgreementMetrics && (() => {
+                                                                const cellKey = `${promptId}-${modelId}`;
+                                                                const isExpanded = expandedJudgeAgreementCell === cellKey;
+
+                                                                return (
+                                                                    <div className="relative">
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setExpandedJudgeAgreementCell(isExpanded ? null : cellKey);
+                                                                            }}
+                                                                            className="flex items-center gap-0.5 px-1 py-0.5 rounded-sm bg-white/90 dark:bg-slate-800/90 hover:bg-white dark:hover:bg-slate-700 transition-colors"
+                                                                        >
+                                                                            <Icon name="users" className={cn(
+                                                                                "w-3 h-3",
+                                                                                judgeAgreementMetrics.interpretation === 'tentative' && "text-yellow-600 dark:text-yellow-500",
+                                                                                judgeAgreementMetrics.interpretation === 'unreliable' && "text-red-600 dark:text-red-500"
+                                                                            )} />
+                                                                            <span className={cn(
+                                                                                "text-[9px] font-mono font-semibold",
+                                                                                judgeAgreementMetrics.interpretation === 'tentative' && "text-yellow-600 dark:text-yellow-500",
+                                                                                judgeAgreementMetrics.interpretation === 'unreliable' && "text-red-600 dark:text-red-500"
+                                                                            )}>
+                                                                                α={judgeAgreementMetrics.krippendorffsAlpha.toFixed(2)}
+                                                                            </span>
+                                                                            <Icon name={isExpanded ? "chevron-up" : "chevron-down"} className="w-2.5 h-2.5 text-muted-foreground" />
+                                                                        </button>
+
+                                                                        {isExpanded && (
+                                                                            <div className="absolute bottom-full right-0 mb-1 w-72 p-3 rounded-md bg-white dark:bg-slate-800 border border-border shadow-lg z-50">
+                                                                                <div className="space-y-2 text-xs">
+                                                                                    <div className="font-semibold border-b border-border pb-1">Judge Agreement</div>
+                                                                                    <p className="text-muted-foreground leading-relaxed">
+                                                                                        This measures how consistently multiple AI judges scored this evaluation.
+                                                                                        Higher values mean judges agreed more on their assessments.
+                                                                                    </p>
+                                                                                    <div className="space-y-1 pt-1">
+                                                                                        <div className="flex justify-between gap-4">
+                                                                                            <span className="text-muted-foreground">Krippendorff's α:</span>
+                                                                                            <span className="font-medium">{judgeAgreementMetrics.krippendorffsAlpha.toFixed(3)}</span>
+                                                                                        </div>
+                                                                                        <div className="flex justify-between gap-4">
+                                                                                            <span className="text-muted-foreground">Interpretation:</span>
+                                                                                            <span className={cn(
+                                                                                                "font-medium capitalize",
+                                                                                                judgeAgreementMetrics.interpretation === 'reliable' && "text-green-600 dark:text-green-500",
+                                                                                                judgeAgreementMetrics.interpretation === 'tentative' && "text-yellow-600 dark:text-yellow-500",
+                                                                                                judgeAgreementMetrics.interpretation === 'unreliable' && "text-red-600 dark:text-red-500"
+                                                                                            )}>{judgeAgreementMetrics.interpretation}</span>
+                                                                                        </div>
+                                                                                        <div className="flex justify-between gap-4">
+                                                                                            <span className="text-muted-foreground">Judges:</span>
+                                                                                            <span>{judgeAgreementMetrics.numJudges}</span>
+                                                                                        </div>
+                                                                                        <div className="flex justify-between gap-4">
+                                                                                            <span className="text-muted-foreground">Criteria:</span>
+                                                                                            <span>{judgeAgreementMetrics.numItems}</span>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })()}
                                                             {hasCriticalFailure && (
                                                                 <span title="Violated a 'should not' constraint">
                                                                     <Icon name="alert-triangle" className="w-3 h-3 text-red-600 dark:text-red-500" />

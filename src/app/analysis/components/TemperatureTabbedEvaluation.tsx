@@ -16,6 +16,8 @@ export interface TempVariantBundle {
   generatedHistory?: any[];
   // For aggregate: array of per-temperature outputs to render sequentially
   perTemperatureOutputs?: Array<{ temperature: number; generatedHistory?: any[]; generatedTranscript?: string; modelResponse?: string }>;
+  // Optional judge agreement metrics
+  judgeAgreement?: any;
 }
 
 interface TemperatureTabbedEvaluationProps {
@@ -83,6 +85,7 @@ const TemperatureTabbedEvaluation: React.FC<TemperatureTabbedEvaluationProps> = 
           text: o.modelResponse,
         }))}
         renderAs={renderAs}
+        judgeAgreement={activeBundle.judgeAgreement}
       />
     </>
   );

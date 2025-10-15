@@ -11,7 +11,8 @@ import {
     IndividualJudgement,
     PointAssessment,
     Judge,
-    LLMCoverageEvaluationConfig
+    LLMCoverageEvaluationConfig,
+    JudgeAgreementMetrics
 } from '@/types/shared';
 import { extractKeyPoints } from '../services/llm-evaluation-service';
 import { dispatchMakeApiCall } from '../../lib/llm-clients/client-dispatcher';
@@ -39,11 +40,25 @@ export const DEFAULT_JUDGES: Judge[] = [
     // { id: 'holistic-openai-gpt-4-1-mini', model: 'openai:gpt-4.1-mini', approach: 'holistic' }
 
     // Cheaper alternatives -- still very capable:
-
     // Note holistic and prompt-aware are the same approach now.
 
-    { id: 'holistic-qwen3-30b-a3b-instruct-2507', model: 'openrouter:qwen/qwen3-30b-a3b-instruct-2507', approach: 'holistic' },
-    { id: 'holistic-openai-gpt-oss-120b', model: 'openrouter:openai/gpt-oss-120b', approach: 'holistic' },
+    {
+        id: 'holistic-qwen3-30b-a3b-instruct-2507',
+        model: 'openrouter:qwen/qwen3-30b-a3b-instruct-2507',
+        approach: 'holistic'
+    },
+
+    {
+        id: 'holistic-openai-gpt-oss-120b',
+        model: 'openrouter:openai/gpt-oss-120b',
+        approach: 'holistic'
+    },
+
+    {
+        id: 'holistic-zai-glm-4.5',
+        model: 'openrouter:z-ai/glm-4.5',
+        approach: 'holistic'
+    }
 ];
 
 const DEFAULT_BACKUP_JUDGE: Judge = {
@@ -604,6 +619,195 @@ Output: <reflection>The text mentions empathy, which means the criterion is MET 
         }
     }
 
+    /**
+     * Calculates Krippendorff's alpha for inter-judge agreement.
+     * Uses interval distance metric (squared differences) on 0-1 coverage scores.
+     *
+     * @param pointAssessments - All assessments for a single (prompt, model) pair
+     * @param judgesToUse - The judge configuration that was used (for fingerprint)
+     * @returns Agreement metrics or undefined if insufficient data
+     */
+    private calculateJudgeAgreement(
+        pointAssessments: PointAssessment[],
+        judgesToUse: Judge[]
+    ): JudgeAgreementMetrics | undefined {
+        // Filter to points with multiple judges (need ≥2 for agreement)
+        const pointsWithMultipleJudges = pointAssessments.filter(
+            pa => pa.individualJudgements && pa.individualJudgements.length >= 2
+        );
+
+        if (pointsWithMultipleJudges.length === 0) {
+            return undefined; // No multi-judge assessments
+        }
+
+        // Extract all judge scores per point
+        interface ScoredItem {
+            pointText: string;
+            scores: Array<{ value: number; judgeId: string }>;
+        }
+
+        const items: ScoredItem[] = [];
+        for (const assessment of pointsWithMultipleJudges) {
+            if (!assessment.individualJudgements) continue;
+
+            const scores: Array<{ value: number; judgeId: string }> = [];
+            for (const judgement of assessment.individualJudgements) {
+                if (judgement.coverageExtent !== undefined && !isNaN(judgement.coverageExtent)) {
+                    // Extract judge ID from the judgeModelId format: "id(model)" or "approach(model)"
+                    const judgeId = judgement.judgeModelId.split('(')[0];
+                    scores.push({
+                        value: judgement.coverageExtent,
+                        judgeId
+                    });
+                }
+            }
+
+            if (scores.length >= 2) {
+                items.push({
+                    pointText: assessment.keyPointText,
+                    scores
+                });
+            }
+        }
+
+        if (items.length === 0) {
+            return undefined;
+        }
+
+        // Step 1: Calculate observed disagreement (average pairwise squared diff)
+        let observedDisagreement = 0;
+        let numComparisons = 0;
+
+        for (const item of items) {
+            for (let i = 0; i < item.scores.length; i++) {
+                for (let j = i + 1; j < item.scores.length; j++) {
+                    observedDisagreement += Math.pow(item.scores[i].value - item.scores[j].value, 2);
+                    numComparisons++;
+                }
+            }
+        }
+
+        if (numComparisons === 0) {
+            return undefined;
+        }
+
+        observedDisagreement /= numComparisons;
+
+        // Step 2: Calculate expected disagreement (marginal distribution variance)
+        const allScores = items.flatMap(item => item.scores.map(s => s.value));
+        let expectedDisagreement = 0;
+        let totalPairs = 0;
+
+        for (let i = 0; i < allScores.length; i++) {
+            for (let j = i + 1; j < allScores.length; j++) {
+                expectedDisagreement += Math.pow(allScores[i] - allScores[j], 2);
+                totalPairs++;
+            }
+        }
+
+        if (totalPairs === 0 || expectedDisagreement === 0) {
+            // Perfect agreement (all scores identical)
+            const judgeSetFingerprint = this.generateJudgeSetFingerprint(items);
+            const judgesUsed = this.extractJudgesUsed(items, judgesToUse);
+
+            return {
+                krippendorffsAlpha: 1.0,
+                numItems: items.length,
+                numJudges: items[0]?.scores.length || 0,
+                numComparisons,
+                interpretation: 'reliable',
+                judgeSetFingerprint,
+                judgesUsed
+            };
+        }
+
+        expectedDisagreement /= totalPairs;
+
+        // Step 3: Calculate alpha
+        const alpha = 1 - (observedDisagreement / expectedDisagreement);
+
+        // Determine interpretation based on standard thresholds
+        let interpretation: 'reliable' | 'tentative' | 'unreliable';
+        if (alpha >= 0.800) interpretation = 'reliable';
+        else if (alpha >= 0.667) interpretation = 'tentative';
+        else interpretation = 'unreliable';
+
+        // Generate judge set fingerprint
+        const judgeSetFingerprint = this.generateJudgeSetFingerprint(items);
+        const judgesUsed = this.extractJudgesUsed(items, judgesToUse);
+
+        return {
+            krippendorffsAlpha: parseFloat(alpha.toFixed(3)),
+            numItems: items.length,
+            numJudges: items[0]?.scores.length || 0,
+            numComparisons,
+            interpretation,
+            judgeSetFingerprint,
+            judgesUsed
+        };
+    }
+
+    /**
+     * Generates a stable fingerprint hash for the set of judges used.
+     * Helps identify when judge sets change over time for comparability.
+     */
+    private generateJudgeSetFingerprint(items: Array<{ pointText: string; scores: Array<{ value: number; judgeId: string }> }>): string {
+        // Collect all unique judge IDs used
+        const judgeIds = new Set<string>();
+        for (const item of items) {
+            for (const score of item.scores) {
+                judgeIds.add(score.judgeId);
+            }
+        }
+
+        // Sort for deterministic hash
+        const sortedIds = Array.from(judgeIds).sort();
+
+        // Generate SHA-256 hash (use first 12 chars for brevity)
+        const crypto = require('crypto');
+        return crypto
+            .createHash('sha256')
+            .update(sortedIds.join(','))
+            .digest('hex')
+            .slice(0, 12);
+    }
+
+    /**
+     * Extracts metadata about which judges participated and how many assessments each made.
+     */
+    private extractJudgesUsed(
+        items: Array<{ pointText: string; scores: Array<{ value: number; judgeId: string }> }>,
+        judgesToUse: Judge[]
+    ): Array<{ judgeId: string; model: string; approach: string; assessmentCount: number }> {
+        // Count assessments per judge
+        const judgeAssessmentCounts = new Map<string, number>();
+        for (const item of items) {
+            for (const score of item.scores) {
+                judgeAssessmentCounts.set(
+                    score.judgeId,
+                    (judgeAssessmentCounts.get(score.judgeId) || 0) + 1
+                );
+            }
+        }
+
+        // Build result array with full judge metadata
+        const result: Array<{ judgeId: string; model: string; approach: string; assessmentCount: number }> = [];
+
+        for (const [judgeId, count] of judgeAssessmentCounts.entries()) {
+            // Find matching judge configuration
+            const judge = judgesToUse.find(j => j.id === judgeId || j.model.includes(judgeId));
+
+            result.push({
+                judgeId,
+                model: judge?.model || 'unknown',
+                approach: judge?.approach || 'unknown',
+                assessmentCount: count
+            });
+        }
+
+        return result.sort((a, b) => b.assessmentCount - a.assessmentCount);
+    }
+
     private getPromptContextString(promptData: EvaluationInput['promptData']): string {
         if (promptData.initialMessages && promptData.initialMessages.length > 0) {
             return promptData.initialMessages.map(m => {
@@ -776,10 +980,25 @@ Output: <reflection>The text mentions empathy, which means the criterion is MET 
                         const allAssessments = [...functionAssessments, ...textAssessments];
                         const finalAverage = aggregateCoverageScores(allAssessments);
 
+                        // 4. Calculate inter-judge agreement (Krippendorff's alpha)
+                        const judgesToUse = (llmCoverageConfig?.judges && llmCoverageConfig.judges.length > 0)
+                            ? llmCoverageConfig.judges
+                            : DEFAULT_JUDGES;
+                        const judgeAgreement = this.calculateJudgeAgreement(allAssessments, judgesToUse);
+
+                        // Log warning if agreement is low
+                        if (judgeAgreement && judgeAgreement.interpretation === 'unreliable') {
+                            this.logger.warn(
+                                `[LLMCoverageEvaluator] Low judge agreement (α=${judgeAgreement.krippendorffsAlpha}) ` +
+                                `for model ${modelId} on prompt ${promptData.promptId}`
+                            );
+                        }
+
                         llmCoverageScores[promptData.promptId][modelId] = {
                             keyPointsCount: allAssessments.length,
                             avgCoverageExtent: allAssessments.length > 0 ? parseFloat(finalAverage.toFixed(2)) : undefined,
                             pointAssessments: allAssessments,
+                            judgeAgreement, // NEW: Include agreement metrics
                         };
                     
                     } catch (e: any) {

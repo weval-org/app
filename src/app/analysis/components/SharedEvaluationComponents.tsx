@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
-import { PointAssessment, IndividualJudgement } from '@/app/utils/types';
+import { PointAssessment, IndividualJudgement, JudgeAgreementMetrics } from '@/app/utils/types';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -43,6 +43,7 @@ export const AssessmentItem: React.FC<{
     toggleExpansion: () => void;
 }> = ({ assessment, index, isLogExpanded, toggleLogExpansion, isExpanded, toggleExpansion }) => {
     const scoreColor = getScoreColor(assessment.coverageExtent);
+    const [isDisagreementExpanded, setIsDisagreementExpanded] = useState(false);
     
     return (
         <Collapsible open={isExpanded} onOpenChange={toggleExpansion}>
@@ -77,6 +78,35 @@ export const AssessmentItem: React.FC<{
                                 </Badge>
                             ) : (
                                 <Badge variant="outline" className="text-xs text-muted-foreground">N/A</Badge>
+                            )}
+                            {(assessment as any).judgeStdDev !== undefined && (assessment as any).judgeStdDev > 0.3 && (
+                                <div className="relative">
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setIsDisagreementExpanded(!isDisagreementExpanded);
+                                        }}
+                                        className="flex items-center gap-0.5 hover:bg-muted/50 rounded px-1 transition-colors"
+                                    >
+                                        <Icon name="users" className="w-3.5 h-3.5 text-amber-600 dark:text-amber-500" />
+                                        <Icon name={isDisagreementExpanded ? "chevron-up" : "chevron-down"} className="w-2.5 h-2.5 text-muted-foreground" />
+                                    </button>
+                                    {isDisagreementExpanded && (
+                                        <div className="absolute top-full left-0 mt-1 w-64 p-3 rounded-md bg-white dark:bg-slate-800 border border-border shadow-lg z-50">
+                                            <div className="text-xs space-y-2">
+                                                <div className="font-semibold border-b border-border pb-1">Judge Disagreement</div>
+                                                <p className="text-muted-foreground leading-relaxed">
+                                                    The AI judges gave notably different scores for this specific criterion.
+                                                    This may indicate the criterion is ambiguous or the response is an edge case.
+                                                </p>
+                                                <div className="flex justify-between gap-4 pt-1">
+                                                    <span className="text-muted-foreground">Std. Deviation:</span>
+                                                    <span className="font-medium">{((assessment as any).judgeStdDev).toFixed(2)}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             )}
                             <div className="w-4">
                                 {isExpanded ? <Icon name="chevron-up" className="h-4 w-4" /> : <Icon name="chevron-down" className="h-4 w-4" />}
@@ -199,9 +229,11 @@ export const EvaluationView: React.FC<{
     // Optional: for aggregate view: sequential per-temperature outputs
     generatedHistoryByTemp?: Array<{ temperature: number; history?: ConversationMessage[]; transcript?: string; text?: string }>;
     renderAs?: RenderAsType;
-}> = ({ assessments, modelResponse, idealResponse, expandedLogs, toggleLogExpansion, isMobile = false, generatedTranscript, generatedHistory, generatedHistoryByTemp, renderAs }) => {
+    judgeAgreement?: JudgeAgreementMetrics;
+}> = ({ assessments, modelResponse, idealResponse, expandedLogs, toggleLogExpansion, isMobile = false, generatedTranscript, generatedHistory, generatedHistoryByTemp, renderAs, judgeAgreement }) => {
     const [expandedAssessments, setExpandedAssessments] = useState<Set<number>>(new Set());
     const [activeTab, setActiveTab] = useState('model-response');
+    const [isGlobalAgreementExpanded, setIsGlobalAgreementExpanded] = useState(false);
 
     usePreloadIcons(['message-square', 'chevron-up', 'chevron-down', 'chevrons-up-down', 'server', 'thumbs-down', 'alert-triangle', 'check-circle', 'trophy']);
 
@@ -398,9 +430,82 @@ export const EvaluationView: React.FC<{
                 
                 {/* Criteria Evaluation Section */}
                 <div className="bg-muted/20 border border-border/50 rounded-lg p-3">
-                    <h3 className="font-semibold text-muted-foreground text-sm mb-2 border-b border-border/30 pb-1">
-                        Criteria Evaluation ({assessments.length})
-                    </h3>
+                    <div className="mb-2 border-b border-border/30 pb-1">
+                        <div className="flex items-center gap-2">
+                            <h3 className="font-semibold text-muted-foreground text-sm">
+                                Criteria Evaluation ({assessments.length})
+                            </h3>
+                            {judgeAgreement && (
+                                <button
+                                    onClick={() => setIsGlobalAgreementExpanded(!isGlobalAgreementExpanded)}
+                                    className="ml-auto"
+                                >
+                                    <Badge variant="outline" className={cn(
+                                        "text-xs cursor-pointer transition-colors hover:bg-muted/50",
+                                        judgeAgreement.interpretation === 'reliable' && "border-green-600 text-green-600 dark:border-green-500 dark:text-green-500",
+                                        judgeAgreement.interpretation === 'tentative' && "border-yellow-600 text-yellow-600 dark:border-yellow-500 dark:text-yellow-500",
+                                        judgeAgreement.interpretation === 'unreliable' && "border-red-600 text-red-600 dark:border-red-500 dark:text-red-500"
+                                    )}>
+                                        <Icon name="users" className="w-3 h-3 mr-1" />
+                                        α = {judgeAgreement.krippendorffsAlpha.toFixed(2)}
+                                        <Icon name={isGlobalAgreementExpanded ? "chevron-up" : "chevron-down"} className="w-3 h-3 ml-1" />
+                                    </Badge>
+                                </button>
+                            )}
+                        </div>
+                        {judgeAgreement && isGlobalAgreementExpanded && (
+                            <div className="mt-2 p-3 rounded-md bg-white dark:bg-slate-800 border border-border">
+                                <div className="space-y-2 text-xs">
+                                    <div className="font-semibold border-b border-border pb-1">Judge Agreement</div>
+                                    <p className="text-muted-foreground leading-relaxed">
+                                        This measures how consistently multiple AI judges scored this entire evaluation.
+                                        Higher values mean judges agreed more across all criteria.
+                                    </p>
+                                    <div className="space-y-1 pt-1">
+                                        <div className="flex justify-between gap-4">
+                                            <span className="text-muted-foreground">Krippendorff's α:</span>
+                                            <span className="font-medium">{judgeAgreement.krippendorffsAlpha.toFixed(3)}</span>
+                                        </div>
+                                        <div className="flex justify-between gap-4">
+                                            <span className="text-muted-foreground">Interpretation:</span>
+                                            <span className={cn(
+                                                "font-medium capitalize",
+                                                judgeAgreement.interpretation === 'reliable' && "text-green-600 dark:text-green-500",
+                                                judgeAgreement.interpretation === 'tentative' && "text-yellow-600 dark:text-yellow-500",
+                                                judgeAgreement.interpretation === 'unreliable' && "text-red-600 dark:text-red-500"
+                                            )}>{judgeAgreement.interpretation}</span>
+                                        </div>
+                                        <div className="flex justify-between gap-4">
+                                            <span className="text-muted-foreground">Judges:</span>
+                                            <span>{judgeAgreement.numJudges}</span>
+                                        </div>
+                                        <div className="flex justify-between gap-4">
+                                            <span className="text-muted-foreground">Criteria:</span>
+                                            <span>{judgeAgreement.numItems}</span>
+                                        </div>
+                                        <div className="flex justify-between gap-4">
+                                            <span className="text-muted-foreground">Comparisons:</span>
+                                            <span>{judgeAgreement.numComparisons}</span>
+                                        </div>
+                                    </div>
+                                    {judgeAgreement.judgesUsed && judgeAgreement.judgesUsed.length > 0 && (
+                                        <>
+                                            <div className="font-medium pt-1 border-t border-border">Judges Used:</div>
+                                            <div className="space-y-1 pl-2">
+                                                {judgeAgreement.judgesUsed.map((judge, idx) => (
+                                                    <div key={idx} className="text-[10px] flex items-center gap-1">
+                                                        <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4">{judge.approach}</Badge>
+                                                        <span className="text-muted-foreground">{judge.model}</span>
+                                                        <span className="text-muted-foreground ml-auto">({judge.assessmentCount})</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
                     <div className="space-y-4">
                         {renderCategorizedAssessments({ 
                             criticalFailures: [
@@ -502,6 +607,79 @@ export const EvaluationView: React.FC<{
 
             {/* Right Panel: Criteria Evaluation */}
             <div className="flex flex-1 flex-col rounded-lg border border-border/50 bg-muted/20 p-3 lg:w-3/5 min-h-0">
+                {judgeAgreement && (
+                    <div className="mb-2 pb-2 border-b border-border/30 flex-shrink-0">
+                        <div className="flex items-center gap-2">
+                            <h3 className="font-semibold text-muted-foreground text-sm">Judge Agreement</h3>
+                            <button
+                                onClick={() => setIsGlobalAgreementExpanded(!isGlobalAgreementExpanded)}
+                            >
+                                <Badge variant="outline" className={cn(
+                                    "text-xs cursor-pointer transition-colors hover:bg-muted/50",
+                                    judgeAgreement.interpretation === 'reliable' && "border-green-600 text-green-600 dark:border-green-500 dark:text-green-500",
+                                    judgeAgreement.interpretation === 'tentative' && "border-yellow-600 text-yellow-600 dark:border-yellow-500 dark:text-yellow-500",
+                                    judgeAgreement.interpretation === 'unreliable' && "border-red-600 text-red-600 dark:border-red-500 dark:text-red-500"
+                                )}>
+                                    <Icon name="users" className="w-3 h-3 mr-1" />
+                                    α = {judgeAgreement.krippendorffsAlpha.toFixed(2)}
+                                    <Icon name={isGlobalAgreementExpanded ? "chevron-up" : "chevron-down"} className="w-3 h-3 ml-1" />
+                                </Badge>
+                            </button>
+                        </div>
+                        {isGlobalAgreementExpanded && (
+                            <div className="mt-2 p-3 rounded-md bg-white dark:bg-slate-800 border border-border">
+                                <div className="space-y-2 text-xs">
+                                    <div className="font-semibold border-b border-border pb-1">Judge Agreement</div>
+                                    <p className="text-muted-foreground leading-relaxed">
+                                        This measures how consistently multiple AI judges scored this entire evaluation.
+                                        Higher values mean judges agreed more across all criteria.
+                                    </p>
+                                    <div className="space-y-1 pt-1">
+                                        <div className="flex justify-between gap-4">
+                                            <span className="text-muted-foreground">Krippendorff's α:</span>
+                                            <span className="font-medium">{judgeAgreement.krippendorffsAlpha.toFixed(3)}</span>
+                                        </div>
+                                        <div className="flex justify-between gap-4">
+                                            <span className="text-muted-foreground">Interpretation:</span>
+                                            <span className={cn(
+                                                "font-medium capitalize",
+                                                judgeAgreement.interpretation === 'reliable' && "text-green-600 dark:text-green-500",
+                                                judgeAgreement.interpretation === 'tentative' && "text-yellow-600 dark:text-yellow-500",
+                                                judgeAgreement.interpretation === 'unreliable' && "text-red-600 dark:text-red-500"
+                                            )}>{judgeAgreement.interpretation}</span>
+                                        </div>
+                                        <div className="flex justify-between gap-4">
+                                            <span className="text-muted-foreground">Judges:</span>
+                                            <span>{judgeAgreement.numJudges}</span>
+                                        </div>
+                                        <div className="flex justify-between gap-4">
+                                            <span className="text-muted-foreground">Criteria:</span>
+                                            <span>{judgeAgreement.numItems}</span>
+                                        </div>
+                                        <div className="flex justify-between gap-4">
+                                            <span className="text-muted-foreground">Comparisons:</span>
+                                            <span>{judgeAgreement.numComparisons}</span>
+                                        </div>
+                                    </div>
+                                    {judgeAgreement.judgesUsed && judgeAgreement.judgesUsed.length > 0 && (
+                                        <>
+                                            <div className="font-medium pt-1 border-t border-border">Judges Used:</div>
+                                            <div className="space-y-1 pl-2">
+                                                {judgeAgreement.judgesUsed.map((judge, idx) => (
+                                                    <div key={idx} className="text-[10px] flex items-center gap-1">
+                                                        <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4">{judge.approach}</Badge>
+                                                        <span className="text-muted-foreground">{judge.model}</span>
+                                                        <span className="text-muted-foreground ml-auto">({judge.assessmentCount})</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
                 <div className="custom-scrollbar min-h-0 flex-grow space-y-3 overflow-y-auto pr-2 pt-2">
                     {(requiredPoints.criticalFailures.length > 0 || requiredPoints.majorGaps.length > 0 || requiredPoints.passed.length > 0) && (
                         <div className="mb-4">

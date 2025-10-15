@@ -23,6 +23,7 @@ interface ModelEvaluationVariant {
     temps?: number[];
     perTempMap?: Map<number, ModelEvaluationVariant>; // for aggregate variant only
     renderAs?: RenderAsType;
+    judgeAgreement?: any; // Judge agreement metrics
 }
 
 const SpecificEvaluationModal: React.FC = () => {
@@ -132,9 +133,18 @@ const SpecificEvaluationModal: React.FC = () => {
             const modelResult = llmCoverageScores[promptId]?.[modelIdVar];
             // Get response from cache (lazy loaded) instead of data.allFinalAssistantResponses
             const modelResponse = getCachedResponse(promptId, modelIdVar);
-            
+
             // Get detailed evaluation data from shared cache (includes full keyPointText and reflection)
             const detailedEvaluation = getCachedEvaluation(promptId, modelIdVar);
+
+            // Log judge agreement extraction for debugging
+            console.log(`[SpecificEvaluationModal] Processing ${modelIdVar} for prompt ${promptId}:`, {
+              hasModelResult: !!modelResult,
+              isError: modelResult && 'error' in modelResult,
+              modelResultJudgeAgreement: modelResult && !('error' in modelResult) ? (modelResult as any).judgeAgreement : null,
+              hasDetailedEvaluation: !!detailedEvaluation,
+              detailedEvaluationKeys: detailedEvaluation ? Object.keys(detailedEvaluation) : []
+            });
             
             if (!modelResult || 'error' in modelResult) {
                 continue;
@@ -186,11 +196,18 @@ const SpecificEvaluationModal: React.FC = () => {
                 assessments: detailedEvaluation.pointAssessments, // Use detailed data with full keyPointText and reflections
                 modelResponse: modelResponse,
                 systemPrompt: effectiveSystemPrompt,
+                judgeAgreement: (modelResult as any).judgeAgreement,
                 // @ts-ignore
                 generatedTranscript,
                 // @ts-ignore
                 generatedHistory,
             };
+
+            console.log(`[SpecificEvaluationModal] Created entry for ${modelIdVar}:`, {
+              hasJudgeAgreement: !!entry.judgeAgreement,
+              judgeAgreement: entry.judgeAgreement
+            });
+
             if (!tempBuckets.has(sysIndex)) tempBuckets.set(sysIndex, []);
             tempBuckets.get(sysIndex)!.push(entry);
         }
@@ -307,12 +324,22 @@ const SpecificEvaluationModal: React.FC = () => {
         const arr: TempVariantBundle[] = [];
         tempsList.forEach((t) => {
             const v = variantBundle.perTempMap?.get(t);
-            if (v) arr.push({ temperature: t, assessments: v.assessments, modelResponse: v.modelResponse, generatedTranscript: (v as any).generatedTranscript, generatedHistory: (v as any).generatedHistory });
+            if (v) arr.push({ temperature: t, assessments: v.assessments, modelResponse: v.modelResponse, generatedTranscript: (v as any).generatedTranscript, generatedHistory: (v as any).generatedHistory, judgeAgreement: v.judgeAgreement });
         });
         if (arr.length === 0) {
             // Single variant fallback
-            arr.push({ temperature: 0, assessments: variantBundle.assessments, modelResponse: variantBundle.modelResponse, generatedTranscript: (variantBundle as any).generatedTranscript, generatedHistory: (variantBundle as any).generatedHistory });
+            arr.push({ temperature: 0, assessments: variantBundle.assessments, modelResponse: variantBundle.modelResponse, generatedTranscript: (variantBundle as any).generatedTranscript, generatedHistory: (variantBundle as any).generatedHistory, judgeAgreement: variantBundle.judgeAgreement });
         }
+
+        console.log('[SpecificEvaluationModal] TempVariants created:', {
+          count: arr.length,
+          variants: arr.map(v => ({
+            temperature: v.temperature,
+            hasJudgeAgreement: !!v.judgeAgreement,
+            judgeAgreement: v.judgeAgreement
+          }))
+        });
+
         return arr;
     }, [variantBundle, tempsList]);
 

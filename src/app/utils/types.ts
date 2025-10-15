@@ -4,6 +4,7 @@ import {
     CoverageResult,
     PointAssessment,
     IndividualJudgement,
+    JudgeAgreementMetrics,
     WevalResult as ComparisonDataV2, // Alias for local consistency
     WevalConfig as ConfigData, // Alias for local consistency
     WevalPromptConfig as ConfigPromptData, // Alias for local consistency
@@ -19,7 +20,8 @@ export type {
     PointDefinition,
     CoverageResult,
     PointAssessment,
-    IndividualJudgement
+    IndividualJudgement,
+    JudgeAgreementMetrics
 };
 
 // Analysis results per prompt

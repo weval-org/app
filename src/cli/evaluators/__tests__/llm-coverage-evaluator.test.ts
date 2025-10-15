@@ -944,4 +944,242 @@ describe('LLMCoverageEvaluator', () => {
             expect(model1Result.pointAssessments).toHaveLength(1);
         });
     });
-}); 
+
+    describe('Inter-judge Agreement (Krippendorff\'s α)', () => {
+        it('should calculate α = 1.0 for perfect agreement', async () => {
+            const points: PointDefinition[] = ['Test point 1', 'Test point 2'];
+            const input = createMockEvaluationInput('prompt-perfect-agreement', points);
+            const customJudges: Judge[] = [
+                { id: 'judge-a', model: 'test:judge-a', approach: 'holistic' },
+                { id: 'judge-b', model: 'test:judge-b', approach: 'holistic' },
+            ];
+            input.config.evaluationConfig = { 'llm-coverage': { judges: customJudges } as any };
+
+            // Both judges give identical scores
+            requestIndividualJudgeSpy.mockResolvedValue({ coverage_extent: 0.75, reflection: 'test' });
+
+            const result = await evaluator.evaluate([input]);
+            const model1Result = result.llmCoverageScores?.['prompt-perfect-agreement']?.['model1'];
+
+            if (!model1Result || 'error' in model1Result) {
+                throw new Error('Unexpected error in result');
+            }
+
+            expect(model1Result.judgeAgreement).toBeDefined();
+            expect(model1Result.judgeAgreement?.krippendorffsAlpha).toBe(1.0);
+            expect(model1Result.judgeAgreement?.interpretation).toBe('reliable');
+            expect(model1Result.judgeAgreement?.numItems).toBe(2);
+            expect(model1Result.judgeAgreement?.numJudges).toBe(2);
+            expect(model1Result.judgeAgreement?.judgesUsed).toHaveLength(2);
+        });
+
+        it('should calculate α correctly for moderate disagreement', async () => {
+            const points: PointDefinition[] = ['Test point 1', 'Test point 2', 'Test point 3'];
+            const input = createMockEvaluationInput('prompt-moderate-agreement', points);
+            const customJudges: Judge[] = [
+                { id: 'judge-a', model: 'test:judge-a', approach: 'holistic' },
+                { id: 'judge-b', model: 'test:judge-b', approach: 'holistic' },
+            ];
+            input.config.evaluationConfig = { 'llm-coverage': { judges: customJudges } as any };
+
+            // Judges give somewhat different scores
+            requestIndividualJudgeSpy.mockImplementation(async (mrt, kpt, aokp, pct, suiteDesc, judge) => {
+                if (judge.model === 'test:judge-a') {
+                    if (kpt === 'Test point 1') return { coverage_extent: 0.75, reflection: 'test' };
+                    if (kpt === 'Test point 2') return { coverage_extent: 0.625, reflection: 'test' };
+                    if (kpt === 'Test point 3') return { coverage_extent: 0.5, reflection: 'test' };
+                }
+                if (judge.model === 'test:judge-b') {
+                    if (kpt === 'Test point 1') return { coverage_extent: 0.875, reflection: 'test' };
+                    if (kpt === 'Test point 2') return { coverage_extent: 0.75, reflection: 'test' };
+                    if (kpt === 'Test point 3') return { coverage_extent: 0.625, reflection: 'test' };
+                }
+                return { error: 'unexpected' };
+            });
+
+            const result = await evaluator.evaluate([input]);
+            const model1Result = result.llmCoverageScores?.['prompt-moderate-agreement']?.['model1'];
+
+            if (!model1Result || 'error' in model1Result) {
+                throw new Error('Unexpected error in result');
+            }
+
+            expect(model1Result.judgeAgreement).toBeDefined();
+            // With consistent 0.125 difference, α ≈ 0.545 (unreliable, just below tentative threshold)
+            expect(model1Result.judgeAgreement?.krippendorffsAlpha).toBeGreaterThan(0.4);
+            expect(model1Result.judgeAgreement?.krippendorffsAlpha).toBeLessThan(0.667);
+            expect(model1Result.judgeAgreement?.interpretation).toBe('unreliable');
+            expect(model1Result.judgeAgreement?.numItems).toBe(3);
+            expect(model1Result.judgeAgreement?.numComparisons).toBe(3); // 3 points × 1 comparison per point
+        });
+
+        it('should mark α < 0.667 as unreliable', async () => {
+            const points: PointDefinition[] = ['Test point 1', 'Test point 2'];
+            const input = createMockEvaluationInput('prompt-low-agreement', points);
+            const customJudges: Judge[] = [
+                { id: 'judge-a', model: 'test:judge-a', approach: 'holistic' },
+                { id: 'judge-b', model: 'test:judge-b', approach: 'holistic' },
+            ];
+            input.config.evaluationConfig = { 'llm-coverage': { judges: customJudges } as any };
+
+            // Judges give very different scores
+            requestIndividualJudgeSpy.mockImplementation(async (mrt, kpt, aokp, pct, suiteDesc, judge) => {
+                if (judge.model === 'test:judge-a') {
+                    return { coverage_extent: 0.0, reflection: 'test' };
+                }
+                if (judge.model === 'test:judge-b') {
+                    return { coverage_extent: 1.0, reflection: 'test' };
+                }
+                return { error: 'unexpected' };
+            });
+
+            const result = await evaluator.evaluate([input]);
+            const model1Result = result.llmCoverageScores?.['prompt-low-agreement']?.['model1'];
+
+            if (!model1Result || 'error' in model1Result) {
+                throw new Error('Unexpected error in result');
+            }
+
+            expect(model1Result.judgeAgreement).toBeDefined();
+            expect(model1Result.judgeAgreement?.krippendorffsAlpha).toBeLessThan(0.667);
+            expect(model1Result.judgeAgreement?.interpretation).toBe('unreliable');
+
+            // Should log warning for unreliable agreement
+            expect(mockLogger.warn).toHaveBeenCalledWith(
+                expect.stringContaining('Low judge agreement')
+            );
+        });
+
+        it('should return null agreement metrics when only one judge', async () => {
+            const points: PointDefinition[] = ['Test point'];
+            const input = createMockEvaluationInput('prompt-single-judge', points);
+            const customJudges: Judge[] = [
+                { id: 'judge-a', model: 'test:judge-a', approach: 'holistic' },
+            ];
+            input.config.evaluationConfig = { 'llm-coverage': { judges: customJudges } as any };
+
+            requestIndividualJudgeSpy.mockResolvedValue({ coverage_extent: 0.75, reflection: 'test' });
+
+            const result = await evaluator.evaluate([input]);
+            const model1Result = result.llmCoverageScores?.['prompt-single-judge']?.['model1'];
+
+            if (!model1Result || 'error' in model1Result) {
+                throw new Error('Unexpected error in result');
+            }
+
+            // Can't calculate agreement with only one judge
+            expect(model1Result.judgeAgreement).toBeUndefined();
+        });
+
+        it('should include backup judge in agreement calculation', async () => {
+            const points: PointDefinition[] = ['Test point'];
+            const input = createMockEvaluationInput('prompt-backup-in-agreement', points);
+
+            // Mock primary judges to partially fail, triggering backup
+            requestIndividualJudgeSpy.mockImplementation(async (mrt, kpt, aokp, pct, suiteDesc, judge) => {
+                if (judge.model === 'openrouter:qwen/qwen3-30b-a3b-instruct-2507') {
+                    return { coverage_extent: 0.75, reflection: 'Qwen result' };
+                }
+                if (judge.model === 'openrouter:openai/gpt-oss-120b') {
+                    return { error: 'GPT-OSS failed' };
+                }
+                if (judge.model === 'anthropic:claude-3.5-haiku') {
+                    return { coverage_extent: 0.8, reflection: 'Backup Claude result' };
+                }
+                return { error: 'unexpected judge' };
+            });
+
+            const result = await evaluator.evaluate([input]);
+            const model1Result = result.llmCoverageScores?.['prompt-backup-in-agreement']?.['model1'];
+
+            if (!model1Result || 'error' in model1Result) {
+                throw new Error('Unexpected error in result');
+            }
+
+            expect(model1Result.judgeAgreement).toBeDefined();
+            expect(model1Result.judgeAgreement?.numJudges).toBe(2); // Qwen + backup
+            expect(model1Result.judgeAgreement?.judgesUsed).toHaveLength(2);
+            expect(model1Result.judgeAgreement?.judgesUsed.some(j => j.judgeId.includes('backup'))).toBe(true);
+        });
+
+        it('should generate stable judge set fingerprints', async () => {
+            const points: PointDefinition[] = ['Test point'];
+            const input1 = createMockEvaluationInput('prompt-fingerprint-1', points);
+            const input2 = createMockEvaluationInput('prompt-fingerprint-2', points);
+
+            const customJudges: Judge[] = [
+                { id: 'judge-a', model: 'test:judge-a', approach: 'holistic' },
+                { id: 'judge-b', model: 'test:judge-b', approach: 'holistic' },
+            ];
+            input1.config.evaluationConfig = { 'llm-coverage': { judges: customJudges } as any };
+            input2.config.evaluationConfig = { 'llm-coverage': { judges: customJudges } as any };
+
+            requestIndividualJudgeSpy.mockResolvedValue({ coverage_extent: 0.75, reflection: 'test' });
+
+            const result1 = await evaluator.evaluate([input1]);
+            const result2 = await evaluator.evaluate([input2]);
+
+            const agreement1 = (result1.llmCoverageScores?.['prompt-fingerprint-1']?.['model1'] as any)?.judgeAgreement;
+            const agreement2 = (result2.llmCoverageScores?.['prompt-fingerprint-2']?.['model1'] as any)?.judgeAgreement;
+
+            expect(agreement1).toBeDefined();
+            expect(agreement2).toBeDefined();
+
+            // Same judge set should produce same fingerprint
+            expect(agreement1.judgeSetFingerprint).toBe(agreement2.judgeSetFingerprint);
+        });
+
+        it('should not calculate agreement for function-based points', async () => {
+            const points: PointDefinition[] = [
+                { fn: 'contains', fnArgs: 'test' },
+                { fn: 'matches', fnArgs: '^pattern$' }
+            ];
+            const input = createMockEvaluationInput('prompt-function-points', points, 'test response');
+
+            const result = await evaluator.evaluate([input]);
+            const model1Result = result.llmCoverageScores?.['prompt-function-points']?.['model1'];
+
+            if (!model1Result || 'error' in model1Result) {
+                throw new Error('Unexpected error in result');
+            }
+
+            // Function points don't have individualJudgements, so no agreement calculation
+            expect(model1Result.judgeAgreement).toBeUndefined();
+        });
+
+        it('should track which judges participated and assessment counts', async () => {
+            const points: PointDefinition[] = ['Point 1', 'Point 2', 'Point 3'];
+            const input = createMockEvaluationInput('prompt-judge-tracking', points);
+            const customJudges: Judge[] = [
+                { id: 'judge-a', model: 'test:judge-a', approach: 'holistic' },
+                { id: 'judge-b', model: 'test:judge-b', approach: 'holistic' },
+            ];
+            input.config.evaluationConfig = { 'llm-coverage': { judges: customJudges } as any };
+
+            requestIndividualJudgeSpy.mockResolvedValue({ coverage_extent: 0.75, reflection: 'test' });
+
+            const result = await evaluator.evaluate([input]);
+            const model1Result = result.llmCoverageScores?.['prompt-judge-tracking']?.['model1'];
+
+            if (!model1Result || 'error' in model1Result) {
+                throw new Error('Unexpected error in result');
+            }
+
+            expect(model1Result.judgeAgreement).toBeDefined();
+            expect(model1Result.judgeAgreement?.judgesUsed).toEqual([
+                expect.objectContaining({
+                    judgeId: 'judge-a',
+                    model: 'test:judge-a',
+                    approach: 'holistic',
+                    assessmentCount: 3
+                }),
+                expect.objectContaining({
+                    judgeId: 'judge-b',
+                    model: 'test:judge-b',
+                    approach: 'holistic',
+                    assessmentCount: 3
+                })
+            ]);
+        });
+    });
+});

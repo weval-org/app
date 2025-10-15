@@ -17,6 +17,45 @@ export interface IndividualJudgement {
     reflection: string;
 }
 
+/**
+ * Metrics quantifying inter-judge agreement for reliability assessment.
+ * Uses Krippendorff's alpha coefficient to measure consistency across judges.
+ */
+export interface JudgeAgreementMetrics {
+    /** Krippendorff's alpha coefficient (0-1, where 1 = perfect agreement, 0 = random) */
+    krippendorffsAlpha: number;
+
+    /** Number of rubric points included in calculation */
+    numItems: number;
+
+    /** Number of judges that participated */
+    numJudges: number;
+
+    /** Total pairwise comparisons made */
+    numComparisons: number;
+
+    /** Interpretation label based on standard thresholds */
+    interpretation: 'reliable' | 'tentative' | 'unreliable';
+
+    /** Hash fingerprint of judge set used (for tracking judge changes over time) */
+    judgeSetFingerprint: string;
+
+    /** Detailed information about which judges participated */
+    judgesUsed: Array<{
+        judgeId: string;
+        model: string;
+        approach: string;
+        assessmentCount: number; // How many points this judge evaluated
+    }>;
+
+    /** Optional: Alpha for each individual point (for debugging ambiguous criteria) */
+    perPointAlphas?: Array<{
+        pointText: string;
+        alpha: number;
+        numJudges: number;
+    }>;
+}
+
 export interface PointAssessment {
     keyPointText: string;
     coverageExtent?: number;
@@ -49,6 +88,8 @@ export type CoverageResult = {
     sampleCount?: number;
     stdDev?: number;
     error?: string;
+    // Inter-judge agreement metrics (Krippendorff's alpha)
+    judgeAgreement?: JudgeAgreementMetrics;
 } | null;
 
 export type EvaluationMethod = 'embedding' | 'llm-coverage';

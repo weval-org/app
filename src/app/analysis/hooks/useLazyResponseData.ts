@@ -295,6 +295,15 @@ export function useLazyResponseData(configId: string, runLabel: string, timestam
 
         const data = await response.json();
         const result = data.evaluationResult;
+
+        // Log judge agreement data for debugging
+        console.log(`[useLazyResponseData] Fetched evaluation for ${promptId}/${modelId}:`, {
+          hasJudgeAgreement: !!result?.judgeAgreement,
+          judgeAgreement: result?.judgeAgreement,
+          pointAssessmentsCount: result?.pointAssessments?.length,
+          resultKeys: result ? Object.keys(result) : []
+        });
+
         if (result) {
           setEvaluationCache(prev => new Map(prev).set(cacheKey, result));
         }

@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { cn } from '@/lib/utils';
 import Icon from '@/components/ui/icon';
 
-export type ActiveHighlight = 'outlier' | 'disagreement' | 'critical_failure' | 'temp_sensitivity' | 'sys_sensitivity';
+export type ActiveHighlight = 'outlier' | 'critical_failure' | 'temp_sensitivity' | 'sys_sensitivity';
 
 interface CoverageTableLegendProps {
   activeHighlights: Set<ActiveHighlight>;
@@ -34,17 +34,12 @@ const legendConfig: Record<ActiveHighlight, { icon: React.ElementType, text: str
     text: 'Outlier score (>1.5σ from prompt average)',
     iconClassName: "text-amber-600 dark:text-amber-500",
   },
-  disagreement: {
-    icon: () => <Icon name="users" />,
-    text: 'High judge disagreement on a criterion',
-    iconClassName: "text-sky-600 dark:text-sky-500",
-  },
 };
 
 const CoverageTableLegend: React.FC<CoverageTableLegendProps> = ({ activeHighlights, className, simplifiedView = false }) => {
   const activeItems = Array.from(activeHighlights);
-  
-  const legendOrder: ActiveHighlight[] = ['critical_failure', 'temp_sensitivity', 'sys_sensitivity', 'outlier', 'disagreement'];
+
+  const legendOrder: ActiveHighlight[] = ['critical_failure', 'temp_sensitivity', 'sys_sensitivity', 'outlier'];
   const sortedActiveItems = legendOrder;//.filter(item => activeItems.includes(item));
 
   return (

@@ -105,6 +105,147 @@ We recognize that using LLMs as judges is a complex process susceptible to vario
 *   **Low-Temperature Judging**: By default, all calls to judge LLMs are made with `temperature: 0.0`. This minimizes randomness in the judge's output, making the scoring process more deterministic and repeatable. It ensures that score variations are due to differences in the content being judged, not sampling variability. We acknowledge however that there is a methodological trade-off here, as the judge's output is less "creative" and more deterministic, and won't capture the everyday temperatures these models are run via. However, there is the ability to configure multiple temperature permutations if you should wish to.
 *   **Transparent Breakdowns**: The output for each point assessment includes an `individualJudgements` array, detailing the score and reflection from each participating judge. This allows for deep inspection of any disagreements or biases among the judges.
 
+#### Inter-Rater Reliability Measurement
+
+When multiple judges evaluate the same response, the platform quantifies the degree of agreement between them using **Krippendorff's alpha (α)**—a robust inter-rater reliability coefficient that accounts for chance agreement and works with multiple raters on ordinal scales.
+
+##### Krippendorff's Alpha Calculation
+
+*   **Purpose**: Krippendorff's α measures the consistency of judgments across all judges evaluating a model's response. Values range from 0 (no agreement beyond chance) to 1 (perfect agreement).
+*   **Formula**: For ordinal data (our 0.0, 0.25, 0.50, 0.75, 1.0 scale), α is calculated as:
+    ```math
+    \alpha = 1 - \frac{D_o}{D_e}
+    ```
+    Where:
+    *   $D_o$ is the observed disagreement between judges
+    *   $D_e$ is the expected disagreement if judges assigned scores randomly
+
+    The platform uses an **ordinal distance metric** that accounts for the ranked nature of our scoring scale, treating the difference between 0.0→0.25 as more significant than 0.75→1.0.
+
+*   **Judge Set Fingerprinting**: Each evaluation's judge agreement is tagged with a `judgeSetFingerprint`—a deterministic hash of the exact judge configurations used (models, approaches, temperatures). This enables tracking reliability across runs and detecting when judge configurations change, which could invalidate historical comparisons.
+
+##### Interpretation Thresholds
+
+The platform classifies judge agreement into three categories based on established psychometric standards:
+
+*   **α ≥ 0.800**: **Reliable** (shown with green badge)
+    *   Indicates strong inter-rater agreement
+    *   Scores can be trusted as stable and consistent
+*   **0.667 ≤ α < 0.800**: **Tentative** (shown with yellow badge)
+    *   Moderate agreement; scores are directionally useful but have some uncertainty
+    *   May indicate ambiguous criteria or edge cases
+*   **α < 0.667**: **Unreliable** (shown with red badge)
+    *   Low agreement; judges fundamentally disagreed on scoring
+    *   Scores should be interpreted with extreme caution
+    *   Suggests criteria may need clarification or judges may be unsuitable
+
+##### Two Complementary Disagreement Metrics
+
+The platform tracks disagreement at two distinct levels to serve different diagnostic purposes:
+
+**1. Global Disagreement (Krippendorff's α)**
+*   **Scope**: One value per model-prompt evaluation
+*   **Question Answered**: "Are my judges reliable overall for this evaluation?"
+*   **Calculation**: Aggregates agreement across all criteria in the rubric
+*   **Use Case**: High-level quality signal for the entire evaluation's trustworthiness
+*   **UI Display**: Badge shown in MacroCoverageTable (only when tentative/unreliable), SpecificEvaluationModal header
+
+**2. Per-Criterion Disagreement (Standard Deviation)**
+*   **Scope**: One value per individual rubric criterion
+*   **Question Answered**: "Which specific criteria caused judge disagreement?"
+*   **Calculation**: Standard deviation of judge scores for a single criterion
+*   **Threshold**: StdDev > 0.3 triggers a warning
+*   **Use Case**: Diagnostic tool to identify ambiguous or problematic criteria
+*   **UI Display**: Amber users icon inline with criterion in SpecificEvaluationModal and Data Explorer (/eng)
+*   **Storage**: Pre-computed as `judgeStdDev` field to save space
+
+**Example**: A model might have α = 0.82 (reliable overall) but one criterion with StdDev = 0.36. This indicates that while judges generally agree, there's one specific point where they diverged—perhaps the criterion is ambiguous or the model's response was edge-case behavior that legitimately admits multiple interpretations.
+
+##### Storage Optimization and Data Availability
+
+To balance transparency with storage efficiency:
+
+*   **Full Data**: The raw `individualJudgements` array (containing each judge's score and reflection) is available in the API and Data Explorer views for deep inspection.
+*   **Optimized Storage**: When saving evaluation results to persistent storage, the system strips `individualJudgements` and pre-computes summary statistics (`judgeStdDev`, `judgeAgreement`) to reduce file size. This is especially important for large-scale evaluations with many criteria.
+*   **Traceability**: The `judgeSetFingerprint` allows tracking which judge configurations produced which results, ensuring reproducibility even after storage optimization.
+
+##### UI Presentation Strategy
+
+Judge agreement information follows a **progressive disclosure** pattern to avoid overwhelming users:
+
+*   **Macro View (MacroCoverageTable)**: Only shows global α badge when reliability is **tentative or unreliable**. This reduces visual noise and draws attention only to problematic cases.
+*   **Detail Modal (SpecificEvaluationModal)**: Always shows global α in header, plus inline amber users icons for individual criteria with high disagreement (StdDev > 0.3).
+*   **Data Explorer (/eng)**: Displays disagreement warnings with exact StdDev values, followed by individual judge reflections showing each judge's score and reasoning.
+
+This hierarchy ensures users see warnings at the macro level and can drill down for diagnostic details when investigating specific evaluation results.
+
+##### Judge Failures and Missing Data Impact
+
+While the platform aims for complete judge coverage on all criteria, individual judge requests can fail for various operational reasons, leading to **asymmetric judge participation** that affects reliability metrics in non-obvious ways.
+
+**Common Failure Modes:**
+*   **API Errors**: Transient service issues, rate limiting, or temporary unavailability of judge models
+*   **Timeouts**: Judge requests exceeding the 45-second timeout threshold
+*   **Parsing Failures**: Judge models returning malformed XML or unrecognized classification values
+*   **Provider Outages**: Complete unavailability of a specific API provider (e.g., OpenRouter, Anthropic)
+
+**The Backup Judge Mechanism:**
+
+To improve robustness, the system employs a backup judge (Claude 3.5 Haiku) that activates when primary judges fail:
+
+*   **Trigger Condition**: Backup judge only runs when `successfulJudgements < totalPrimaryJudges` (i.e., at least one primary judge failed)
+*   **Not Used with Custom Judges**: To preserve user-configured judge sets, backup judge is disabled when custom `judges` are specified in the blueprint
+*   **Counted in Agreement**: When successful, the backup judge's scores contribute to both consensus scoring and α calculation
+
+**Why α Can Be Low Despite Visible Agreement:**
+
+A counterintuitive scenario occurs when judges who *succeeded* perfectly agree, yet α is still marked as "unreliable":
+
+**Example Scenario:**
+```
+Configuration: 3 primary judges (Qwen, GPT-OSS, GLM-4.5)
+Evaluation: 5 criteria
+
+Actual Judge Coverage:
+- Criterion 1: Qwen (0.00), GPT-OSS (0.00), GLM-4.5 (0.00)  ← 3 judges
+- Criterion 2: Qwen (0.00), GPT-OSS (0.00)                  ← GLM-4.5 failed
+- Criterion 3: Qwen (0.00), GPT-OSS (0.00)                  ← GLM-4.5 failed
+- Criterion 4: Qwen (0.00), GPT-OSS (0.00)                  ← GLM-4.5 failed
+- Criterion 5: Qwen (0.00), GPT-OSS (0.00)                  ← GLM-4.5 failed
+
+Result: α = 0.21 (unreliable)
+```
+
+**Why α is Low Here:**
+
+1. **Missing Data Creates Uncertainty**: Krippendorff's α inherently penalizes incomplete coverage because it cannot verify whether the missing judge (GLM-4.5) would have agreed on the 4 criteria where it failed
+2. **Expected Comparisons**: With 3 judges × 5 criteria, we expect 15 pairwise comparisons per criterion (3 choose 2 = 3 comparisons × 5 criteria = 15 total). But we only got 7:
+   - Criteria 2-5: 1 comparison each (Qwen-GPT) = 4 comparisons
+   - Criterion 1: 3 comparisons (Qwen-GPT, Qwen-GLM, GPT-GLM) = 3 comparisons
+   - **Total: 7 comparisons (less than half the expected 15)**
+3. **Incomplete Evidence**: Even though Qwen and GPT-OSS agreed perfectly across all 5 criteria, the absence of GLM-4.5's judgments on 4/5 criteria means we have incomplete inter-rater evidence
+4. **α Interpretation**: The α=0.21 is essentially saying "judges mostly agreed *where we have data*, but we're missing too much information to confidently call this reliable"
+
+**Diagnostic Approach:**
+
+When you encounter low α with visibly agreeing scores, check the `judgesUsed` array in the `judgeAgreement` metadata:
+
+```json
+"judgesUsed": [
+  { "judgeId": "holistic-qwen3-30b", "assessmentCount": 5 },
+  { "judgeId": "holistic-gpt-oss-120b", "assessmentCount": 5 },
+  { "judgeId": "holistic-glm-4.5", "assessmentCount": 1 }  ← Failure pattern detected
+]
+```
+
+**Actionable Insights:**
+*   **Identify Unreliable Judges**: A judge with significantly lower `assessmentCount` than others is experiencing systematic failures and may need replacement
+*   **Check Logs**: Evaluation logs will show specific error messages for each failed judge request
+*   **Provider Selection**: Consider switching problematic judges to more reliable API providers
+*   **Understand Uncertainty**: Low α from missing data is different from low α from disagreement—the former indicates incomplete evidence, the latter indicates actual judge conflict
+
+**Key Distinction**: A model with α=0.21 due to missing data (judges failed) is fundamentally different from α=0.21 due to disagreement (judges succeeded but gave different scores). The `individualJudgements` array reveals which scenario you're facing.
+
 ## 5. Aggregate Statistical Measures
 
 The platform synthesizes raw scores into higher-level, interpretable metrics.

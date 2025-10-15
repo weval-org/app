@@ -927,6 +927,7 @@ export async function saveResult(configId: string, fileNameWithTimestamp: string
             sampleCount: r.sampleCount,
             stdDev: r.stdDev,
             judgeModelId: r.judgeModelId,
+            judgeAgreement: r.judgeAgreement, // NEW: Include judge agreement metrics
             error: r.error,
             pointAssessments: lightPointAssessments,
           };
