@@ -30,7 +30,7 @@ function sha256(input: string): string {
 // This allows the CLI to run outside of the `netlify dev` environment.
 async function getBlobStore(options?: { storeName?: string, siteId?: string }) {
     console.log('[getBlobStore] Starting, options:', options);
-    const { getStore } = await import('@netlify/blobs');
+    const { getStore, getDeployStore } = await import('@netlify/blobs');
     const storeName = options?.storeName || TASK_QUEUE_BLOB_STORE_NAME;
     const siteIdOverride = options?.siteId;
 
@@ -92,9 +92,15 @@ async function getBlobStore(options?: { storeName?: string, siteId?: string }) {
         console.log('[getBlobStore] Filesystem fallback failed:', error.message);
     }
 
-    // Final fallback: use Netlify function context (automatic in production)
-    console.log('[getBlobStore] Using automatic Netlify function context');
-    return getStore({ name: storeName });
+    // Final fallback: use Netlify Deploy Store (automatic in production/functions)
+    console.log('[getBlobStore] Using Netlify Deploy Store (getDeployStore)');
+    try {
+        return getDeployStore({ name: storeName });
+    } catch (deployStoreError: any) {
+        console.log('[getBlobStore] getDeployStore failed, trying getStore with context');
+        // Last resort: try getStore with just name (works in some Netlify contexts)
+        return getStore({ name: storeName });
+    }
 }
 
 export interface PairwiseTask {
