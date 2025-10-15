@@ -43,7 +43,9 @@ interface GlobalConfigCardProps {
   isAdvancedMode: boolean;
 }
 
-export function GlobalConfigCard({ blueprint, onUpdate, isEditable, isAdvancedMode }: GlobalConfigCardProps) {
+// Memoized GlobalConfigCard - only re-renders when props change
+// This prevents unnecessary re-renders when sibling components update
+export const GlobalConfigCard = React.memo(function GlobalConfigCard({ blueprint, onUpdate, isEditable, isAdvancedMode }: GlobalConfigCardProps) {
   const [isConfirmingSwitch, setIsConfirmingSwitch] = React.useState(false);
   const isDev = process.env.NODE_ENV === 'development';
 
@@ -730,4 +732,4 @@ export function GlobalConfigCard({ blueprint, onUpdate, isEditable, isAdvancedMo
         </Dialog>
     </Card>
   );
-} 
+}); 

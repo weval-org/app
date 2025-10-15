@@ -40,7 +40,9 @@ interface PromptCardProps {
   isAdvancedMode: boolean;
 }
 
-export function PromptCard({ prompt, onUpdate, onRemove, onDuplicate, isEditable, isAdvancedMode }: PromptCardProps) {
+// Memoized PromptCard - only re-renders when its own prompt changes
+// This dramatically improves scrolling performance with many prompts
+export const PromptCard = React.memo(function PromptCard({ prompt, onUpdate, onRemove, onDuplicate, isEditable, isAdvancedMode }: PromptCardProps) {
   const [requiredPoints, setRequiredPoints] = useState<PointDefinition[]>([]);
   const [alternativePaths, setAlternativePaths] = useState<(PointDefinition[])[]>([]);
   const [activeTab, setActiveTab] = useState('path-0');
@@ -405,4 +407,4 @@ export function PromptCard({ prompt, onUpdate, onRemove, onDuplicate, isEditable
         )}
     </Card>
   );
-} 
+}); 

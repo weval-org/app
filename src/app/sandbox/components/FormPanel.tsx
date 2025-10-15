@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import * as yaml from 'js-yaml';
 import { useDebouncedCallback } from 'use-debounce';
 import { ActiveBlueprint } from '../hooks/useWorkspace';
@@ -25,6 +25,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import Icon from '@/components/ui/icon';
+import { useMobile } from '../hooks/useMobile';
 
 interface FormPanelProps {
     parsedBlueprint: ComparisonConfig | null;
@@ -41,9 +42,12 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
     const [isAutoExtendModalOpen, setIsAutoExtendModalOpen] = useState(false);
     const [isExtending, setIsExtending] = useState(false);
     const [showGuide, setShowGuide] = useState(true);
+    const { isMobile } = useMobile();
     const [isAdvancedMode, setIsAdvancedMode] = useState(false);
     const { toast } = useToast();
 
+    // Auto-enable advanced mode if blueprint uses advanced features
+    // But default to OFF on mobile to save screen space
     useEffect(() => {
         if (!parsedBlueprint) return;
 
@@ -56,10 +60,11 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
         );
         const hasToolUseFeatures = !!(parsedBlueprint as any).tools || !!(parsedBlueprint as any).toolUse;
 
-        if (hasGlobalAdvancedOptions || hasAlternativePaths || hasPromptLevelAdvancedFeatures || hasToolUseFeatures) {
+        // Only auto-enable on desktop if blueprint has advanced features
+        if (!isMobile && (hasGlobalAdvancedOptions || hasAlternativePaths || hasPromptLevelAdvancedFeatures || hasToolUseFeatures)) {
             setIsAdvancedMode(true);
         }
-    }, [parsedBlueprint]);
+    }, [parsedBlueprint, isMobile]);
 
     // Load guide visibility state from localStorage on mount
     useEffect(() => {
@@ -86,15 +91,16 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
         onUpdate(newConfig);
     };
 
-    const handleUpdatePrompt = (index: number, updatedPrompt: PromptConfig) => {
+    // Memoize handler functions to prevent unnecessary re-renders of child components
+    const handleUpdatePrompt = useCallback((index: number, updatedPrompt: PromptConfig) => {
         if (!parsedBlueprint) return;
         const nextState = produce(parsedBlueprint, draft => {
             draft.prompts[index] = updatedPrompt;
         });
         onUpdate(nextState);
-    };
+    }, [parsedBlueprint, onUpdate]);
 
-    const handleAddPrompt = () => {
+    const handleAddPrompt = useCallback(() => {
         if (!parsedBlueprint) return;
         const newPrompt: PromptConfig = {
             id: `prompt-${Date.now()}`,
@@ -104,20 +110,20 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
             draft.prompts.push(newPrompt);
         });
         onUpdate(nextState);
-    };
+    }, [parsedBlueprint, onUpdate]);
 
-    const handleRemovePrompt = (index: number) => {
+    const handleRemovePrompt = useCallback((index: number) => {
         if (!parsedBlueprint) return;
         const nextState = produce(parsedBlueprint, draft => {
             draft.prompts.splice(index, 1);
         });
         onUpdate(nextState);
-    };
+    }, [parsedBlueprint, onUpdate]);
 
-    const handleDuplicatePrompt = (index: number) => {
+    const handleDuplicatePrompt = useCallback((index: number) => {
         if (!parsedBlueprint) return;
         const originalPrompt = parsedBlueprint.prompts[index];
-        
+
         // Deep copy and assign a new unique ID
         const duplicatedPrompt = JSON.parse(JSON.stringify(originalPrompt));
         duplicatedPrompt.id = `prompt-${Date.now()}-${Math.random().toString(36).substring(7)}`;
@@ -126,7 +132,7 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
             draft.prompts.splice(index + 1, 0, duplicatedPrompt);
         });
         onUpdate(nextState);
-    };
+    }, [parsedBlueprint, onUpdate]);
 
     const stringifyPoint = (p: PointDefinition) => JSON.stringify(p);
 
@@ -256,17 +262,20 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
                 isAdvancedMode={isAdvancedMode}
             />
             <div className="space-y-3">
-                {parsedBlueprint.prompts.map((prompt, index) => (
-                    <PromptCard
-                        key={index}
-                        prompt={prompt}
-                        onUpdate={(p) => handleUpdatePrompt(index, p)}
-                        onRemove={() => handleRemovePrompt(index)}
-                        onDuplicate={() => handleDuplicatePrompt(index)}
-                        isEditable={isEditable}
-                        isAdvancedMode={isAdvancedMode}
-                    />
-                ))}
+                {useMemo(() =>
+                    parsedBlueprint.prompts.map((prompt, index) => (
+                        <PromptCard
+                            key={prompt.id || index}
+                            prompt={prompt}
+                            onUpdate={(p) => handleUpdatePrompt(index, p)}
+                            onRemove={() => handleRemovePrompt(index)}
+                            onDuplicate={() => handleDuplicatePrompt(index)}
+                            isEditable={isEditable}
+                            isAdvancedMode={isAdvancedMode}
+                        />
+                    )),
+                    [parsedBlueprint.prompts, isEditable, isAdvancedMode, handleUpdatePrompt, handleRemovePrompt, handleDuplicatePrompt]
+                )}
             </div>
             <div className="flex items-center justify-center gap-4 pt-2 pb-12">
                 <Button 

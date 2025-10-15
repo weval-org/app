@@ -68,10 +68,11 @@ describe('useLocalPersistence', () => {
   });
 
   test('saveToLocalStorage should save a blueprint and return the updated file list', () => {
+    jest.useFakeTimers();
     const { result } = renderHook(() => useLocalPersistence());
 
     const initialFile: BlueprintFile = { path: 'local/initial.yml', name: 'initial.yml', sha: '1', isLocal: true, lastModified: '2023-01-01T00:00:00.000Z' };
-    
+
     const newBlueprint: ActiveBlueprint = {
       path: 'local/new-test.yml',
       name: 'new-test.yml',
@@ -86,22 +87,31 @@ describe('useLocalPersistence', () => {
       updatedFiles = result.current.saveToLocalStorage(newBlueprint, [initialFile]);
     });
 
-    // Should return the updated list of files
+    // Should return the updated list of files immediately
     expect(updatedFiles).toHaveLength(2);
     expect(updatedFiles.find(f => f.name === 'new-test.yml')).toBeDefined();
     expect(updatedFiles.find(f => f.name === 'initial.yml')).toBeDefined();
 
-    // Check localStorage
-    const storedIndex = JSON.parse(localStorageMock['sandboxV2_blueprints']);
-    expect(storedIndex).toHaveLength(2);
-
+    // Blueprint content should be saved immediately
     const storedBlueprint = JSON.parse(localStorageMock['local/new-test.yml']);
     expect(storedBlueprint.content).toBe('title: New Test');
     expect(storedBlueprint.lastModified).toBeDefined();
+
+    // Advance timers to trigger the debounced file index update
+    act(() => {
+      jest.advanceTimersByTime(300);
+    });
+
+    // Check localStorage after debounce completes
+    const storedIndex = JSON.parse(localStorageMock['sandboxV2_blueprints']);
+    expect(storedIndex).toHaveLength(2);
+
     expect(mockToast).toHaveBeenCalledWith({
       title: "Blueprint Saved",
       description: "Your changes have been saved locally.",
     });
+
+    jest.useRealTimers();
   });
 
   test('deleteFromLocalStorage should remove a blueprint and return the updated list', () => {

@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useToast } from "@/components/ui/use-toast";
 import { ActiveBlueprint, BlueprintFile } from './useWorkspace';
+import { useDebouncedCallback } from 'use-debounce';
 
 const LOCAL_STORAGE_BLUEPRINT_KEY = 'sandboxV2_blueprints';
 const IMPORT_BLUEPRINT_KEY = 'weval_sandbox_import_v2';
@@ -13,6 +14,17 @@ prompts: []`;
 
 export function useLocalPersistence() {
   const { toast } = useToast();
+
+  // Debounced file list index update to prevent performance issues during rapid saves
+  // The individual blueprint content is saved immediately, but the file list index
+  // (which is just UI metadata) is debounced to reduce localStorage write contention
+  const debouncedUpdateFileListIndex = useDebouncedCallback((allFiles: BlueprintFile[]) => {
+    try {
+      window.localStorage.setItem(LOCAL_STORAGE_BLUEPRINT_KEY, JSON.stringify(allFiles));
+    } catch (e) {
+      console.error("Failed to update file list index in localStorage", e);
+    }
+  }, 300);
 
   const loadFilesFromLocalStorage = useCallback(() => {
     try {
@@ -44,30 +56,33 @@ export function useLocalPersistence() {
   const saveToLocalStorage = useCallback((blueprint: ActiveBlueprint, currentFiles: BlueprintFile[]) => {
     try {
       const blueprintWithTimestamp = { ...blueprint, lastModified: new Date().toISOString() };
+
+      // Save blueprint content immediately (this is the critical data)
       window.localStorage.setItem(blueprint.path, JSON.stringify(blueprintWithTimestamp));
-      
+
       const otherFiles = currentFiles.filter(f => f.path !== blueprint.path);
-      const newFileEntry: BlueprintFile = { 
-        name: blueprint.name, 
-        path: blueprint.path, 
+      const newFileEntry: BlueprintFile = {
+        name: blueprint.name,
+        path: blueprint.path,
         sha: blueprint.sha,
         isLocal: true,
         lastModified: blueprintWithTimestamp.lastModified
       };
       const updatedLocalFiles = [newFileEntry, ...otherFiles.filter(f => f.isLocal)];
-      
+
       const remoteFiles = currentFiles.filter(f => !f.isLocal);
       const allFiles = [...updatedLocalFiles, ...remoteFiles];
 
-      window.localStorage.setItem(LOCAL_STORAGE_BLUEPRINT_KEY, JSON.stringify(allFiles));
-      
+      // Debounce the file list index update (just UI metadata)
+      debouncedUpdateFileListIndex(allFiles);
+
       toast({ title: "Blueprint Saved", description: "Your changes have been saved locally." });
       return allFiles;
     } catch (e: any) {
       toast({ variant: 'destructive', title: 'Error saving to Local Storage', description: e.message });
       return currentFiles; // Return original files on error
     }
-  }, [toast]);
+  }, [toast, debouncedUpdateFileListIndex]);
 
   const deleteFromLocalStorage = useCallback((blueprint: BlueprintFile, currentLocalFiles: BlueprintFile[]) => {
       try {

@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/dialog";
 import { ConfirmRunModal } from './ConfirmRunModal';
 import Icon from '@/components/ui/icon';
+import { useDebouncedCallback } from 'use-debounce';
 
 function SandboxClientPageInternal() {
     const { user, isLoading: isAuthLoading, clearAuth } = useAuth();
@@ -337,10 +338,11 @@ function SandboxClientPageInternal() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    useEffect(() => {
-        if (editorContent) {
+    // Debounced YAML parsing - prevents lag during YAML typing
+    const debouncedParseYaml = useDebouncedCallback((content: string | null) => {
+        if (content) {
             try {
-                const parsed = parseAndNormalizeBlueprint(editorContent, 'yaml');
+                const parsed = parseAndNormalizeBlueprint(content, 'yaml');
                 setParsedBlueprint(parsed);
                 setYamlError(null);
             } catch (error: any) {
@@ -351,7 +353,11 @@ function SandboxClientPageInternal() {
             setYamlError(null);
             setParsedBlueprint(null);
         }
-    }, [editorContent, setParsedBlueprint]);
+    }, 500); // Wait 500ms after user stops typing
+
+    useEffect(() => {
+        debouncedParseYaml(editorContent);
+    }, [editorContent, debouncedParseYaml]);
 
     useEffect(() => {
         const inProgressStatuses = ['pending', 'generating_responses', 'evaluating', 'saving'];
@@ -419,16 +425,23 @@ function SandboxClientPageInternal() {
         }
     };
 
-    const handleFormUpdate = useCallback((newConfig: ComparisonConfig) => {
-        setParsedBlueprint(newConfig);
+    // Debounced YAML generation - prevents lag during form typing
+    const debouncedGenerateYaml = useDebouncedCallback((config: ComparisonConfig) => {
         try {
-            const finalYaml = generateMinimalBlueprintYaml(newConfig);
+            const finalYaml = generateMinimalBlueprintYaml(config);
             setEditorContent(finalYaml);
         } catch (error) {
             console.error("Failed to generate YAML from updated config", error);
             toast({ variant: 'destructive', title: 'YAML Generation Error', description: 'Could not serialize form content to YAML.' });
         }
-    }, [toast, setParsedBlueprint, setEditorContent]);
+    }, 500); // Wait 500ms after user stops typing
+
+    const handleFormUpdate = useCallback((newConfig: ComparisonConfig) => {
+        // Update parsed blueprint immediately for responsive UI
+        setParsedBlueprint(newConfig);
+        // Debounce the expensive YAML generation
+        debouncedGenerateYaml(newConfig);
+    }, [setParsedBlueprint, debouncedGenerateYaml, toast]);
 
     const handleYamlUpdate = (newContent: string) => {
         setEditorContent(newContent);
