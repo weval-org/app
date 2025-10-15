@@ -71,7 +71,7 @@ function formatCriterionText(text: string): { display: string; full: string; isF
   }
 
   // Not a function, return as-is (but truncate if very long)
-  const needsTruncation = text.length > 100;
+  const needsTruncation = false;
   return {
     display: needsTruncation ? text.substring(0, 97) + '...' : text,
     full: text,
@@ -106,6 +106,32 @@ const CriterionText: React.FC<{ text: string }> = ({ text }) => {
   }
 
   return <div className="font-medium break-words">{formatted.display}</div>;
+};
+
+// Component to render judge reflection with truncation
+const JudgeReflection: React.FC<{ text: string }> = ({ text }) => {
+  const [expanded, setExpanded] = useState(false);
+  const TRUNCATE_LENGTH = 85;
+
+  // Only truncate if text is longer than threshold
+  const shouldTruncate = text.length > TRUNCATE_LENGTH;
+  const truncatedText = shouldTruncate ? text.substring(0, TRUNCATE_LENGTH) : text;
+
+  return (
+    <div className="flex items-start gap-1">
+      <span className="flex-1">
+        {expanded ? text : truncatedText}
+      </span>
+      {shouldTruncate && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="text-[10px] text-muted-foreground hover:text-foreground font-mono flex-shrink-0 ml-1"
+        >
+          {expanded ? '[-]' : '[+]'}
+        </button>
+      )}
+    </div>
+  );
 };
 
 // Skeleton loader for response cells
@@ -276,6 +302,13 @@ export const EngClientPage: React.FC = () => {
   const models = useMemo(() => {
     return displayedModels.filter(m => m.toUpperCase() !== IDEAL_MODEL_ID.toUpperCase());
   }, [displayedModels]);
+
+  // Detect if we have multiple system prompts (to determine conditional display)
+  const hasMultipleSystemPrompts = useMemo(() => {
+    if (!data?.config) return false;
+    const systems = data.config.systems || (data.config.system ? [data.config.system] : []);
+    return systems.length > 1;
+  }, [data?.config]);
 
   // Helper to build URL with params
   const buildUrl = (params: URLSearchParams) => {
@@ -480,6 +513,25 @@ export const EngClientPage: React.FC = () => {
     }
   }, [promptIds, promptTextsForMacroTable, models, allCoverageScores]);
 
+  // Auto-select first scenario or exec summary on initial load
+  useEffect(() => {
+    // Only run if nothing is selected
+    if (urlSelectedScenario || urlShowExecutiveSummary) return;
+
+    // If executive summary exists, select it
+    if (data.executiveSummary) {
+      debug.log('Auto-selecting executive summary');
+      selectExecutiveSummary();
+      return;
+    }
+
+    // Otherwise, select first scenario if available
+    if (scenarioStats.length > 0) {
+      debug.log('Auto-selecting first scenario:', scenarioStats[0].promptId);
+      selectScenario(scenarioStats[0].promptId);
+    }
+  }, [urlSelectedScenario, urlShowExecutiveSummary, data.executiveSummary, scenarioStats, selectExecutiveSummary, selectScenario]);
+
   return (
     <div className="h-screen flex flex-col bg-background font-mono">
       {/* Top bar */}
@@ -559,6 +611,7 @@ export const EngClientPage: React.FC = () => {
                 allCoverageScores={allCoverageScores}
                 comparisonItems={comparisonItems}
                 toggleModel={toggleModel}
+                hasMultipleSystemPrompts={hasMultipleSystemPrompts}
               />
             </ErrorBoundary>
           </div>
@@ -584,6 +637,7 @@ export const EngClientPage: React.FC = () => {
                   allCoverageScores={allCoverageScores}
                   promptTexts={promptTextsForMacroTable}
                   config={config}
+                  hasMultipleSystemPrompts={hasMultipleSystemPrompts}
                 />
               ) : selectedScenario ? (
                 <div className="flex items-center justify-center h-full">
@@ -768,6 +822,7 @@ interface ModelsColumnProps {
   allCoverageScores: any;
   comparisonItems: string[];
   toggleModel: (baseId: string) => void;
+  hasMultipleSystemPrompts: boolean;
 }
 
 const ModelsColumn = React.memo<ModelsColumnProps>(function ModelsColumn({
@@ -776,6 +831,7 @@ const ModelsColumn = React.memo<ModelsColumnProps>(function ModelsColumn({
   allCoverageScores,
   comparisonItems,
   toggleModel,
+  hasMultipleSystemPrompts,
 }) {
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -798,7 +854,7 @@ const ModelsColumn = React.memo<ModelsColumnProps>(function ModelsColumn({
           hideProvider: true,
           prettifyModelName: true,
           hideTemperature: true,
-          hideSystemPrompt: true,
+          hideSystemPrompt: !hasMultipleSystemPrompts,
         });
         baseModelMap.set(baseId, {
           baseId,
@@ -960,6 +1016,7 @@ interface ComparisonViewProps {
   allCoverageScores: any;
   promptTexts: Record<string, string>;
   config: any;
+  hasMultipleSystemPrompts: boolean;
 }
 
 const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
@@ -975,6 +1032,7 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
   allCoverageScores,
   promptTexts,
   config,
+  hasMultipleSystemPrompts,
 }) {
   // Get common scenario (all items should be from same scenario)
   const firstItem = comparisonItems[0];
@@ -1185,7 +1243,7 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
                     hideProvider: true,
                     prettifyModelName: true,
                     hideTemperature: false,
-                    hideSystemPrompt: false,
+                    hideSystemPrompt: !hasMultipleSystemPrompts,
                   });
 
                   return (
@@ -1217,6 +1275,30 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
             </thead>
 
             <tbody className="divide-y divide-border">
+              {/* System Prompt row - only show if multiple system prompts */}
+              {hasMultipleSystemPrompts && (
+                <tr className="bg-muted/10">
+                  <th scope="row" className="px-3 py-2 font-medium border-r border-border sticky left-0 bg-background">
+                    System Prompt
+                  </th>
+                  {comparisonItems.map(itemKey => {
+                    const parts = itemKey.split('::');
+                    const modelId = parts[1];
+                    const parsed = parseModelIdForDisplay(modelId);
+                    const systemPromptIndex = parsed.systemPromptIndex ?? 0;
+                    const systemPrompt = config?.systems?.[systemPromptIndex] || '[No System Prompt]';
+
+                    return (
+                      <td key={itemKey} className="px-3 py-2 align-top">
+                        <div className="text-xs text-muted-foreground bg-muted/30 p-2 rounded font-mono whitespace-pre-wrap max-h-32 overflow-y-auto">
+                          {systemPrompt}
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              )}
+
               {/* Response row */}
               <tr className="bg-muted/10">
                 <th scope="row" className="px-3 py-2 font-medium border-r border-border sticky left-0 bg-background">
@@ -1339,7 +1421,7 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
                                         Judge {jIdx + 1} ({formatPercentage(judgement.coverageExtent, 0)}):
                                       </div>
                                     )}
-                                    <div>{judgement.reflection}</div>
+                                    <JudgeReflection text={judgement.reflection} />
                                   </div>
                                 ))}
                               </div>
@@ -1458,7 +1540,7 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
                                             Judge {jIdx + 1} ({formatPercentage(judgement.coverageExtent, 0)}):
                                           </div>
                                         )}
-                                        <div>{judgement.reflection}</div>
+                                        <JudgeReflection text={judgement.reflection} />
                                       </div>
                                     ))}
                                   </div>
@@ -1516,7 +1598,7 @@ function ExecutiveSummaryView({ executiveSummary }: ExecutiveSummaryViewProps) {
       </div>
       <div className="prose prose-sm max-w-none dark:prose-invert font-mono">
         {hasStructured ? (
-          <StructuredSummary insights={executiveSummary.structured} />
+          <StructuredSummary insights={executiveSummary.structured} disableModelLinks={true} />
         ) : (
           <div className="whitespace-pre-wrap leading-relaxed">{content}</div>
         )}

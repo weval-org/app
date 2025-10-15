@@ -43,8 +43,18 @@ function cleanOutModelProviders(text: string): string {
   return text.replace(/(?<!#model-perf:)(?:openrouter|openai|anthropic|together|xai|google):(?=[\w-.]+\/[\w-.]+)/ig, '');
 }
 
+function convertModelLinksToBold(text: string): string {
+  // Convert internal anchor links to bold text
+  // Patterns:
+  // [link text](#model-perf:modelId) -> **link text**
+  // [link text](#system-prompt:index) -> **link text**
+  // [link text](#prompt-detail:promptId) -> **link text**
+  return text.replace(/\[([^\]]+)\]\(#(?:model-perf|system-prompt|prompt-detail):[^)]+\)/g, '**$1**');
+}
+
 interface StructuredSummaryProps {
   insights: StructuredInsights;
+  disableModelLinks?: boolean;
 }
 
 interface SummarySection {
@@ -350,7 +360,7 @@ const ModelGradesDisplay: React.FC<{ grades: ModelGrades[] }> = ({ grades }) => 
   );
 };
 
-export const StructuredSummary: React.FC<StructuredSummaryProps> = ({ insights }) => {
+export const StructuredSummary: React.FC<StructuredSummaryProps> = ({ insights, disableModelLinks = false }) => {
     const { data, openModelPerformanceModal, openPromptDetailModal } = useAnalysis();
     const [openSections, setOpenSections] = useState<Set<string>>(new Set());
     const [selectedSystemPrompt, setSelectedSystemPrompt] = useState<number | null>(null);
@@ -463,12 +473,13 @@ export const StructuredSummary: React.FC<StructuredSummaryProps> = ({ insights }
   }
 
   return (
-    <div className="text-sm space-y-1" onClick={handleContentClick}>
+    <div className="text-sm space-y-1" onClick={disableModelLinks ? undefined : handleContentClick}>
       {validSections.map((section) => {
         const processedItems = section.items.map(item => {
           const cleaned = cleanOutModelProviders(item);
           // Executive summaries come pre-linkified from backend - no need for client-side linkification
-          return cleaned;
+          // If model links are disabled, convert them to bold text instead
+          return disableModelLinks ? convertModelLinksToBold(cleaned) : cleaned;
         });
 
         if (processedItems.length === 0) return null;
