@@ -28,11 +28,12 @@ function sha256(input: string): string {
 
 // Manually construct blob store credentials for local CLI execution
 // This allows the CLI to run outside of the `netlify dev` environment.
-async function getBlobStore(options?: { storeName?: string, siteId?: string }) {
+async function getBlobStore(options?: { storeName?: string, siteId?: string, context?: any }) {
     console.log('[getBlobStore] Starting, options:', options);
     const { getStore, getDeployStore } = await import('@netlify/blobs');
     const storeName = options?.storeName || TASK_QUEUE_BLOB_STORE_NAME;
     const siteIdOverride = options?.siteId;
+    const netlifyContext = options?.context;
 
     if (siteIdOverride) {
         console.log('[getBlobStore] Using siteId override:', siteIdOverride);
@@ -92,12 +93,19 @@ async function getBlobStore(options?: { storeName?: string, siteId?: string }) {
         console.log('[getBlobStore] Filesystem fallback failed:', error.message);
     }
 
-    // Final fallback: use Netlify Deploy Store (automatic in production/functions)
-    console.log('[getBlobStore] Using Netlify Deploy Store (getDeployStore)');
+    // Final fallback: use Netlify context if available
+    if (netlifyContext) {
+        console.log('[getBlobStore] Using provided Netlify context');
+        return getStore({ name: storeName, context: netlifyContext });
+    }
+
+    // Try Netlify Deploy Store (automatic in some production contexts)
+    console.log('[getBlobStore] Trying Netlify Deploy Store (getDeployStore)');
     try {
         return getDeployStore({ name: storeName });
     } catch (deployStoreError: any) {
-        console.log('[getBlobStore] getDeployStore failed, trying getStore with context');
+        console.log('[getBlobStore] getDeployStore failed:', deployStoreError.message);
+        console.log('[getBlobStore] Trying getStore with just name');
         // Last resort: try getStore with just name (works in some Netlify contexts)
         return getStore({ name: storeName });
     }
@@ -128,12 +136,12 @@ export interface GenerationStatus {
 
 export async function populatePairwiseQueue(
     resultData: FetchedComparisonData,
-    options: { logger: SimpleLogger, siteId?: string }
+    options: { logger: SimpleLogger, siteId?: string, context?: any }
 ): Promise<{ tasksAdded: number; totalTasksInQueue: number; anchorModelMissing?: boolean }> {
-    const { logger, siteId } = options;
+    const { logger, siteId, context } = options;
     logger.info('[PairwiseQueueService] Populating pairwise comparison task queue...');
 
-    const store = await getBlobStore({ siteId });
+    const store = await getBlobStore({ siteId, context });
     const existingGlobalIndex = await store.get(TASK_INDEX_KEY, { type: 'json' }) as string[] | undefined || [];
 
     const configId = resultData.configId;
@@ -382,25 +390,27 @@ export async function deletePairwiseTasks(options: { configId?: string, logger: 
 export async function updateGenerationStatus(
     configId: string,
     status: GenerationStatus,
-    options?: { siteId?: string }
+    options?: { siteId?: string, context?: any }
 ): Promise<void> {
     const store = await getBlobStore({
         storeName: GENERATION_STATUS_BLOB_STORE_NAME,
-        siteId: options?.siteId
+        siteId: options?.siteId,
+        context: options?.context
     });
     await store.setJSON(configId, status);
 }
 
 export async function getGenerationStatus(
     configId: string,
-    options?: { siteId?: string }
+    options?: { siteId?: string, context?: any }
 ): Promise<GenerationStatus | null> {
     console.log('[getGenerationStatus] Starting for configId:', configId);
     try {
         console.log('[getGenerationStatus] Getting blob store...');
         const store = await getBlobStore({
             storeName: GENERATION_STATUS_BLOB_STORE_NAME,
-            siteId: options?.siteId
+            siteId: options?.siteId,
+            context: options?.context
         });
         console.log('[getGenerationStatus] Got store, fetching status...');
         const status = await store.get(configId, { type: 'json' }) as GenerationStatus | undefined;
@@ -415,12 +425,12 @@ export async function getGenerationStatus(
 
 export async function getConfigTaskCount(
     configId: string,
-    options?: { siteId?: string }
+    options?: { siteId?: string, context?: any }
 ): Promise<number> {
     console.log('[getConfigTaskCount] Starting for configId:', configId);
     try {
         console.log('[getConfigTaskCount] Getting blob store...');
-        const store = await getBlobStore({ siteId: options?.siteId });
+        const store = await getBlobStore({ siteId: options?.siteId, context: options?.context });
 
         const configIndexKey = getConfigIndexKey(configId);
         console.log('[getConfigTaskCount] Fetching config index:', configIndexKey);
