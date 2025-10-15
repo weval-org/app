@@ -15,10 +15,12 @@ export const handler: BackgroundHandler = async (event, context) => {
   console.log('[generate-pairs-background] Parsed configId:', configId);
 
   // Extract blob credentials from event (available in background functions)
-  let blobContext = context;
-  if (event.blobs) {
+  // The blobs field is not in the TypeScript types but is present at runtime
+  let blobContext: any = context;
+  const eventWithBlobs = event as any;
+  if (eventWithBlobs.blobs) {
     try {
-      const blobsData = JSON.parse(Buffer.from(event.blobs, 'base64').toString('utf-8'));
+      const blobsData = JSON.parse(Buffer.from(eventWithBlobs.blobs, 'base64').toString('utf-8'));
       console.log('[generate-pairs-background] Decoded blobs data:', blobsData);
       blobContext = { ...context, blobs: blobsData };
     } catch (e) {
