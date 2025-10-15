@@ -101,7 +101,8 @@ export async function POST(req: NextRequest) {
 
         // Count user messages to determine which prompt to use
         const userMessageCount = messages.filter(m => m.role === 'user').length;
-        const systemPrompt = userMessageCount < 3
+        // for now, we will essentially only use the clarification prompt for the very first user message
+        const systemPrompt = userMessageCount < 2 
             ? ORCHESTRATOR_SYSTEM_PROMPT_CLARIFICATION
             : ORCHESTRATOR_SYSTEM_PROMPT;
 

@@ -7,9 +7,9 @@ import { getModelResponse, GetModelResponseParams } from '@/cli/services/llm-ser
 import { checkForErrors } from '@/cli/utils/response-utils';
 
 export const FALLBACK_MODELS = [
+  'openrouter:google/gemini-2.5-flash',
   'openrouter:google/gemini-2.5-pro',
   'openrouter:openai/gpt-5',
-  'openrouter:google/gemini-2.5-flash',
   'anthropic:claude-3.5-haiku',
   'openrouter:qwen/qwen3-30b-a3b-instruct-2507',
 ] as const;
