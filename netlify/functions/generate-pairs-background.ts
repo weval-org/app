@@ -5,15 +5,24 @@ import { populatePairwiseQueue, updateGenerationStatus, GenerationStatus } from 
 import { ComparisonDataV2 as FetchedComparisonData } from '@/app/utils/types';
 
 export const handler: BackgroundHandler = async (event) => {
+  console.log('[generate-pairs-background] Function invoked');
+  console.log('[generate-pairs-background] Event:', JSON.stringify(event, null, 2));
+
   const body = event.body ? JSON.parse(event.body) : {};
   const { configId } = body;
 
-  const logger = await getLogger(`pairs:generate-bg:${configId}`);
+  console.log('[generate-pairs-background] Parsed configId:', configId);
+
+  const logger = await getLogger(`pairs:generate-bg:${configId || 'unknown'}`);
+  logger.info('Background function started');
 
   if (!configId) {
     logger.error('Missing configId in invocation.');
+    console.error('[generate-pairs-background] Missing configId in invocation body');
     return;
   }
+
+  logger.info(`Processing pairs generation for configId: ${configId}`);
 
   try {
     // Try to update status to 'generating'
@@ -88,14 +97,24 @@ export const handler: BackgroundHandler = async (event) => {
     });
 
     logger.info(`Successfully generated ${result.tasksAdded} pairs for config ${configId}.`);
+    console.log('[generate-pairs-background] Success! Generated', result.tasksAdded, 'pairs');
 
   } catch (error: any) {
+    console.error('[generate-pairs-background] FATAL ERROR:', error);
+    console.error('[generate-pairs-background] Error message:', error.message);
+    console.error('[generate-pairs-background] Error stack:', error.stack);
     logger.error(`Failed to generate pairs for config ${configId}: ${error.message}`);
-    await updateGenerationStatus(configId, {
-      status: 'error',
-      message: 'An error occurred during pair generation.',
-      timestamp: new Date().toISOString(),
-      error: error.message,
-    });
+    try {
+      await updateGenerationStatus(configId, {
+        status: 'error',
+        message: 'An error occurred during pair generation.',
+        timestamp: new Date().toISOString(),
+        error: error.message,
+      });
+    } catch (statusUpdateError: any) {
+      console.error('[generate-pairs-background] Failed to update error status:', statusUpdateError.message);
+    }
+  } finally {
+    console.log('[generate-pairs-background] Function execution completed');
   }
 };

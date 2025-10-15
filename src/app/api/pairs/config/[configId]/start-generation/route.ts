@@ -37,18 +37,29 @@ export async function POST(
     });
 
     // Trigger the background function
+    const baseUrl = process.env.URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:8888';
     const functionUrl = new URL(
       '/.netlify/functions/generate-pairs-background',
-      process.env.URL || 'http://localhost:8888'
+      baseUrl
     );
+
+    logger.info(`Invoking background function at: ${functionUrl.toString()}`);
+    logger.info(`Base URL (process.env.URL): ${process.env.URL}`);
+    logger.info(`Sending body:`, { configId });
 
     fetch(functionUrl.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ configId }),
-    }).catch(err => {
-      logger.error(`Failed to invoke background function for configId ${configId}:`, err);
-    });
+    })
+      .then(async (response) => {
+        logger.info(`Background function response status: ${response.status}`);
+        const text = await response.text();
+        logger.info(`Background function response body: ${text}`);
+      })
+      .catch(err => {
+        logger.error(`Failed to invoke background function for configId ${configId}:`, err);
+      });
 
     return NextResponse.json({
       status: 'pending',
