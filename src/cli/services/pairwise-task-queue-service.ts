@@ -97,11 +97,22 @@ async function getBlobStore(options?: { storeName?: string, siteId?: string, con
         // Extract credentials from decoded blobs data (in background functions)
         if (netlifyContext.blobs && netlifyContext.blobs.token) {
             console.log('[getBlobStore] Found blobs credentials in context');
-            // getStore signature: getStore(name, options)
-            // First param is the name string, second param is the options object
-            return getStore({ name: storeName,
-                token: netlifyContext.blobs.token,
-                edgeURL: netlifyContext.blobs.url
+
+            // When manually configuring, both token AND siteID are required
+            const { token, siteId } = netlifyContext.blobs;
+            const edgeURL = netlifyContext.blobs.url;
+
+            if (!siteId) {
+                console.error('[getBlobStore] Missing siteId in blobs context - this is required for manual configuration');
+                throw new Error('Missing siteId in Netlify blobs context');
+            }
+
+            console.log('[getBlobStore] Using manual config with siteId:', siteId);
+            return getStore({
+                name: storeName,
+                siteID: siteId,
+                token: token,
+                edgeURL: edgeURL
             });
         }
 

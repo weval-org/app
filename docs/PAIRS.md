@@ -352,7 +352,8 @@ Both background functions and Next.js API routes need explicit credentials in lo
 **Background Functions**: Run in an isolated Netlify context. The `getBlobStore()` function in `pairwise-task-queue-service.ts` uses these fallback strategies:
 1.  **Environment variables** (preferred): Check for `NETLIFY_SITE_ID` + `NETLIFY_AUTH_TOKEN` from `.env`
 2.  **Filesystem credentials**: Read from `.netlify/state.json` + `~/.netlify/config.json`
-3.  **Anonymous store**: Falls back (throws error)
+3.  **Netlify context** (production): Extract `siteId` from `event.headers['x-nf-site-id']` and blob credentials from `event.blobs`
+4.  **Anonymous store**: Falls back (throws error)
 
 **API Routes**: All pairs API routes (`get-task`, `submit-preference`, `log`) explicitly pass credentials to `getStore()`:
 ```typescript

@@ -22,7 +22,18 @@ export const handler: BackgroundHandler = async (event, context) => {
     try {
       const blobsData = JSON.parse(Buffer.from(eventWithBlobs.blobs, 'base64').toString('utf-8'));
       console.log('[generate-pairs-background] Decoded blobs data:', blobsData);
-      blobContext = { ...context, blobs: blobsData };
+
+      // Extract siteId from headers - required for manual blob store configuration
+      const siteId = event.headers['x-nf-site-id'];
+      console.log('[generate-pairs-background] Site ID from headers:', siteId);
+
+      blobContext = {
+        ...context,
+        blobs: {
+          ...blobsData,
+          siteId
+        }
+      };
     } catch (e) {
       console.warn('[generate-pairs-background] Failed to decode blobs data:', e);
     }
