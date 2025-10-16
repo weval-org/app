@@ -49,6 +49,47 @@ class OpenRouterModuleClient {
 
       if (!response.ok) {
         const errorBody = await response.text();
+
+        // Detect rate limit (429) specifically
+        if (response.status === 429) {
+          // Parse rate limit headers
+          const retryAfterHeader = response.headers.get('Retry-After');
+          const rateLimitReset = response.headers.get('X-RateLimit-Reset');
+          const rateLimitRemaining = response.headers.get('X-RateLimit-Remaining');
+
+          // Parse Retry-After (can be seconds or HTTP date)
+          let retryAfter: number | undefined;
+          if (retryAfterHeader) {
+            const parsed = parseInt(retryAfterHeader, 10);
+            if (!isNaN(parsed)) {
+              retryAfter = parsed; // Seconds
+            } else {
+              // Try parsing as HTTP date
+              const retryDate = new Date(retryAfterHeader);
+              if (!isNaN(retryDate.getTime())) {
+                retryAfter = Math.max(0, Math.ceil((retryDate.getTime() - Date.now()) / 1000));
+              }
+            }
+          }
+
+          console.warn(
+            `[OpenRouter] Rate limit (429) detected. ` +
+            `Retry-After: ${retryAfter || 'not specified'}, ` +
+            `Reset: ${rateLimitReset || 'not specified'}, ` +
+            `Remaining: ${rateLimitRemaining || 'not specified'}`
+          );
+
+          return {
+            responseText: '',
+            error: `Rate limit exceeded. ${retryAfter ? `Retry after ${retryAfter}s.` : 'Please retry later.'}`,
+            isRateLimitError: true,
+            retryAfter,
+            rateLimitReset: rateLimitReset ? parseInt(rateLimitReset, 10) : undefined,
+            rateLimitRemaining: rateLimitRemaining ? parseInt(rateLimitRemaining, 10) : undefined,
+          };
+        }
+
+        // Other errors
         console.error(`OpenRouter API Error: ${response.status} ${response.statusText}`, errorBody);
         return { responseText: '', error: `OpenRouter API Error: ${response.status} ${response.statusText}. Details: ${errorBody}` };
       }

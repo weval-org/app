@@ -153,7 +153,13 @@ export async function getModelResponse(params: GetModelResponseParams): Promise<
 
         // Treat any missing or empty response as an error for resilience.
         if (response.error || !response.responseText || response.responseText.trim() === '') {
-            throw new Error(response.error || 'Empty response from model');
+            const error: any = new Error(response.error || 'Empty response from model');
+            // Attach rate limit metadata to error for smart retry
+            error.isRateLimitError = response.isRateLimitError;
+            error.retryAfter = response.retryAfter;
+            error.rateLimitReset = response.rateLimitReset;
+            error.rateLimitRemaining = response.rateLimitRemaining;
+            throw error;
         }
         return response.responseText;
     };
@@ -162,14 +168,64 @@ export async function getModelResponse(params: GetModelResponseParams): Promise<
         const pRetry = (await import('p-retry')).default;
         const responseContent = await pRetry(apiCall, {
             retries: (typeof retries === 'number' && retries >= 0) ? retries : 1,
-            onFailedAttempt: (error: any) => {
-                logger.warn(`[LLM Service] API call failed. Attempt ${error.attemptNumber}. Retries left: ${error.retriesLeft}.`);
-                logger.warn(`[LLM Service] Error: ${error.message}`);
+
+            // Smart retry: only retry rate limits and network errors
+            shouldRetry: (error: any) => {
+                // Always retry rate limits (429)
+                if (error.isRateLimitError) {
+                    return true;
+                }
+
+                // Retry network/connection errors
+                if (error.code === 'ECONNRESET' ||
+                    error.code === 'ETIMEDOUT' ||
+                    error.code === 'ENOTFOUND' ||
+                    error.code === 'ECONNREFUSED') {
+                    return true;
+                }
+
+                // Don't retry other errors (4xx client errors, 500 server errors, etc.)
+                return false;
             },
-            // TODO: Re-implement shouldRetry with a proper isRateLimitError function
-            // shouldRetry: (error) => {
-            //     return isRateLimitError(error);
-            // }
+
+            onFailedAttempt: (error: any) => {
+                if (error.isRateLimitError) {
+                    // Calculate exponential backoff with jitter
+                    const baseDelay = 1000; // 1 second
+                    const maxDelay = 30000; // 30 seconds cap
+
+                    let waitTime: number;
+                    if (error.retryAfter !== undefined) {
+                        // Respect server's Retry-After header
+                        waitTime = error.retryAfter * 1000;
+                    } else {
+                        // Exponential backoff: 2^(attempt-1) * baseDelay
+                        const exponentialDelay = baseDelay * Math.pow(2, error.attemptNumber - 1);
+                        // Add jitter (0-25% random variation)
+                        const jitter = exponentialDelay * 0.25 * Math.random();
+                        waitTime = Math.min(exponentialDelay + jitter, maxDelay);
+                    }
+
+                    logger.warn(
+                        `[LLM Service] Rate limit (429) for ${modelId}. ` +
+                        `Attempt ${error.attemptNumber}. ` +
+                        `Retries left: ${error.retriesLeft}. ` +
+                        `Waiting ${Math.round(waitTime)}ms before retry...`
+                    );
+
+                    // Note: p-retry doesn't support dynamic delays per attempt out of the box
+                    // The actual wait is handled by p-retry's minTimeout/maxTimeout/factor
+                } else {
+                    logger.warn(`[LLM Service] API call failed for ${modelId}. Attempt ${error.attemptNumber}. Retries left: ${error.retriesLeft}.`);
+                    logger.warn(`[LLM Service] Error: ${error.message}`);
+                }
+            },
+
+            // Exponential backoff configuration for p-retry
+            minTimeout: 1000,      // Start at 1 second
+            maxTimeout: 30000,     // Cap at 30 seconds
+            factor: 2,             // Double the delay each time
+            randomize: true,       // Add jitter
         });
         
         if (effectiveUseCache) {

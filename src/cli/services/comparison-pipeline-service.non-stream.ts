@@ -16,6 +16,8 @@ import { buildDeckXml, parseResponsesXml, validateResponses } from '@/cli/servic
 import { startConsumerUIServer } from '@/cli/services/consumer-ui-server';
 import crypto from 'crypto';
 import { exec } from 'child_process';
+import { AdaptiveRateLimiter } from '@/lib/adaptive-rate-limiter';
+import { extractProviderFromModelId, getProviderProfile, parseConcurrencyOverrides, applyOverrides } from '@/lib/provider-rate-limits';
 
 export type ProgressCallback = (completed: number, total: number) => Promise<void>;
 
@@ -32,7 +34,7 @@ export async function generateAllResponses(
     fixturesCtx?: { fixtures: FixtureSet; strict: boolean },
 ): Promise<Map<string, PromptResponseData>> {
     logger.info(`[PipelineService] Generating model responses... Caching: ${useCache}`);
-    const limit = pLimit(config.concurrency || DEFAULT_GENERATION_CONCURRENCY);
+
     const allResponsesMap = new Map<string, PromptResponseData>();
     const tasks: Promise<void>[] = [];
     let generatedCount = 0;
@@ -40,6 +42,50 @@ export async function generateAllResponses(
     // --- Circuit Breaker State ---
     const failureCounters = new Map<string, number>();
     const trippedModels = new Set<string>();
+
+    // --- Adaptive Rate Limiting ---
+    // Parse CLI overrides (if any)
+    const concurrencyOverrides = parseConcurrencyOverrides(process.env.PROVIDER_CONCURRENCY);
+
+    // Group models by provider
+    const modelsByProvider = new Map<string, string[]>();
+    const modelIds = config.models.map(m => typeof m === 'string' ? m : m.id);
+
+    // Skip consumer:* models (handled separately)
+    const nonConsumerModels = modelIds.filter(id => !id.startsWith('consumer:'));
+
+    for (const modelId of nonConsumerModels) {
+        const provider = extractProviderFromModelId(modelId);
+        if (!modelsByProvider.has(provider)) {
+            modelsByProvider.set(provider, []);
+        }
+        modelsByProvider.get(provider)!.push(modelId);
+    }
+
+    // Create adaptive limiter and pLimit for each provider
+    const providerLimiters = new Map<string, { adaptive: AdaptiveRateLimiter; limit: ReturnType<typeof pLimit> }>();
+
+    for (const [provider, models] of modelsByProvider.entries()) {
+        const profile = applyOverrides(provider, concurrencyOverrides);
+        const adaptiveLimiter = new AdaptiveRateLimiter(provider, profile, logger);
+
+        const initialConcurrency = adaptiveLimiter.getCurrentConcurrency();
+        const pLimiter = pLimit(initialConcurrency);
+
+        providerLimiters.set(provider, {
+            adaptive: adaptiveLimiter,
+            limit: pLimiter,
+        });
+
+        logger.info(
+            `[PipelineService] Configured adaptive rate limiter for '${provider}': ` +
+            `${models.length} models, initial concurrency=${initialConcurrency}, ` +
+            `max=${profile.maxConcurrency}, adaptive=${profile.adaptiveEnabled}`
+        );
+    }
+
+    // Fallback: create global limiter for edge cases
+    const globalLimit = pLimit(config.concurrency || DEFAULT_GENERATION_CONCURRENCY);
     
     /*
      * Per-Model Concurrency Limiting for Circuit Breaker Race Condition Prevention
@@ -64,18 +110,9 @@ export async function generateAllResponses(
     const temperaturesToRun = (config.temperatures?.length) ? config.temperatures : [config.temperature];
     const systemPromptsToRun = (config.systems?.length) ? config.systems : [config.system];
 
-    // Convert models to string IDs for processing
-    let modelIds = config.models.map(m => typeof m === 'string' ? m : m.id);
-    
-    // Skip consumer:* models here (manual ingestion handled in pipeline step 0)
-    const consumerIds = modelIds.filter(id => typeof id === 'string' && (id as string).startsWith('consumer:')) as string[];
-    if (consumerIds.length > 0) {
-        logger.info(`[PipelineService] Detected consumer models in generator. Skipping API generation for: ${consumerIds.join(', ')}`);
-        modelIds = modelIds.filter(id => !(typeof id === 'string' && (id as string).startsWith('consumer:')));
-    }
-
+    // Use nonConsumerModels from adaptive rate limiting section above
     // Create per-model limiters upfront (see detailed explanation above)
-    modelIds.forEach(modelId => {
+    nonConsumerModels.forEach(modelId => {
         // 1 is best for testability, but no harm in higher for non test env
         perModelLimits.set(modelId, pLimit(
             // process.env.NODE_ENV === 'test' ? 1 : 10
@@ -92,7 +129,7 @@ export async function generateAllResponses(
         ));
     });
 
-    const totalResponsesToGenerate = config.prompts.length * modelIds.length * temperaturesToRun.length * systemPromptsToRun.length;
+    const totalResponsesToGenerate = config.prompts.length * nonConsumerModels.length * temperaturesToRun.length * systemPromptsToRun.length;
     logger.info(`[PipelineService] Preparing to generate ${totalResponsesToGenerate} responses across ${temperaturesToRun.length} temperature(s) and ${systemPromptsToRun.length} system prompt(s).`);
 
     config.prompts.forEach(promptConfig => {
@@ -109,12 +146,18 @@ export async function generateAllResponses(
         };
         allResponsesMap.set(promptConfig.id, currentPromptData);
 
-        modelIds.forEach(modelId => {
+        nonConsumerModels.forEach(modelId => {
             const modelLimit = perModelLimits.get(modelId)!;
-            
+
+            // Get provider-specific limiter
+            const provider = extractProviderFromModelId(modelId);
+            const providerLimiter = providerLimiters.get(provider);
+            const providerLimit = providerLimiter?.limit || globalLimit;
+            const adaptiveLimiter = providerLimiter?.adaptive;
+
             temperaturesToRun.forEach(tempValue => {
                 systemPromptsToRun.forEach((systemPromptValue, sp_idx) => {
-                    tasks.push(limit(async () => {
+                    tasks.push(providerLimit(async () => {
                         // Serialize all operations for this specific model to prevent circuit breaker races
                         return modelLimit(async () => {
                         const systemPromptToUse = (config.systems && config.systems.length > 0)
@@ -197,6 +240,12 @@ export async function generateAllResponses(
                                         generatedAssistantIndices.push(assistantTurnCount);
                                         generatedAssistantTexts.push(genText);
                                         finalAssistantResponseText = genText;
+
+                                        // Success callback for adaptive rate limiter
+                                        if (!fixtureUsed) {
+                                            adaptiveLimiter?.onSuccess();
+                                        }
+
                                         if (failureCounters.has(modelId)) {
                                             const currentFailures = failureCounters.get(modelId) || 0;
                                             if (currentFailures > 0) {
@@ -243,6 +292,12 @@ export async function generateAllResponses(
                                 generatedAssistantIndices.push(assistantTurnCount);
                                 generatedAssistantTexts.push(genText);
                                 finalAssistantResponseText = genText;
+
+                                // Success callback for adaptive rate limiter
+                                if (!fixtureUsed) {
+                                    adaptiveLimiter?.onSuccess();
+                                }
+
                                 if (failureCounters.has(modelId)) {
                                     const currentFailures = failureCounters.get(modelId) || 0;
                                     if (currentFailures > 0) {
@@ -281,6 +336,12 @@ export async function generateAllResponses(
                                     generatedAssistantIndices.push(assistantTurnCount);
                                     generatedAssistantTexts.push(genText);
                                     finalAssistantResponseText = genText;
+
+                                    // Success callback for adaptive rate limiter
+                                    if (!fixtureUsed) {
+                                        adaptiveLimiter?.onSuccess();
+                                    }
+
                                     if (failureCounters.has(modelId)) {
                                         const currentFailures = failureCounters.get(modelId) || 0;
                                         if (currentFailures > 0) {
@@ -313,13 +374,24 @@ export async function generateAllResponses(
                             historyBeforeFailure.push({ role: 'assistant', content: finalAssistantResponseText });
                             fullConversationHistoryWithResponse = historyBeforeFailure;
 
-                            const newFailureCount = (failureCounters.get(modelId) || 0) + 1;
-                            failureCounters.set(modelId, newFailureCount);
-                            logger.warn(`[PipelineService] Failure counter for '${modelId}' is now ${newFailureCount}.`);
+                            // Adaptive rate limiter callbacks
+                            if (error.isRateLimitError) {
+                                // Rate limit detected - notify adaptive limiter
+                                adaptiveLimiter?.onRateLimit(error.retryAfter);
+                                // Don't increment circuit breaker failure counter for rate limits
+                                logger.info(`[PipelineService] Rate limit error for '${modelId}'. Not counting toward circuit breaker.`);
+                            } else {
+                                // Other error - notify adaptive limiter and increment circuit breaker
+                                adaptiveLimiter?.onError();
 
-                            if (newFailureCount >= FAILURE_THRESHOLD) {
-                                trippedModels.add(modelId);
-                                logger.error(`[PipelineService] Circuit breaker for '${modelId}' has been tripped after ${newFailureCount} consecutive failures. Subsequent requests will be auto-failed.`);
+                                const newFailureCount = (failureCounters.get(modelId) || 0) + 1;
+                                failureCounters.set(modelId, newFailureCount);
+                                logger.warn(`[PipelineService] Failure counter for '${modelId}' is now ${newFailureCount}.`);
+
+                                if (newFailureCount >= FAILURE_THRESHOLD) {
+                                    trippedModels.add(modelId);
+                                    logger.error(`[PipelineService] Circuit breaker for '${modelId}' has been tripped after ${newFailureCount} consecutive failures. Subsequent requests will be auto-failed.`);
+                                }
                             }
                         }
 

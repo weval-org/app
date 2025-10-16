@@ -35,6 +35,13 @@ export interface LLMApiCallOptions {
 export interface LLMApiCallResult {
   responseText: string;
   error?: string; // Optional error message if the call failed
+
+  // Rate limit information
+  isRateLimitError?: boolean; // True if this was a 429 rate limit error
+  retryAfter?: number; // Seconds to wait before retrying (from Retry-After header)
+  rateLimitReset?: number; // Unix timestamp when rate limit resets (from X-RateLimit-Reset header)
+  rateLimitRemaining?: number; // Number of requests remaining (from X-RateLimit-Remaining header)
+
   // We can add more fields here if needed, like token counts, finish reasons etc.
 }
 
