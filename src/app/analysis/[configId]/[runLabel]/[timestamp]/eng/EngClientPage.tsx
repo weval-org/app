@@ -1297,13 +1297,15 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
                                   "w-3 h-3",
                                   judgeAgreement.interpretation === 'reliable' && "text-green-600 dark:text-green-400",
                                   judgeAgreement.interpretation === 'tentative' && "text-amber-600 dark:text-amber-400",
-                                  judgeAgreement.interpretation === 'unreliable' && "text-red-600 dark:text-red-400"
+                                  judgeAgreement.interpretation === 'unreliable' && "text-red-600 dark:text-red-400",
+                                  judgeAgreement.interpretation === 'unstable' && "text-slate-600 dark:text-slate-400"
                                 )} />
                                 <span className={cn(
                                   "font-mono font-semibold",
                                   judgeAgreement.interpretation === 'reliable' && "text-green-600 dark:text-green-400",
                                   judgeAgreement.interpretation === 'tentative' && "text-amber-600 dark:text-amber-400",
-                                  judgeAgreement.interpretation === 'unreliable' && "text-red-600 dark:text-red-400"
+                                  judgeAgreement.interpretation === 'unreliable' && "text-red-600 dark:text-red-400",
+                                  judgeAgreement.interpretation === 'unstable' && "text-slate-600 dark:text-slate-400"
                                 )}>
                                   α={judgeAgreement.krippendorffsAlpha.toFixed(2)}
                                 </span>
@@ -1329,7 +1331,8 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
                                           "font-medium capitalize",
                                           judgeAgreement.interpretation === 'reliable' && "text-green-600 dark:text-green-400",
                                           judgeAgreement.interpretation === 'tentative' && "text-amber-600 dark:text-amber-400",
-                                          judgeAgreement.interpretation === 'unreliable' && "text-red-600 dark:text-red-400"
+                                          judgeAgreement.interpretation === 'unreliable' && "text-red-600 dark:text-red-400",
+                                          judgeAgreement.interpretation === 'unstable' && "text-slate-600 dark:text-slate-400"
                                         )}>{judgeAgreement.interpretation}</span>
                                       </div>
                                       <div className="flex justify-between gap-4">

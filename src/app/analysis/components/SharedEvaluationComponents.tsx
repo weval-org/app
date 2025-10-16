@@ -444,7 +444,8 @@ export const EvaluationView: React.FC<{
                                         "text-xs cursor-pointer transition-colors hover:bg-muted/50",
                                         judgeAgreement.interpretation === 'reliable' && "border-green-600 text-green-600 dark:border-green-500 dark:text-green-500",
                                         judgeAgreement.interpretation === 'tentative' && "border-yellow-600 text-yellow-600 dark:border-yellow-500 dark:text-yellow-500",
-                                        judgeAgreement.interpretation === 'unreliable' && "border-red-600 text-red-600 dark:border-red-500 dark:text-red-500"
+                                        judgeAgreement.interpretation === 'unreliable' && "border-red-600 text-red-600 dark:border-red-500 dark:text-red-500",
+                                        judgeAgreement.interpretation === 'unstable' && "border-slate-500 text-slate-600 dark:border-slate-400 dark:text-slate-400"
                                     )}>
                                         <Icon name="users" className="w-3 h-3 mr-1" />
                                         α = {judgeAgreement.krippendorffsAlpha.toFixed(2)}
@@ -458,8 +459,19 @@ export const EvaluationView: React.FC<{
                                 <div className="space-y-2 text-xs">
                                     <div className="font-semibold border-b border-border pb-1">Judge Agreement</div>
                                     <p className="text-muted-foreground leading-relaxed">
-                                        This measures how consistently multiple AI judges scored this entire evaluation.
-                                        Higher values mean judges agreed more across all criteria.
+                                        {judgeAgreement.interpretation === 'unstable' ? (
+                                            <>
+                                                This measures how consistently multiple AI judges scored this evaluation.
+                                                When all judges give nearly identical scores (very low variance), the metric becomes
+                                                mathematically unstable—not because judges disagreed, but because the calculation
+                                                is unreliable when scores are too uniform.
+                                            </>
+                                        ) : (
+                                            <>
+                                                This measures how consistently multiple AI judges scored this entire evaluation.
+                                                Higher values mean judges agreed more across all criteria.
+                                            </>
+                                        )}
                                     </p>
                                     <div className="space-y-1 pt-1">
                                         <div className="flex justify-between gap-4">
@@ -472,7 +484,8 @@ export const EvaluationView: React.FC<{
                                                 "font-medium capitalize",
                                                 judgeAgreement.interpretation === 'reliable' && "text-green-600 dark:text-green-500",
                                                 judgeAgreement.interpretation === 'tentative' && "text-yellow-600 dark:text-yellow-500",
-                                                judgeAgreement.interpretation === 'unreliable' && "text-red-600 dark:text-red-500"
+                                                judgeAgreement.interpretation === 'unreliable' && "text-red-600 dark:text-red-500",
+                                                judgeAgreement.interpretation === 'unstable' && "text-slate-600 dark:text-slate-400"
                                             )}>{judgeAgreement.interpretation}</span>
                                         </div>
                                         <div className="flex justify-between gap-4">
@@ -618,7 +631,8 @@ export const EvaluationView: React.FC<{
                                     "text-xs cursor-pointer transition-colors hover:bg-muted/50",
                                     judgeAgreement.interpretation === 'reliable' && "border-green-600 text-green-600 dark:border-green-500 dark:text-green-500",
                                     judgeAgreement.interpretation === 'tentative' && "border-yellow-600 text-yellow-600 dark:border-yellow-500 dark:text-yellow-500",
-                                    judgeAgreement.interpretation === 'unreliable' && "border-red-600 text-red-600 dark:border-red-500 dark:text-red-500"
+                                    judgeAgreement.interpretation === 'unreliable' && "border-red-600 text-red-600 dark:border-red-500 dark:text-red-500",
+                                    judgeAgreement.interpretation === 'unstable' && "border-slate-500 text-slate-600 dark:border-slate-400 dark:text-slate-400"
                                 )}>
                                     <Icon name="users" className="w-3 h-3 mr-1" />
                                     α = {judgeAgreement.krippendorffsAlpha.toFixed(2)}
@@ -631,8 +645,19 @@ export const EvaluationView: React.FC<{
                                 <div className="space-y-2 text-xs">
                                     <div className="font-semibold border-b border-border pb-1">Judge Agreement</div>
                                     <p className="text-muted-foreground leading-relaxed">
-                                        This measures how consistently multiple AI judges scored this entire evaluation.
-                                        Higher values mean judges agreed more across all criteria.
+                                        {judgeAgreement.interpretation === 'unstable' ? (
+                                            <>
+                                                This measures how consistently multiple AI judges scored this evaluation.
+                                                When all judges give nearly identical scores (very low variance), the metric becomes
+                                                mathematically unstable—not because judges disagreed, but because the calculation
+                                                is unreliable when scores are too uniform.
+                                            </>
+                                        ) : (
+                                            <>
+                                                This measures how consistently multiple AI judges scored this entire evaluation.
+                                                Higher values mean judges agreed more across all criteria.
+                                            </>
+                                        )}
                                     </p>
                                     <div className="space-y-1 pt-1">
                                         <div className="flex justify-between gap-4">
@@ -645,7 +670,8 @@ export const EvaluationView: React.FC<{
                                                 "font-medium capitalize",
                                                 judgeAgreement.interpretation === 'reliable' && "text-green-600 dark:text-green-500",
                                                 judgeAgreement.interpretation === 'tentative' && "text-yellow-600 dark:text-yellow-500",
-                                                judgeAgreement.interpretation === 'unreliable' && "text-red-600 dark:text-red-500"
+                                                judgeAgreement.interpretation === 'unreliable' && "text-red-600 dark:text-red-500",
+                                                judgeAgreement.interpretation === 'unstable' && "text-slate-600 dark:text-slate-400"
                                             )}>{judgeAgreement.interpretation}</span>
                                         </div>
                                         <div className="flex justify-between gap-4">

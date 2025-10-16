@@ -1084,7 +1084,7 @@ const MacroCoverageTable: React.FC = () => {
                                             if ((result as any).judgeAgreement) {
                                                 judgeAgreementMetrics = (result as any).judgeAgreement;
                                                 const interpretation = judgeAgreementMetrics.interpretation;
-                                                showJudgeAgreementBadge = interpretation === 'tentative' || interpretation === 'unreliable';
+                                                showJudgeAgreementBadge = interpretation === 'tentative' || interpretation === 'unreliable' || interpretation === 'unstable';
                                                 const agreementDetails = `Judge Agreement (Krippendorff's α): ${judgeAgreementMetrics.krippendorffsAlpha.toFixed(3)}\nInterpretation: ${judgeAgreementMetrics.interpretation}\nJudges: ${judgeAgreementMetrics.numJudges}, Items: ${judgeAgreementMetrics.numItems}, Comparisons: ${judgeAgreementMetrics.numComparisons}`;
                                                 if (titleText) titleText += '\n---\n';
                                                 titleText += agreementDetails;
@@ -1188,12 +1188,14 @@ const MacroCoverageTable: React.FC = () => {
                                                                             <Icon name="users" className={cn(
                                                                                 "w-3 h-3",
                                                                                 judgeAgreementMetrics.interpretation === 'tentative' && "text-yellow-600 dark:text-yellow-500",
-                                                                                judgeAgreementMetrics.interpretation === 'unreliable' && "text-red-600 dark:text-red-500"
+                                                                                judgeAgreementMetrics.interpretation === 'unreliable' && "text-red-600 dark:text-red-500",
+                                                                                judgeAgreementMetrics.interpretation === 'unstable' && "text-slate-600 dark:text-slate-400"
                                                                             )} />
                                                                             <span className={cn(
                                                                                 "text-[9px] font-mono font-semibold",
                                                                                 judgeAgreementMetrics.interpretation === 'tentative' && "text-yellow-600 dark:text-yellow-500",
-                                                                                judgeAgreementMetrics.interpretation === 'unreliable' && "text-red-600 dark:text-red-500"
+                                                                                judgeAgreementMetrics.interpretation === 'unreliable' && "text-red-600 dark:text-red-500",
+                                                                                judgeAgreementMetrics.interpretation === 'unstable' && "text-slate-600 dark:text-slate-400"
                                                                             )}>
                                                                                 α={judgeAgreementMetrics.krippendorffsAlpha.toFixed(2)}
                                                                             </span>
@@ -1219,7 +1221,8 @@ const MacroCoverageTable: React.FC = () => {
                                                                                                 "font-medium capitalize",
                                                                                                 judgeAgreementMetrics.interpretation === 'reliable' && "text-green-600 dark:text-green-500",
                                                                                                 judgeAgreementMetrics.interpretation === 'tentative' && "text-yellow-600 dark:text-yellow-500",
-                                                                                                judgeAgreementMetrics.interpretation === 'unreliable' && "text-red-600 dark:text-red-500"
+                                                                                                judgeAgreementMetrics.interpretation === 'unreliable' && "text-red-600 dark:text-red-500",
+                                                                                                judgeAgreementMetrics.interpretation === 'unstable' && "text-slate-600 dark:text-slate-400"
                                                                                             )}>{judgeAgreementMetrics.interpretation}</span>
                                                                                         </div>
                                                                                         <div className="flex justify-between gap-4">

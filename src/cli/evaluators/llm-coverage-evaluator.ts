@@ -726,11 +726,27 @@ Output: <reflection>The text mentions empathy, which means the criterion is MET 
         // Step 3: Calculate alpha
         const alpha = 1 - (observedDisagreement / expectedDisagreement);
 
+        // Step 4: Calculate score variance to detect low-variance instability
+        const mean = allScores.reduce((sum, s) => sum + s, 0) / allScores.length;
+        const variance = allScores.reduce((sum, s) => sum + Math.pow(s - mean, 2), 0) / allScores.length;
+
         // Determine interpretation based on standard thresholds
-        let interpretation: 'reliable' | 'tentative' | 'unreliable';
-        if (alpha >= 0.800) interpretation = 'reliable';
-        else if (alpha >= 0.667) interpretation = 'tentative';
-        else interpretation = 'unreliable';
+        let interpretation: 'reliable' | 'tentative' | 'unreliable' | 'unstable';
+        if (alpha >= 0.800) {
+            interpretation = 'reliable';
+        } else if (alpha >= 0.667) {
+            interpretation = 'tentative';
+        } else if (Math.abs(alpha) < 0.1 && variance < 0.02) {
+            // Near-zero α with low variance = metric instability, not actual disagreement
+            // This occurs when all judges give nearly identical scores (e.g., all 0s)
+            interpretation = 'unstable';
+            this.logger.info(
+                `[LLMCoverageEvaluator] Detected low-variance instability: α=${alpha.toFixed(3)}, variance=${variance.toFixed(4)}. ` +
+                `Judges agreed (low variance) but α metric is unstable.`
+            );
+        } else {
+            interpretation = 'unreliable';
+        }
 
         // Generate judge set fingerprint
         const judgeSetFingerprint = this.generateJudgeSetFingerprint(items);

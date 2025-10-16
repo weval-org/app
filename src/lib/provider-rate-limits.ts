@@ -43,14 +43,14 @@ export const PROVIDER_PROFILES: Record<string, ProviderRateLimitProfile> = {
     initialConcurrency: 20,
     maxConcurrency: 30,
     minConcurrency: 10,
-    adaptiveEnabled: false,
-    description: 'OpenAI has tier-based rate limits (e.g., Tier 3 = 5000 RPM). Use fixed concurrency.',
+    adaptiveEnabled: true,
+    description: 'Tier based',
   },
 
   'anthropic': {
     initialConcurrency: 20,
     maxConcurrency: 40,
-    minConcurrency: 2,
+    minConcurrency: 5,
     adaptiveEnabled: true,
     description: 'Anthropic has tier-based limits but tends to be conservative. Start low, adapt up.',
   },
@@ -60,7 +60,7 @@ export const PROVIDER_PROFILES: Record<string, ProviderRateLimitProfile> = {
     maxConcurrency: 30,
     minConcurrency: 3,
     adaptiveEnabled: true,
-    description: 'Google Gemini API has generous limits but varies by model.',
+    description: '',
   },
 
   'mistral': {
@@ -68,7 +68,7 @@ export const PROVIDER_PROFILES: Record<string, ProviderRateLimitProfile> = {
     maxConcurrency: 30,
     minConcurrency: 3,
     adaptiveEnabled: true,
-    description: 'Mistral API limits not widely published. Use adaptive strategy.',
+    description: '',
   },
 
   'together': {
@@ -76,7 +76,7 @@ export const PROVIDER_PROFILES: Record<string, ProviderRateLimitProfile> = {
     maxConcurrency: 40,
     minConcurrency: 5,
     adaptiveEnabled: true,
-    description: 'Together.ai typically has generous limits for most models.',
+    description: '',
   },
 
   'xai': {
@@ -84,7 +84,7 @@ export const PROVIDER_PROFILES: Record<string, ProviderRateLimitProfile> = {
     maxConcurrency: 25,
     minConcurrency: 3,
     adaptiveEnabled: true,
-    description: 'xAI (Grok) limits not well documented. Use adaptive strategy.',
+    description: '',
   },
 
   'default': {
@@ -92,7 +92,7 @@ export const PROVIDER_PROFILES: Record<string, ProviderRateLimitProfile> = {
     maxConcurrency: 30,
     minConcurrency: 3,
     adaptiveEnabled: true,
-    description: 'Default profile for unknown providers. Conservative initial value, adapts based on behavior.',
+    description: '',
   },
 };
 

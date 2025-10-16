@@ -35,7 +35,7 @@ export interface JudgeAgreementMetrics {
     numComparisons: number;
 
     /** Interpretation label based on standard thresholds */
-    interpretation: 'reliable' | 'tentative' | 'unreliable';
+    interpretation: 'reliable' | 'tentative' | 'unreliable' | 'unstable';
 
     /** Hash fingerprint of judge set used (for tracking judge changes over time) */
     judgeSetFingerprint: string;

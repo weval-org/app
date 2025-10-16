@@ -81,6 +81,7 @@ const ModelCard: React.FC<ModelCardProps> = ({ modelId, promptCoverageScores, pr
                 modelResponse: resp,
                 generatedTranscript,
                 generatedHistory,
+                judgeAgreement: (cov as any).judgeAgreement,
             });
         });
 

@@ -339,6 +339,7 @@ const ModelPerformanceModal: React.FC = () => {
                     assessments: cov.pointAssessments || [],
                     modelResponse: resp,
                     generatedHistory: Array.isArray(genHist) ? genHist : undefined,
+                    judgeAgreement: (cov as any).judgeAgreement,
                 });
             }
         });
@@ -355,11 +356,13 @@ const ModelPerformanceModal: React.FC = () => {
                 const parsed = parseModelIdForDisplay(currentVariantModelId);
                 const histKey = `${selectedPromptId}:${currentVariantModelId}`;
                 const genHist = historiesForPrompt[histKey];
+                const cachedEval = getCachedEvaluation(selectedPromptId, currentVariantModelId);
                 return [{
                     temperature: typeof parsed.temperature === 'number' ? parsed.temperature : 0,
-                    assessments: (getCachedEvaluation(selectedPromptId, currentVariantModelId)?.pointAssessments) || currentVariantPerformance.coverageResult.pointAssessments || [],
+                    assessments: cachedEval?.pointAssessments || currentVariantPerformance.coverageResult.pointAssessments || [],
                     modelResponse: currentVariantPerformance.response,
                     generatedHistory: Array.isArray(genHist) ? genHist : undefined,
+                    judgeAgreement: (cachedEval as any)?.judgeAgreement || (currentVariantPerformance.coverageResult as any)?.judgeAgreement,
                 }];
             }
             return [];
