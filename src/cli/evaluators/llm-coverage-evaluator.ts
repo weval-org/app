@@ -15,14 +15,15 @@ import {
     JudgeAgreementMetrics
 } from '@/types/shared';
 import { extractKeyPoints } from '../services/llm-evaluation-service';
-import { dispatchMakeApiCall } from '../../lib/llm-clients/client-dispatcher';
-import { LLMApiCallOptions } from '../../lib/llm-clients/types';
+import { getModelResponse } from '../services/llm-service';
 import { PointFunctionContext } from '@/point-functions/types';
 import { getCache, generateCacheKey } from '../../lib/cache-service';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import { evaluateFunctionPoints, aggregateCoverageScores } from './coverage-logic';
 import { ProgressCallback } from '../services/comparison-pipeline-service.non-stream';
 import pLimit from '@/lib/pLimit';
+import { AdaptiveRateLimiter } from '@/lib/adaptive-rate-limiter';
+import { extractProviderFromModelId, getProviderProfile } from '@/lib/provider-rate-limits';
 
 const DEFAULT_JUDGE_CONCURRENCY = 20;
 
@@ -261,9 +262,9 @@ export class LLMCoverageEvaluator implements Evaluator {
         judges?: Judge[],
         judgeMode?: 'failover' | 'consensus', // Legacy
         classificationScale: ClassificationScaleItem[] = CLASSIFICATION_SCALE,
+        providerLimiters?: Map<string, ReturnType<typeof pLimit>>,
     ): Promise<JudgeResult> {
         const judgeLog: string[] = [];
-        const judgeRequestLimit = pLimit(5);
         const successfulJudgements: (PointwiseCoverageLLMResult & { judgeModelId: string })[] = [];
 
         // Determine which judges to use
@@ -278,10 +279,14 @@ export class LLMCoverageEvaluator implements Evaluator {
         const totalJudgesAttempted = judgesToUse.length;
 
         const allKeyPointTexts = allPointsInPrompt.map(p => `${p.isInverted ? '[should not]' : '[should]'} ${p.displayText}`);
-        
+
         // Phase 1: Try primary judges
-        const evaluationPromises = judgesToUse.map((judge, index) =>
-            judgeRequestLimit(async () => {
+        const evaluationPromises = judgesToUse.map((judge, index) => {
+            // Get provider-specific limiter, or use a fallback
+            const provider = extractProviderFromModelId(judge.model);
+            const providerLimit = providerLimiters?.get(provider) || pLimit(5);
+
+            return providerLimit(async () => {
                 const judgeIdentifier = judge.id || `judge-${index}`;
                 this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- [Primary] Requesting judge: ${judgeIdentifier} (Model: ${judge.model}, Approach: ${judge.approach}) for KP: "${pointToEvaluate.textToEvaluate!.substring(0, 50)}..."`);
                 judgeLog.push(`[${judgeIdentifier}] Starting evaluation with model ${judge.model} and approach ${judge.approach}.`);
@@ -304,8 +309,8 @@ export class LLMCoverageEvaluator implements Evaluator {
                     judgeLog.push(`[${judgeIdentifier}] SUCCEEDED. Score: ${singleEvalResult.coverage_extent}`);
                     successfulJudgements.push({ ...singleEvalResult, judgeModelId: finalJudgeId });
                 }
-            })
-        );
+            });
+        });
 
         await Promise.all(evaluationPromises);
 
@@ -320,7 +325,8 @@ export class LLMCoverageEvaluator implements Evaluator {
             totalJudgesAttempted,
             judges,
             judgeLog,
-            classificationScale
+            classificationScale,
+            providerLimiters
         );
 
         if (successfulJudgements.length === 0) {
@@ -372,6 +378,7 @@ export class LLMCoverageEvaluator implements Evaluator {
         judges?: Judge[],
         judgeLog: string[] = [],
         classificationScale: ClassificationScaleItem[] = CLASSIFICATION_SCALE,
+        providerLimiters?: Map<string, ReturnType<typeof pLimit>>,
     ): Promise<boolean> {
         // Only use backup judge if we have fewer successful judgements than expected 
         // and we're not using custom judges (to preserve user configurations)
@@ -539,50 +546,27 @@ Output: <reflection>The text mentions empathy, which means the criterion is MET 
         }
         
         try {
-            // Log the system prompt used (once per judge request)
-            const judgeIdForLog = judge.id || `${judge.approach}`;
-            // this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- [${judgeIdForLog}] System prompt used (approach=${judge.approach}):\n${systemPrompt}`);
-            // if (judgeLog) {
-            //     judgeLog.push(`[${judgeIdForLog}] SYSTEM_PROMPT_BEGIN`);
-            //     judgeLog.push(systemPrompt);
-            //     judgeLog.push(`[${judgeIdForLog}] SYSTEM_PROMPT_END`);
-            // }
-            // this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- [${judgeIdForLog}] Final prompt used (approach=${judge.approach}):\n${finalPrompt}`);
-            // if (judgeLog) {
-            //     judgeLog.push(`[${judgeIdForLog}] FINAL_PROMPT_BEGIN`);
-            //     judgeLog.push(finalPrompt);
-            //     judgeLog.push(`[${judgeIdForLog}] FINAL_PROMPT_END`);
-            // }
-             const clientOptions: Omit<LLMApiCallOptions, 'modelName'> & { modelId: string } = {
+            // Use getModelResponse which has smart retry and rate limit handling
+            const responseText = await getModelResponse({
                 modelId: modelId,
                 messages: [{ role: 'user', content: finalPrompt }],
                 systemPrompt: systemPrompt,
                 temperature: 0.0,
                 maxTokens: 500,
-                // The new cache service handles this, so we don't use the client's built-in cache.
-                // cache: true 
-            };
+                useCache: this.useCache,
+                timeout: CALL_TIMEOUT_MS_POINTWISE,
+                retries: 1,
+            });
 
-            const llmCallPromise = dispatchMakeApiCall(clientOptions);
-            
-            const timeoutPromise = new Promise<never>((_, reject) => 
-                setTimeout(() => reject(new Error(`LLM call timed out after ${CALL_TIMEOUT_MS_POINTWISE}ms for ${modelId}`)), CALL_TIMEOUT_MS_POINTWISE)
-            );
-            
-            const response = await Promise.race([llmCallPromise, timeoutPromise]);
-
-            if (response.error) {
-                return { error: `API error: ${response.error}` };
-            }
-            if (!response.responseText || response.responseText.trim() === '') {
+            if (!responseText || responseText.trim() === '') {
                 return { error: "Empty response" };
             }
 
-            const reflectionMatch = response.responseText.match(/<reflection>([\s\S]*?)<\/reflection>/);
-            const classificationMatch = response.responseText.match(/<classification>([\s\S]*?)<\/classification>/);
+            const reflectionMatch = responseText.match(/<reflection>([\s\S]*?)<\/reflection>/);
+            const classificationMatch = responseText.match(/<classification>([\s\S]*?)<\/classification>/);
 
             if (!reflectionMatch || !classificationMatch) {
-                return { error: `Failed to parse XML. Response: ${response.responseText.substring(0,100)}...` };
+                return { error: `Failed to parse XML. Response: ${responseText.substring(0,100)}...` };
             }
 
             const classificationToScore: Record<string, number> = Object.fromEntries(
@@ -860,6 +844,52 @@ Output: <reflection>The text mentions empathy, which means the criterion is MET 
         onProgress?: ProgressCallback,
     ): Promise<Partial<FinalComparisonOutputV2['evaluationResults'] & Pick<FinalComparisonOutputV2, 'extractedKeyPoints'>>> {
         this.logger.info(`[LLMCoverageEvaluator] Starting evaluation for ${inputs.length} prompts.`);
+
+        // --- Adaptive Rate Limiting Setup ---
+        // Collect all judge models across all configs to group by provider
+        const allJudgeModels = new Set<string>();
+        for (const input of inputs) {
+            const llmCoverageConfig = input.config.evaluationConfig?.['llm-coverage'] as LLMCoverageEvaluationConfig | undefined;
+            const judges = (llmCoverageConfig?.judges && llmCoverageConfig.judges.length > 0)
+                ? llmCoverageConfig.judges
+                : DEFAULT_JUDGES;
+
+            judges.forEach(judge => allJudgeModels.add(judge.model));
+            // Also add backup judge
+            allJudgeModels.add(DEFAULT_BACKUP_JUDGE.model);
+        }
+
+        // Group judge models by provider
+        const judgesByProvider = new Map<string, string[]>();
+        for (const judgeModel of allJudgeModels) {
+            const provider = extractProviderFromModelId(judgeModel);
+            if (!judgesByProvider.has(provider)) {
+                judgesByProvider.set(provider, []);
+            }
+            judgesByProvider.get(provider)!.push(judgeModel);
+        }
+
+        // Create adaptive limiter for each provider
+        const providerLimiters = new Map<string, ReturnType<typeof pLimit>>();
+        for (const [provider, models] of judgesByProvider.entries()) {
+            const profile = getProviderProfile(provider);
+            // For judges, use a more conservative initial concurrency
+            const judgeProfile = {
+                ...profile,
+                initialConcurrency: Math.min(profile.initialConcurrency, 10),
+                maxConcurrency: Math.min(profile.maxConcurrency, 20),
+            };
+            const pLimiter = pLimit(judgeProfile.initialConcurrency);
+            providerLimiters.set(provider, pLimiter);
+
+            this.logger.info(
+                `[LLMCoverageEvaluator] Configured provider limit for '${provider}': ` +
+                `${models.length} judge model(s), concurrency=${judgeProfile.initialConcurrency}, ` +
+                `max=${judgeProfile.maxConcurrency}`
+            );
+        }
+
+        // Global limiter for overall concurrency control
         const limit = pLimit(DEFAULT_JUDGE_CONCURRENCY);
         const tasks: Promise<void>[] = [];
 
@@ -967,7 +997,8 @@ Output: <reflection>The text mentions empathy, which means the criterion is MET 
                                     config.description,
                                     llmCoverageConfig?.judges,
                                     llmCoverageConfig?.judgeMode,
-                                    classificationScale
+                                    classificationScale,
+                                    providerLimiters
                                 );
 
                                 let finalScore = judgeResult.coverage_extent;
