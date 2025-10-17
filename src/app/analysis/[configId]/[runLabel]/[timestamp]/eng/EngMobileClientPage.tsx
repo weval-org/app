@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useDebouncedCallback } from 'use-debounce';
 import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
@@ -35,8 +35,10 @@ export const EngMobileClientPage: React.FC = () => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Extract coverage scores from data
-  const allCoverageScores = data?.evaluationResults?.llmCoverageScores;
+  // Extract coverage scores from data (memoized to prevent scenarioStats recalc)
+  const allCoverageScores = useMemo(() => {
+    return data?.evaluationResults?.llmCoverageScores;
+  }, [data?.evaluationResults?.llmCoverageScores]);
 
   // Get models without IDEAL
   const models = useMemo(() => {
@@ -87,47 +89,47 @@ export const EngMobileClientPage: React.FC = () => {
     }
   }, [data, promptTextsForMacroTable, models, allCoverageScores]);
 
-  // Helper to build URL
-  const buildUrl = (params: URLSearchParams) => {
+  // Helper to build URL (memoized)
+  const buildUrl = useCallback((params: URLSearchParams) => {
     const queryString = params.toString();
     return queryString ? `${pathname}?${queryString}` : pathname;
-  };
+  }, [pathname]);
 
-  // Navigation functions with instant UI feedback
-  const navigateToExecutiveSummary = () => {
+  // Navigation functions with instant UI feedback (memoized to prevent re-renders)
+  const navigateToExecutiveSummary = useCallback(() => {
     const params = new URLSearchParams();
     params.set('view', 'summary');
     router.replace(buildUrl(params), { scroll: false });
-  };
+  }, [router, buildUrl]);
 
-  const navigateToScenario = (promptId: string) => {
+  const navigateToScenario = useCallback((promptId: string) => {
     const params = new URLSearchParams();
     params.set('scenario', promptId);
     router.replace(buildUrl(params), { scroll: false });
-  };
+  }, [router, buildUrl]);
 
-  const navigateToComparison = (promptId: string, modelIds: string[]) => {
+  const navigateToComparison = useCallback((promptId: string, modelIds: string[]) => {
     const params = new URLSearchParams();
     params.set('scenario', promptId);
     if (modelIds.length > 0) {
       params.set('models', modelIds.join(','));
     }
     router.replace(buildUrl(params), { scroll: false });
-  };
+  }, [router, buildUrl]);
 
   // Smart back navigation - always go to logical parent, not browser back
-  const navigateBackToScenarios = () => {
+  const navigateBackToScenarios = useCallback(() => {
     const params = new URLSearchParams();
     // Clear all params to show scenarios list
     router.replace(buildUrl(params), { scroll: false });
-  };
+  }, [router, buildUrl]);
 
-  const navigateBackToModels = (promptId: string) => {
+  const navigateBackToModels = useCallback((promptId: string) => {
     const params = new URLSearchParams();
     params.set('scenario', promptId);
     // Keep scenario but clear models
     router.replace(buildUrl(params), { scroll: false });
-  };
+  }, [router, buildUrl]);
 
   // Determine which screen to show
   const currentScreen = useMemo(() => {
