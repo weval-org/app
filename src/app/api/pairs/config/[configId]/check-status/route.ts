@@ -25,15 +25,21 @@ export async function GET(
       );
     }
 
+    // Pass explicit credentials to ensure consistent blob store access
+    const blobOptions = {
+      siteId: process.env.NETLIFY_SITE_ID,
+      context: undefined
+    };
+
     // Check if tasks exist for this config
     console.log(`[check-status] Counting tasks for configId: ${configId}`);
-    const taskCount = await getConfigTaskCount(configId);
+    const taskCount = await getConfigTaskCount(configId, blobOptions);
     const hasTasks = taskCount > 0;
     console.log(`[check-status] Found ${taskCount} tasks (hasTasks: ${hasTasks})`);
 
     // Get generation status if it exists
     console.log(`[check-status] Retrieving generation status for configId: ${configId}`);
-    const generationStatus = await getGenerationStatus(configId);
+    const generationStatus = await getGenerationStatus(configId, blobOptions);
     console.log(`[check-status] Generation status:`, generationStatus);
 
     const response: CheckStatusResponse = {
