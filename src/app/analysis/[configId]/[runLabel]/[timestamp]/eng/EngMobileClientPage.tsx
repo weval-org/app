@@ -35,10 +35,8 @@ export const EngMobileClientPage: React.FC = () => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Extract coverage scores from data (memoized to prevent scenarioStats recalc)
-  const allCoverageScores = useMemo(() => {
-    return data?.evaluationResults?.llmCoverageScores;
-  }, [data?.evaluationResults?.llmCoverageScores]);
+  // Extract coverage scores from data
+  const allCoverageScores = data?.evaluationResults?.llmCoverageScores;
 
   // Get models without IDEAL
   const models = useMemo(() => {
