@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, useLayoutEffect } from 'react';
+import React, { useState, useMemo, useEffect, useLayoutEffect, startTransition } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
 import { parseModelIdForDisplay, getModelDisplayLabel } from '@/app/utils/modelIdUtils';
@@ -400,30 +400,36 @@ const EngDesktopClientPage: React.FC = () => {
   const selectExecutiveSummary = () => {
     debug.log('selectExecutiveSummary START', { timestamp: performance.now() });
 
-    // Optimistic update
+    // Optimistic update (instant, high priority)
     setOptimisticState({ scenario: null, models: null, view: 'summary' });
 
-    const params = new URLSearchParams();
-    params.set('view', 'summary');
-    const newUrl = buildUrl(params);
-    debug.log('selectExecutiveSummary - Calling router.replace', { newUrl, timestamp: performance.now() });
-    router.replace(newUrl, { scroll: false });
-    debug.log('selectExecutiveSummary Done', { timestamp: performance.now() });
+    // URL update in background (low priority)
+    startTransition(() => {
+      const params = new URLSearchParams();
+      params.set('view', 'summary');
+      const newUrl = buildUrl(params);
+      debug.log('selectExecutiveSummary - Calling router.replace', { newUrl, timestamp: performance.now() });
+      router.replace(newUrl, { scroll: false });
+      debug.log('selectExecutiveSummary Done', { timestamp: performance.now() });
+    });
   };
 
   // Select leaderboard
   const selectLeaderboard = () => {
     debug.log('selectLeaderboard START', { timestamp: performance.now() });
 
-    // Optimistic update
+    // Optimistic update (instant, high priority)
     setOptimisticState({ scenario: null, models: null, view: 'leaderboard' });
 
-    const params = new URLSearchParams();
-    params.set('view', 'leaderboard');
-    const newUrl = buildUrl(params);
-    debug.log('selectLeaderboard - Calling router.replace', { newUrl, timestamp: performance.now() });
-    router.replace(newUrl, { scroll: false });
-    debug.log('selectLeaderboard Done', { timestamp: performance.now() });
+    // URL update in background (low priority)
+    startTransition(() => {
+      const params = new URLSearchParams();
+      params.set('view', 'leaderboard');
+      const newUrl = buildUrl(params);
+      debug.log('selectLeaderboard - Calling router.replace', { newUrl, timestamp: performance.now() });
+      router.replace(newUrl, { scroll: false });
+      debug.log('selectLeaderboard Done', { timestamp: performance.now() });
+    });
   };
 
   // Select a scenario (middle column shows its models)
@@ -434,15 +440,18 @@ const EngDesktopClientPage: React.FC = () => {
       timestamp: performance.now()
     });
 
-    // Optimistic update - clear models when switching scenarios
+    // Optimistic update - clear models when switching scenarios (instant, high priority)
     setOptimisticState({ scenario: promptId, models: new Set([]), view: null });
 
-    const params = new URLSearchParams();
-    params.set('scenario', promptId);
-    const newUrl = buildUrl(params);
-    debug.log('selectScenario - Calling router.replace', { newUrl, timestamp: performance.now() });
-    router.replace(newUrl, { scroll: false });
-    debug.log('selectScenario Done', { timestamp: performance.now() });
+    // URL update in background (low priority)
+    startTransition(() => {
+      const params = new URLSearchParams();
+      params.set('scenario', promptId);
+      const newUrl = buildUrl(params);
+      debug.log('selectScenario - Calling router.replace', { newUrl, timestamp: performance.now() });
+      router.replace(newUrl, { scroll: false });
+      debug.log('selectScenario Done', { timestamp: performance.now() });
+    });
   };
 
   // Toggle all variants of a base model in/out of comparison
@@ -485,23 +494,26 @@ const EngDesktopClientPage: React.FC = () => {
       newModelIds = [...comparisonItems, ...itemsToAdd].map(key => key.split('::')[1]);
     }
 
-    // Optimistic update
+    // Optimistic update (instant, high priority)
     setOptimisticState(prev => ({
       ...prev,
       models: new Set(newModelIds),
       view: null,
     }));
 
-    debug.log('toggleModel - Building new URL', { timestamp: performance.now() });
-    const params = new URLSearchParams();
-    params.set('scenario', selectedScenario);
-    if (newModelIds.length > 0) {
-      params.set('models', newModelIds.join(','));
-    }
-    const newUrl = buildUrl(params);
-    debug.log('toggleModel - Calling router.replace', { newUrl, timestamp: performance.now() });
-    router.replace(newUrl, { scroll: false });
-    debug.log('toggleModel Done', { timestamp: performance.now() });
+    // URL update in background (low priority)
+    startTransition(() => {
+      debug.log('toggleModel - Building new URL', { timestamp: performance.now() });
+      const params = new URLSearchParams();
+      params.set('scenario', selectedScenario);
+      if (newModelIds.length > 0) {
+        params.set('models', newModelIds.join(','));
+      }
+      const newUrl = buildUrl(params);
+      debug.log('toggleModel - Calling router.replace', { newUrl, timestamp: performance.now() });
+      router.replace(newUrl, { scroll: false });
+      debug.log('toggleModel Done', { timestamp: performance.now() });
+    });
   };
 
   const removeFromComparison = (key: string) => {
@@ -512,39 +524,45 @@ const EngDesktopClientPage: React.FC = () => {
       .filter(k => k !== key)
       .map(k => k.split('::')[1]);
 
-    // Optimistic update - immediately update UI
+    // Optimistic update (instant, high priority)
     setOptimisticState(prev => ({
       ...prev,
       models: new Set(newModelIds),
       view: null,
     }));
 
-    const params = new URLSearchParams();
-    params.set('scenario', selectedScenario);
-    if (newModelIds.length > 0) {
-      params.set('models', newModelIds.join(','));
-    }
-    const newUrl = buildUrl(params);
-    debug.log('removeFromComparison - Calling router.replace', { newUrl, timestamp: performance.now() });
-    router.replace(newUrl, { scroll: false });
+    // URL update in background (low priority)
+    startTransition(() => {
+      const params = new URLSearchParams();
+      params.set('scenario', selectedScenario);
+      if (newModelIds.length > 0) {
+        params.set('models', newModelIds.join(','));
+      }
+      const newUrl = buildUrl(params);
+      debug.log('removeFromComparison - Calling router.replace', { newUrl, timestamp: performance.now() });
+      router.replace(newUrl, { scroll: false });
+    });
   };
 
   const clearAllComparisons = () => {
     debug.log('clearAllComparisons START', { timestamp: performance.now() });
     if (!selectedScenario) return;
 
-    // Optimistic update - immediately clear all models from UI
+    // Optimistic update (instant, high priority)
     setOptimisticState(prev => ({
       ...prev,
       models: new Set([]),
       view: null,
     }));
 
-    const params = new URLSearchParams();
-    params.set('scenario', selectedScenario);
-    const newUrl = buildUrl(params);
-    debug.log('clearAllComparisons - Calling router.replace', { newUrl, timestamp: performance.now() });
-    router.replace(newUrl, { scroll: false });
+    // URL update in background (low priority)
+    startTransition(() => {
+      const params = new URLSearchParams();
+      params.set('scenario', selectedScenario);
+      const newUrl = buildUrl(params);
+      debug.log('clearAllComparisons - Calling router.replace', { newUrl, timestamp: performance.now() });
+      router.replace(newUrl, { scroll: false });
+    });
   };
 
   if (loading) {
@@ -571,16 +589,6 @@ const EngDesktopClientPage: React.FC = () => {
   }
 
   const { evaluationResults: { llmCoverageScores: allCoverageScores }, promptIds, config } = data;
-
-  // Debug: log data availability
-  debug.log('Data loaded:', {
-    hasPromptIds: !!promptIds,
-    promptIdsLength: promptIds?.length,
-    promptIdsArray: promptIds,
-    modelsLength: models.length,
-    allCoverageScoresKeys: Object.keys(allCoverageScores || {}).length,
-    dataKeys: Object.keys(data),
-  });
 
   // Calculate scenario stats with error handling
   const scenarioStats = useMemo(() => {
