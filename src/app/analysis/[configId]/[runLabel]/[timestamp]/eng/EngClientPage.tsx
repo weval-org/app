@@ -816,26 +816,37 @@ const ScenariosColumn = React.memo<ScenariosColumnProps>(function ScenariosColum
   const containerRef = React.useRef<HTMLDivElement>(null);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    const totalItems = (executiveSummary ? 1 : 0) + scenarios.length;
+    // Total items including Overview and Leaderboard
+    const hasOverview = !!executiveSummary;
+    const totalSpecialItems = hasOverview ? 2 : 1; // Overview (-1) + Leaderboard (-2), or just Leaderboard
+    const totalItems = totalSpecialItems + scenarios.length;
     if (totalItems === 0) return;
 
-    const currentFocus = focusedIndex ?? -2; // -2 = no focus, -1 = exec summary, 0+ = scenarios
+    // focusedIndex: null = no focus, -1 = Overview, -2 = Leaderboard, 0+ = scenarios
+    const currentFocus = focusedIndex ?? -3; // -3 = no focus (outside range)
 
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      const nextIndex = currentFocus === -2 ? (executiveSummary ? -1 : 0) : Math.min(currentFocus + 1, totalItems - 1);
-      setFocusedIndex(nextIndex);
+      if (currentFocus === -3 || currentFocus < -2) {
+        // Start at Overview if it exists, otherwise Leaderboard
+        setFocusedIndex(hasOverview ? -1 : -2);
+      } else {
+        const nextIndex = Math.min(currentFocus + 1, scenarios.length - 1);
+        setFocusedIndex(nextIndex);
+      }
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      const prevIndex = Math.max(currentFocus - 1, executiveSummary ? -1 : 0);
+      const minIndex = hasOverview ? -1 : -2;
+      const prevIndex = Math.max(currentFocus - 1, minIndex);
       setFocusedIndex(prevIndex);
     } else if (e.key === 'Enter' && focusedIndex !== null) {
       e.preventDefault();
-      if (focusedIndex === -1 && executiveSummary) {
+      if (focusedIndex === -1 && hasOverview) {
         selectExecutiveSummary();
-      } else {
-        const scenarioIndex = executiveSummary ? focusedIndex : focusedIndex;
-        const scenario = scenarios[scenarioIndex];
+      } else if (focusedIndex === -2) {
+        selectLeaderboard();
+      } else if (focusedIndex >= 0) {
+        const scenario = scenarios[focusedIndex];
         if (scenario) {
           selectScenario(scenario.promptId);
         }
