@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useLayoutEffect } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
 import { parseModelIdForDisplay, getModelDisplayLabel } from '@/app/utils/modelIdUtils';
@@ -329,7 +329,8 @@ const EngDesktopClientPage: React.FC = () => {
   }, [optimisticState.models, selectedScenario, urlComparisonItems]);
 
   // Clear optimistic state once URL catches up
-  useEffect(() => {
+  // Use useLayoutEffect to clear synchronously before browser paint (prevents flicker)
+  useLayoutEffect(() => {
     let shouldClear = false;
 
     // Check if view caught up
