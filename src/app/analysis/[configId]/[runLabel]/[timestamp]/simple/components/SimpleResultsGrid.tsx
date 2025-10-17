@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,24 +11,29 @@ import Icon from '@/components/ui/icon';
 import ResponseRenderer from '@/app/components/ResponseRenderer';
 import RemarkGfmPlugin from 'remark-gfm';
 
+// Number of models to prefetch for each prompt
+const PREFETCH_MODEL_COUNT = 5;
+
 export const SimpleResultsGrid: React.FC = () => {
-    const { 
-        data, 
+    const {
+        data,
         modelsForMacroTable,
         openModelEvaluationDetailModal,
         openPromptDetailModal,
         openModelPerformanceModal,
         fetchPromptResponses,
+        fetchModalResponseBatch,
         getCachedResponse,
         configId,
         runLabel,
-        timestamp 
+        timestamp
     } = useAnalysis();
-    
+
     const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
     const [showAllPrompts, setShowAllPrompts] = useState(false);
     const [isLoadingResponses, setIsLoadingResponses] = useState(false);
     const [expandedResponses, setExpandedResponses] = useState<Set<string>>(new Set());
+    const hasPrefetched = useRef(false);
 
     // Fetch responses when a prompt is selected
     useEffect(() => {
@@ -40,6 +45,33 @@ export const SimpleResultsGrid: React.FC = () => {
             });
         }
     }, [selectedPrompt, fetchPromptResponses]);
+
+    // Prefetch first N models for all prompts on mount
+    useEffect(() => {
+        if (hasPrefetched.current || !fetchModalResponseBatch || !data?.promptIds) {
+            return;
+        }
+
+        const canonicalModels = modelsForMacroTable.filter(m => m.toUpperCase() !== IDEAL_MODEL_ID.toUpperCase());
+        const topModels = getCanonicalModels(canonicalModels, data.config).slice(0, PREFETCH_MODEL_COUNT);
+
+        if (topModels.length === 0 || data.promptIds.length === 0) {
+            return;
+        }
+
+        hasPrefetched.current = true;
+
+        // Create pairs of all prompts × first N models
+        const pairs = data.promptIds.flatMap(promptId =>
+            topModels.map(modelId => ({ promptId, modelId }))
+        );
+
+        // Prefetch in background without blocking UI
+        console.log(`[SimpleResultsGrid] Prefetching ${pairs.length} responses (${data.promptIds.length} prompts × ${topModels.length} models)`);
+        fetchModalResponseBatch(pairs).catch(err => {
+            console.error('[SimpleResultsGrid] Prefetch failed:', err);
+        });
+    }, [data?.promptIds, data?.config, modelsForMacroTable, fetchModalResponseBatch]);
 
     const toggleResponseExpansion = (modelId: string) => {
         setExpandedResponses(prev => {
@@ -97,36 +129,36 @@ export const SimpleResultsGrid: React.FC = () => {
     const displayedPrompts = showAllPrompts ? promptData : promptData.slice(0, 8);
 
     // Calculate scores for each model-prompt combination
-    const getScore = (promptId: string, modelId: string) => {
+    const getScore = useCallback((promptId: string, modelId: string) => {
         const result = allCoverageScores[promptId]?.[modelId];
         if (!result || 'error' in result || typeof result.avgCoverageExtent !== 'number') {
             return null;
         }
         return result.avgCoverageExtent;
-    };
+    }, [allCoverageScores]);
 
     // Get color class for score
-    const getScoreColorClass = (score: number | null) => {
+    const getScoreColorClass = useCallback((score: number | null) => {
         if (score === null) return 'bg-gray-200 dark:bg-gray-700';
         if (score >= 0.8) return 'bg-green-500';
         if (score >= 0.6) return 'bg-yellow-500';
         if (score >= 0.4) return 'bg-orange-500';
         return 'bg-red-500';
-    };
+    }, []);
 
     // Get model average score
-    const getModelAverage = (modelId: string) => {
+    const getModelAverage = useCallback((modelId: string) => {
         const scores = promptIds.map(pid => getScore(pid, modelId)).filter(s => s !== null) as number[];
         if (scores.length === 0) return null;
         return scores.reduce((sum, score) => sum + score, 0) / scores.length;
-    };
+    }, [promptIds, getScore]);
 
     // Get prompt average score
-    const getPromptAverage = (promptId: string) => {
+    const getPromptAverage = useCallback((promptId: string) => {
         const scores = canonicalModels.map(mid => getScore(promptId, mid)).filter(s => s !== null) as number[];
         if (scores.length === 0) return null;
         return scores.reduce((sum, score) => sum + score, 0) / scores.length;
-    };
+    }, [canonicalModels, getScore]);
 
     if (selectedPrompt) {
         // Single prompt view - show model responses

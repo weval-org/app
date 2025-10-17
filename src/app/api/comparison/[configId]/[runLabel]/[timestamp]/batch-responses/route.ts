@@ -24,13 +24,23 @@ export async function POST(request: Request, context: RouteContext) {
 
         const flattenedResponses: Record<string, string> = {};
 
-        // Fetch each (promptId, modelId) pair using optimized granular access
-        for (const pair of pairs) {
-            if (pair.promptId && pair.modelId) {
+        // Fetch all pairs in parallel for better performance
+        const fetchPromises = pairs
+            .filter(pair => pair.promptId && pair.modelId)
+            .map(async (pair) => {
                 const response = await getSingleModelResponse(configId, runLabel, timestamp, pair.promptId, pair.modelId);
                 if (response !== null) {
-                    flattenedResponses[`${pair.promptId}:${pair.modelId}`] = response;
+                    return { key: `${pair.promptId}:${pair.modelId}`, response };
                 }
+                return null;
+            });
+
+        const results = await Promise.all(fetchPromises);
+
+        // Populate the flattened responses object
+        for (const result of results) {
+            if (result !== null) {
+                flattenedResponses[result.key] = result.response;
             }
         }
 
