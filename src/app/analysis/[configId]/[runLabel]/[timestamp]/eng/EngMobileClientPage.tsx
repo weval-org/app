@@ -2,7 +2,6 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import { useDebouncedCallback } from 'use-debounce';
 import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
 import { parseModelIdForDisplay, getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';

@@ -2,7 +2,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import { useDebouncedCallback } from 'use-debounce';
 import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
 import { parseModelIdForDisplay, getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
@@ -396,8 +395,8 @@ const EngDesktopClientPage: React.FC = () => {
     return queryString ? `${pathname}?${queryString}` : pathname;
   };
 
-  // Select executive summary (debounced to prevent double-clicks)
-  const selectExecutiveSummary = useDebouncedCallback(() => {
+  // Select executive summary
+  const selectExecutiveSummary = () => {
     debug.log('selectExecutiveSummary START', { timestamp: performance.now() });
 
     // Optimistic update
@@ -409,10 +408,10 @@ const EngDesktopClientPage: React.FC = () => {
     debug.log('selectExecutiveSummary - Calling router.replace', { newUrl, timestamp: performance.now() });
     router.replace(newUrl, { scroll: false });
     debug.log('selectExecutiveSummary Done', { timestamp: performance.now() });
-  }, 100);
+  };
 
-  // Select leaderboard (debounced to prevent double-clicks)
-  const selectLeaderboard = useDebouncedCallback(() => {
+  // Select leaderboard
+  const selectLeaderboard = () => {
     debug.log('selectLeaderboard START', { timestamp: performance.now() });
 
     // Optimistic update
@@ -424,10 +423,10 @@ const EngDesktopClientPage: React.FC = () => {
     debug.log('selectLeaderboard - Calling router.replace', { newUrl, timestamp: performance.now() });
     router.replace(newUrl, { scroll: false });
     debug.log('selectLeaderboard Done', { timestamp: performance.now() });
-  }, 100);
+  };
 
-  // Select a scenario (middle column shows its models) (debounced to prevent double-clicks)
-  const selectScenario = useDebouncedCallback((promptId: string) => {
+  // Select a scenario (middle column shows its models)
+  const selectScenario = (promptId: string) => {
     debug.log('selectScenario START', {
       promptId,
       currentSelectedScenario: selectedScenario,
@@ -443,10 +442,10 @@ const EngDesktopClientPage: React.FC = () => {
     debug.log('selectScenario - Calling router.replace', { newUrl, timestamp: performance.now() });
     router.replace(newUrl, { scroll: false });
     debug.log('selectScenario Done', { timestamp: performance.now() });
-  }, 100);
+  };
 
-  // Toggle all variants of a base model in/out of comparison (debounced to prevent double-clicks)
-  const toggleModel = useDebouncedCallback((baseId: string) => {
+  // Toggle all variants of a base model in/out of comparison
+  const toggleModel = (baseId: string) => {
     debug.log('toggleModel - Called with', {
       baseId,
       selectedScenario,
@@ -502,7 +501,7 @@ const EngDesktopClientPage: React.FC = () => {
     debug.log('toggleModel - Calling router.replace', { newUrl, timestamp: performance.now() });
     router.replace(newUrl, { scroll: false });
     debug.log('toggleModel Done', { timestamp: performance.now() });
-  }, 100);
+  };
 
   const removeFromComparison = (key: string) => {
     debug.log('removeFromComparison START', { key, timestamp: performance.now() });
