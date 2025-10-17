@@ -248,7 +248,7 @@ const EngDesktopClientPage: React.FC = () => {
   const [optimisticState, setOptimisticState] = useState<{
     scenario: string | null;
     models: Set<string> | null;
-    view: 'summary' | null;
+    view: 'summary' | 'leaderboard' | null;
   }>({
     scenario: null,
     models: null,
@@ -300,7 +300,8 @@ const EngDesktopClientPage: React.FC = () => {
 
   // Derive all state from URL (single source of truth)
   const urlShowExecutiveSummary = searchParams.get('view') === 'summary';
-  const urlSelectedScenario = urlShowExecutiveSummary ? null : searchParams.get('scenario');
+  const urlShowLeaderboard = searchParams.get('view') === 'leaderboard';
+  const urlSelectedScenario = (urlShowExecutiveSummary || urlShowLeaderboard) ? null : searchParams.get('scenario');
   const urlComparisonItems = useMemo(() => {
     const scenario = searchParams.get('scenario');
     const modelsParam = searchParams.get('models');
@@ -313,6 +314,7 @@ const EngDesktopClientPage: React.FC = () => {
 
   // Effective state: merge optimistic state with URL state
   const showExecutiveSummary = optimisticState.view === 'summary' || urlShowExecutiveSummary;
+  const showLeaderboard = optimisticState.view === 'leaderboard' || urlShowLeaderboard;
   const selectedScenario = optimisticState.scenario || urlSelectedScenario;
   const comparisonItems = useMemo(() => {
     // If we have optimistic models (even if empty), use those
@@ -328,6 +330,9 @@ const EngDesktopClientPage: React.FC = () => {
 
     // Check if view caught up
     if (optimisticState.view === 'summary' && urlShowExecutiveSummary) {
+      shouldClear = true;
+    }
+    if (optimisticState.view === 'leaderboard' && urlShowLeaderboard) {
       shouldClear = true;
     }
 
@@ -352,7 +357,7 @@ const EngDesktopClientPage: React.FC = () => {
       debug.log('URL caught up - clearing optimistic state');
       setOptimisticState({ scenario: null, models: null, view: null });
     }
-  }, [urlShowExecutiveSummary, urlSelectedScenario, urlComparisonItems, optimisticState.view, optimisticState.scenario, optimisticState.models]);
+  }, [urlShowExecutiveSummary, urlShowLeaderboard, urlSelectedScenario, urlComparisonItems, optimisticState.view, optimisticState.scenario, optimisticState.models]);
 
   // Get models without IDEAL
   const models = useMemo(() => {
@@ -366,9 +371,18 @@ const EngDesktopClientPage: React.FC = () => {
     return systems.length > 1;
   }, [data?.config]);
 
-  // Calculate link to full analysis page (remove /eng from pathname)
+  // Calculate navigation URLs
   const fullAnalysisUrl = useMemo(() => {
     return pathname.replace(/\/eng$/, '');
+  }, [pathname]);
+
+  const simpleUrl = useMemo(() => {
+    return pathname.replace(/\/eng$/, '/simple');
+  }, [pathname]);
+
+  const baseEngUrl = useMemo(() => {
+    // Base eng URL without query params (resets state)
+    return pathname;
   }, [pathname]);
 
   // Helper to build URL with params
@@ -390,6 +404,21 @@ const EngDesktopClientPage: React.FC = () => {
     debug.log('selectExecutiveSummary - Calling router.replace', { newUrl, timestamp: performance.now() });
     router.replace(newUrl, { scroll: false });
     debug.log('selectExecutiveSummary Done', { timestamp: performance.now() });
+  }, 100);
+
+  // Select leaderboard (debounced to prevent double-clicks)
+  const selectLeaderboard = useDebouncedCallback(() => {
+    debug.log('selectLeaderboard START', { timestamp: performance.now() });
+
+    // Optimistic update
+    setOptimisticState({ scenario: null, models: null, view: 'leaderboard' });
+
+    const params = new URLSearchParams();
+    params.set('view', 'leaderboard');
+    const newUrl = buildUrl(params);
+    debug.log('selectLeaderboard - Calling router.replace', { newUrl, timestamp: performance.now() });
+    router.replace(newUrl, { scroll: false });
+    debug.log('selectLeaderboard Done', { timestamp: performance.now() });
   }, 100);
 
   // Select a scenario (middle column shows its models) (debounced to prevent double-clicks)
@@ -577,7 +606,7 @@ const EngDesktopClientPage: React.FC = () => {
   // Auto-select first scenario or exec summary on initial load
   useEffect(() => {
     // Only run if nothing is selected
-    if (urlSelectedScenario || urlShowExecutiveSummary) return;
+    if (urlSelectedScenario || urlShowExecutiveSummary || urlShowLeaderboard) return;
 
     // If executive summary exists, select it
     if (data.executiveSummary) {
@@ -591,48 +620,60 @@ const EngDesktopClientPage: React.FC = () => {
       debug.log('Auto-selecting first scenario:', scenarioStats[0].promptId);
       selectScenario(scenarioStats[0].promptId);
     }
-  }, [urlSelectedScenario, urlShowExecutiveSummary, data.executiveSummary, scenarioStats, selectExecutiveSummary, selectScenario]);
+  }, [urlSelectedScenario, urlShowExecutiveSummary, urlShowLeaderboard, data.executiveSummary, scenarioStats, selectExecutiveSummary, selectScenario]);
 
   return (
     <div className="h-screen flex flex-col bg-background font-mono">
       {/* Top bar */}
       <div className="border-b border-border px-2 sm:px-4 py-2 sm:py-3">
-        <div className="flex items-start justify-between gap-2 sm:gap-4">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 sm:gap-4">
-              {/* Logo section */}
-              <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-                <CIPLogo className="w-5 h-5 sm:w-6 sm:h-6 text-foreground flex-shrink-0" />
-                <Link href="/">
-                  <h2 className="text-lg sm:text-xl font-bold text-foreground hover:text-primary transition-colors">
-                    <span style={{ fontWeight: 700 }}>w</span>
-                    <span style={{ fontWeight: 200 }}>eval</span>
-                  </h2>
-                </Link>
-              </div>
+        <div className="flex items-center justify-between gap-2 sm:gap-4">
+          {/* Left: Logo + Clickable title */}
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+            <Link href="/" className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+              <CIPLogo className="w-5 h-5 sm:w-6 sm:h-6 text-foreground flex-shrink-0" />
+              <h2 className="text-lg sm:text-xl font-bold text-foreground hover:text-primary transition-colors">
+                <span style={{ fontWeight: 700 }}>w</span>
+                <span style={{ fontWeight: 200 }}>eval</span>
+              </h2>
+            </Link>
 
-              {/* Vertical separator - hidden on mobile */}
-              <div className="hidden sm:block h-8 w-px bg-border flex-shrink-0" />
+            <div className="h-6 w-px bg-border hidden sm:block flex-shrink-0" />
 
-              {/* Title section */}
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="min-w-0">
-                  <h1 className="text-sm sm:text-base font-bold tracking-tight truncate lg:text-lg" title={config.title || config.configTitle || config.id || 'Unknown config'}>
-                    {config.title || config.configTitle || config.id || 'Unknown config'}
-                  </h1>
-                  <p className="text-[10px] sm:text-xs text-muted-foreground hidden sm:block">
-                    Data Explorer / <Link href={fullAnalysisUrl} className="hover:text-foreground transition-colors underline underline-offset-2">Full Analysis</Link>
-                  </p>
-                </div>
-              </div>
-            </div>
+            <h1 className="text-sm sm:text-base font-bold truncate min-w-0">
+              <Link
+                href={baseEngUrl}
+                className="hover:text-primary transition-colors"
+                title={config.title || config.configTitle || config.id || 'Unknown config'}
+              >
+                {config.title || config.configTitle || config.id || 'Unknown config'}
+              </Link>
+            </h1>
           </div>
 
-          {timestamp && (
-            <div className="text-[10px] sm:text-xs text-muted-foreground flex-shrink-0 mt-1 sm:mt-2 hidden sm:block">
-              {timestamp}
+          {/* Right: View switcher + timestamp */}
+          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+            {timestamp && (
+              <span className="text-xs text-muted-foreground hidden lg:block">
+                {timestamp}
+              </span>
+            )}
+
+            <div className="flex items-center gap-0.5 border border-border rounded-md p-0.5 bg-muted/20">
+              <Link href={simpleUrl}>
+                <button className="px-2 sm:px-2.5 py-1 text-xs rounded hover:bg-muted transition-colors">
+                  Simple
+                </button>
+              </Link>
+              <button className="px-2 sm:px-2.5 py-1 text-xs rounded bg-primary/10 font-medium pointer-events-none">
+                Data Explorer
+              </button>
+              <Link href={fullAnalysisUrl}>
+                <button className="px-2 sm:px-2.5 py-1 text-xs rounded hover:bg-muted transition-colors">
+                  Advanced
+                </button>
+              </Link>
             </div>
-          )}
+          </div>
         </div>
       </div>
 
@@ -659,6 +700,8 @@ const EngDesktopClientPage: React.FC = () => {
               executiveSummary={data.executiveSummary}
               showExecutiveSummary={showExecutiveSummary}
               selectExecutiveSummary={selectExecutiveSummary}
+              showLeaderboard={showLeaderboard}
+              selectLeaderboard={selectLeaderboard}
             />
           </ErrorBoundary>
         </div>
@@ -696,6 +739,13 @@ const EngDesktopClientPage: React.FC = () => {
             <ErrorBoundary>
               {showExecutiveSummary && data.executiveSummary ? (
                 <ExecutiveSummaryView executiveSummary={data.executiveSummary} config={config} />
+              ) : showLeaderboard ? (
+                <LeaderboardView
+                  models={models}
+                  allCoverageScores={allCoverageScores}
+                  promptIds={promptIds}
+                  hasMultipleSystemPrompts={hasMultipleSystemPrompts}
+                />
               ) : comparisonItems.length > 0 ? (
                 <ComparisonView
                   comparisonItems={comparisonItems}
@@ -743,6 +793,8 @@ interface ScenariosColumnProps {
   executiveSummary: any;
   showExecutiveSummary: boolean;
   selectExecutiveSummary: () => void;
+  showLeaderboard: boolean;
+  selectLeaderboard: () => void;
 }
 
 const ScenariosColumn = React.memo<ScenariosColumnProps>(function ScenariosColumn({
@@ -752,6 +804,8 @@ const ScenariosColumn = React.memo<ScenariosColumnProps>(function ScenariosColum
   executiveSummary,
   showExecutiveSummary,
   selectExecutiveSummary,
+  showLeaderboard,
+  selectLeaderboard,
 }) {
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -794,32 +848,58 @@ const ScenariosColumn = React.memo<ScenariosColumnProps>(function ScenariosColum
       onFocus={() => setFocusedIndex(null)}
       onBlur={() => setFocusedIndex(null)}
     >
-      <div className="text-xs font-semibold text-muted-foreground mb-2 px-2">
-        SCENARIOS
-      </div>
-
-      {/* Executive Summary Option */}
+      {/* Overview Option */}
       {executiveSummary && (
         <div
           role="button"
           tabIndex={-1}
-          aria-label="Executive Summary"
+          aria-label="Overview"
           aria-pressed={showExecutiveSummary}
           className={cn(
-            "flex items-center justify-between gap-2 px-3 py-2.5 sm:px-2 sm:py-1 mb-0.5 rounded cursor-pointer transition-all duration-200 touch-manipulation",
+            "flex items-center gap-2 px-3 py-3 sm:px-2.5 sm:py-2 mb-2 rounded-md cursor-pointer transition-all duration-200 touch-manipulation border",
             showExecutiveSummary
-              ? "bg-primary/10 shadow-sm"
-              : "hover:bg-muted/50 hover:shadow-sm active:bg-muted/70",
+              ? "bg-primary/15 border-primary/30 shadow-md"
+              : "bg-muted/60 border-border hover:bg-muted hover:border-primary/20 hover:shadow-sm active:bg-muted",
             focusedIndex === -1 && "ring-2 ring-primary/50"
           )}
           onClick={selectExecutiveSummary}
         >
-          <span className="flex-1 font-medium text-xs sm:text-xs">Executive Summary</span>
+          <Icon name="file-text" className={cn("w-4 h-4 flex-shrink-0", showExecutiveSummary ? "text-primary" : "text-muted-foreground")} />
+          <span className={cn("flex-1 font-semibold text-sm", showExecutiveSummary && "text-primary")}>Overview</span>
           {showExecutiveSummary && (
-            <span className="text-primary text-xs animate-in fade-in duration-150" aria-hidden="true">●</span>
+            <Icon name="chevron-right" className="w-3.5 h-3.5 text-primary flex-shrink-0" aria-hidden="true" />
           )}
         </div>
       )}
+
+      {/* Leaderboard Option */}
+      <div
+        role="button"
+        tabIndex={-1}
+        aria-label="Leaderboard"
+        aria-pressed={showLeaderboard}
+        className={cn(
+          "flex items-center gap-2 px-3 py-3 sm:px-2.5 sm:py-2 mb-2 rounded-md cursor-pointer transition-all duration-200 touch-manipulation border",
+          showLeaderboard
+            ? "bg-primary/15 border-primary/30 shadow-md"
+            : "bg-muted/60 border-border hover:bg-muted hover:border-primary/20 hover:shadow-sm active:bg-muted",
+          focusedIndex === -2 && "ring-2 ring-primary/50"
+        )}
+        onClick={selectLeaderboard}
+      >
+        <Icon name="bar-chart-3" className={cn("w-4 h-4 flex-shrink-0", showLeaderboard ? "text-primary" : "text-muted-foreground")} />
+        <span className={cn("flex-1 font-semibold text-sm", showLeaderboard && "text-primary")}>Leaderboard</span>
+        {showLeaderboard && (
+          <Icon name="chevron-right" className="w-3.5 h-3.5 text-primary flex-shrink-0" aria-hidden="true" />
+        )}
+      </div>
+
+      {/* Divider */}
+      <div className="h-px bg-border my-2" />
+
+      <div className="text-xs font-semibold text-muted-foreground mb-2 px-2">
+        SCENARIOS
+      </div>
 
       {/* Scenario List */}
       <div className="space-y-1 sm:space-y-0.5">
@@ -1762,6 +1842,209 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
   );
 });
 
+// Leaderboard View Component
+interface LeaderboardViewProps {
+  models: string[];
+  allCoverageScores: any;
+  promptIds: string[];
+  hasMultipleSystemPrompts: boolean;
+}
+
+function LeaderboardView({ models, allCoverageScores, promptIds, hasMultipleSystemPrompts }: LeaderboardViewProps) {
+  // Group models by baseId and calculate stats
+  const leaderboardData = useMemo(() => {
+    const baseModelMap = new Map<string, {
+      baseId: string;
+      displayName: string;
+      variants: string[];
+      scores: number[];
+      judgeAlphas: number[];
+    }>();
+
+    // Group models and collect all scores
+    models.forEach(modelId => {
+      const parsed = parseModelIdForDisplay(modelId);
+      const baseId = parsed.baseId;
+
+      if (!baseModelMap.has(baseId)) {
+        const displayName = getModelDisplayLabel(parsed, {
+          hideProvider: true,
+          prettifyModelName: true,
+          hideTemperature: true,
+          hideSystemPrompt: true, // Always hide since we're showing aggregated results across all variants
+        });
+        baseModelMap.set(baseId, {
+          baseId,
+          displayName,
+          variants: [],
+          scores: [],
+          judgeAlphas: [],
+        });
+      }
+
+      const baseModel = baseModelMap.get(baseId)!;
+      baseModel.variants.push(modelId);
+
+      // Collect scores across all prompts
+      promptIds.forEach(promptId => {
+        const result = allCoverageScores?.[promptId]?.[modelId];
+        if (result && !('error' in result) && typeof result.avgCoverageExtent === 'number') {
+          baseModel.scores.push(result.avgCoverageExtent);
+
+          // Collect judge alpha if available
+          if (result.judgeAgreement?.krippendorffsAlpha != null) {
+            baseModel.judgeAlphas.push(result.judgeAgreement.krippendorffsAlpha);
+          }
+        }
+      });
+    });
+
+    // Calculate stats for each base model
+    const leaderboard = Array.from(baseModelMap.values()).map(baseModel => {
+      const avgScore = baseModel.scores.length > 0
+        ? baseModel.scores.reduce((sum, s) => sum + s, 0) / baseModel.scores.length
+        : 0;
+
+      const winRate = baseModel.scores.length > 0
+        ? baseModel.scores.filter(s => s >= 0.8).length / baseModel.scores.length
+        : 0;
+
+      const avgJudgeAlpha = baseModel.judgeAlphas.length > 0
+        ? baseModel.judgeAlphas.reduce((sum, a) => sum + a, 0) / baseModel.judgeAlphas.length
+        : null;
+
+      // Calculate variance across variants (if multiple variants exist)
+      let variance: number | null = null;
+      if (baseModel.variants.length > 1) {
+        // Calculate avg score per variant
+        const variantScores = baseModel.variants.map(variantId => {
+          const scores = promptIds
+            .map(promptId => {
+              const result = allCoverageScores?.[promptId]?.[variantId];
+              return result && !('error' in result) && typeof result.avgCoverageExtent === 'number'
+                ? result.avgCoverageExtent
+                : null;
+            })
+            .filter((s): s is number => s !== null);
+
+          return scores.length > 0
+            ? scores.reduce((sum, s) => sum + s, 0) / scores.length
+            : null;
+        }).filter((s): s is number => s !== null);
+
+        if (variantScores.length > 1) {
+          const mean = variantScores.reduce((sum, s) => sum + s, 0) / variantScores.length;
+          const squaredDiffs = variantScores.map(s => Math.pow(s - mean, 2));
+          const stdDev = Math.sqrt(squaredDiffs.reduce((sum, d) => sum + d, 0) / variantScores.length);
+          variance = stdDev;
+        }
+      }
+
+      return {
+        baseId: baseModel.baseId,
+        displayName: baseModel.displayName,
+        variantCount: baseModel.variants.length,
+        avgScore,
+        variance,
+        winRate,
+        avgJudgeAlpha,
+      };
+    });
+
+    // Sort by average score descending
+    return leaderboard.sort((a, b) => b.avgScore - a.avgScore);
+  }, [models, allCoverageScores, promptIds, hasMultipleSystemPrompts]);
+
+  const hasAnyVariance = leaderboardData.some(entry => entry.variance !== null);
+
+  return (
+    <div className="space-y-4 animate-in fade-in slide-in-from-right-2 duration-300">
+      {/* Header */}
+      <div className="border-b border-border pb-3">
+        <h2 className="text-base sm:text-lg font-semibold mb-1">Model Leaderboard</h2>
+        <p className="text-xs text-muted-foreground">
+          Overall performance across all {promptIds.length} scenario{promptIds.length !== 1 ? 's' : ''}
+        </p>
+      </div>
+
+      {/* Leaderboard Table */}
+      <div className="border border-border rounded overflow-hidden">
+        <div className="overflow-x-auto -webkit-overflow-scrolling-touch" style={{ touchAction: 'pan-x pan-y' }}>
+          <table className="w-full text-xs font-mono">
+            <thead className="bg-muted/30 border-b border-border">
+              <tr>
+                <th scope="col" className="text-left px-3 py-2 font-semibold w-12">#</th>
+                <th scope="col" className="text-left px-3 py-2 font-semibold min-w-[180px]">Model</th>
+                <th scope="col" className="text-left px-3 py-2 font-semibold min-w-[140px]">Avg Score</th>
+                <th scope="col" className="text-right px-3 py-2 font-semibold w-20">Win Rate</th>
+                {leaderboardData.some(e => e.avgJudgeAlpha !== null) && (
+                  <th scope="col" className="text-right px-3 py-2 font-semibold w-16">α</th>
+                )}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {leaderboardData.map((entry, index) => {
+                const rank = index + 1;
+                const scoreColor = entry.avgScore >= 0.8
+                  ? 'text-green-600 dark:text-green-400'
+                  : entry.avgScore >= 0.5
+                  ? 'text-amber-600 dark:text-amber-400'
+                  : 'text-red-600 dark:text-red-400';
+
+                return (
+                  <tr key={entry.baseId} className="hover:bg-muted/20">
+                    <td className="px-3 py-2 text-muted-foreground font-semibold">{rank}</td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium">{entry.displayName}</span>
+                        {entry.variantCount > 1 && (
+                          <span className="text-muted-foreground text-[10px]">({entry.variantCount})</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className={cn("font-mono font-semibold min-w-[3ch]", scoreColor)}>
+                            {formatPercentage(entry.avgScore, 0)}
+                          </span>
+                          {entry.variance !== null && (
+                            <span className="text-muted-foreground text-[10px]">
+                              ±{formatPercentage(entry.variance, 0)}¹
+                            </span>
+                          )}
+                        </div>
+                        <div className="w-32">
+                          <TextualBar score={entry.avgScore} length={16} />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono">
+                      {formatPercentage(entry.winRate, 0)}
+                    </td>
+                    {leaderboardData.some(e => e.avgJudgeAlpha !== null) && (
+                      <td className="px-3 py-2 text-right font-mono">
+                        {entry.avgJudgeAlpha !== null ? entry.avgJudgeAlpha.toFixed(2) : '—'}
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Footer note */}
+      {hasAnyVariance && (
+        <div className="text-[10px] text-muted-foreground px-1">
+          ¹ ± shows std dev across temp/system configurations
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Executive Summary View Component
 interface ExecutiveSummaryViewProps {
   executiveSummary: string | { content: string } | { modelId: string; content: string; structured?: any; isStructured?: boolean };
@@ -1797,13 +2080,6 @@ function ExecutiveSummaryView({ executiveSummary, config }: ExecutiveSummaryView
       {/* Metadata section */}
       {(hasDescription || tags.length > 0 || author || (references && references.length > 0)) && (
         <div className="space-y-4 bg-muted/50 dark:bg-slate-900/40 p-4 rounded-lg">
-          {/* Description */}
-          {hasDescription && (
-            <div className="prose prose-sm dark:prose-invert max-w-none">
-              <ResponseRenderer content={config.description} />
-            </div>
-          )}
-
           {/* Author */}
           {author && (
             <div>
@@ -1872,6 +2148,13 @@ function ExecutiveSummaryView({ executiveSummary, config }: ExecutiveSummaryView
                   );
                 })}
               </div>
+            </div>
+          )}
+
+          {/* Description */}
+          {hasDescription && (
+            <div className="prose prose-sm dark:prose-invert max-w-none">
+              <ResponseRenderer content={config.description} />
             </div>
           )}
 
