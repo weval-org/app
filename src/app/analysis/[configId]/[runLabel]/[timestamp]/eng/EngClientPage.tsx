@@ -313,8 +313,13 @@ const EngDesktopClientPage: React.FC = () => {
   }, [searchParams]);
 
   // Effective state: merge optimistic state with URL state
-  const showExecutiveSummary = optimisticState.view === 'summary' || urlShowExecutiveSummary;
-  const showLeaderboard = optimisticState.view === 'leaderboard' || urlShowLeaderboard;
+  // If we have an optimistic view, use only that (don't OR with URL state to avoid double-active bug)
+  const showExecutiveSummary = optimisticState.view !== null
+    ? optimisticState.view === 'summary'
+    : urlShowExecutiveSummary;
+  const showLeaderboard = optimisticState.view !== null
+    ? optimisticState.view === 'leaderboard'
+    : urlShowLeaderboard;
   const selectedScenario = optimisticState.scenario || urlSelectedScenario;
   const comparisonItems = useMemo(() => {
     // If we have optimistic models (even if empty), use those
