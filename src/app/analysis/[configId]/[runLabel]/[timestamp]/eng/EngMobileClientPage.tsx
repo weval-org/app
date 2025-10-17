@@ -29,12 +29,14 @@ export const EngMobileClientPage: React.FC = () => {
     error,
     displayedModels,
     promptTextsForMacroTable,
-    allCoverageScores,
   } = useAnalysis();
 
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+
+  // Extract coverage scores from data
+  const allCoverageScores = data?.evaluationResults?.llmCoverageScores;
 
   // Get models without IDEAL
   const models = useMemo(() => {
@@ -532,12 +534,12 @@ const ComparisonScreen = React.memo<ComparisonScreenProps>(function ComparisonSc
     fetchModalResponse,
     fetchEvaluationDetails,
     isLoadingResponse,
-    allCoverageScores,
     data,
   } = useAnalysis();
 
   const promptText = promptTextsForMacroTable[promptId] || promptId;
   const config = data?.config;
+  const allCoverageScores = data?.evaluationResults?.llmCoverageScores;
   const backButtonRef = React.useRef<HTMLButtonElement>(null);
 
   // Track which models we've attempted to fetch (prevents flashing)
@@ -601,8 +603,8 @@ const ComparisonScreen = React.memo<ComparisonScreenProps>(function ComparisonSc
             });
 
             const result = allCoverageScores?.[promptId]?.[modelId];
-            const hasScore = result && !('error' in result) && result.avgCoverageExtent !== undefined;
-            const score = hasScore ? result.avgCoverageExtent : null;
+            const hasScore = result && !('error' in result) && typeof result.avgCoverageExtent === 'number';
+            const score: number | null = (hasScore && typeof result.avgCoverageExtent === 'number') ? result.avgCoverageExtent : null;
 
             const response = getCachedResponse?.(promptId, modelId);
             const loading = isLoadingResponse(promptId, modelId);
