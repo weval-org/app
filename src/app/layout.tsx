@@ -11,6 +11,17 @@ export const metadata = {
   description: 'An open-source framework for evaluation.',
 };
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: 'white' },
+    { media: '(prefers-color-scheme: dark)', color: 'black' },
+  ],
+};
+
 export default function RootLayout({
   children,
 }: {

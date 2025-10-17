@@ -6,8 +6,8 @@ import { useDebouncedCallback } from 'use-debounce';
 import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
 import { parseModelIdForDisplay, getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
-import { TextualBar } from '../textual/components/TextualBar';
-import { formatPercentage, truncateText } from '../textual/utils/textualUtils';
+import { TextualBar } from './components/TextualBar';
+import { formatPercentage, truncateText } from './utils/textualUtils';
 import { cn } from '@/lib/utils';
 import ResponseRenderer, { RenderAsType } from '@/app/components/ResponseRenderer';
 import { StructuredSummary } from '@/app/analysis/components/StructuredSummary';
@@ -19,9 +19,39 @@ import { Badge } from '@/components/ui/badge';
 import Icon from '@/components/ui/icon';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { prettifyTag, normalizeTag } from '@/app/utils/tagUtils';
+import { EngMobileClientPage } from './EngMobileClientPage';
 
 // Debug loggers
 const debug = createClientLogger('EngClientPage');
+
+// Hook to detect mobile screen size (< 1024px = lg breakpoint)
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    // Initial check
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 1024);
+    };
+
+    checkMobile();
+
+    // Debounced resize handler (prevents excessive re-renders)
+    let timeoutId: NodeJS.Timeout;
+    const handleResize = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(checkMobile, 150);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
+  return isMobile;
+}
 
 // Path colors matching MacroCoverageTable
 const PATH_COLORS = [
@@ -173,6 +203,28 @@ const SectionLoadingOverlay: React.FC<{ message?: string }> = ({ message = 'Load
 );
 
 export const EngClientPage: React.FC = () => {
+  const isMobile = useIsMobile();
+
+  // Show nothing while detecting screen size (prevents layout shift)
+  if (isMobile === null) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-background">
+        <div className="text-muted-foreground text-sm">Loading...</div>
+      </div>
+    );
+  }
+
+  // Route to mobile-specific component
+  if (isMobile) {
+    return <EngMobileClientPage />;
+  }
+
+  // Desktop version below
+  return <EngDesktopClientPage />;
+};
+
+// Desktop 3-column version (original implementation)
+const EngDesktopClientPage: React.FC = () => {
   const {
     data,
     loading,
@@ -544,31 +596,31 @@ export const EngClientPage: React.FC = () => {
   return (
     <div className="h-screen flex flex-col bg-background font-mono">
       {/* Top bar */}
-      <div className="border-b border-border px-4 py-3">
-        <div className="flex items-start justify-between gap-4">
+      <div className="border-b border-border px-2 sm:px-4 py-2 sm:py-3">
+        <div className="flex items-start justify-between gap-2 sm:gap-4">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 sm:gap-4">
               {/* Logo section */}
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <CIPLogo className="w-6 h-6 text-foreground flex-shrink-0" />
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                <CIPLogo className="w-5 h-5 sm:w-6 sm:h-6 text-foreground flex-shrink-0" />
                 <Link href="/">
-                  <h2 className="text-xl font-bold text-foreground hover:text-primary transition-colors">
+                  <h2 className="text-lg sm:text-xl font-bold text-foreground hover:text-primary transition-colors">
                     <span style={{ fontWeight: 700 }}>w</span>
                     <span style={{ fontWeight: 200 }}>eval</span>
                   </h2>
                 </Link>
               </div>
 
-              {/* Vertical separator */}
-              <div className="h-8 w-px bg-border flex-shrink-0" />
+              {/* Vertical separator - hidden on mobile */}
+              <div className="hidden sm:block h-8 w-px bg-border flex-shrink-0" />
 
               {/* Title section */}
               <div className="flex items-center gap-2 min-w-0">
                 <div className="min-w-0">
-                  <h1 className="text-base font-bold tracking-tight truncate sm:text-lg" title={config.title || config.configTitle || config.id || 'Unknown config'}>
+                  <h1 className="text-sm sm:text-base font-bold tracking-tight truncate lg:text-lg" title={config.title || config.configTitle || config.id || 'Unknown config'}>
                     {config.title || config.configTitle || config.id || 'Unknown config'}
                   </h1>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-[10px] sm:text-xs text-muted-foreground hidden sm:block">
                     Data Explorer / <Link href={fullAnalysisUrl} className="hover:text-foreground transition-colors underline underline-offset-2">Full Analysis</Link>
                   </p>
                 </div>
@@ -577,17 +629,22 @@ export const EngClientPage: React.FC = () => {
           </div>
 
           {timestamp && (
-            <div className="text-xs text-muted-foreground flex-shrink-0 mt-2">
+            <div className="text-[10px] sm:text-xs text-muted-foreground flex-shrink-0 mt-1 sm:mt-2 hidden sm:block">
               {timestamp}
             </div>
           )}
         </div>
       </div>
 
-      {/* Main content area: 3-column layout */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left: Scenarios Column */}
-        <div className="w-[280px] flex-shrink-0 border-r border-border overflow-auto" role="navigation" aria-label="Scenarios">
+      {/* Main content area: 3-column desktop, stacked mobile */}
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        {/* Left: Scenarios Column - Full width mobile, fixed width desktop */}
+        <div
+          className="w-full lg:w-[280px] flex-shrink-0 border-b lg:border-b-0 lg:border-r border-border overflow-auto"
+          style={{ contain: 'layout style' }}
+          role="navigation"
+          aria-label="Scenarios"
+        >
           <ErrorBoundary
             fallback={
               <div className="p-4 text-center text-sm text-muted-foreground">
@@ -606,9 +663,14 @@ export const EngClientPage: React.FC = () => {
           </ErrorBoundary>
         </div>
 
-        {/* Middle: Models Column (only visible when scenario selected) */}
+        {/* Middle: Models Column - Full width mobile (when selected), fixed width desktop */}
         {selectedScenario && (
-          <div className="w-[280px] flex-shrink-0 border-r border-border overflow-auto" role="navigation" aria-label="Models">
+          <div
+            className="w-full lg:w-[280px] flex-shrink-0 border-b lg:border-b-0 lg:border-r border-border overflow-auto"
+            style={{ contain: 'layout style' }}
+            role="navigation"
+            aria-label="Models"
+          >
             <ErrorBoundary
               fallback={
                 <div className="p-4 text-center text-sm text-muted-foreground">
@@ -628,9 +690,9 @@ export const EngClientPage: React.FC = () => {
           </div>
         )}
 
-        {/* Right: Comparison View */}
+        {/* Right: Comparison View - Full width mobile, flexible desktop */}
         <div className="flex-1 overflow-auto" role="main" aria-label="Comparison view">
-          <div className="p-4">
+          <div className="p-2 sm:p-4">
             <ErrorBoundary>
               {showExecutiveSummary && data.executiveSummary ? (
                 <ExecutiveSummaryView executiveSummary={data.executiveSummary} config={config} />
@@ -651,17 +713,17 @@ export const EngClientPage: React.FC = () => {
                   hasMultipleSystemPrompts={hasMultipleSystemPrompts}
                 />
               ) : selectedScenario ? (
-                <div className="flex items-center justify-center h-full">
+                <div className="flex items-center justify-center h-full min-h-[200px]">
                   <div className="text-center text-muted-foreground">
-                    <p className="mb-2">No models selected</p>
-                    <p className="text-sm">Click on models in the middle column to view their details</p>
+                    <p className="mb-2 text-sm sm:text-base">No models selected</p>
+                    <p className="text-xs sm:text-sm">Tap on models above to view their details</p>
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-center h-full">
+                <div className="flex items-center justify-center h-full min-h-[200px]">
                   <div className="text-center text-muted-foreground">
-                    <p className="mb-2">No scenario selected</p>
-                    <p className="text-sm">Select a scenario from the left column</p>
+                    <p className="mb-2 text-sm sm:text-base">No scenario selected</p>
+                    <p className="text-xs sm:text-sm">Select a scenario from above</p>
                   </div>
                 </div>
               )}
@@ -726,6 +788,7 @@ const ScenariosColumn = React.memo<ScenariosColumnProps>(function ScenariosColum
     <div
       ref={containerRef}
       className="p-2 font-mono text-sm animate-in fade-in duration-200 focus-within:outline-none"
+      style={{ touchAction: 'pan-y pinch-zoom' }}
       tabIndex={0}
       onKeyDown={handleKeyDown}
       onFocus={() => setFocusedIndex(null)}
@@ -743,15 +806,15 @@ const ScenariosColumn = React.memo<ScenariosColumnProps>(function ScenariosColum
           aria-label="Executive Summary"
           aria-pressed={showExecutiveSummary}
           className={cn(
-            "flex items-center justify-between gap-2 px-2 py-1 mb-0.5 rounded cursor-pointer transition-all duration-200",
+            "flex items-center justify-between gap-2 px-3 py-2.5 sm:px-2 sm:py-1 mb-0.5 rounded cursor-pointer transition-all duration-200 touch-manipulation",
             showExecutiveSummary
               ? "bg-primary/10 shadow-sm"
-              : "hover:bg-muted/50 hover:shadow-sm",
+              : "hover:bg-muted/50 hover:shadow-sm active:bg-muted/70",
             focusedIndex === -1 && "ring-2 ring-primary/50"
           )}
           onClick={selectExecutiveSummary}
         >
-          <span className="flex-1 font-medium text-xs">Executive Summary</span>
+          <span className="flex-1 font-medium text-xs sm:text-xs">Executive Summary</span>
           {showExecutiveSummary && (
             <span className="text-primary text-xs animate-in fade-in duration-150" aria-hidden="true">●</span>
           )}
@@ -759,7 +822,7 @@ const ScenariosColumn = React.memo<ScenariosColumnProps>(function ScenariosColum
       )}
 
       {/* Scenario List */}
-      <div className="space-y-0.5">
+      <div className="space-y-1 sm:space-y-0.5">
         {scenarios.map((scenario, idx) => {
           const isSelected = selectedScenario === scenario.promptId;
           const score = scenario.avgScore;
@@ -783,10 +846,10 @@ const ScenariosColumn = React.memo<ScenariosColumnProps>(function ScenariosColum
               aria-label={`Scenario ${scenario.index + 1}: ${scenario.promptText}`}
               aria-pressed={isSelected}
               className={cn(
-                "flex flex-col gap-0.5 px-2 py-1 rounded cursor-pointer transition-all duration-200",
+                "flex flex-col gap-0.5 px-3 py-2.5 sm:px-2 sm:py-1 rounded cursor-pointer transition-all duration-200 touch-manipulation",
                 isSelected
                   ? "bg-primary/10 shadow-sm scale-[1.01]"
-                  : "hover:bg-muted/30 hover:shadow-sm hover:scale-[1.005]",
+                  : "hover:bg-muted/30 hover:shadow-sm hover:scale-[1.005] active:bg-muted/50",
                 isFocused && "ring-2 ring-primary/50"
               )}
               onClick={() => {
@@ -801,7 +864,7 @@ const ScenariosColumn = React.memo<ScenariosColumnProps>(function ScenariosColum
                 <span className="text-muted-foreground text-xs min-w-[2ch]" aria-hidden="true">
                   {String(scenario.index + 1).padStart(2, '0')}
                 </span>
-                <span className="flex-1 truncate text-xs">
+                <span className="flex-1 truncate text-xs sm:text-xs">
                   {truncateText(scenario.promptText, 30)}
                 </span>
                 {isSelected && (
@@ -933,6 +996,7 @@ const ModelsColumn = React.memo<ModelsColumnProps>(function ModelsColumn({
     <div
       ref={containerRef}
       className="p-2 font-mono text-sm animate-in fade-in slide-in-from-left-2 duration-200 focus-within:outline-none"
+      style={{ touchAction: 'pan-y pinch-zoom' }}
       tabIndex={0}
       onKeyDown={handleKeyDown}
       onFocus={() => setFocusedIndex(null)}
@@ -942,7 +1006,7 @@ const ModelsColumn = React.memo<ModelsColumnProps>(function ModelsColumn({
         MODELS
       </div>
 
-      <div className="space-y-0.5">
+      <div className="space-y-1 sm:space-y-0.5">
         {baseModels.map((baseModel, idx) => {
           // Check if this model is selected
           const variantKeys = baseModel.variants.map(v => `${promptId}::${v}`);
@@ -968,10 +1032,10 @@ const ModelsColumn = React.memo<ModelsColumnProps>(function ModelsColumn({
               aria-checked={isSelected}
               aria-label={`${baseModel.displayName}${baseModel.variants.length > 1 ? ` (${baseModel.variants.length} variants)` : ''}${hasScore ? `, score ${formatPercentage(score, 0)}` : ''}`}
               className={cn(
-                "flex flex-col gap-0.5 px-2 py-1 rounded cursor-pointer transition-all duration-200",
+                "flex flex-col gap-0.5 px-3 py-2.5 sm:px-2 sm:py-1 rounded cursor-pointer transition-all duration-200 touch-manipulation",
                 isSelected
                   ? "bg-primary/10 shadow-sm scale-[1.01]"
-                  : "hover:bg-muted/30 hover:shadow-sm hover:scale-[1.005]",
+                  : "hover:bg-muted/30 hover:shadow-sm hover:scale-[1.005] active:bg-muted/50",
                 isFocused && "ring-2 ring-primary/50"
               )}
               onClick={() => {
@@ -981,7 +1045,7 @@ const ModelsColumn = React.memo<ModelsColumnProps>(function ModelsColumn({
             >
               <div className="flex items-center gap-2">
                 {/* Checkbox with visual feedback */}
-                <span className={cn("text-xs min-w-[1ch]", isSelected && "text-primary")} aria-hidden="true">
+                <span className={cn("text-base sm:text-xs min-w-[1ch]", isSelected && "text-primary")} aria-hidden="true">
                   {isSelected ? '☑' : '☐'}
                 </span>
 
@@ -1001,7 +1065,7 @@ const ModelsColumn = React.memo<ModelsColumnProps>(function ModelsColumn({
                 )}
               </div>
               {hasScore && (
-                <div className="ml-4 h-[0.35rem] overflow-hidden" aria-hidden="true">
+                <div className="ml-4 sm:ml-4 h-[0.35rem] overflow-hidden" aria-hidden="true">
                   <TextualBar score={score} length={16} />
                 </div>
               )}
@@ -1219,33 +1283,40 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
   }, [comparisonItems, evaluationData]);
 
   return (
-    <div className="space-y-4 animate-in fade-in slide-in-from-right-2 duration-300">
+    <div className="space-y-3 sm:space-y-4 animate-in fade-in slide-in-from-right-2 duration-300">
       {/* Header */}
-      <div className="border-b border-border pb-3">
+      <div className="border-b border-border pb-2 sm:pb-3">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-lg font-semibold">
+          <h2 className="text-base sm:text-lg font-semibold">
             {comparisonItems.length === 1 ? 'Model Detail' : `Comparing ${comparisonItems.length} variants`}
           </h2>
           <button
             onClick={clearAllComparisons}
             aria-label={comparisonItems.length === 1 ? 'Close model detail' : `Clear all ${comparisonItems.length} models from comparison`}
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors duration-150"
+            className="text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors duration-150 px-2 py-1 rounded touch-manipulation active:bg-muted/50"
           >
             {comparisonItems.length === 1 ? 'Close' : 'Clear all'}
           </button>
         </div>
-        <p className="text-xs text-muted-foreground">{promptText}</p>
+        <p className="text-[11px] sm:text-xs text-muted-foreground">{promptText}</p>
+        {/* Mobile hint for horizontal scroll */}
+        <p className="text-[10px] text-muted-foreground/70 mt-1 lg:hidden">
+          ← Swipe horizontally to view all data →
+        </p>
       </div>
 
       {/* Unified comparison table */}
       <div className="border border-border rounded overflow-hidden transition-all duration-200">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
+        <div
+          className="overflow-x-auto -webkit-overflow-scrolling-touch"
+          style={{ touchAction: 'pan-x pan-y' }}
+        >
+          <table className="w-full text-[10px] sm:text-xs">
             {/* Column headers: Model names with overall scores */}
             <thead className="bg-muted/30">
               <tr>
-                <th scope="col" className="text-left px-3 py-3 font-medium border-b border-r border-border sticky left-0 bg-muted min-w-[200px]">
-                  Criterion
+                <th scope="col" className="text-left px-2 sm:px-3 py-2 sm:py-3 font-medium border-b border-r border-border sticky left-0 bg-muted min-w-[150px] sm:min-w-[200px] z-10">
+                  <span className="text-[10px] sm:text-xs">Criterion</span>
                 </th>
                 {comparisonItems.map(itemKey => {
                   const parts = itemKey.split('::');
@@ -1262,14 +1333,14 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
                   });
 
                   return (
-                    <th key={itemKey} scope="col" className="text-center px-3 py-3 border-b border-border min-w-[250px]">
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="font-medium truncate flex-1 text-left">{modelLabel}</div>
+                    <th key={itemKey} scope="col" className="text-center px-2 sm:px-3 py-2 sm:py-3 border-b border-border min-w-[180px] sm:min-w-[250px]">
+                      <div className="space-y-1.5 sm:space-y-2">
+                        <div className="flex items-center justify-between gap-1.5 sm:gap-2">
+                          <div className="font-medium truncate flex-1 text-left text-[11px] sm:text-xs">{modelLabel}</div>
                           <button
                             onClick={() => removeFromComparison(itemKey)}
                             aria-label={`Remove ${modelLabel} from comparison`}
-                            className="text-xs text-muted-foreground hover:text-destructive"
+                            className="text-sm sm:text-xs text-muted-foreground hover:text-destructive p-1 rounded touch-manipulation active:bg-destructive/10"
                           >
                             <span aria-hidden="true">✕</span>
                           </button>
@@ -1388,7 +1459,7 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
 
               {/* Response row */}
               <tr className="bg-muted/10">
-                <th scope="row" className="px-3 py-2 font-medium border-r border-border sticky left-0 bg-background">
+                <th scope="row" className="px-2 sm:px-3 py-2 text-[10px] sm:text-xs font-medium border-r border-border sticky left-0 bg-background z-10">
                   Response
                 </th>
                 {comparisonItems.map(itemKey => {
@@ -1398,10 +1469,10 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
                   const loading = isLoadingResponse(promptId, modelId);
 
                   return (
-                    <td key={itemKey} className="px-3 py-2 align-top">
+                    <td key={itemKey} className="px-2 sm:px-3 py-2 align-top">
                       <div className={cn(
-                        "border border-border rounded bg-background overflow-auto",
-                        renderAs === 'html' ? "h-[300px]" : "max-h-64"
+                        "border border-border rounded bg-background overflow-auto text-[10px] sm:text-xs",
+                        renderAs === 'html' ? "h-[250px] sm:h-[300px]" : "max-h-48 sm:max-h-64"
                       )}>
                         {loading ? (
                           <ResponseSkeleton />
@@ -1434,19 +1505,19 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
               {criteriaByPath.requiredCriteria.map((criterion, idx) => {
                 return (
                   <tr key={`req-${idx}`} className="hover:bg-muted/20">
-                    <td className="px-3 py-3 text-left border-r border-border sticky left-0 bg-background">
-                      <div className="space-y-2">
-                        <div className="flex items-start gap-2">
+                    <td className="px-2 sm:px-3 py-2 sm:py-3 text-left border-r border-border sticky left-0 bg-background z-10">
+                      <div className="space-y-1.5 sm:space-y-2 text-[10px] sm:text-xs">
+                        <div className="flex items-start gap-1.5 sm:gap-2">
                           <CriterionText text={criterion.text} />
                           {criterion.isInverted && (
-                            <div className="flex items-center gap-1 text-xs text-purple-600 dark:text-purple-400 flex-shrink-0" title="Inverted criterion: should NOT be present" role="img" aria-label="Inverted criterion">
+                            <div className="flex items-center gap-0.5 sm:gap-1 text-[10px] sm:text-xs text-purple-600 dark:text-purple-400 flex-shrink-0" title="Inverted criterion: should NOT be present" role="img" aria-label="Inverted criterion">
                               <span aria-hidden="true">🚫</span>
-                              <span className="font-semibold">NOT</span>
+                              <span className="font-semibold text-[9px] sm:text-xs">NOT</span>
                             </div>
                           )}
                         </div>
                         {criterion.citation && (
-                          <div className="text-xs text-muted-foreground italic pl-3 border-l-2 border-primary/30">
+                          <div className="text-[10px] sm:text-xs text-muted-foreground italic pl-2 sm:pl-3 border-l-2 border-primary/30">
                             "{truncateText(criterion.citation, 150)}"
                           </div>
                         )}
@@ -1460,7 +1531,7 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
 
                       if (evalLoading) {
                         return (
-                          <td key={itemKey} className="px-3 py-3 align-top">
+                          <td key={itemKey} className="px-2 sm:px-3 py-2 sm:py-3 align-top">
                             <EvaluationSkeleton />
                           </td>
                         );
@@ -1468,7 +1539,7 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
 
                       if (!assessment) {
                         return (
-                          <td key={itemKey} className="px-3 py-3 text-center text-muted-foreground align-top">
+                          <td key={itemKey} className="px-2 sm:px-3 py-2 sm:py-3 text-center text-muted-foreground align-top">
                             —
                           </td>
                         );
@@ -1479,7 +1550,7 @@ const ComparisonView = React.memo<ComparisonViewProps>(function ComparisonView({
                       const statusLabel = score >= 0.8 ? 'Pass' : score >= 0.5 ? 'Partial' : 'Fail';
 
                       return (
-                        <td key={itemKey} className="px-3 py-3 align-top">
+                        <td key={itemKey} className="px-2 sm:px-3 py-2 sm:py-3 align-top">
                           <div className="space-y-2">
                             <div className="flex items-center gap-2">
                               <span
@@ -1722,9 +1793,6 @@ function ExecutiveSummaryView({ executiveSummary, config }: ExecutiveSummaryView
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-2 duration-300">
-      <div className="border-b border-border pb-3">
-        <h2 className="text-2xl font-semibold">Executive Summary</h2>
-      </div>
 
       {/* Metadata section */}
       {(hasDescription || tags.length > 0 || author || (references && references.length > 0)) && (
