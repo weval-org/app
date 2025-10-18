@@ -112,6 +112,16 @@ export function generateMinimalBlueprintYaml(config: ComparisonConfig): string {
             newPrompt.promptText = p.promptText;
         }
 
+        // Preserve description at the prompt level
+        if (p.description) {
+            newPrompt.description = p.description;
+        }
+
+        // Preserve citation at the prompt level
+        if (p.citation) {
+            newPrompt.citation = p.citation;
+        }
+
         // Preserve system prompt at the prompt level
         if (p.system) {
             newPrompt.system = p.system;

@@ -313,6 +313,17 @@ export const PromptCard = React.memo(function PromptCard({ prompt, onUpdate, onR
 
                 {isAdvancedMode && (
                     <>
+                        {prompt.system && (
+                            <div>
+                                <label className="text-sm font-semibold text-foreground">Per-Prompt System <span className="text-xs font-normal text-muted-foreground">(Override)</span></label>
+                                <p className="text-xs text-muted-foreground mb-1.5">This prompt uses a custom system prompt that overrides the global system prompt.</p>
+                                <div className="rounded-md border p-3 bg-muted/50">
+                                    <p className="text-sm whitespace-pre-wrap">{prompt.system}</p>
+                                    <p className="text-xs text-center text-muted-foreground pt-2 mt-2 border-t">Per-prompt system prompts are currently read-only in the form view.</p>
+                                </div>
+                            </div>
+                        )}
+
                         <div>
                             <label className="text-sm font-semibold text-foreground">Description <span className="text-xs font-normal text-muted-foreground">(Optional)</span></label>
                             <p className="text-xs text-muted-foreground mb-1.5">A brief explanation of what this specific prompt is designed to test.</p>
