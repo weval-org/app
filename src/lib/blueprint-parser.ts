@@ -446,7 +446,24 @@ export function parseAndNormalizeBlueprint(content: string, fileType: 'json' | '
         finalPrompt.id = p.id;
         finalPrompt.description = p.description;
         finalPrompt.idealResponse = p.ideal || p.idealResponse;
-        finalPrompt.system = p.system;
+
+        // Validate system prompt (must be string or null, NOT an array)
+        if (p.system !== undefined) {
+            if (Array.isArray(p.system)) {
+                throw new Error(
+                    `Invalid 'system' field in prompt '${p.id || 'unknown'}': ` +
+                    `Per-prompt 'system' must be a string or null, not an array. ` +
+                    `Did you mean to use 'systems' (plural) at the global config level instead?`
+                );
+            }
+            if (p.system !== null && typeof p.system !== 'string') {
+                throw new Error(
+                    `Invalid 'system' field in prompt '${p.id || 'unknown'}': ` +
+                    `Must be a string or null. Found: ${typeof p.system}`
+                );
+            }
+            finalPrompt.system = p.system;
+        }
         if (p.noCache !== undefined) {
             finalPrompt.noCache = !!p.noCache;
         } else if (globalNoCache !== undefined) {
