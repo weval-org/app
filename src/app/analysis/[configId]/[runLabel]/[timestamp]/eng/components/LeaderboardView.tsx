@@ -17,7 +17,6 @@ export function LeaderboardView({ models, allCoverageScores, promptIds, hasMulti
       displayName: string;
       variants: string[];
       scores: number[];
-      judgeAlphas: number[];
     }>();
 
     // Group models and collect all scores
@@ -37,7 +36,6 @@ export function LeaderboardView({ models, allCoverageScores, promptIds, hasMulti
           displayName,
           variants: [],
           scores: [],
-          judgeAlphas: [],
         });
       }
 
@@ -49,11 +47,6 @@ export function LeaderboardView({ models, allCoverageScores, promptIds, hasMulti
         const result = allCoverageScores?.[promptId]?.[modelId];
         if (result && !('error' in result) && typeof result.avgCoverageExtent === 'number') {
           baseModel.scores.push(result.avgCoverageExtent);
-
-          // Collect judge alpha if available
-          if (result.judgeAgreement?.krippendorffsAlpha != null) {
-            baseModel.judgeAlphas.push(result.judgeAgreement.krippendorffsAlpha);
-          }
         }
       });
     });
@@ -64,13 +57,20 @@ export function LeaderboardView({ models, allCoverageScores, promptIds, hasMulti
         ? baseModel.scores.reduce((sum, s) => sum + s, 0) / baseModel.scores.length
         : 0;
 
-      const winRate = baseModel.scores.length > 0
-        ? baseModel.scores.filter(s => s >= 0.8).length / baseModel.scores.length
-        : 0;
+      // Calculate std dev across scenarios
+      let stdDev: number | null = null;
+      let bestScore: number | null = null;
+      let worstScore: number | null = null;
 
-      const avgJudgeAlpha = baseModel.judgeAlphas.length > 0
-        ? baseModel.judgeAlphas.reduce((sum, a) => sum + a, 0) / baseModel.judgeAlphas.length
-        : null;
+      if (baseModel.scores.length > 0) {
+        bestScore = Math.max(...baseModel.scores);
+        worstScore = Math.min(...baseModel.scores);
+
+        if (baseModel.scores.length > 1) {
+          const squaredDiffs = baseModel.scores.map(s => Math.pow(s - avgScore, 2));
+          stdDev = Math.sqrt(squaredDiffs.reduce((sum, d) => sum + d, 0) / baseModel.scores.length);
+        }
+      }
 
       // Calculate variance across variants (if multiple variants exist)
       let variance: number | null = null;
@@ -104,9 +104,10 @@ export function LeaderboardView({ models, allCoverageScores, promptIds, hasMulti
         displayName: baseModel.displayName,
         variantCount: baseModel.variants.length,
         avgScore,
+        stdDev,
+        bestScore,
+        worstScore,
         variance,
-        winRate,
-        avgJudgeAlpha,
       };
     });
 
@@ -135,10 +136,9 @@ export function LeaderboardView({ models, allCoverageScores, promptIds, hasMulti
                 <th scope="col" className="text-left px-3 py-2 font-semibold w-12">#</th>
                 <th scope="col" className="text-left px-3 py-2 font-semibold min-w-[180px]">Model</th>
                 <th scope="col" className="text-left px-3 py-2 font-semibold min-w-[140px]">Avg Score</th>
-                <th scope="col" className="text-right px-3 py-2 font-semibold w-20">Win Rate</th>
-                {leaderboardData.some(e => e.avgJudgeAlpha !== null) && (
-                  <th scope="col" className="text-right px-3 py-2 font-semibold w-16">α</th>
-                )}
+                <th scope="col" className="text-right px-3 py-2 font-semibold w-16">Best</th>
+                <th scope="col" className="text-right px-3 py-2 font-semibold w-16">Worst</th>
+                <th scope="col" className="text-right px-3 py-2 font-semibold w-16">Std Dev</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -178,14 +178,15 @@ export function LeaderboardView({ models, allCoverageScores, promptIds, hasMulti
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-right font-mono">
-                      {formatPercentage(entry.winRate, 0)}
+                    <td className="px-3 py-2 text-right font-mono text-green-600 dark:text-green-400">
+                      {entry.bestScore !== null ? formatPercentage(entry.bestScore, 0) : '—'}
                     </td>
-                    {leaderboardData.some(e => e.avgJudgeAlpha !== null) && (
-                      <td className="px-3 py-2 text-right font-mono">
-                        {entry.avgJudgeAlpha !== null ? entry.avgJudgeAlpha.toFixed(2) : '—'}
-                      </td>
-                    )}
+                    <td className="px-3 py-2 text-right font-mono text-red-600 dark:text-red-400">
+                      {entry.worstScore !== null ? formatPercentage(entry.worstScore, 0) : '—'}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono text-muted-foreground">
+                      {entry.stdDev !== null ? formatPercentage(entry.stdDev, 0) : '—'}
+                    </td>
                   </tr>
                 );
               })}
@@ -194,7 +195,7 @@ export function LeaderboardView({ models, allCoverageScores, promptIds, hasMulti
         </div>
       </div>
 
-      {/* Footer note */}
+      {/* Footer notes */}
       {hasAnyVariance && (
         <div className="text-[10px] text-muted-foreground px-1">
           ¹ ± shows std dev across temp/system configurations

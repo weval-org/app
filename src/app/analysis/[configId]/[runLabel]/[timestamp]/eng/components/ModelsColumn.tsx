@@ -19,6 +19,7 @@ export const ModelsColumn = React.memo<ModelsColumnProps>(function ModelsColumn(
   allCoverageScores,
   comparisonItems,
   toggleModel,
+  clearAllComparisons,
   hasMultipleSystemPrompts,
 }) {
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
@@ -116,8 +117,23 @@ export const ModelsColumn = React.memo<ModelsColumnProps>(function ModelsColumn(
       onFocus={() => setFocusedIndex(null)}
       onBlur={() => setFocusedIndex(null)}
     >
-      <div className="text-xs font-semibold text-muted-foreground mb-2 px-2">
-        MODELS
+      <div className="flex items-center justify-between mb-2 px-2">
+        <div className="text-xs font-semibold text-muted-foreground">
+          MODELS
+          {comparisonItems.length > 0 && (
+            <span className="ml-1.5 text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+              {comparisonItems.length} selected
+            </span>
+          )}
+        </div>
+        {comparisonItems.length > 0 && (
+          <button
+            onClick={clearAllComparisons}
+            className="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2"
+          >
+            Clear
+          </button>
+        )}
       </div>
 
       <div className="space-y-1 sm:space-y-0.5">
@@ -146,7 +162,7 @@ export const ModelsColumn = React.memo<ModelsColumnProps>(function ModelsColumn(
               aria-checked={isSelected}
               aria-label={`${baseModel.displayName}${baseModel.variants.length > 1 ? ` (${baseModel.variants.length} variants)` : ''}${hasScore ? `, score ${formatPercentage(score, 0)}` : ''}`}
               className={cn(
-                "flex flex-col gap-0.5 px-3 py-2.5 sm:px-2 sm:py-1 rounded cursor-pointer transition-all duration-200 touch-manipulation",
+                "grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 px-3 py-2.5 sm:px-2 sm:py-1 rounded cursor-pointer transition-all duration-200 touch-manipulation",
                 isSelected
                   ? "bg-primary/10 shadow-sm scale-[1.01]"
                   : "hover:bg-muted/30 hover:shadow-sm hover:scale-[1.005] active:bg-muted/50",
@@ -157,13 +173,25 @@ export const ModelsColumn = React.memo<ModelsColumnProps>(function ModelsColumn(
                 toggleModel(baseModel.baseId);
               }}
             >
-              <div className="flex items-center gap-2">
-                {/* Checkbox with visual feedback */}
-                <span className={cn("text-base sm:text-xs min-w-[1ch]", isSelected && "text-primary")} aria-hidden="true">
-                  {isSelected ? '☑' : '☐'}
-                </span>
+              {/* Checkbox - vertically centered across both rows */}
+              <div className="row-span-2 flex items-center">
+                <div className={cn(
+                  "w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all duration-150",
+                  isSelected
+                    ? "bg-primary border-primary"
+                    : "border-muted-foreground/40 hover:border-muted-foreground"
+                )} aria-hidden="true">
+                  {isSelected && (
+                    <svg className="w-3 h-3 text-primary-foreground" viewBox="0 0 12 12" fill="none">
+                      <path d="M2 6L5 9L10 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  )}
+                </div>
+              </div>
 
-                <span className="flex-1 truncate text-xs">
+              {/* First row: Name and score */}
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="flex-1 truncate text-xs min-w-0">
                   {baseModel.displayName}
                   {baseModel.variants.length > 1 && (
                     <span className="text-muted-foreground ml-1 text-[10px]">
@@ -173,13 +201,15 @@ export const ModelsColumn = React.memo<ModelsColumnProps>(function ModelsColumn(
                 </span>
 
                 {hasScore && (
-                  <span className={cn("text-right text-xs min-w-[3ch] font-mono", scoreColor)} aria-hidden="true">
+                  <span className={cn("text-right text-xs min-w-[3ch] font-mono flex-shrink-0", scoreColor)} aria-hidden="true">
                     {formatPercentage(score, 0)}
                   </span>
                 )}
               </div>
+
+              {/* Second row: Score bar */}
               {hasScore && (
-                <div className="ml-4 sm:ml-4 h-[0.35rem] overflow-hidden" aria-hidden="true">
+                <div className="h-[0.35rem] overflow-hidden" aria-hidden="true">
                   <TextualBar score={score} length={16} />
                 </div>
               )}

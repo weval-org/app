@@ -284,6 +284,7 @@ const EngDesktopClientPage: React.FC = () => {
                 allCoverageScores={allCoverageScores}
                 comparisonItems={comparisonItems}
                 toggleModel={toggleModel}
+                clearAllComparisons={clearAllComparisons}
                 hasMultipleSystemPrompts={hasMultipleSystemPrompts}
               />
             </ErrorBoundary>

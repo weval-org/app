@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { parseModelIdForDisplay, getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import ResponseRenderer, { RenderAsType } from '@/app/components/ResponseRenderer';
@@ -43,6 +43,27 @@ export const ComparisonView = React.memo<ComparisonViewProps>(function Compariso
 
   // Track which model column's α badge is expanded
   const [expandedAlphaColumn, setExpandedAlphaColumn] = useState<string | null>(null);
+
+  // Ref for the scrollable table container
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const prevItemCountRef = useRef(comparisonItems.length);
+
+  // Auto-scroll to show newly added models
+  useEffect(() => {
+    const currentCount = comparisonItems.length;
+    const prevCount = prevItemCountRef.current;
+
+    // Only scroll if items were added (not removed or cleared)
+    if (currentCount > prevCount && scrollContainerRef.current) {
+      // Smooth scroll to the right to show the newly added columns
+      scrollContainerRef.current.scrollTo({
+        left: scrollContainerRef.current.scrollWidth,
+        behavior: 'smooth'
+      });
+    }
+
+    prevItemCountRef.current = currentCount;
+  }, [comparisonItems]);
 
   // Batch fetch responses and evaluations for all comparison items
   useEffect(() => {
@@ -231,14 +252,18 @@ export const ComparisonView = React.memo<ComparisonViewProps>(function Compariso
       {/* Unified comparison table */}
       <div className="border border-border rounded overflow-hidden transition-all duration-200">
         <div
+          ref={scrollContainerRef}
           className="overflow-x-auto -webkit-overflow-scrolling-touch"
           style={{ touchAction: 'pan-x pan-y' }}
         >
-          <table className="w-full text-[10px] sm:text-xs">
+          <table
+            className="text-[10px] sm:text-xs"
+            style={{ width: 'max-content', minWidth: '100%' }}
+          >
             {/* Column headers: Model names with overall scores */}
             <thead className="bg-muted/30">
               <tr>
-                <th scope="col" className="text-left px-2 sm:px-3 py-2 sm:py-3 font-medium border-b border-r border-border sticky left-0 bg-muted min-w-[150px] sm:min-w-[200px] z-10">
+                <th scope="col" className="text-left px-2 sm:px-3 py-2 sm:py-3 font-medium border-b border-r border-border sticky left-0 bg-muted w-[150px] sm:w-[200px] max-w-[150px] sm:max-w-[200px] z-10">
                   <span className="text-[10px] sm:text-xs">Criterion</span>
                 </th>
                 {comparisonItems.map(itemKey => {
@@ -256,7 +281,7 @@ export const ComparisonView = React.memo<ComparisonViewProps>(function Compariso
                   });
 
                   return (
-                    <th key={itemKey} scope="col" className="text-center px-2 sm:px-3 py-2 sm:py-3 border-b border-border min-w-[180px] sm:min-w-[250px]">
+                    <th key={itemKey} scope="col" className="text-center px-2 sm:px-3 py-2 sm:py-3 border-b border-border w-[180px] sm:w-[250px] max-w-[180px] sm:max-w-[250px]">
                       <div className="space-y-1.5 sm:space-y-2">
                         <div className="flex items-center justify-between gap-1.5 sm:gap-2">
                           <div className="font-medium truncate flex-1 text-left text-[11px] sm:text-xs">{modelLabel}</div>
@@ -359,7 +384,7 @@ export const ComparisonView = React.memo<ComparisonViewProps>(function Compariso
               {/* System Prompt row - only show if multiple system prompts */}
               {hasMultipleSystemPrompts && (
                 <tr className="bg-muted/10">
-                  <th scope="row" className="px-3 py-2 font-medium border-r border-border sticky left-0 bg-background">
+                  <th scope="row" className="px-3 py-2 font-medium border-r border-border sticky left-0 bg-background w-[150px] sm:w-[200px] max-w-[150px] sm:max-w-[200px]">
                     System Prompt
                   </th>
                   {comparisonItems.map(itemKey => {
@@ -370,7 +395,7 @@ export const ComparisonView = React.memo<ComparisonViewProps>(function Compariso
                     const systemPrompt = config?.systems?.[systemPromptIndex] || '[No System Prompt]';
 
                     return (
-                      <td key={itemKey} className="px-3 py-2 align-top">
+                      <td key={itemKey} className="px-3 py-2 align-top w-[180px] sm:w-[250px] max-w-[180px] sm:max-w-[250px]">
                         <div className="text-xs text-muted-foreground bg-muted/30 p-2 rounded font-mono whitespace-pre-wrap max-h-32 overflow-y-auto">
                           {systemPrompt}
                         </div>
@@ -382,7 +407,7 @@ export const ComparisonView = React.memo<ComparisonViewProps>(function Compariso
 
               {/* Response row */}
               <tr className="bg-muted/10">
-                <th scope="row" className="px-2 sm:px-3 py-2 text-[10px] sm:text-xs font-medium border-r border-border sticky left-0 bg-background z-10">
+                <th scope="row" className="px-2 sm:px-3 py-2 text-[10px] sm:text-xs font-medium border-r border-border sticky left-0 bg-background z-10 w-[150px] sm:w-[200px] max-w-[150px] sm:max-w-[200px]">
                   Response
                 </th>
                 {comparisonItems.map(itemKey => {
@@ -392,7 +417,7 @@ export const ComparisonView = React.memo<ComparisonViewProps>(function Compariso
                   const loading = isLoadingResponse(promptId, modelId);
 
                   return (
-                    <td key={itemKey} className="px-2 sm:px-3 py-2 align-top">
+                    <td key={itemKey} className="px-2 sm:px-3 py-2 align-top w-[180px] sm:w-[250px] max-w-[180px] sm:max-w-[250px]">
                       <div className={cn(
                         "border border-border rounded bg-background overflow-auto text-[10px] sm:text-xs",
                         renderAs === 'html' ? "h-[250px] sm:h-[300px]" : "max-h-48 sm:max-h-64"
@@ -428,7 +453,7 @@ export const ComparisonView = React.memo<ComparisonViewProps>(function Compariso
               {criteriaByPath.requiredCriteria.map((criterion, idx) => {
                 return (
                   <tr key={`req-${idx}`} className="hover:bg-muted/20">
-                    <td className="px-2 sm:px-3 py-2 sm:py-3 text-left border-r border-border sticky left-0 bg-background z-10">
+                    <td className="px-2 sm:px-3 py-2 sm:py-3 text-left border-r border-border sticky left-0 bg-background z-10 w-[150px] sm:w-[200px] max-w-[150px] sm:max-w-[200px]">
                       <div className="space-y-1.5 sm:space-y-2 text-[10px] sm:text-xs">
                         <div className="flex items-start gap-1.5 sm:gap-2">
                           <CriterionText text={criterion.text} />
@@ -454,7 +479,7 @@ export const ComparisonView = React.memo<ComparisonViewProps>(function Compariso
 
                       if (evalLoading) {
                         return (
-                          <td key={itemKey} className="px-2 sm:px-3 py-2 sm:py-3 align-top">
+                          <td key={itemKey} className="px-2 sm:px-3 py-2 sm:py-3 align-top w-[180px] sm:w-[250px] max-w-[180px] sm:max-w-[250px]">
                             <EvaluationSkeleton />
                           </td>
                         );
@@ -462,7 +487,7 @@ export const ComparisonView = React.memo<ComparisonViewProps>(function Compariso
 
                       if (!assessment) {
                         return (
-                          <td key={itemKey} className="px-2 sm:px-3 py-2 sm:py-3 text-center text-muted-foreground align-top">
+                          <td key={itemKey} className="px-2 sm:px-3 py-2 sm:py-3 text-center text-muted-foreground align-top w-[180px] sm:w-[250px] max-w-[180px] sm:max-w-[250px]">
                             —
                           </td>
                         );
@@ -473,7 +498,7 @@ export const ComparisonView = React.memo<ComparisonViewProps>(function Compariso
                       const statusLabel = score >= 0.8 ? 'Pass' : score >= 0.5 ? 'Partial' : 'Fail';
 
                       return (
-                        <td key={itemKey} className="px-2 sm:px-3 py-2 sm:py-3 align-top">
+                        <td key={itemKey} className="px-2 sm:px-3 py-2 sm:py-3 align-top w-[180px] sm:w-[250px] max-w-[180px] sm:max-w-[250px]">
                           <div className="space-y-2">
                             <div className="flex items-center gap-2">
                               <span
@@ -559,7 +584,7 @@ export const ComparisonView = React.memo<ComparisonViewProps>(function Compariso
                     {/* Path criteria rows */}
                     {criteria.map((criterion, idx) => (
                       <tr key={`path-${pathId}-${idx}`} className="hover:bg-muted/20">
-                        <td className="px-3 py-3 text-left border-r border-border sticky left-0 bg-background">
+                        <td className="px-3 py-3 text-left border-r border-border sticky left-0 bg-background w-[150px] sm:w-[200px] max-w-[150px] sm:max-w-[200px]">
                           <div className="flex gap-2">
                             <div
                               className="w-1 flex-shrink-0 rounded"
@@ -591,7 +616,7 @@ export const ComparisonView = React.memo<ComparisonViewProps>(function Compariso
 
                           if (evalLoading) {
                             return (
-                              <td key={itemKey} className="px-3 py-3 align-top">
+                              <td key={itemKey} className="px-3 py-3 align-top w-[180px] sm:w-[250px] max-w-[180px] sm:max-w-[250px]">
                                 <EvaluationSkeleton />
                               </td>
                             );
@@ -599,7 +624,7 @@ export const ComparisonView = React.memo<ComparisonViewProps>(function Compariso
 
                           if (!assessment) {
                             return (
-                              <td key={itemKey} className="px-3 py-3 text-center text-muted-foreground align-top">
+                              <td key={itemKey} className="px-3 py-3 text-center text-muted-foreground align-top w-[180px] sm:w-[250px] max-w-[180px] sm:max-w-[250px]">
                                 —
                               </td>
                             );
@@ -610,7 +635,7 @@ export const ComparisonView = React.memo<ComparisonViewProps>(function Compariso
                           const statusLabel = score >= 0.8 ? 'Pass' : score >= 0.5 ? 'Partial' : 'Fail';
 
                           return (
-                            <td key={itemKey} className="px-3 py-3 align-top">
+                            <td key={itemKey} className="px-3 py-3 align-top w-[180px] sm:w-[250px] max-w-[180px] sm:max-w-[250px]">
                               <div className="space-y-2">
                                 <div className="flex items-center gap-2">
                                   <span
@@ -675,12 +700,6 @@ export const ComparisonView = React.memo<ComparisonViewProps>(function Compariso
           </table>
         </div>
       </div>
-
-      {criteriaByPath.requiredCriteria.length === 0 && criteriaByPath.pathGroups.size === 0 && (
-        <div className="text-center py-8 text-muted-foreground">
-          <p>No evaluation criteria available yet. Evaluations may still be loading.</p>
-        </div>
-      )}
     </div>
   );
 });

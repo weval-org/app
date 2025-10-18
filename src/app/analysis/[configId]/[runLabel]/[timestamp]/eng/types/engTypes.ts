@@ -31,6 +31,7 @@ export interface ModelsColumnProps {
   allCoverageScores: LLMCoverageScores | undefined;
   comparisonItems: string[];
   toggleModel: (baseId: string) => void;
+  clearAllComparisons: () => void;
   hasMultipleSystemPrompts: boolean;
 }
 
