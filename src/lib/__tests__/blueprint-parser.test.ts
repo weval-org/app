@@ -423,7 +423,9 @@ reference:
             ['Malformed shorthand message', `- prompt: p\n  messages:\n    - { user: "u", assistant: "a" }`, 'yaml', 'Each message in the shorthand format must have exactly one key'],
             ['Invalid multiplier value', `- prompt: p\n  should:\n    - point: "bad weight"\n      weight: 101`, 'yaml', 'Point multiplier must be a number between 0.1 and 10'],
             ['Invalid point format', `- prompt: p\n  should:\n    - 123`, 'yaml', 'Point must be a string, array, or object'],
-            ['Point object with no valid content', `- prompt: p\n  should:\n    - weight: 2.0`, 'yaml', "Point must define 'text', a function ('fn' or '$...'), or a 'Point: Citation' pair"]
+            ['Point object with no valid content', `- prompt: p\n  should:\n    - weight: 2.0`, 'yaml', "Point must define 'text', a function ('fn' or '$...'), or a 'Point: Citation' pair"],
+            ['Prompt-level system as array', `- id: p1\n  prompt: "test"\n  system:\n    - null\n    - "You are a tutor"`, 'yaml', "Per-prompt 'system' must be a string or null, not an array"],
+            ['Prompt-level system as number', `- id: p1\n  prompt: "test"\n  system: 123`, 'yaml', "Invalid 'system' field in prompt 'p1': Must be a string or null"]
         ])('should throw for %s', (_, content, type, expectedError) => {
             expect(() => parseAndNormalizeBlueprint(content, type as 'yaml' | 'json')).toThrow(expectedError);
         });
