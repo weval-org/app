@@ -134,6 +134,22 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
         onUpdate(nextState);
     }, [parsedBlueprint, onUpdate]);
 
+    // Memoize rendered prompt cards - must be called unconditionally before any early returns
+    const renderedPrompts = useMemo(() => {
+        if (!parsedBlueprint) return null;
+        return parsedBlueprint.prompts.map((prompt, index) => (
+            <PromptCard
+                key={prompt.id || index}
+                prompt={prompt}
+                onUpdate={(p) => handleUpdatePrompt(index, p)}
+                onRemove={() => handleRemovePrompt(index)}
+                onDuplicate={() => handleDuplicatePrompt(index)}
+                isEditable={isEditable}
+                isAdvancedMode={isAdvancedMode}
+            />
+        ));
+    }, [parsedBlueprint, isEditable, isAdvancedMode, handleUpdatePrompt, handleRemovePrompt, handleDuplicatePrompt]);
+
     const stringifyPoint = (p: PointDefinition) => JSON.stringify(p);
 
     const handleAutoExtend = async (guidance: string) => {
@@ -255,27 +271,14 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
                 </Card>
             )}
 
-            <GlobalConfigCard 
+            <GlobalConfigCard
                 blueprint={parsedBlueprint}
                 onUpdate={handleUpdate}
                 isEditable={isEditable}
                 isAdvancedMode={isAdvancedMode}
             />
             <div className="space-y-3">
-                {useMemo(() =>
-                    parsedBlueprint.prompts.map((prompt, index) => (
-                        <PromptCard
-                            key={prompt.id || index}
-                            prompt={prompt}
-                            onUpdate={(p) => handleUpdatePrompt(index, p)}
-                            onRemove={() => handleRemovePrompt(index)}
-                            onDuplicate={() => handleDuplicatePrompt(index)}
-                            isEditable={isEditable}
-                            isAdvancedMode={isAdvancedMode}
-                        />
-                    )),
-                    [parsedBlueprint.prompts, isEditable, isAdvancedMode, handleUpdatePrompt, handleRemovePrompt, handleDuplicatePrompt]
-                )}
+                {renderedPrompts}
             </div>
             <div className="flex items-center justify-center gap-4 pt-2 pb-12">
                 <Button 
