@@ -132,6 +132,32 @@ export function generateMinimalBlueprintYaml(config: ComparisonConfig): string {
             newPrompt.render_as = p.render_as;
         }
 
+        // Preserve weight/importance at the prompt level
+        if (p.weight !== undefined) {
+            newPrompt.weight = p.weight;
+        }
+
+        // Preserve temperature at the prompt level
+        if (p.temperature !== undefined) {
+            newPrompt.temperature = p.temperature;
+        }
+
+        // Preserve noCache at the prompt level
+        if (p.noCache !== undefined) {
+            newPrompt.noCache = p.noCache;
+        }
+
+        // Preserve tool-use constraints at the prompt level
+        if ((p as any).requiredTools) {
+            newPrompt.requiredTools = (p as any).requiredTools;
+        }
+        if ((p as any).prohibitedTools) {
+            newPrompt.prohibitedTools = (p as any).prohibitedTools;
+        }
+        if ((p as any).maxCalls !== undefined) {
+            newPrompt.maxCalls = (p as any).maxCalls;
+        }
+
         return newPrompt;
     });
 

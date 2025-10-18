@@ -490,6 +490,34 @@ export function parseAndNormalizeBlueprint(content: string, fileType: 'json' | '
             finalPrompt.render_as = globalRenderAs || 'markdown';
         }
 
+        // Normalize temperature at prompt level
+        if (p.temperature !== undefined) {
+            if (typeof p.temperature !== 'number') {
+                throw new Error(`Prompt temperature must be a number. Found ${typeof p.temperature}. Prompt ID: '${p.id || 'unknown'}'`);
+            }
+            (finalPrompt as any).temperature = p.temperature;
+        }
+
+        // Normalize tool-use constraints (trace-only)
+        if (p.requiredTools !== undefined) {
+            if (!Array.isArray(p.requiredTools)) {
+                throw new Error(`Prompt 'requiredTools' must be an array. Prompt ID: '${p.id || 'unknown'}'`);
+            }
+            (finalPrompt as any).requiredTools = p.requiredTools;
+        }
+        if (p.prohibitedTools !== undefined) {
+            if (!Array.isArray(p.prohibitedTools)) {
+                throw new Error(`Prompt 'prohibitedTools' must be an array. Prompt ID: '${p.id || 'unknown'}'`);
+            }
+            (finalPrompt as any).prohibitedTools = p.prohibitedTools;
+        }
+        if (p.maxCalls !== undefined) {
+            if (typeof p.maxCalls !== 'number' || p.maxCalls < 0) {
+                throw new Error(`Prompt 'maxCalls' must be a non-negative number. Found ${p.maxCalls}. Prompt ID: '${p.id || 'unknown'}'`);
+            }
+            (finalPrompt as any).maxCalls = p.maxCalls;
+        }
+
         // Consolidate all possible point sources
         const pointsSource = p.should || p.points || p.expect || p.expects || p.expectations;
         if (pointsSource) {

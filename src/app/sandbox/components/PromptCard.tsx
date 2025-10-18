@@ -324,6 +324,69 @@ export const PromptCard = React.memo(function PromptCard({ prompt, onUpdate, onR
                             </div>
                         )}
 
+                        {(prompt.weight !== undefined || prompt.temperature !== undefined || prompt.noCache !== undefined) && (
+                            <div className="space-y-2">
+                                <label className="text-sm font-semibold text-foreground">Advanced Parameters</label>
+                                <div className="rounded-md border p-3 bg-muted/50 space-y-1.5">
+                                    {prompt.weight !== undefined && (
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-muted-foreground">Weight (Importance):</span>
+                                            <span className="font-medium">{prompt.weight}</span>
+                                        </div>
+                                    )}
+                                    {prompt.temperature !== undefined && (
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-muted-foreground">Temperature:</span>
+                                            <span className="font-medium">{prompt.temperature}</span>
+                                        </div>
+                                    )}
+                                    {prompt.noCache !== undefined && (
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-muted-foreground">No Cache:</span>
+                                            <span className="font-medium">{prompt.noCache ? 'true' : 'false'}</span>
+                                        </div>
+                                    )}
+                                    <p className="text-xs text-center text-muted-foreground pt-2 mt-2 border-t">Advanced parameters are currently read-only in the form view.</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {((prompt as any).requiredTools || (prompt as any).prohibitedTools || (prompt as any).maxCalls !== undefined) && (
+                            <div>
+                                <label className="text-sm font-semibold text-foreground">Tool-Use Configuration</label>
+                                <p className="text-xs text-muted-foreground mb-1.5">Constraints for tool-use evaluation (trace-only mode).</p>
+                                <div className="rounded-md border p-3 bg-muted/50 space-y-2">
+                                    {(prompt as any).requiredTools && (
+                                        <div>
+                                            <span className="text-xs font-semibold text-muted-foreground">Required Tools:</span>
+                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                {(prompt as any).requiredTools.map((tool: string, i: number) => (
+                                                    <span key={i} className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">{tool}</span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {(prompt as any).prohibitedTools && (
+                                        <div>
+                                            <span className="text-xs font-semibold text-muted-foreground">Prohibited Tools:</span>
+                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                {(prompt as any).prohibitedTools.map((tool: string, i: number) => (
+                                                    <span key={i} className="text-xs bg-destructive/10 text-destructive px-2 py-0.5 rounded">{tool}</span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {(prompt as any).maxCalls !== undefined && (
+                                        <div className="text-sm">
+                                            <span className="text-muted-foreground">Max Tool Calls:</span>
+                                            <span className="font-medium ml-2">{(prompt as any).maxCalls}</span>
+                                        </div>
+                                    )}
+                                    <p className="text-xs text-center text-muted-foreground pt-2 mt-2 border-t">Tool-use configuration is currently read-only in the form view.</p>
+                                </div>
+                            </div>
+                        )}
+
                         <div>
                             <label className="text-sm font-semibold text-foreground">Description <span className="text-xs font-normal text-muted-foreground">(Optional)</span></label>
                             <p className="text-xs text-muted-foreground mb-1.5">A brief explanation of what this specific prompt is designed to test.</p>

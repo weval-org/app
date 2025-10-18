@@ -155,6 +155,10 @@ export interface WevalPromptConfig {
     render_as?: 'markdown' | 'html' | 'plaintext';
     // If true, force a fresh generation for this prompt regardless of global cache flag
     noCache?: boolean;
+    // Tool-use evaluation constraints (trace-only)
+    requiredTools?: string[];
+    prohibitedTools?: string[];
+    maxCalls?: number;
 }
 
 // --- Tool-use (trace-only) types ---
