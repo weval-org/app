@@ -47,22 +47,58 @@ export const ComparisonView = React.memo<ComparisonViewProps>(function Compariso
   // Ref for the scrollable table container
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const prevItemCountRef = useRef(comparisonItems.length);
+  const mountTimeRef = useRef(Date.now());
+  const lastScrollRef = useRef(0);
 
-  // Auto-scroll to show newly added models
+  // Auto-scroll to show newly added models (with aggressive safety checks)
   useEffect(() => {
+    const now = Date.now();
+    const timeSinceMount = now - mountTimeRef.current;
+    const timeSinceLastScroll = now - lastScrollRef.current;
+
+    // SAFETY CHECK 1: Skip if mounted less than 2 seconds ago (avoid initial render chaos)
+    if (timeSinceMount < 2000) {
+      prevItemCountRef.current = comparisonItems.length;
+      return;
+    }
+
+    // SAFETY CHECK 2: Debounce - don't scroll more than once per second
+    if (timeSinceLastScroll < 1000) {
+      prevItemCountRef.current = comparisonItems.length;
+      return;
+    }
+
     const currentCount = comparisonItems.length;
     const prevCount = prevItemCountRef.current;
 
-    // Only scroll if items were added (not removed or cleared)
-    if (currentCount > prevCount && scrollContainerRef.current) {
-      // Smooth scroll to the right to show the newly added columns
-      scrollContainerRef.current.scrollTo({
-        left: scrollContainerRef.current.scrollWidth,
-        behavior: 'smooth'
-      });
+    // SAFETY CHECK 3: Only scroll if exactly one item was added (user clicked one model)
+    // Skip batch additions which likely indicate programmatic/state restoration
+    if (currentCount !== prevCount + 1) {
+      prevItemCountRef.current = currentCount;
+      return;
     }
 
+    // SAFETY CHECK 4: Only scroll if container exists and is scrollable
+    if (!scrollContainerRef.current || scrollContainerRef.current.scrollWidth <= scrollContainerRef.current.clientWidth) {
+      prevItemCountRef.current = currentCount;
+      return;
+    }
+
+    // All checks passed - safe to scroll
+    lastScrollRef.current = now;
     prevItemCountRef.current = currentCount;
+
+    // Use requestAnimationFrame + timeout for maximum stability
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTo({
+            left: scrollContainerRef.current.scrollWidth,
+            behavior: 'smooth'
+          });
+        }
+      }, 100);
+    });
   }, [comparisonItems]);
 
   // Batch fetch responses and evaluations for all comparison items

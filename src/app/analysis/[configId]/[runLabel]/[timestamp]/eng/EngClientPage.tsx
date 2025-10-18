@@ -159,15 +159,23 @@ const EngDesktopClientPage: React.FC = () => {
   });
 
   // Auto-select first scenario or exec summary on initial load
+  const hasAutoSelectedRef = React.useRef(false);
   useEffect(() => {
+    // SAFETY: Only run once on mount
+    if (hasAutoSelectedRef.current) return;
+
     // Only run if nothing is selected
     const urlParams = new URLSearchParams(window.location.search);
     const hasSelection = urlParams.get('scenario') || urlParams.get('view');
-    if (hasSelection) return;
+    if (hasSelection) {
+      hasAutoSelectedRef.current = true;
+      return;
+    }
 
     // If executive summary exists, select it
     if (data.executiveSummary) {
       debug.log('Auto-selecting executive summary');
+      hasAutoSelectedRef.current = true;
       selectExecutiveSummary();
       return;
     }
@@ -175,9 +183,11 @@ const EngDesktopClientPage: React.FC = () => {
     // Otherwise, select first scenario if available
     if (scenarioStats.length > 0) {
       debug.log('Auto-selecting first scenario:', scenarioStats[0].promptId);
+      hasAutoSelectedRef.current = true;
       selectScenario(scenarioStats[0].promptId);
     }
-  }, [data.executiveSummary, scenarioStats, selectExecutiveSummary, selectScenario]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="h-screen flex flex-col bg-background font-mono">
