@@ -59,7 +59,7 @@ export default function FeaturedBlueprintsSection({ featuredBlueprints }: Featur
               
               {bp.description && (
                 <div className="text-sm text-foreground/80 dark:text-muted-foreground leading-relaxed flex-grow mb-4 line-clamp-4">
-                  <ResponseRenderer content={bp.description} />
+                  <ResponseRenderer content={bp.description} suppressLinks={true} />
                 </div>
               )}
 

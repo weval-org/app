@@ -23,9 +23,10 @@ export type RenderAsType = 'markdown' | 'html' | 'plaintext';
 interface ResponseRendererProps {
   content: string;
   renderAs?: RenderAsType;
+  suppressLinks?: boolean;
 }
 
-const ResponseRenderer: React.FC<ResponseRendererProps> = ({ content, renderAs = 'markdown' }) => {
+const ResponseRenderer: React.FC<ResponseRendererProps> = ({ content, renderAs = 'markdown', suppressLinks = false }) => {
   const [showPlaintext, setShowPlaintext] = useState(false);
 
   switch (renderAs) {
@@ -62,7 +63,12 @@ const ResponseRenderer: React.FC<ResponseRendererProps> = ({ content, renderAs =
     default:
       return (
         <div className="prose prose-sm prose-inherit max-w-none prose-h1:text-lg prose-h2:text-base prose-h3:text-sm prose-h4:text-xs">
-            <ReactMarkdown remarkPlugins={[RemarkGfmPlugin as any]}>
+            <ReactMarkdown
+                remarkPlugins={[RemarkGfmPlugin as any]}
+                components={suppressLinks ? {
+                  a: ({ node, children, ...props }) => <span {...props}>{children}</span>
+                } : undefined}
+            >
                 {content}
             </ReactMarkdown>
         </div>
