@@ -27,6 +27,7 @@ import { fromSafeTimestamp, formatTimestampForDisplay } from '@/lib/timestampUti
 import ModelPerformanceModal from '@/app/analysis/components/ModelPerformanceModal';
 import ModelSimilarityModal from '@/app/analysis/components/ModelSimilarityModal';
 import PromptSimilarityModal from '@/app/analysis/components/PromptSimilarityModal';
+import SemanticCellModal from '@/app/analysis/components/SemanticCellModal';
 import { PromptSelector } from '@/app/analysis/components/PromptSelector';
 import PromptPerformanceModal from '@/app/analysis/components/PromptPerformanceModal';
 import Icon from '@/components/ui/icon';
@@ -229,6 +230,7 @@ export const ClientPage: React.FC = () => {
             <PromptPerformanceModal />
             <ModelSimilarityModal />
             <PromptSimilarityModal />
+            <SemanticCellModal />
         </div>
     )
 } 

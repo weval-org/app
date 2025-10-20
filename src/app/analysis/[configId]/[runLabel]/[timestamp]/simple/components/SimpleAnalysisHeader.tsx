@@ -114,17 +114,48 @@ export const SimpleAnalysisHeader: React.FC = () => {
 
             {/* Tags and Actions Row */}
             <div className="flex flex-wrap items-center justify-between gap-4">
-                {/* Tags */}
+                {/* Tags and Eval Methods */}
                 <div className="flex flex-wrap items-center gap-2">
                     {tags.map(tag => (
-                        <Badge 
-                            key={tag} 
-                            variant="secondary" 
+                        <Badge
+                            key={tag}
+                            variant="secondary"
                             className="text-xs"
                         >
                             {prettifyTag(tag)}
                         </Badge>
                     ))}
+
+                    {/* Evaluation Methods Badges */}
+                    {data?.evalMethodsUsed && data.evalMethodsUsed.length > 0 && (
+                        <>
+                            <span className="text-xs text-muted-foreground mx-1">•</span>
+                            <span className="text-xs text-muted-foreground">Evaluation:</span>
+                            {data.evalMethodsUsed.map(method => (
+                                <Badge
+                                    key={method}
+                                    variant="outline"
+                                    className="text-xs"
+                                    title={method === 'llm-coverage' ? 'Rubric-based LLM evaluation' : 'Semantic similarity via embeddings'}
+                                >
+                                    <Icon
+                                        name={method === 'llm-coverage' ? 'check-circle' : 'git-compare'}
+                                        className="w-3 h-3 mr-1"
+                                    />
+                                    {method === 'llm-coverage' ? 'LLM Coverage' : 'Embeddings'}
+                                </Badge>
+                            ))}
+                        </>
+                    )}
+                    {(!data?.evalMethodsUsed || data.evalMethodsUsed.length === 0) && (
+                        <>
+                            <span className="text-xs text-muted-foreground mx-1">•</span>
+                            <Badge variant="outline" className="text-xs text-muted-foreground">
+                                <Icon name="x-circle" className="w-3 h-3 mr-1" />
+                                No Evaluation
+                            </Badge>
+                        </>
+                    )}
                 </div>
 
                 {/* Quick Actions - Only show for non-workshop runs */}

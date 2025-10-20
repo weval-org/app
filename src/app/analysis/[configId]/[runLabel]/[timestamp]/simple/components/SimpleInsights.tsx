@@ -43,7 +43,10 @@ export const SimpleInsights: React.FC = () => {
 
     // Check if this is a workshop run (ephemeral, different storage pattern)
     const isWorkshopRun = configId?.startsWith('workshop_');
-    
+
+    // Check what eval methods are available
+    const hasCoverage = data?.evalMethodsUsed?.includes('llm-coverage');
+    const hasSimilarity = data?.evalMethodsUsed?.includes('embedding');
 
     if (!summaryStats && !normalizedExecutiveSummary) {
         return null;
@@ -52,8 +55,8 @@ export const SimpleInsights: React.FC = () => {
     const insights = useMemo(() => {
         const result = [];
 
-        // Add performance insights
-        if (summaryStats?.bestPerformingModel && summaryStats?.worstPerformingModel) {
+        // Add coverage-based performance insights (requires llm-coverage)
+        if (hasCoverage && summaryStats?.bestPerformingModel && summaryStats?.worstPerformingModel) {
             const best = summaryStats.bestPerformingModel;
             const worst = summaryStats.worstPerformingModel;
             const gap = (best.score - worst.score) * 100;
@@ -69,7 +72,7 @@ export const SimpleInsights: React.FC = () => {
             });
         }
 
-        // Add differentiation insight
+        // Add differentiation insight (works with either method)
         if (summaryStats?.mostDifferentiatingPrompt) {
             const prompt = summaryStats.mostDifferentiatingPrompt;
             result.push({
@@ -83,8 +86,8 @@ export const SimpleInsights: React.FC = () => {
             });
         }
 
-        // Add similarity insights
-        if (summaryStats?.mostSimilarPair) {
+        // Add similarity insights (works with embeddings-only)
+        if (hasSimilarity && summaryStats?.mostSimilarPair) {
             const pair = summaryStats.mostSimilarPair;
             const similarity = (pair.value * 100).toFixed(0);
             result.push({
@@ -98,11 +101,53 @@ export const SimpleInsights: React.FC = () => {
             });
         }
 
+        // Add message about missing eval methods if no insights
+        if (result.length === 0 && !hasCoverage && !hasSimilarity) {
+            result.push({
+                id: 'no-evals',
+                icon: 'alert-circle',
+                title: 'Limited Analysis',
+                description: 'This run did not include evaluation methods. Re-run with --eval-method for insights.',
+                action: null,
+                actionLabel: null,
+                type: 'warning' as const
+            });
+        }
+
         return result;
-    }, [summaryStats, openModelPerformanceModal, openPromptDetailModal, openSimilarityModal]);
+    }, [summaryStats, hasCoverage, hasSimilarity, openModelPerformanceModal, openPromptDetailModal, openSimilarityModal]);
 
     return (
         <div className="space-y-6">
+            {/* Key Insights */}
+            {insights.length > 0 && (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {insights.map(insight => (
+                        <Card key={insight.id} className={`shadow-md border ${getInsightStyles(insight.type)}`}>
+                            <CardContent className="p-4">
+                                <div className="flex items-start gap-3">
+                                    <Icon name={insight.icon} className={`w-5 h-5 flex-shrink-0 ${getIconColor(insight.type)}`} />
+                                    <div className="flex-1 min-w-0">
+                                        <h4 className="font-semibold text-sm mb-1">{insight.title}</h4>
+                                        <p className="text-xs text-muted-foreground mb-3">{insight.description}</p>
+                                        {insight.action && insight.actionLabel && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={insight.action}
+                                                className="text-xs h-7"
+                                            >
+                                                {insight.actionLabel}
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
+            )}
+
             {/* Executive Summary */}
             {normalizedExecutiveSummary && (
                 <Card className="shadow-xl border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">

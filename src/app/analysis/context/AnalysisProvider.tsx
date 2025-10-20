@@ -474,6 +474,11 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
     const openPromptSimilarityModal = useCallback((promptId: string) => setPromptSimilarityModal({ isOpen: true, promptId }), []);
     const closePromptSimilarityModal = useCallback(() => setPromptSimilarityModal({ isOpen: false, promptId: null }), []);
 
+    // Semantic cell modal state
+    const [semanticCellModal, setSemanticCellModal] = useState<{ isOpen: boolean; promptId: string | null; modelId: string | null; clusterData: any | null }>({ isOpen: false, promptId: null, modelId: null, clusterData: null });
+    const openSemanticCellModal = useCallback((promptId: string, modelId: string, clusterData: any) => setSemanticCellModal({ isOpen: true, promptId, modelId, clusterData }), []);
+    const closeSemanticCellModal = useCallback(() => setSemanticCellModal({ isOpen: false, promptId: null, modelId: null, clusterData: null }), []);
+
     const contextValue: AnalysisContextType = useMemo(() => ({
         configId,
         runLabel,
@@ -518,6 +523,9 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
         promptSimilarityModal,
         openPromptSimilarityModal,
         closePromptSimilarityModal,
+        semanticCellModal,
+        openSemanticCellModal,
+        closeSemanticCellModal,
         promptDetailModal,
         openPromptDetailModal,
         closePromptDetailModal,
@@ -544,7 +552,8 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
         promptTextsForMacroTable, currentPromptId, pageTitle, breadcrumbItems, summaryStats,
         isSandbox, sandboxIdFromProps, workshopIdFromProps, wevalIdFromProps, normalizedExecutiveSummary, modelPerformanceModal,
         openModelPerformanceModal, closeModelPerformanceModal, similarityModal, openSimilarityModal, closeSimilarityModal, promptDetailModal,
-        openPromptDetailModal, closePromptDetailModal, lazyResponseData, promptSimilarityModal, openPromptSimilarityModal, closePromptSimilarityModal
+        openPromptDetailModal, closePromptDetailModal, lazyResponseData, promptSimilarityModal, openPromptSimilarityModal, closePromptSimilarityModal,
+        semanticCellModal, openSemanticCellModal, closeSemanticCellModal
     ]);
 
     return (

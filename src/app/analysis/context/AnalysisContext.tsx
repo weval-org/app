@@ -99,6 +99,16 @@ export interface AnalysisContextType {
     // Returns matrix plus optional similarities against IDEAL benchmark
     fetchPerPromptSimilarities?: (promptId: string) => Promise<{ similarities: Record<string, Record<string, number>>; idealSimilarities?: Record<string, number> } | null>;
 
+    // Semantic cell modal (for MacroSemanticTable cell clicks)
+    semanticCellModal?: {
+        isOpen: boolean;
+        promptId: string | null;
+        modelId: string | null;
+        clusterData: any | null;
+    };
+    openSemanticCellModal?: (promptId: string, modelId: string, clusterData: any) => void;
+    closeSemanticCellModal?: () => void;
+
     // For PromptDetailModal
     promptDetailModal: {
         isOpen: boolean;

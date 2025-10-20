@@ -1,22 +1,57 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
 import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
+import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
+import { calculateSemanticLeaderboard } from '../utils/semanticScoring';
 import Icon from '@/components/ui/icon';
 
 export const SimpleModelLeaderboard: React.FC = () => {
-    const { summaryStats, openModelPerformanceModal } = useAnalysis();
+    const { summaryStats, data, displayedModels, openModelPerformanceModal } = useAnalysis();
     const [showAll, setShowAll] = useState(false);
 
-    if (!summaryStats?.modelLeaderboard || summaryStats.modelLeaderboard.length === 0) {
+    // Determine what data we have
+    const hasCoverage = !!summaryStats?.modelLeaderboard && summaryStats.modelLeaderboard.length > 0;
+    const hasSimilarity = !!data?.evaluationResults?.perPromptSimilarities;
+
+    // Try coverage first, fallback to similarity
+    const leaderboardData = useMemo(() => {
+        if (hasCoverage) {
+            return { data: summaryStats.modelLeaderboard, type: 'coverage' as const };
+        } else if (hasSimilarity && data) {
+            const models = displayedModels.filter(m => m.toUpperCase() !== IDEAL_MODEL_ID.toUpperCase());
+            const semanticLeaderboard = calculateSemanticLeaderboard(data, models);
+            return semanticLeaderboard
+                ? { data: semanticLeaderboard, type: 'similarity' as const }
+                : null;
+        }
         return null;
+    }, [hasCoverage, hasSimilarity, summaryStats, data, displayedModels]);
+
+    if (!leaderboardData) {
+        return (
+            <Card className="shadow-xl border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
+                <CardContent className="py-6">
+                    <Alert variant="default" className="border-blue-500/50 bg-blue-50/50 dark:bg-blue-900/10">
+                        <Icon name="info" className="h-4 w-4 text-blue-600" />
+                        <AlertTitle>Model Rankings Unavailable</AlertTitle>
+                        <AlertDescription>
+                            Rankings require either <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">llm-coverage</code> or <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">embedding</code> evaluation methods.
+                            This run was executed without evaluation methods.
+                        </AlertDescription>
+                    </Alert>
+                </CardContent>
+            </Card>
+        );
     }
 
-    const { modelLeaderboard } = summaryStats;
-    const displayedModels = showAll ? modelLeaderboard : modelLeaderboard.slice(0, 6);
+    const { data: modelLeaderboard, type } = leaderboardData;
+    const displayedLeaderboard = showAll ? modelLeaderboard : modelLeaderboard.slice(0, 6);
 
     const getRankIcon = (rank: number) => {
         switch (rank) {
@@ -36,17 +71,25 @@ export const SimpleModelLeaderboard: React.FC = () => {
     return (
         <Card className="shadow-xl border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
             <CardHeader className="text-center pb-4">
-                <CardTitle className="text-2xl font-bold flex items-center justify-center gap-2">
-                    <Icon name="trophy" className="w-6 h-6 text-primary" />
-                    Model Rankings
-                </CardTitle>
+                <div className="flex items-center justify-center gap-2 mb-1 flex-wrap">
+                    <CardTitle className="text-2xl font-bold flex items-center gap-2">
+                        <Icon name="trophy" className="w-6 h-6 text-primary" />
+                        Model Rankings
+                    </CardTitle>
+                    <Badge variant={type === 'coverage' ? 'default' : 'outline'} className="text-xs">
+                        {type === 'coverage' ? 'By Coverage Score' : 'By Similarity to Ideal'}
+                    </Badge>
+                </div>
                 <p className="text-muted-foreground">
-                    How well each AI model performed across all test scenarios
+                    {type === 'coverage'
+                        ? 'How well each AI model performed across all test scenarios'
+                        : 'How similar each model\'s responses are to the ideal responses'
+                    }
                 </p>
             </CardHeader>
             <CardContent>
                 <div className="grid gap-3">
-                    {displayedModels.map((model, index) => {
+                    {displayedLeaderboard.map((model, index) => {
                         const rank = modelLeaderboard.findIndex(m => m.id === model.id) + 1;
                         const isTopThree = rank <= 3;
                         

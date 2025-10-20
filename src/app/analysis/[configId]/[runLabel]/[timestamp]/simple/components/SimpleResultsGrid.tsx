@@ -4,9 +4,11 @@ import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
 import { getModelDisplayLabel, parseModelIdForDisplay, getCanonicalModels } from '@/app/utils/modelIdUtils';
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
+import { calculatePromptScores } from '../utils/semanticScoring';
 import Icon from '@/components/ui/icon';
 import ResponseRenderer from '@/app/components/ResponseRenderer';
 import RemarkGfmPlugin from 'remark-gfm';
@@ -85,12 +87,33 @@ export const SimpleResultsGrid: React.FC = () => {
         });
     };
 
-    if (!data?.evaluationResults?.llmCoverageScores) {
-        return null;
+    // Check what eval methods are available
+    const hasCoverage = !!data?.evaluationResults?.llmCoverageScores
+        && Object.keys(data.evaluationResults.llmCoverageScores).length > 0;
+    const hasSimilarity = !!data?.evaluationResults?.perPromptSimilarities
+        && Object.keys(data.evaluationResults.perPromptSimilarities).length > 0;
+    const evalMethodsUsed = data?.evalMethodsUsed || [];
+
+    // Don't show if NO eval methods were run
+    if (!data || (evalMethodsUsed.length === 0 && !hasCoverage && !hasSimilarity)) {
+        return (
+            <Card className="shadow-xl border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
+                <CardContent className="py-6">
+                    <Alert variant="default" className="border-blue-500/50 bg-blue-50/50 dark:bg-blue-900/10">
+                        <Icon name="alert-circle" className="h-4 w-4 text-blue-600" />
+                        <AlertTitle>No Evaluation Data</AlertTitle>
+                        <AlertDescription>
+                            This run did not include any evaluation methods.
+                            Re-run with <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">--eval-method</code> to enable scoring.
+                        </AlertDescription>
+                    </Alert>
+                </CardContent>
+            </Card>
+        );
     }
 
-    const { 
-        evaluationResults: { llmCoverageScores: allCoverageScores },
+    const {
+        evaluationResults: { llmCoverageScores: allCoverageScores, perPromptSimilarities },
         promptIds,
         promptContexts,
         config,
@@ -128,18 +151,29 @@ export const SimpleResultsGrid: React.FC = () => {
 
     const displayedPrompts = showAllPrompts ? promptData : promptData.slice(0, 8);
 
-    // Calculate scores for each model-prompt combination
-    const getScore = useCallback((promptId: string, modelId: string) => {
-        const result = allCoverageScores[promptId]?.[modelId];
-        if (!result || 'error' in result || typeof result.avgCoverageExtent !== 'number') {
-            return null;
+    // Calculate scores for each model-prompt combination (adaptive: coverage or similarity)
+    const getScore = useCallback((promptId: string, modelId: string): { score: number; type: 'coverage' | 'similarity' } | null => {
+        // Try coverage first
+        const coverageResult = allCoverageScores?.[promptId]?.[modelId];
+        if (coverageResult && !('error' in coverageResult) && typeof coverageResult.avgCoverageExtent === 'number') {
+            return { score: coverageResult.avgCoverageExtent, type: 'coverage' };
         }
-        return result.avgCoverageExtent;
-    }, [allCoverageScores]);
+
+        // Fallback to similarity
+        if (perPromptSimilarities) {
+            const similarity = perPromptSimilarities[promptId]?.[modelId]?.[IDEAL_MODEL_ID];
+            if (typeof similarity === 'number' && !isNaN(similarity)) {
+                return { score: similarity, type: 'similarity' };
+            }
+        }
+
+        return null;
+    }, [allCoverageScores, perPromptSimilarities]);
 
     // Get color class for score
-    const getScoreColorClass = useCallback((score: number | null) => {
-        if (score === null) return 'bg-gray-200 dark:bg-gray-700';
+    const getScoreColorClass = useCallback((scoreData: { score: number; type: 'coverage' | 'similarity' } | null) => {
+        if (scoreData === null) return 'bg-gray-200 dark:bg-gray-700';
+        const score = scoreData.score;
         if (score >= 0.8) return 'bg-green-500';
         if (score >= 0.6) return 'bg-yellow-500';
         if (score >= 0.4) return 'bg-orange-500';
@@ -148,16 +182,18 @@ export const SimpleResultsGrid: React.FC = () => {
 
     // Get model average score
     const getModelAverage = useCallback((modelId: string) => {
-        const scores = promptIds.map(pid => getScore(pid, modelId)).filter(s => s !== null) as number[];
-        if (scores.length === 0) return null;
-        return scores.reduce((sum, score) => sum + score, 0) / scores.length;
+        const scoreResults = promptIds.map(pid => getScore(pid, modelId)).filter((s): s is { score: number; type: 'coverage' | 'similarity' } => s !== null);
+        if (scoreResults.length === 0) return null;
+        const avgScore = scoreResults.reduce((sum, s) => sum + s.score, 0) / scoreResults.length;
+        return { score: avgScore, type: scoreResults[0].type }; // Use type of first score
     }, [promptIds, getScore]);
 
     // Get prompt average score
     const getPromptAverage = useCallback((promptId: string) => {
-        const scores = canonicalModels.map(mid => getScore(promptId, mid)).filter(s => s !== null) as number[];
-        if (scores.length === 0) return null;
-        return scores.reduce((sum, score) => sum + score, 0) / scores.length;
+        const scoreResults = canonicalModels.map(mid => getScore(promptId, mid)).filter((s): s is { score: number; type: 'coverage' | 'similarity' } => s !== null);
+        if (scoreResults.length === 0) return null;
+        const avgScore = scoreResults.reduce((sum, s) => sum + s.score, 0) / scoreResults.length;
+        return { score: avgScore, type: scoreResults[0].type }; // Use type of first score
     }, [canonicalModels, getScore]);
 
     if (selectedPrompt) {
@@ -231,7 +267,7 @@ export const SimpleResultsGrid: React.FC = () => {
                     ) : (
                         <div className="space-y-4">
                             {canonicalModels.map(modelId => {
-                                const score = getScore(selectedPrompt, modelId);
+                                const scoreData = getScore(selectedPrompt, modelId);
                                 const response = getResponseForModel(modelId);
                                 const hasResponse = response && response.trim() !== '';
                                 const displayResponse = hasResponse ? response : 'Loading response...';
@@ -249,7 +285,7 @@ export const SimpleResultsGrid: React.FC = () => {
                                     className="border border-border/50 rounded-lg overflow-hidden hover:shadow-md transition-all duration-200"
                                 >
                                     {/* Header with model name and score */}
-                                    <div 
+                                    <div
                                         className="flex items-center justify-between p-4 bg-muted/20 border-b border-border/30 cursor-pointer hover:bg-muted/30 transition-colors group"
                                         onClick={() => openModelEvaluationDetailModal({ promptId: selectedPrompt, modelId })}
                                         title="Click to see detailed evaluation breakdown"
@@ -257,13 +293,16 @@ export const SimpleResultsGrid: React.FC = () => {
                                         <div className="flex items-center gap-3">
                                             <span className="font-semibold group-hover:text-primary transition-colors">{displayLabel}</span>
                                             <div
-                                                className={`w-12 h-2 rounded-full ${getScoreColorClass(score)} hover:scale-105 transition-transform`}
-                                                title={score ? `${(score * 100).toFixed(1)}% score • Click for breakdown` : 'No score available'}
+                                                className={`w-12 h-2 rounded-full ${getScoreColorClass(scoreData)} hover:scale-105 transition-transform`}
+                                                title={scoreData ? `${(scoreData.score * 100).toFixed(1)}% ${scoreData.type} score • Click for breakdown` : 'No score available'}
                                             />
+                                            {scoreData && scoreData.type === 'similarity' && (
+                                                <Icon name="tilde" className="w-3 h-3 text-muted-foreground" title="Similarity score (embeddings)" />
+                                            )}
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <span className="text-sm font-mono group-hover:text-primary transition-colors">
-                                                {score ? `${(score * 100).toFixed(0)}%` : '-'}
+                                                {scoreData ? `${(scoreData.score * 100).toFixed(0)}%` : '-'}
                                             </span>
                                             <Icon name="chevron-right" className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
                                         </div>
@@ -339,10 +378,26 @@ export const SimpleResultsGrid: React.FC = () => {
                 </p>
             </CardHeader>
             <CardContent>
+                {/* Show badges for available eval methods */}
+                <div className="flex items-center justify-center gap-2 mb-4">
+                    {hasCoverage && (
+                        <Badge variant="default" className="text-xs">
+                            <Icon name="check-circle" className="w-3 h-3 mr-1" />
+                            Coverage Scores
+                        </Badge>
+                    )}
+                    {hasSimilarity && (
+                        <Badge variant="outline" className="text-xs">
+                            <Icon name="git-compare" className="w-3 h-3 mr-1" />
+                            Similarity Scores
+                        </Badge>
+                    )}
+                </div>
+
                 <div className="space-y-4">
                     {displayedPrompts.map(prompt => {
-                        const avgScore = getPromptAverage(prompt.id);
-                        
+                        const avgScoreData = getPromptAverage(prompt.id);
+
                         return (
                             <div
                                 key={prompt.id}
@@ -357,12 +412,12 @@ export const SimpleResultsGrid: React.FC = () => {
                                         <div className="flex items-center gap-4 mt-3">
                                             <div className="flex -space-x-1">
                                                 {canonicalModels.slice(0, 4).map(modelId => {
-                                                    const score = getScore(prompt.id, modelId);
+                                                    const scoreData = getScore(prompt.id, modelId);
                                                     return (
                                                         <div
                                                             key={modelId}
-                                                            className={`w-6 h-6 rounded-full border-2 border-white dark:border-slate-800 ${getScoreColorClass(score)} cursor-pointer hover:scale-110 transition-transform`}
-                                                            title={`${getModelDisplayLabel(parseModelIdForDisplay(modelId), { hideProvider: true, prettifyModelName: true })}: ${score ? `${(score * 100).toFixed(0)}%` : 'No score'} • Click for model details`}
+                                                            className={`w-6 h-6 rounded-full border-2 border-white dark:border-slate-800 ${getScoreColorClass(scoreData)} cursor-pointer hover:scale-110 transition-transform`}
+                                                            title={`${getModelDisplayLabel(parseModelIdForDisplay(modelId), { hideProvider: true, prettifyModelName: true })}: ${scoreData ? `${(scoreData.score * 100).toFixed(0)}% (${scoreData.type})` : 'No score'} • Click for model details`}
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 openModelPerformanceModal(modelId);
@@ -378,17 +433,17 @@ export const SimpleResultsGrid: React.FC = () => {
                                                     </div>
                                                 )}
                                             </div>
-                                            {avgScore !== null && (
-                                                <Badge 
-                                                    variant="secondary" 
+                                            {avgScoreData !== null && (
+                                                <Badge
+                                                    variant="secondary"
                                                     className="text-xs cursor-pointer hover:bg-primary/20 transition-colors"
-                                                    title="Average score across all models • Click to see scenario details"
+                                                    title={`Average ${avgScoreData.type} score across all models • Click to see scenario details`}
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         openPromptDetailModal(prompt.id);
                                                     }}
                                                 >
-                                                    Avg: {(avgScore * 100).toFixed(0)}%
+                                                    Avg: {(avgScoreData.score * 100).toFixed(0)}%
                                                 </Badge>
                                             )}
                                         </div>
