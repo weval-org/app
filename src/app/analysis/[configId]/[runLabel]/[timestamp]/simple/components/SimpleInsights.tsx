@@ -9,7 +9,7 @@ import { useAnalysis } from '@/app/analysis/context/AnalysisContext';
 import { getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import { StructuredSummary } from '@/app/analysis/components/StructuredSummary';
 import { MarkdownAccordion } from '@/app/analysis/components/MarkdownAccordion';
-import Icon from '@/components/ui/icon';
+import Icon, { IconName } from '@/components/ui/icon';
 
 const getInsightStyles = (type: 'info' | 'warning' | 'success') => {
     switch (type) {
@@ -53,7 +53,15 @@ export const SimpleInsights: React.FC = () => {
     }
 
     const insights = useMemo(() => {
-        const result = [];
+        const result: Array<{
+            id: string;
+            icon: IconName;
+            title: string;
+            description: string;
+            action: (() => void) | null;
+            actionLabel: string | null;
+            type: 'info' | 'warning' | 'success';
+        }> = [];
 
         // Add coverage-based performance insights (requires llm-coverage)
         if (hasCoverage && summaryStats?.bestPerformingModel && summaryStats?.worstPerformingModel) {

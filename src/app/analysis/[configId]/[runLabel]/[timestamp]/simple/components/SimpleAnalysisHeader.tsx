@@ -139,7 +139,7 @@ export const SimpleAnalysisHeader: React.FC = () => {
                                     title={method === 'llm-coverage' ? 'Rubric-based LLM evaluation' : 'Semantic similarity via embeddings'}
                                 >
                                     <Icon
-                                        name={method === 'llm-coverage' ? 'check-circle' : 'git-compare'}
+                                        name={method === 'llm-coverage' ? 'check-circle' : 'git-compare-arrows'}
                                         className="w-3 h-3 mr-1"
                                     />
                                     {method === 'llm-coverage' ? 'LLM Coverage' : 'Embeddings'}

@@ -207,6 +207,7 @@ export type IconName = keyof typeof iconMap;
 
 interface IconProps extends LucideProps {
   name: IconName;
+  title?: string;
 }
 
 const Icon = ({ name, ...props }: IconProps) => {

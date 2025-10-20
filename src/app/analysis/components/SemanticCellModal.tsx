@@ -84,7 +84,9 @@ const SemanticCellModal: React.FC = () => {
 
                 if (!cancelled) {
                     setResponses(responsesData || null);
-                    setSimilarities(simData?.similarities || simData || null);
+                    // Handle both nested and flat similarity data structures
+                    const similaritiesData = simData?.similarities ?? simData ?? null;
+                    setSimilarities(similaritiesData as Record<string, Record<string, number>> | null);
                 }
             } catch (error) {
                 console.error('[SemanticCellModal] Failed to load data:', error);
@@ -116,7 +118,7 @@ const SemanticCellModal: React.FC = () => {
         const clusterId = clusterData.clusterId;
         const clusterLetter = String.fromCharCode(65 + clusterId);
         const avgSimilarityToCluster = clusterData.avgSimilarityToCluster * 100;
-        const clusterMembers = clusterData.clusterMembers.filter(m => m !== modelId);
+        const clusterMembers = clusterData.clusterMembers.filter((m: string) => m !== modelId);
         const clusterColor = getClusterColorForModal(clusterId, avgSimilarityToCluster);
 
         return {
@@ -311,7 +313,7 @@ const SemanticCellModal: React.FC = () => {
                             <div>
                                 <div className="flex items-center justify-between mb-2">
                                     <h3 className="text-sm font-semibold flex items-center gap-2">
-                                        <Icon name="git-compare" className="w-4 h-4" />
+                                        <Icon name="git-compare-arrows" className="w-4 h-4" />
                                         Contrasting Cluster {contrastingCluster.clusterLetter}
                                     </h3>
                                     <Button

@@ -51,6 +51,24 @@ export const SimpleModelLeaderboard: React.FC = () => {
     }
 
     const { data: modelLeaderboard, type } = leaderboardData;
+
+    // TypeScript safety check
+    if (!modelLeaderboard || modelLeaderboard.length === 0) {
+        return (
+            <Card className="shadow-xl border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
+                <CardContent className="py-6">
+                    <Alert variant="default" className="border-blue-500/50 bg-blue-50/50 dark:bg-blue-900/10">
+                        <Icon name="info" className="h-4 w-4 text-blue-600" />
+                        <AlertTitle>Model Rankings Unavailable</AlertTitle>
+                        <AlertDescription>
+                            No model performance data available.
+                        </AlertDescription>
+                    </Alert>
+                </CardContent>
+            </Card>
+        );
+    }
+
     const displayedLeaderboard = showAll ? modelLeaderboard : modelLeaderboard.slice(0, 6);
 
     const getRankIcon = (rank: number) => {

@@ -297,7 +297,7 @@ export const SimpleResultsGrid: React.FC = () => {
                                                 title={scoreData ? `${(scoreData.score * 100).toFixed(1)}% ${scoreData.type} score • Click for breakdown` : 'No score available'}
                                             />
                                             {scoreData && scoreData.type === 'similarity' && (
-                                                <Icon name="tilde" className="w-3 h-3 text-muted-foreground" title="Similarity score (embeddings)" />
+                                                <Icon name="activity" className="w-3 h-3 text-muted-foreground" title="Similarity score (embeddings)" />
                                             )}
                                         </div>
                                         <div className="flex items-center gap-2">
@@ -388,7 +388,7 @@ export const SimpleResultsGrid: React.FC = () => {
                     )}
                     {hasSimilarity && (
                         <Badge variant="outline" className="text-xs">
-                            <Icon name="git-compare" className="w-3 h-3 mr-1" />
+                            <Icon name="git-compare-arrows" className="w-3 h-3 mr-1" />
                             Similarity Scores
                         </Badge>
                     )}

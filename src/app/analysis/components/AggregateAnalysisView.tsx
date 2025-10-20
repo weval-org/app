@@ -285,7 +285,7 @@ export const AggregateAnalysisView: React.FC = () => {
                 <>
                     <div className="my-6">
                         <Alert variant="default" className="border-green-500/50 dark:border-green-400/30 bg-green-50/50 dark:bg-green-900/10">
-                            <Icon name="git-compare" className="h-4 w-4 text-green-600" />
+                            <Icon name="git-compare-arrows" className="h-4 w-4 text-green-600" />
                             <AlertTitle className="text-green-800 dark:text-green-300">Embeddings-Based Analysis</AlertTitle>
                             <AlertDescription className="text-green-900 dark:text-green-200">
                                 This run used embeddings to measure semantic similarity between model responses.
@@ -307,7 +307,7 @@ export const AggregateAnalysisView: React.FC = () => {
                     <Card className="shadow-lg border-border dark:border-border">
                         <CardHeader>
                             <CardTitle className="text-primary flex items-center gap-2">
-                                <Icon name="git-compare" className="w-5 h-5 text-green-600" />
+                                <Icon name="git-compare-arrows" className="w-5 h-5 text-green-600" />
                                 Semantic Clustering Overview
                             </CardTitle>
                             <CardDescription>
@@ -411,7 +411,7 @@ export const AggregateAnalysisView: React.FC = () => {
                         <CardTitle className="text-primary text-primary">
                             Model Similarity Dendrogram
                             {!hasMeaningfulCoverageData && (
-                                <Icon name="git-compare" className="inline-block w-5 h-5 ml-2 text-green-600" title="Based on embeddings" />
+                                <Icon name="git-compare-arrows" className="inline-block w-5 h-5 ml-2 text-green-600" title="Based on embeddings" />
                             )}
                         </CardTitle>
                         <CardDescription>
