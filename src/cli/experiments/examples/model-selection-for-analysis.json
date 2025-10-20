@@ -1,0 +1,98 @@
+{
+  "description": "Strategic model selection for author distance analysis",
+  "total_models": 12,
+  "rationale": "Covers OpenAI progression, cross-vendor diversity, size variations, and architectural differences",
+
+  "models": [
+    {
+      "id": "openrouter:openai/gpt-4o",
+      "category": "baseline",
+      "reason": "The baseline - pre-transition model"
+    },
+    {
+      "id": "openrouter:openai/gpt-5",
+      "category": "primary_comparison",
+      "reason": "The controversial transition - main point of intrigue"
+    },
+    {
+      "id": "openrouter:openai/gpt-4o-mini",
+      "category": "openai_family",
+      "reason": "Smaller sibling of gpt-4o for size comparison"
+    },
+    {
+      "id": "openrouter:openai/gpt-4.1",
+      "category": "openai_family",
+      "reason": "Another OpenAI variant for progression context"
+    },
+    {
+      "id": "openrouter:openai/o4-mini",
+      "category": "openai_family",
+      "reason": "Reasoning-focused model for architectural diversity"
+    },
+    {
+      "id": "anthropic:claude-3-7-sonnet-20250219",
+      "category": "anthropic_flagship",
+      "reason": "Latest Claude flagship (native API, not OpenRouter)"
+    },
+    {
+      "id": "openrouter:anthropic/claude-sonnet-4",
+      "category": "anthropic_comparison",
+      "reason": "Anthropic flagship via OpenRouter for cross-vendor baseline"
+    },
+    {
+      "id": "openrouter:anthropic/claude-3.5-haiku",
+      "category": "anthropic_comparison",
+      "reason": "Smaller Claude model for size diversity"
+    },
+    {
+      "id": "openrouter:deepseek/deepseek-chat-v3.1",
+      "category": "chinese_vendor",
+      "reason": "Chinese training data/culture - architectural diversity"
+    },
+    {
+      "id": "openrouter:google/gemini-2.5-pro",
+      "category": "google_flagship",
+      "reason": "Google's flagship - major vendor comparison"
+    },
+    {
+      "id": "openrouter:x-ai/grok-3",
+      "category": "xai",
+      "reason": "X.AI's model - trained on different data distribution"
+    },
+    {
+      "id": "together:meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
+      "category": "open_source",
+      "reason": "Largest open source model - architectural comparison"
+    }
+  ],
+
+  "analysis_coverage": {
+    "vendors": ["OpenAI", "Anthropic", "DeepSeek", "Google", "X.AI", "Meta"],
+    "model_sizes": ["mini", "standard", "pro/large"],
+    "training_diversity": ["US-centric", "Chinese", "open-source"],
+    "special_capabilities": ["reasoning (o4-mini)", "multimodal potential"]
+  },
+
+  "expected_insights": [
+    "GPT-4o → GPT-5 distance magnitude (primary hypothesis)",
+    "How GPT-5 compares to other vendor flagships (cross-vendor context)",
+    "Whether model size correlates with distance (mini vs standard vs large)",
+    "Whether training culture affects style (DeepSeek Chinese vs OpenAI US)",
+    "Whether open source models cluster together (Meta Llama)",
+    "Whether reasoning models have distinct 'personality' (o4-mini)"
+  ],
+
+  "estimated_runtime": {
+    "prompt_extractions": "7 passages × ~3sec = ~21 seconds",
+    "model_responses": "7 passages × 12 models × 3 samples × ~5sec = ~21 minutes",
+    "embeddings": "7 + (7×12×3) = 259 embeddings × ~0.5sec = ~2 minutes",
+    "total": "~25-30 minutes (with caching and parallelization)"
+  },
+
+  "estimated_cost": {
+    "prompt_extractions": "7 × gpt-4o-mini = ~$0.02",
+    "model_responses": "252 calls (mixed models) = ~$2-8 depending on models",
+    "embeddings": "259 × text-embedding-3-small = ~$0.005",
+    "total": "~$2-10 per run"
+  }
+}

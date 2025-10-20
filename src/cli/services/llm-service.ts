@@ -20,6 +20,7 @@ export interface GetModelResponseParams {
     promptNoCache?: boolean;
     timeout?: number;
     retries?: number;
+    reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high';
 }
 
 export type StreamModelResponseParams = Omit<GetModelResponseParams, 'useCache' | 'retries'>;
@@ -39,6 +40,7 @@ export async function getModelResponse(params: GetModelResponseParams): Promise<
         promptNoCache = false,
         timeout,
         retries,
+        reasoningEffort,
     } = params;
     const { logger } = getConfig();
 
@@ -146,6 +148,7 @@ export async function getModelResponse(params: GetModelResponseParams): Promise<
         temperature,
         maxTokens,
         ...(typeof timeout === 'number' && isFinite(timeout) ? { timeout } : {}),
+        ...(reasoningEffort ? { reasoningEffort } : {}),
     };
 
     const apiCall = async () => {

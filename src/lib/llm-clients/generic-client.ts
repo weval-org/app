@@ -98,8 +98,8 @@ class GenericHttpClient {
     }
 
     private applyReasoningParameters(
-        body: any, 
-        reasoningEffort?: 'low' | 'medium' | 'high', 
+        body: any,
+        reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high',
         thinkingBudget?: number,
         paramMapping: any = {}
     ): void {
@@ -145,8 +145,9 @@ class GenericHttpClient {
         }
     }
 
-    private mapEffortToBudget(effort?: 'low' | 'medium' | 'high'): number | undefined {
+    private mapEffortToBudget(effort?: 'minimal' | 'low' | 'medium' | 'high'): number | undefined {
         switch (effort) {
+            case 'minimal': return 512;
             case 'low': return 1024;
             case 'medium': return 4096;
             case 'high': return 8192;

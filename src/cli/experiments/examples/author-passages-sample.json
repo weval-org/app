@@ -1,0 +1,51 @@
+[
+  {
+    "author": "Lewis Carroll",
+    "passage": "It was eight-sided, having in each angle a slender pillar, round which silken draperies were twined. The wall between the pillars was entirely covered, to the height of six or seven feet, with creepers, from which hung quantities of ripe fruit and of brilliant flowers, that almost hid the leaves. In another place, perchance, I might have wondered to see fruit and flowers growing together: here, my chief wonder was that neither fruit nor flowers were such as I had ever seen before. Higher up, each wall contained a circular window of coloured glass; and over all was an arched roof, that seemed to be spangled all over with jewels.",
+    "work": "Sylvie and Bruno",
+    "rationale": "Geometrical whimsy + botanical impossibility",
+    "passage_type": "architectural description"
+  },
+  {
+    "author": "Ernest Hemingway",
+    "passage": "In the late summer of that year we lived in a house in a village that looked across the river and the plain to the mountains. In the bed of the river there were pebbles and boulders, dry and white in the sun, and the water was clear and swiftly moving and blue in the channels. Troops went by the house and down the road and the dust they raised powdered the leaves of the trees.",
+    "work": "A Farewell to Arms",
+    "rationale": "Spare, declarative sentences with concrete imagery",
+    "passage_type": "scene setting"
+  },
+  {
+    "author": "Virginia Woolf",
+    "passage": "She had a perpetual sense, as she watched the taxi cabs, of being out, out, far out to sea and alone; she always had the feeling that it was very, very dangerous to live even one day. Not that she thought herself clever, or much out of the ordinary. How she had got through life on the few twigs of knowledge Fräulein Daniels gave them she could not think. She knew nothing; no language, no history; she scarcely read a book now, except memoirs in bed; and yet to her it was absolutely absorbing; all this.",
+    "work": "Mrs. Dalloway",
+    "rationale": "Stream of consciousness, internal contradictions, flowing syntax",
+    "passage_type": "character introspection"
+  },
+  {
+    "author": "James Baldwin",
+    "passage": "Perhaps home is not a place but simply an irrevocable condition. He had been away from it for so long now, he had forgotten what it was like. He tried to remember. But the habits of home kept overtaking him in strange ways. He found himself doing things, thinking things, the way he had done and thought them at home. And he wondered if he were really free of it—or if anyone ever really got free of anything.",
+    "work": "Giovanni's Room",
+    "rationale": "Philosophical questioning, emotional weight, repetition for emphasis",
+    "passage_type": "philosophical reflection"
+  },
+  {
+    "author": "Ursula K. Le Guin",
+    "passage": "The room was dim, with one small light, and all the corners and shadows were very dark. She smelled the sea. She could hear the quiet lap and sigh of water very close by. She was confused. She thought she woke and yet was not quite awake. She felt herself falling, and tried to catch at something—a blanket, the side of a bed—but there was nothing.",
+    "work": "The Tombs of Atuan",
+    "rationale": "Sensory disorientation, simple language for mysterious effect",
+    "passage_type": "awakening/transition"
+  },
+  {
+    "author": "Toni Morrison",
+    "passage": "She was a woman who even death couldn't stop. She would come back to the living, to haunt her daughters, as she had haunted their father, who she drove to the brink and beyond. And she would survive herself, outlast herself, go on and on, world without end. The mother, the grandmother, the dead one, the live one.",
+    "work": "Jazz",
+    "rationale": "Mythic repetition, fragment-like sentences, oral tradition echoes",
+    "passage_type": "character description"
+  },
+  {
+    "author": "Joan Didion",
+    "passage": "I came to New York to make something of myself, and made nothing, and now I have a nine-month-old daughter, and my life is a series of small errands. I call my psychiatrist. I call my mother. I shop. I drink coffee. I write down what I do. I do not know what I am doing. I am twenty-eight. I live in New York. I am breaking down.",
+    "work": "Play It As It Lays",
+    "rationale": "Clinical precision, list-like structure, stark self-assessment",
+    "passage_type": "personal crisis"
+  }
+]

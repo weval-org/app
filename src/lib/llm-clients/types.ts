@@ -19,7 +19,7 @@ export interface LLMApiCallOptions {
     stop?: string | string[];
     stream?: boolean;
     // Reasoning parameters
-    reasoningEffort?: 'low' | 'medium' | 'high';
+    reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'; // 'minimal' is GPT-5 only
     thinkingBudget?: number;
     // Generic parameter passthrough for custom providers
     customParameters?: Record<string, any>;

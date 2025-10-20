@@ -47,6 +47,7 @@ import { generatePainPointsCommand } from './commands/generate-pain-points';
 import { annotatePainPointsCommand } from './commands/annotate-pain-points';
 import { generateRegressionsCommand } from './commands/generate-regressions';
 import { backfillGranularResponsesCommand } from './commands/backfill-granular-responses';
+import { authorDistanceCommand } from './commands/author-distance';
 
 let isTerminating = false
 const cleanup = () => {
@@ -132,6 +133,7 @@ cli.addCommand(generatePainPointsCommand);
 cli.addCommand(annotatePainPointsCommand);
 cli.addCommand(generateRegressionsCommand);
 cli.addCommand(backfillGranularResponsesCommand);
+cli.addCommand(authorDistanceCommand);
 
 cli.parseAsync(process.argv).catch(err => {
   console.error('CLI Error:', err); 
