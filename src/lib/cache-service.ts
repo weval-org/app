@@ -1,4 +1,5 @@
 import Keyv from 'keyv';
+import KeyvSqlite from '@keyv/sqlite';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
@@ -20,27 +21,78 @@ if (!fs.existsSync(cacheDir)) {
 
 // A map to hold different cache instances (namespaces)
 const caches = new Map<string, Keyv>();
+// A map to hold legacy JSON cache instances for reading old data
+const legacyCaches = new Map<string, Keyv>();
 
 /**
- * Gets a namespaced Keyv instance for file-based caching.
- * @param namespace - A string to identify the cache, e.g., 'model-responses'. This will be used as the filename.
+ * Gets a namespaced Keyv instance for SQLite-based caching with fallback to legacy JSON.
+ * New entries are written to SQLite. Old entries from JSON cache are read and migrated on access.
+ * @param namespace - A string to identify the cache, e.g., 'model-responses', 'embeddings'.
  * @returns A Keyv instance.
  */
 export function getCache(namespace: string): Keyv {
     if (!caches.has(namespace)) {
         let keyv: Keyv;
         try {
+            // Create SQLite cache as primary storage
             keyv = new Keyv({
-                store: new KeyvFile({
-                    filename: path.join(cacheDir, `${namespace}.json`),
-                    writeDelay: 100, // Debounce writes to disk to improve performance
+                store: new KeyvSqlite({
+                    uri: `sqlite://${path.join(cacheDir, `${namespace}.sqlite`)}`,
                 }),
             });
+
+            // Try to initialize legacy JSON cache for reading (if it exists)
+            const legacyJsonPath = path.join(cacheDir, `${namespace}.json`);
+            if (fs.existsSync(legacyJsonPath)) {
+                try {
+                    const legacyKeyv = new Keyv({
+                        store: new KeyvFile({
+                            filename: legacyJsonPath,
+                            writeDelay: 100,
+                        }),
+                    });
+                    legacyCaches.set(namespace, legacyKeyv);
+                    console.log(`[CacheService] Found legacy JSON cache for '${namespace}'. Will migrate entries on access.`);
+                } catch (legacyError) {
+                    console.warn(`[CacheService] Legacy JSON cache exists but couldn't be loaded for '${namespace}':`, legacyError);
+                }
+            }
+
+            // Wrap the SQLite cache to add migration logic
+            const originalGet = keyv.get.bind(keyv);
+            keyv.get = async function(key: string | string[], options?: any) {
+                // Handle single key migration
+                if (typeof key === 'string') {
+                    // First try SQLite
+                    let value = await originalGet(key, options);
+
+                    // If not found in SQLite, try legacy JSON cache
+                    if (value === undefined && legacyCaches.has(namespace)) {
+                        const legacyCache = legacyCaches.get(namespace)!;
+                        try {
+                            value = await legacyCache.get(key, options);
+                            if (value !== undefined) {
+                                console.log(`[CacheService] Migrating cache entry from JSON to SQLite (namespace: ${namespace}, key: ${key.substring(0, 12)}...)`);
+                                // Migrate to SQLite
+                                await keyv.set(key, value);
+                            }
+                        } catch (legacyReadError) {
+                            console.warn(`[CacheService] Error reading from legacy cache for key ${key.substring(0, 12)}...:`, legacyReadError);
+                        }
+                    }
+
+                    return value;
+                } else {
+                    // For array keys, just use original SQLite get (no migration)
+                    return originalGet(key, options);
+                }
+            } as typeof keyv.get;
+
             caches.set(namespace, keyv);
         } catch (error) {
-            console.error(`[CacheService] Failed to initialize cache for namespace '${namespace}'. Caching will be disabled for this namespace.`, error);
+            console.error(`[CacheService] Failed to initialize SQLite cache for namespace '${namespace}'. Caching will be disabled for this namespace.`, error);
             // Return a dummy in-memory cache so the app doesn't crash
-            keyv = new Keyv(); 
+            keyv = new Keyv();
             caches.set(namespace, keyv);
         }
     }
