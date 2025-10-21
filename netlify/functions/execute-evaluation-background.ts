@@ -2,9 +2,9 @@ import type { Handler, HandlerEvent, HandlerContext } from "@netlify/functions";
 import { executeComparisonPipeline } from "../../src/cli/services/comparison-pipeline-service"; // Adjusted path
 import { generateConfigContentHash } from "../../src/lib/hash-utils"; // Adjusted path
 import { ComparisonConfig, EvaluationMethod } from "../../src/cli/types/cli_types"; // Adjusted path
-import { 
-    getHomepageSummary, 
-    saveHomepageSummary, 
+import {
+    getHomepageSummary,
+    saveHomepageSummary,
     updateSummaryDataWithNewRun,
     getResultByFileName,
     HomepageSummaryFileContent
@@ -20,6 +20,7 @@ import { populatePairwiseQueue } from "../../src/cli/services/pairwise-task-queu
 import { normalizeTag } from "../../src/app/utils/tagUtils";
 import { CustomModelDefinition } from "../../src/lib/llm-clients/types";
 import { registerCustomModels } from "../../src/lib/llm-clients/client-dispatcher";
+import { cleanupTmpCache } from "../../src/lib/cache-service";
 
 // Helper to create a simple console-based logger with a prefix
 const createLogger = (context: HandlerContext) => {
@@ -35,6 +36,9 @@ const createLogger = (context: HandlerContext) => {
 export const handler: Handler = async (event: HandlerEvent, context: HandlerContext) => {
   const logger = createLogger(context);
   logger.info("Function invoked.");
+
+  // Clean up /tmp cache at start to prevent disk space issues
+  cleanupTmpCache(100); // Keep cache under 100MB
 
   if (!event.body) {
     logger.error("No body received in the event.");

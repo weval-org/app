@@ -6,6 +6,7 @@ import { getLogger } from '@/utils/logger';
 import { executeComparisonPipeline } from '@/cli/services/comparison-pipeline-service';
 import { ComparisonConfig, EvaluationMethod, FinalComparisonOutputV2 } from '@/cli/types/cli_types';
 import { toSafeTimestamp } from '@/lib/timestampUtils';
+import { cleanupTmpCache } from '@/lib/cache-service';
 
 const s3Client = new S3Client({
   region: process.env.APP_S3_REGION!,
@@ -102,6 +103,9 @@ export const handler: BackgroundHandler = async (event) => {
     logger.error('Missing runId or blueprintKey in invocation.');
     return;
   }
+
+  // Clean up /tmp cache at start to prevent disk space issues
+  cleanupTmpCache(100); // Keep cache under 100MB
 
   try {
     await updateStatus('pending', 'Fetching test plan...');

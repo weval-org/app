@@ -15,6 +15,7 @@ export class StreamingParser {
   };
 
   private readonly controlTags: string[];
+  private hasSeenTags = false; // Track if we've parsed any tags
 
   constructor() {
     this.controlTags = Object.keys(CONTROL_PATTERNS);
@@ -49,9 +50,23 @@ export class StreamingParser {
       }
     }
 
-    // Any remaining buffer content is considered unprocessed/malformed
-    if (this.buffer.trim()) {
-        console.warn(`[StreamingParser] Finalizing with non-empty buffer: "${this.buffer}"`);
+    // If there's remaining buffer content without any control tags, treat it as visible content
+    // ONLY if we've never seen any tags (model completely ignored instructions)
+    if (this.buffer.trim() && !this.hasSeenTags) {
+      // Check if the buffer looks like it might contain control tags (opening tags without closing)
+      const hasPartialTag = /<(USER_RESPONSE|SYSTEM_INSTRUCTIONS|STREAM_ERROR)/i.test(this.buffer);
+
+      if (!hasPartialTag) {
+        // This is plain text without tags from a model that ignored instructions
+        console.warn(`[StreamingParser] No tags seen, treating untagged content as visible: "${this.buffer.slice(0, 100)}..."`);
+        this.result.visibleContent += this.buffer;
+        this.buffer = '';
+      }
+    }
+
+    // If we have seen tags, any remaining buffer is ignored (text outside tags)
+    if (this.buffer.trim() && this.hasSeenTags) {
+      console.warn(`[StreamingParser] Ignoring text outside tags: "${this.buffer.slice(0, 100)}..."`);
     }
     return { ...this.result };
   }
@@ -101,6 +116,8 @@ export class StreamingParser {
   
   // Handle the logic for a matched tag
   private processTag(tag: string, content: string) {
+    this.hasSeenTags = true; // Mark that we've seen at least one tag
+
     switch (tag as ControlSignal) {
       case 'USER_RESPONSE':
         this.result.visibleContent += content;

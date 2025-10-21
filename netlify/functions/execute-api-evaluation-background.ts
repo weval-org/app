@@ -7,6 +7,7 @@ import { registerCustomModels } from '../../src/lib/llm-clients/client-dispatche
 import { trackStatus } from '../../src/lib/status-tracker';
 import { configure } from '../../src/cli/config';
 import { ComparisonConfig, EvaluationMethod } from '../../src/cli/types/cli_types';
+import { cleanupTmpCache } from '../../src/lib/cache-service';
 
 const logger = {
   info: (message: string) => console.log(`[Sandbox Pipeline] [INFO] ${message}`),
@@ -32,6 +33,10 @@ const STORAGE_PREFIX = 'api-runs';
 
 export const handler: Handler = async (event: HandlerEvent, context: HandlerContext) => {
   const logger = createLogger(context);
+
+  // Clean up /tmp cache at start to prevent disk space issues
+  cleanupTmpCache(100); // Keep cache under 100MB
+
   // Initialize CLI config so LLM clients (embeddings/generation) and logger are wired in serverless
   try {
     configure({

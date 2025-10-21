@@ -14,6 +14,7 @@ import { normalizeTag } from '@/app/utils/tagUtils';
 import { configure } from '@/cli/config';
 import { CustomModelDefinition } from '@/lib/llm-clients/types';
 import { registerCustomModels } from '@/lib/llm-clients/client-dispatcher';
+import { cleanupTmpCache } from '@/lib/cache-service';
 
 const s3Client = new S3Client({
   region: process.env.APP_S3_REGION!,
@@ -60,7 +61,7 @@ const getStatusUpdater = (blueprintKey: string, runId: string) => {
 export const handler: BackgroundHandler = async (event) => {
   const body = event.body ? JSON.parse(event.body) : {};
   const { runId, blueprintKey, sandboxVersion } = body;
-  
+
   // Configure CLI before any CLI services are used
   configure({
     errorHandler: (error: Error) => {
@@ -68,18 +69,21 @@ export const handler: BackgroundHandler = async (event) => {
     },
     logger: {
       info: (msg: string) => logger.info(msg),
-      warn: (msg: string) => logger.warn(msg), 
+      warn: (msg: string) => logger.warn(msg),
       error: (msg: string) => logger.error(msg),
       success: (msg: string) => logger.success(msg),
     }
   });
-  
+
   logger.info(`[Sandbox Pipeline] CLI configured for runId: ${runId}`);
 
   if (!runId || !blueprintKey) {
     logger.error('Missing runId or blueprintKey in invocation.');
     return;
   }
+
+  // Clean up /tmp cache at start to prevent disk space issues
+  cleanupTmpCache(100); // Keep cache under 100MB
 
   // Derive base path from blueprint location (path-agnostic approach)
   const basePath = blueprintKey.replace(/\/blueprint\.yml$/, '');
