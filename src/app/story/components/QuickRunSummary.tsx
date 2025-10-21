@@ -79,7 +79,6 @@ export function QuickRunSummary({ result, onViewDetails, onRerun }: QuickRunSumm
 
   const promptCount = prompts.length;
   const modelCount = uniqueModels.length;
-  const allTied = overallBestModels && overallBestModels.length === uniqueModels.length;
 
   return (
     <Card className="p-4 bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-950/30 dark:to-blue-950/30 border-green-200 dark:border-green-800">
@@ -92,24 +91,9 @@ export function QuickRunSummary({ result, onViewDetails, onRerun }: QuickRunSumm
           <ul className="text-sm space-y-1 text-muted-foreground">
             <li>• {promptCount} scenario{promptCount !== 1 ? 's' : ''} tested</li>
             <li>• {modelCount} model{modelCount !== 1 ? 's' : ''} compared</li>
-            {overallBestModels && (
+            {overallBestModels && overallBestModels.length === 1 && (
               <li className="font-medium text-foreground">
-                {allTied ? (
-                  <>• All models performed equally</>
-                ) : overallBestModels.length === 1 ? (
-                  <>
-                    • 🏆 <strong>{getModelDisplayLabel(overallBestModels[0], { prettifyModelName: true, hideTemperature: true, hideProvider: true })}</strong> performed best
-                  </>
-                ) : (
-                  <>
-                    • 🏆 {overallBestModels.map((m, i) => (
-                      <span key={m}>
-                        <strong>{getModelDisplayLabel(m, { prettifyModelName: true, hideTemperature: true, hideProvider: true })}</strong>
-                        {i < overallBestModels.length - 1 && (i === overallBestModels.length - 2 ? ' and ' : ', ')}
-                      </span>
-                    ))} tied for best
-                  </>
-                )}
+                • 🏆 <strong>{getModelDisplayLabel(overallBestModels[0], { prettifyModelName: true, hideTemperature: true, hideProvider: true })}</strong> performed best
               </li>
             )}
           </ul>

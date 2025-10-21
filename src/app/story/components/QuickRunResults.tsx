@@ -175,42 +175,17 @@ export function QuickRunResults({ result }: QuickRunResultsProps) {
             <h2 className="text-2xl font-bold mb-2">Your Test Is Complete!</h2>
             <p className="text-base text-muted-foreground mb-3">
               We tested <span className="font-semibold text-foreground">{prompts.length}</span> scenario{prompts.length !== 1 ? 's' : ''} across <span className="font-semibold text-foreground">{uniqueModels.length}</span> different AI model{uniqueModels.length !== 1 ? 's' : ''}.
-              {overallBestModels && overallBestModels.length > 0 && (() => {
-                // All models tied
-                if (overallBestModels.length === uniqueModels.length) {
-                  return <> All models performed equally.</>;
-                }
-                // Single winner
-                if (overallBestModels.length === 1) {
-                  return (
-                    <>
-                      {' '}<span className="font-semibold text-primary">
-                        {getModelDisplayLabel(overallBestModels[0], { 
-                          prettifyModelName: true, 
-                          hideTemperature: true,
-                          hideProvider: true 
-                        })}
-                      </span> performed best overall.
-                    </>
-                  );
-                }
-                // Multiple winners (tie)
-                const modelLabels = overallBestModels.map(m => 
-                  getModelDisplayLabel(m, { 
-                    prettifyModelName: true, 
-                    hideTemperature: true,
-                    hideProvider: true 
-                  })
-                );
-                const lastModel = modelLabels.pop();
-                return (
-                  <>
-                    {' '}<span className="font-semibold text-primary">
-                      {modelLabels.join(', ')} and {lastModel}
-                    </span> tied for best performance.
-                  </>
-                );
-              })()}
+              {overallBestModels && overallBestModels.length === 1 && (
+                <>
+                  {' '}<span className="font-semibold text-primary">
+                    {getModelDisplayLabel(overallBestModels[0], {
+                      prettifyModelName: true,
+                      hideTemperature: true,
+                      hideProvider: true
+                    })}
+                  </span> performed best overall.
+                </>
+              )}
             </p>
             <div className="flex flex-wrap gap-2">
               {uniqueModels.map(modelId => (
