@@ -7,8 +7,8 @@ import { LLMCoverageEvaluator } from '@/cli/evaluators/llm-coverage-evaluator';
 import type { ComparisonConfig, EvaluationInput } from '@/cli/types/cli_types';
 import { getEmbedding } from '@/cli/services/embedding-service';
 import { getCache, generateCacheKey } from '@/lib/cache-service';
-import { runLitRound } from '@/lib/lit/core';
-import type { LitParams, LitDependencies, LitProgressEvent } from '@/lib/lit/types';
+import { runLitRound } from '@/lib/experiments/lit/core';
+import type { LitParams, LitDependencies, LitProgressEvent } from '@/lib/experiments/lit/types';
 
 function splitIntoChunks(text: string, maxChars: number): string[] {
     if (text.length <= maxChars) return [text];

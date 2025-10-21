@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { configure } from '@/cli/config';
-import { runLitRound } from '@/lib/lit/core';
-import type { LitParams, LitDependencies, LitProgressEvent } from '@/lib/lit/types';
+import { runLitRound } from '@/lib/experiments/lit/core';
+import type { LitParams, LitDependencies, LitProgressEvent } from '@/lib/experiments/lit/types';
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({} as any));

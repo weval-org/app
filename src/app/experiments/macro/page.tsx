@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import MacroViewer from '@/app/macro/components/MacroViewer';
+import MacroViewer from '@/app/experiments/macro/components/MacroViewer';
 
 export default function MacroPage() {
   return (

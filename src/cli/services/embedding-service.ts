@@ -1,11 +1,20 @@
 import { dispatchCreateEmbedding } from '@/lib/embedding-clients/client-dispatcher';
-import { getCache, generateCacheKey } from '@/lib/cache-service';
+import { generateCacheKey } from '@/lib/cache-service';
+import Keyv from 'keyv';
 
 interface EmbeddingServiceLogger {
     info: (msg: string) => void;
     warn: (msg: string) => void;
     error: (msg: string) => void;
 }
+
+// Use in-memory cache for embeddings to avoid RangeError when serializing large cache files
+// Embeddings are large arrays (1536+ floats) and when many are cached, keyv-file hits string length limits
+const embeddingCache = new Keyv({
+    namespace: 'embeddings',
+    // In-memory only - no persistence to avoid serialization errors
+    ttl: 60 * 60 * 1000, // 1 hour TTL to prevent memory bloat
+});
 
 /**
  * Gets an embedding for the provided text using the specified model.
@@ -18,17 +27,17 @@ export async function getEmbedding(
     logger: EmbeddingServiceLogger,
     useCache: boolean = false, // Add useCache flag, default to false
 ): Promise<number[]> {
-    const embeddingCache = getCache('embeddings');
+    // Use the in-memory cache defined at module level
     const cacheKeyPayload = { modelId, text };
     const cacheKey = generateCacheKey(cacheKeyPayload);
 
     if (useCache) {
         const cachedEmbedding = await embeddingCache.get(cacheKey);
         if (cachedEmbedding) {
-            logger.info(`  -> Cache hit for embedding (model: ${modelId}, key: ${cacheKey.substring(0, 8)}...)`);
+            logger.info(`  -> In-memory cache hit for embedding (model: ${modelId}, key: ${cacheKey.substring(0, 8)}...)`);
             return cachedEmbedding as number[];
         }
-        logger.info(`  -> Cache miss for embedding (model: ${modelId}, key: ${cacheKey.substring(0,8)}...). Requesting from API.`);
+        logger.info(`  -> In-memory cache miss for embedding (model: ${modelId}, key: ${cacheKey.substring(0,8)}...). Requesting from API.`);
     }
 
     try {
@@ -42,8 +51,15 @@ export async function getEmbedding(
         const embedding = await dispatchCreateEmbedding(text, modelId);
 
         if (useCache) {
-            await embeddingCache.set(cacheKey, embedding);
-            logger.info(`  -> Saved new embedding to cache (model: ${modelId}, key: ${cacheKey.substring(0, 8)}...)`);
+            try {
+                // In-memory cache - no serialization issues
+                await embeddingCache.set(cacheKey, embedding);
+                const dims = Array.isArray(embedding) ? embedding.length : 'unknown';
+                logger.info(`  -> Saved new embedding to in-memory cache (model: ${modelId}, key: ${cacheKey.substring(0, 8)}..., dims: ${dims})`);
+            } catch (cacheError: any) {
+                logger.error(`  -> Failed to cache embedding: ${cacheError.message}`);
+                // Don't throw - just skip caching and return the embedding
+            }
         }
 
         return embedding;
