@@ -188,6 +188,64 @@ describe('Point Functions', () => {
                 }),
             );
         });
+
+        it('should provide access to context.messages', () => {
+            const contextWithMessages: PointFunctionContext = {
+                config: {} as any,
+                prompt: {
+                    id: 'test',
+                    messages: [
+                        { role: 'user', content: 'Hello' },
+                        { role: 'assistant', content: 'Hi there!' },
+                    ],
+                } as any,
+                modelId: 'test-model',
+            };
+            expect(js('test', 'context.messages.length === 2', contextWithMessages)).toBe(true);
+            expect(js('test', 'context.messages[0].role === "user"', contextWithMessages)).toBe(true);
+            expect(js('test', 'context.messages[0].content === "Hello"', contextWithMessages)).toBe(true);
+        });
+
+        it('should provide access to context.modelId', () => {
+            expect(js('test', 'context.modelId === "test-model"', mockContext)).toBe(true);
+        });
+
+        it('should handle multi-turn conversation context analysis', () => {
+            const contextWithMessages: PointFunctionContext = {
+                config: {} as any,
+                prompt: {
+                    id: 'test',
+                    messages: [
+                        { role: 'user', content: 'Tell me about Paris.' },
+                        { role: 'assistant', content: 'Paris is the capital of France. It has many beautiful landmarks.' },
+                        { role: 'user', content: 'How many words was your response?' },
+                    ],
+                } as any,
+                modelId: 'test-model',
+            };
+
+            const script = `
+                // Count words in previous assistant message
+                const prevMsg = context.messages[1].content;
+                const actualCount = prevMsg.split(/\\s+/).length;
+                const statedCount = parseInt(r.match(/\\b\\d+\\b/)?.[0] || 0);
+                const diff = Math.abs(actualCount - statedCount);
+                // Accurate self-counting = strong self-awareness
+                return diff <= 2 ? 1 : (diff <= 5 ? 0.5 : 0);
+            `;
+
+            // Test with accurate response
+            const accurateResponse = '12 words';
+            expect(js(accurateResponse, script, contextWithMessages)).toBe(1);
+
+            // Test with slightly inaccurate response
+            const slightlyOffResponse = '15 words';
+            expect(js(slightlyOffResponse, script, contextWithMessages)).toBe(0.5);
+
+            // Test with very inaccurate response
+            const inaccurateResponse = '50 words';
+            expect(js(inaccurateResponse, script, contextWithMessages)).toBe(0);
+        });
     });
 
     describe('icontains_all_of', () => {

@@ -3,7 +3,11 @@ import vm from 'vm';
 
 /**
  * Executes a simple JavaScript expression or script in a sandboxed environment.
- * The script has access to a single variable 'r', which is the response text.
+ * The script has access to:
+ * - 'r' (alias: 'response'): the response text from the model
+ * - 'context': an object containing:
+ *   - 'messages': array of conversation messages from the prompt
+ *   - 'modelId': the ID of the model being evaluated
  * The script must return a boolean or a number. Numbers will be clamped to the range [0, 1].
  * @param response The text response from the model.
  * @param args The JavaScript expression or script to evaluate.
@@ -18,7 +22,14 @@ export const js: PointFunction = (
         return { error: 'Argument for js must be a string expression.' };
     }
 
-    const sandbox = { r: response, response };
+    const sandbox = {
+        r: response,
+        response,
+        context: {
+            messages: _context.prompt?.messages || [],
+            modelId: _context.modelId,
+        }
+    };
     const context = vm.createContext(sandbox);
 
     try {

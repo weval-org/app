@@ -924,6 +924,40 @@ result.pointAssessments.filter(p => p.pathId).forEach(p => {
       - $ref: scoreBand          # Reuse a point defined in point_defs
     ```
 
+    **Advanced: `$js` Function with Context Access**
+
+    The `$js` function executes custom JavaScript expressions in a sandboxed environment. It provides access to:
+    - `r` (alias: `response`): The model's response text
+    - `context`: An object containing:
+      - `messages`: Array of conversation messages from the prompt (includes user and assistant turns)
+      - `modelId`: The ID of the model being evaluated
+
+    This is particularly useful for multi-turn evaluations where you need to check consistency across messages:
+
+    ```yaml
+    prompts:
+      - id: self-awareness-check
+        messages:
+          - user: "Tell me about Paris."
+          - assistant: null  # Model generates this
+          - user: "How many words was your response?"
+        should:
+          - fn: $js
+            arg: |
+              // Count words in previous assistant message
+              const prevMsg = context.messages[1].content;
+              const actualCount = prevMsg.split(/\s+/).length;
+              const statedCount = parseInt(r.match(/\b\d+\b/)?.[0] || 0);
+              const diff = Math.abs(actualCount - statedCount);
+              // Accurate self-counting = strong self-awareness
+              return diff <= 2 ? 1 : (diff <= 5 ? 0.5 : 0);
+    ```
+
+    **Return Values**: `$js` must return:
+    - `boolean`: Converted to 1.0 (true) or 0.0 (false)
+    - `number`: Clamped to the range [0, 1] for scoring
+    - `{ score: number|boolean, explain?: string }`: Custom score with optional explanation
+
     > 💡 **Recommended Pattern**: Use negative functions (`$not_*`) directly in `should` blocks rather than using `should_not` blocks. This makes blueprints more readable and avoids double-negative confusion. See the deprecation notice below for migration guidance.
 4.  **Full Object (Maximum Control)**: For weighting points or adding citations. This is the most verbose, legacy-compatible format.
     ```yaml
