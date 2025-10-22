@@ -323,7 +323,7 @@ describe('LLMCoverageEvaluator', () => {
             requestIndividualJudgeSpy.mockImplementation(async (mrt, kpt, aokp, pct, suiteDesc, judge) => {
                 if (judge.model === 'openai:gpt-4.1-mini') return { coverage_extent: 0.8, reflection: 'Good from GPT-4' };
                 if (judge.model === 'openrouter:google/gemini-2.5-flash') return { error: 'Gemini failed' };
-                if (judge.model === 'anthropic:claude-3.5-haiku') return { coverage_extent: 0.6, reflection: 'Backup Claude result' };
+                if (judge.model === 'anthropic:claude-3-5-haiku-latest') return { coverage_extent: 0.6, reflection: 'Backup Claude result' };
                 return { error: 'unexpected judge' };
             });
 
@@ -373,7 +373,7 @@ describe('LLMCoverageEvaluator', () => {
                 if (judge.model === 'openai:gpt-4.1-mini' && judge.approach === 'holistic') return { error: 'Holistic GPT-4 failed' };
                 if (judge.model === 'openrouter:google/gemini-2.5-flash') return { error: 'Gemini failed' };
                 if (judge.model === 'openai:gpt-4o') return { error: 'GPT-4o failed' };
-                if (judge.model === 'anthropic:claude-3.5-haiku') return { error: 'Backup Claude also failed' };
+                if (judge.model === 'anthropic:claude-3-5-haiku-latest') return { error: 'Backup Claude also failed' };
                 return { error: 'unexpected judge' };
             });
 
@@ -448,7 +448,7 @@ describe('LLMCoverageEvaluator', () => {
                 if (judge.model === 'openai:gpt-4.1-mini') return { coverage_extent: 0.8, reflection: 'Good from GPT-4' };
                 if (judge.model === 'openrouter:google/gemini-2.5-flash') return { error: 'Gemini failed' };
                 if (judge.model === 'openai:gpt-4.1-mini' && judge.approach === 'holistic') return { error: 'Holistic GPT-4 failed' };
-                if (judge.model === 'anthropic:claude-3.5-haiku') return { coverage_extent: 0.6, reflection: 'Backup Claude result' };
+                if (judge.model === 'anthropic:claude-3-5-haiku-latest') return { coverage_extent: 0.6, reflection: 'Backup Claude result' };
                 return { error: 'unexpected judge' };
             });
 
@@ -1083,7 +1083,7 @@ describe('LLMCoverageEvaluator', () => {
                 if (judge.model === 'openrouter:openai/gpt-oss-120b') {
                     return { error: 'GPT-OSS failed' };
                 }
-                if (judge.model === 'anthropic:claude-3.5-haiku') {
+                if (judge.model === 'anthropic:claude-3-5-haiku-latest') {
                     return { coverage_extent: 0.8, reflection: 'Backup Claude result' };
                 }
                 return { error: 'unexpected judge' };
