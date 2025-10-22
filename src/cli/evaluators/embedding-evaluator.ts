@@ -5,6 +5,8 @@ import { cosineSimilarity as calculateSimilarity } from '@/lib/math';
 import { parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
 import { ProgressCallback } from '../services/comparison-pipeline-service.non-stream';
 import pLimit from '@/lib/pLimit';
+import { AdaptiveRateLimiter } from '@/lib/adaptive-rate-limiter';
+import { extractProviderFromModelId, getProviderProfile } from '@/lib/provider-rate-limits';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
@@ -25,8 +27,46 @@ export class EmbeddingEvaluator implements Evaluator {
         onProgress?: ProgressCallback,
     ): Promise<Partial<FinalComparisonOutputV2['evaluationResults'] & Pick<FinalComparisonOutputV2, 'extractedKeyPoints'>>> {
         this.logger.info('[EmbeddingEvaluator] Starting evaluation...');
-        const ora = (await import('ora')).default; // Keep ora for potential CLI use if this class were ever used there directly, though pipeline service won't show it.
-        const limit = pLimit(20); // Concurrency for embedding calls
+
+        // --- Adaptive Rate Limiting Setup for Embedding Providers ---
+        // Collect all embedding models used across inputs
+        const allEmbeddingModels = new Set<string>();
+        for (const input of inputs) {
+            const embeddingModel = input.embeddingModel || 'openai:text-embedding-3-small';
+            allEmbeddingModels.add(embeddingModel);
+        }
+
+        // Group embedding models by provider
+        const embeddingsByProvider = new Map<string, string[]>();
+        for (const embeddingModel of allEmbeddingModels) {
+            const provider = extractProviderFromModelId(embeddingModel);
+            if (!embeddingsByProvider.has(provider)) {
+                embeddingsByProvider.set(provider, []);
+            }
+            embeddingsByProvider.get(provider)!.push(embeddingModel);
+        }
+
+        // Create adaptive limiter for each embedding provider
+        const providerLimiters = new Map<string, { adaptive: AdaptiveRateLimiter; limit: ReturnType<typeof pLimit> }>();
+        for (const [provider, models] of embeddingsByProvider.entries()) {
+            const profile = getProviderProfile(provider);
+            // Embeddings are typically faster/cheaper than generation, use same profiles
+            const adaptiveLimiter = new AdaptiveRateLimiter(provider, profile, this.logger);
+
+            const initialConcurrency = adaptiveLimiter.getCurrentConcurrency();
+            const pLimiter = pLimit(initialConcurrency);
+
+            providerLimiters.set(provider, {
+                adaptive: adaptiveLimiter,
+                limit: pLimiter,
+            });
+
+            this.logger.info(
+                `[EmbeddingEvaluator] Configured adaptive rate limiter for '${provider}': ` +
+                `${models.length} embedding model(s), initial concurrency=${initialConcurrency}, ` +
+                `max=${profile.maxConcurrency}, adaptive=${profile.adaptiveEnabled}`
+            );
+        }
 
         const textsToEmbed = new Map<string, string>();
         const modelIdsInEvaluation = new Set<string>();
@@ -58,8 +98,6 @@ export class EmbeddingEvaluator implements Evaluator {
         const embeddingsMap = new Map<string, number[]>();
         const embeddingTasks: Promise<void>[] = [];
         const totalEmbeddings = textsToEmbed.size;
-        // Spinner logic should be handled by CLI if used directly.
-        // The pipeline service logger will just log progress.
         this.logger.info(`[EmbeddingEvaluator] Preparing to generate ${totalEmbeddings} embeddings.`);
         let embeddedCount = 0;
 
@@ -68,14 +106,28 @@ export class EmbeddingEvaluator implements Evaluator {
             const inputForPrompt = inputs.find(i => i.promptData.promptId === promptId);
             const embeddingModel = inputForPrompt?.embeddingModel || 'openai:text-embedding-3-small'; // Fallback for safety
 
+            // Get provider-specific limiter
+            const provider = extractProviderFromModelId(embeddingModel);
+            const providerLimiterObj = providerLimiters.get(provider);
+            const providerLimit = providerLimiterObj?.limit || pLimit(5);
+            const adaptiveLimiter = providerLimiterObj?.adaptive;
+
             this.logger.info(`[EmbeddingEvaluator] Queueing embedding for key: ${key} using model ${embeddingModel}`);
-            embeddingTasks.push(limit(async () => {
+            embeddingTasks.push(providerLimit(async () => {
                 try {
                     // Using the imported getEmbedding service function and passing the logger
-                    const embedding = await getEmbedding(text, embeddingModel, this.logger, this.useCache); // Pass this.useCache
+                    const embedding = await getEmbedding(text, embeddingModel, this.logger, this.useCache);
                     embeddingsMap.set(key, embedding);
+                    adaptiveLimiter?.onSuccess();
                 } catch (error: any) {
                     this.logger.error(`[EmbeddingEvaluator] Failed to get embedding for key ${key}: ${error.message || String(error)}`);
+                    // Check if it's a rate limit error
+                    const errorMsg = error.message || String(error);
+                    if (errorMsg.includes('rate limit') || errorMsg.includes('429') || errorMsg.includes('Rate limit')) {
+                        adaptiveLimiter?.onRateLimit();
+                    } else {
+                        adaptiveLimiter?.onError();
+                    }
                     // EmbeddingsMap will not have this key, similarity calcs will handle it as NaN
                 }
                 embeddedCount++;

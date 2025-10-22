@@ -64,7 +64,7 @@ export const DEFAULT_JUDGES: Judge[] = [
 
 const DEFAULT_BACKUP_JUDGE: Judge = {
     id: 'backup-claude-3-5-haiku',
-    model: 'anthropic:claude-3.5-haiku',
+    model: 'anthropic:claude-3-5-haiku-latest',
     approach: 'holistic'
 };
 
@@ -262,7 +262,7 @@ export class LLMCoverageEvaluator implements Evaluator {
         judges?: Judge[],
         judgeMode?: 'failover' | 'consensus', // Legacy
         classificationScale: ClassificationScaleItem[] = CLASSIFICATION_SCALE,
-        providerLimiters?: Map<string, ReturnType<typeof pLimit>>,
+        providerLimiters?: Map<string, { adaptive: AdaptiveRateLimiter; limit: ReturnType<typeof pLimit> }>,
     ): Promise<JudgeResult> {
         const judgeLog: string[] = [];
         const successfulJudgements: (PointwiseCoverageLLMResult & { judgeModelId: string })[] = [];
@@ -284,7 +284,9 @@ export class LLMCoverageEvaluator implements Evaluator {
         const evaluationPromises = judgesToUse.map((judge, index) => {
             // Get provider-specific limiter, or use a fallback
             const provider = extractProviderFromModelId(judge.model);
-            const providerLimit = providerLimiters?.get(provider) || pLimit(5);
+            const providerLimiterObj = providerLimiters?.get(provider);
+            const providerLimit = providerLimiterObj?.limit || pLimit(5);
+            const adaptiveLimiter = providerLimiterObj?.adaptive;
 
             return providerLimit(async () => {
                 const judgeIdentifier = judge.id || `judge-${index}`;
@@ -304,10 +306,17 @@ export class LLMCoverageEvaluator implements Evaluator {
 
                 if ('error' in singleEvalResult) {
                     judgeLog.push(`[${judgeIdentifier}] FAILED: ${singleEvalResult.error}`);
+                    // Check if it's a rate limit error
+                    if (singleEvalResult.error?.includes('rate limit') || singleEvalResult.error?.includes('429')) {
+                        adaptiveLimiter?.onRateLimit();
+                    } else {
+                        adaptiveLimiter?.onError();
+                    }
                 } else {
                     const finalJudgeId = judge.id ? `${judge.id}(${judge.model})` : `${judge.approach}(${judge.model})`;
                     judgeLog.push(`[${judgeIdentifier}] SUCCEEDED. Score: ${singleEvalResult.coverage_extent}`);
                     successfulJudgements.push({ ...singleEvalResult, judgeModelId: finalJudgeId });
+                    adaptiveLimiter?.onSuccess();
                 }
             });
         });
@@ -378,7 +387,7 @@ export class LLMCoverageEvaluator implements Evaluator {
         judges?: Judge[],
         judgeLog: string[] = [],
         classificationScale: ClassificationScaleItem[] = CLASSIFICATION_SCALE,
-        providerLimiters?: Map<string, ReturnType<typeof pLimit>>,
+        providerLimiters?: Map<string, { adaptive: AdaptiveRateLimiter; limit: ReturnType<typeof pLimit> }>,
     ): Promise<boolean> {
         // Only use backup judge if we have fewer successful judgements than expected 
         // and we're not using custom judges (to preserve user configurations)
@@ -388,10 +397,15 @@ export class LLMCoverageEvaluator implements Evaluator {
 
         this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- Only ${successfulJudgements.length}/${totalJudgesAttempted} primary judges succeeded. Trying backup judge...`);
         judgeLog.push(`PRIMARY_PHASE_COMPLETE: ${successfulJudgements.length}/${totalJudgesAttempted} judges succeeded. Activating backup judge.`);
-        
+
         const backupJudgeIdentifier = DEFAULT_BACKUP_JUDGE.id || 'backup-judge';
         this.logger.info(`[LLMCoverageEvaluator-Pointwise] --- [Backup] Requesting judge: ${backupJudgeIdentifier} (Model: ${DEFAULT_BACKUP_JUDGE.model}, Approach: ${DEFAULT_BACKUP_JUDGE.approach}) for KP: "${pointToEvaluate.textToEvaluate!.substring(0, 50)}..."`);
         judgeLog.push(`[${backupJudgeIdentifier}] Starting backup evaluation with model ${DEFAULT_BACKUP_JUDGE.model} and approach ${DEFAULT_BACKUP_JUDGE.approach}.`);
+
+        // Get adaptive limiter for backup judge
+        const backupProvider = extractProviderFromModelId(DEFAULT_BACKUP_JUDGE.model);
+        const backupLimiterObj = providerLimiters?.get(backupProvider);
+        const backupAdaptiveLimiter = backupLimiterObj?.adaptive;
 
         const backupEvalResult = await this.requestIndividualJudge(
             modelResponseText,
@@ -406,11 +420,18 @@ export class LLMCoverageEvaluator implements Evaluator {
 
         if ('error' in backupEvalResult) {
             judgeLog.push(`[${backupJudgeIdentifier}] BACKUP FAILED: ${backupEvalResult.error}`);
+            // Check if it's a rate limit error
+            if (backupEvalResult.error?.includes('rate limit') || backupEvalResult.error?.includes('429')) {
+                backupAdaptiveLimiter?.onRateLimit();
+            } else {
+                backupAdaptiveLimiter?.onError();
+            }
             return false;
         } else {
             const finalBackupJudgeId = DEFAULT_BACKUP_JUDGE.id ? `${DEFAULT_BACKUP_JUDGE.id}(${DEFAULT_BACKUP_JUDGE.model})` : `${DEFAULT_BACKUP_JUDGE.approach}(${DEFAULT_BACKUP_JUDGE.model})`;
             judgeLog.push(`[${backupJudgeIdentifier}] BACKUP SUCCEEDED. Score: ${backupEvalResult.coverage_extent}`);
             successfulJudgements.push({ ...backupEvalResult, judgeModelId: finalBackupJudgeId });
+            backupAdaptiveLimiter?.onSuccess();
             return true;
         }
     }
@@ -870,22 +891,24 @@ Output: <reflection>The text mentions empathy, which means the criterion is MET 
         }
 
         // Create adaptive limiter for each provider
-        const providerLimiters = new Map<string, ReturnType<typeof pLimit>>();
+        const providerLimiters = new Map<string, { adaptive: AdaptiveRateLimiter; limit: ReturnType<typeof pLimit> }>();
         for (const [provider, models] of judgesByProvider.entries()) {
             const profile = getProviderProfile(provider);
-            // For judges, use a more conservative initial concurrency
-            const judgeProfile = {
-                ...profile,
-                initialConcurrency: Math.min(profile.initialConcurrency, 10),
-                maxConcurrency: Math.min(profile.maxConcurrency, 20),
-            };
-            const pLimiter = pLimit(judgeProfile.initialConcurrency);
-            providerLimiters.set(provider, pLimiter);
+            // Reuse the same provider profiles as candidate generation
+            const adaptiveLimiter = new AdaptiveRateLimiter(provider, profile, this.logger);
+
+            const initialConcurrency = adaptiveLimiter.getCurrentConcurrency();
+            const pLimiter = pLimit(initialConcurrency);
+
+            providerLimiters.set(provider, {
+                adaptive: adaptiveLimiter,
+                limit: pLimiter,
+            });
 
             this.logger.info(
-                `[LLMCoverageEvaluator] Configured provider limit for '${provider}': ` +
-                `${models.length} judge model(s), concurrency=${judgeProfile.initialConcurrency}, ` +
-                `max=${judgeProfile.maxConcurrency}`
+                `[LLMCoverageEvaluator] Configured adaptive rate limiter for '${provider}': ` +
+                `${models.length} judge model(s), initial concurrency=${initialConcurrency}, ` +
+                `max=${profile.maxConcurrency}, adaptive=${profile.adaptiveEnabled}`
             );
         }
 
