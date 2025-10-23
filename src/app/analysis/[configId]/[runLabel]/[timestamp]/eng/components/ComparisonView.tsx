@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { parseModelIdForDisplay, getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import ResponseRenderer, { RenderAsType } from '@/app/components/ResponseRenderer';
+import ConversationHistory from '@/app/analysis/components/ConversationHistory';
 import { createClientLogger } from '@/app/utils/clientLogger';
 import Icon from '@/components/ui/icon';
 import { ComparisonViewProps } from '../types/engTypes';
@@ -29,8 +30,11 @@ export const ComparisonView = React.memo<ComparisonViewProps>(function Compariso
   isLoadingEvaluation,
   allCoverageScores,
   promptTexts,
+  promptContexts,
   config,
   hasMultipleSystemPrompts,
+  fetchConversationHistory,
+  getCachedConversationHistory,
 }) {
   // Get common scenario (all items should be from same scenario)
   const firstItem = comparisonItems[0];
@@ -101,13 +105,14 @@ export const ComparisonView = React.memo<ComparisonViewProps>(function Compariso
     });
   }, [comparisonItems]);
 
-  // Batch fetch responses and evaluations for all comparison items
+  // Batch fetch responses, evaluations, and conversation histories for all comparison items
   useEffect(() => {
     if (comparisonItems.length === 0) return;
 
     // Collect items that need fetching
     const responsePairs: { promptId: string; modelId: string }[] = [];
     const evaluationPairs: { promptId: string; modelId: string }[] = [];
+    const historyPairs: { promptId: string; modelId: string }[] = [];
 
     comparisonItems.forEach(itemKey => {
       const parts = itemKey.split('::');
@@ -119,6 +124,9 @@ export const ComparisonView = React.memo<ComparisonViewProps>(function Compariso
       }
       if (!getCachedEvaluation?.(itemPromptId, modelId)) {
         evaluationPairs.push({ promptId: itemPromptId, modelId });
+      }
+      if (!getCachedConversationHistory?.(itemPromptId, modelId)) {
+        historyPairs.push({ promptId: itemPromptId, modelId });
       }
     });
 
@@ -145,7 +153,19 @@ export const ComparisonView = React.memo<ComparisonViewProps>(function Compariso
         debug.error('ComparisonView - Batch evaluation fetch failed', err);
       });
     }
-  }, [comparisonItems, getCachedResponse, getCachedEvaluation, fetchModalResponse, fetchEvaluationDetails]);
+
+    // Batch fetch conversation histories in parallel
+    if (historyPairs.length > 0) {
+      debug.log('ComparisonView - Batch fetching conversation histories', { count: historyPairs.length });
+      Promise.all(
+        historyPairs.map(({ promptId: pid, modelId }) =>
+          fetchConversationHistory?.(pid, modelId)
+        )
+      ).catch(err => {
+        debug.error('ComparisonView - Batch history fetch failed', err);
+      });
+    }
+  }, [comparisonItems, getCachedResponse, getCachedEvaluation, getCachedConversationHistory, fetchModalResponse, fetchEvaluationDetails, fetchConversationHistory]);
 
   // Create stable evaluation data cache to prevent unnecessary recalculations
   const evaluationData = useMemo(() => {
@@ -262,6 +282,36 @@ export const ComparisonView = React.memo<ComparisonViewProps>(function Compariso
     return { requiredCriteria, pathGroups };
   }, [comparisonItems, evaluationData]);
 
+  // Get conversation context from promptContexts (already loaded, no async fetch needed)
+  // Filter out the final assistant response - that should only appear in the Response row
+  const conversationContext = useMemo(() => {
+    const promptContext = promptContexts[promptId];
+
+    // If it's a string, not a multi-turn conversation
+    if (typeof promptContext === 'string' || !Array.isArray(promptContext)) {
+      return null;
+    }
+
+    // It's an array of messages - filter out the final assistant response
+    if (promptContext.length === 0) return null;
+
+    // Find the last assistant message and exclude it
+    let lastAssistantIndex = -1;
+    for (let i = promptContext.length - 1; i >= 0; i--) {
+      if (promptContext[i].role === 'assistant') {
+        lastAssistantIndex = i;
+        break;
+      }
+    }
+
+    // If there's a final assistant message, exclude it
+    if (lastAssistantIndex !== -1) {
+      return promptContext.slice(0, lastAssistantIndex);
+    }
+
+    return promptContext;
+  }, [promptContexts, promptId]);
+
   return (
     <div className="space-y-3 sm:space-y-4 animate-in fade-in slide-in-from-right-2 duration-300">
       {/* Header */}
@@ -278,9 +328,25 @@ export const ComparisonView = React.memo<ComparisonViewProps>(function Compariso
             {comparisonItems.length === 1 ? 'Close' : 'Clear all'}
           </button>
         </div>
-        <p className="text-[11px] sm:text-xs text-muted-foreground">{promptText}</p>
+
+        {/* Show conversation context if it exists (multi-turn prompt) */}
+        {conversationContext && conversationContext.length > 0 ? (
+          <div className="mt-3 border border-border rounded bg-muted/10 p-3">
+            <h3 className="text-xs font-semibold text-muted-foreground mb-2">Conversation Context</h3>
+            <ConversationHistory
+              history={conversationContext}
+              renderAs="markdown"
+              initiallyCollapsed={false}
+              headCount={conversationContext.length}
+              tailCount={0}
+            />
+          </div>
+        ) : (
+          <p className="text-[11px] sm:text-xs text-muted-foreground mt-2">{promptText}</p>
+        )}
+
         {/* Mobile hint for horizontal scroll */}
-        <p className="text-[10px] text-muted-foreground/70 mt-1 lg:hidden">
+        <p className="text-[10px] text-muted-foreground/70 mt-2 lg:hidden">
           ← Swipe horizontally to view all data →
         </p>
       </div>

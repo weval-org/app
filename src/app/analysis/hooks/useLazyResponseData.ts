@@ -63,6 +63,10 @@ export function useLazyResponseData(configId: string, runLabel: string, timestam
   const [promptSimilarityCache, setPromptSimilarityCache] = useState<Map<string, PerPromptSimilarityPayload>>(new Map());
   const inflightPromptSimilarity = useRef<Map<string, Promise<PerPromptSimilarityPayload | null>>>(new Map());
 
+  // Cache for conversation histories (multi-turn conversations)
+  const [conversationHistoryCache, setConversationHistoryCache] = useState<Map<string, any[]>>(new Map());
+  const inflightHistoryPromises = useRef<Map<string, Promise<any[] | null>>>(new Map());
+
   /**
    * Fetches a single response for a specific prompt+model combination
    */
@@ -439,6 +443,64 @@ export function useLazyResponseData(configId: string, runLabel: string, timestam
     return loading.has(cacheKey);
   }, [loading]);
 
+  /**
+   * Fetches conversation history for a specific prompt+model combination
+   * Returns the full conversation history array if available, otherwise null
+   */
+  const fetchConversationHistory = useCallback(async (promptId: string, modelId: string): Promise<any[] | null> => {
+    const cacheKey = `${promptId}:${modelId}`;
+
+    // Return cached history if available
+    if (conversationHistoryCache.has(cacheKey)) {
+      return conversationHistoryCache.get(cacheKey)!;
+    }
+
+    // Promise-level dedupe
+    const existing = inflightHistoryPromises.current.get(cacheKey);
+    if (existing) {
+      return existing;
+    }
+
+    const promise = (async (): Promise<any[] | null> => {
+      try {
+        const url = `${baseUrl}/modal-data/${encodeURIComponent(promptId)}/${encodeURIComponent(modelId)}`;
+        const response = await fetch(url);
+
+        if (!response.ok) {
+          return null;
+        }
+
+        const data = await response.json();
+
+        // Extract history array if it exists
+        if (Array.isArray(data.history) && data.history.length > 0) {
+          // Cache the history
+          setConversationHistoryCache(prev => new Map(prev).set(cacheKey, data.history));
+          return data.history;
+        }
+
+        return null;
+
+      } catch (error) {
+        console.error(`Error fetching conversation history for ${promptId}/${modelId}:`, error);
+        return null;
+      } finally {
+        inflightHistoryPromises.current.delete(cacheKey);
+      }
+    })();
+
+    inflightHistoryPromises.current.set(cacheKey, promise);
+    return promise;
+  }, [baseUrl, conversationHistoryCache]);
+
+  /**
+   * Gets a cached conversation history if available, otherwise returns null
+   */
+  const getCachedConversationHistory = useCallback((promptId: string, modelId: string): any[] | null => {
+    const cacheKey = `${promptId}:${modelId}`;
+    return conversationHistoryCache.get(cacheKey) || null;
+  }, [conversationHistoryCache]);
+
   return {
     fetchModalResponse,
     fetchModelResponses,
@@ -452,6 +514,8 @@ export function useLazyResponseData(configId: string, runLabel: string, timestam
     isLoading,
     isLoadingEvaluation: (key: string) => evaluationLoading.has(key),
     fetchPerPromptSimilarities,
+    fetchConversationHistory,
+    getCachedConversationHistory,
     cacheSize: responseCache.size
   };
 }

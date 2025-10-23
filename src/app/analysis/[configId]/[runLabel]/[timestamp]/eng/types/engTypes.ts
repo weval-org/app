@@ -4,6 +4,7 @@ import {
   WevalConfig,
   ExecutiveSummary,
   CoverageResult,
+  ConversationMessage,
 } from '@/types/shared';
 
 // Scenario statistic with calculated average score
@@ -47,8 +48,11 @@ export interface ComparisonViewProps {
   isLoadingEvaluation?: (key: string) => boolean;
   allCoverageScores: LLMCoverageScores | undefined;
   promptTexts: Record<string, string>;
+  promptContexts: Record<string, string | ConversationMessage[]>;
   config: WevalConfig;
   hasMultipleSystemPrompts: boolean;
+  fetchConversationHistory: (promptId: string, modelId: string) => Promise<ConversationMessage[] | null>;
+  getCachedConversationHistory: (promptId: string, modelId: string) => ConversationMessage[] | null;
 }
 
 export interface LeaderboardViewProps {

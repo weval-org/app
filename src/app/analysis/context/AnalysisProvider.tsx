@@ -540,7 +540,9 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
         getCachedResponse: lazyResponseData.getCachedResponse,
         getCachedEvaluation: lazyResponseData.getCachedEvaluation,
         isLoadingResponse: lazyResponseData.isLoading,
-        isLoadingEvaluation: lazyResponseData.isLoadingEvaluation
+        isLoadingEvaluation: lazyResponseData.isLoadingEvaluation,
+        fetchConversationHistory: lazyResponseData.fetchConversationHistory,
+        getCachedConversationHistory: lazyResponseData.getCachedConversationHistory
     }), [
         configId, runLabel, timestamp, contextData, isFullMode, loading, error, promptNotFound, excludedModelsList,
         forceIncludeExcludedModels, setForceIncludeExcludedModels, 

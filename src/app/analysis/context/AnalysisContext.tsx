@@ -129,6 +129,10 @@ export interface AnalysisContextType {
     getCachedEvaluation: (promptId: string, modelId: string) => any | null;
     isLoadingResponse: (promptId: string, modelId: string) => boolean;
     isLoadingEvaluation?: (key: string) => boolean;
+
+    // Conversation history for multi-turn prompts
+    fetchConversationHistory: (promptId: string, modelId: string) => Promise<ConversationMessage[] | null>;
+    getCachedConversationHistory: (promptId: string, modelId: string) => ConversationMessage[] | null;
 }
 
 export const AnalysisContext = createContext<AnalysisContextType | null>(null);

@@ -78,6 +78,8 @@ const EngDesktopClientPage: React.FC = () => {
     fetchEvaluationDetails,
     isLoadingResponse,
     isLoadingEvaluation,
+    fetchConversationHistory,
+    getCachedConversationHistory,
   } = useAnalysis();
 
   const pathname = usePathname();
@@ -148,7 +150,7 @@ const EngDesktopClientPage: React.FC = () => {
     return null;
   }
 
-  const { evaluationResults: { llmCoverageScores: allCoverageScores }, promptIds, config } = data;
+  const { evaluationResults: { llmCoverageScores: allCoverageScores }, promptIds, config, promptContexts } = data;
 
   // Use extracted scenario stats hook
   const scenarioStats = useScenarioStats({
@@ -327,8 +329,11 @@ const EngDesktopClientPage: React.FC = () => {
                   isLoadingEvaluation={isLoadingEvaluation}
                   allCoverageScores={allCoverageScores}
                   promptTexts={promptTextsForMacroTable}
+                  promptContexts={promptContexts || {}}
                   config={config}
                   hasMultipleSystemPrompts={hasMultipleSystemPrompts}
+                  fetchConversationHistory={fetchConversationHistory}
+                  getCachedConversationHistory={getCachedConversationHistory}
                 />
               ) : selectedScenario ? (
                 <div className="flex items-center justify-center h-full min-h-[200px]">
