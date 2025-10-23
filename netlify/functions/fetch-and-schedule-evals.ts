@@ -7,24 +7,25 @@ import { resolveModelsInConfig, SimpleLogger } from "@/lib/blueprint-service";
 import { parseAndNormalizeBlueprint } from "@/lib/blueprint-parser";
 import { normalizeTag } from "@/app/utils/tagUtils";
 import { generateBlueprintIdFromPath } from "@/app/utils/blueprintIdUtils";
+import { getLogger } from "@/utils/logger";
+import { initSentry, captureError, setContext, flushSentry } from "@/utils/sentry";
 
 const EVAL_CONFIGS_REPO_API_URL = "https://api.github.com/repos/weval/configs/contents/blueprints";
 const MODEL_COLLECTIONS_REPO_API_URL_BASE = "https://api.github.com/repos/weval/configs/contents/models";
 const REPO_COMMITS_API_URL = "https://api.github.com/repos/weval/configs/commits/main";
 const ONE_WEEK_IN_MS = 7 * 24 * 60 * 60 * 1000;
 
-// Helper function to create a simple console-based logger with a prefix
-const createLogger = (context: HandlerContext | null, functionName: string): SimpleLogger => {
-  const prefix = `[${functionName}${context ? ` RequestId: ${context.awsRequestId}` : ''}]`;
-  return {
-    info: (message: string, ...args: any[]) => console.log(`${prefix} INFO:`, message, ...args),
-    error: (message: string, ...args: any[]) => console.error(`${prefix} ERROR:`, message, ...args),
-    warn: (message: string, ...args: any[]) => console.warn(`${prefix} WARN:`, message, ...args),
-  };
-};
-
 const handler: Handler = async (event: HandlerEvent, context: HandlerContext) => {
-  const logger = createLogger(context, 'fetch-and-schedule-evals');
+  // Initialize Sentry for this function
+  initSentry('fetch-and-schedule-evals');
+
+  // Set Sentry context for this invocation
+  setContext('scheduleEvals', {
+    eventSource: event.headers?.['x-netlify-event'] || 'unknown',
+    netlifyContext: event.headers?.['x-nf-request-id'],
+  });
+
+  const logger = await getLogger('schedule-evals:cron');
 
   logger.info(`Function triggered (${new Date().toISOString()}) - event source: ${event.headers?.['x-netlify-event'] || 'unknown'}`);
 
@@ -51,35 +52,38 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
       const commitResponse = await axios.get(REPO_COMMITS_API_URL, { headers: githubHeaders });
       latestCommitSha = commitResponse.data.sha;
       if (latestCommitSha) {
-        logger.info(`[fetch-and-schedule-evals] Fetched latest commit SHA for weval/configs@main: ${latestCommitSha}`);
+        logger.info(`Fetched latest commit SHA for weval/configs@main: ${latestCommitSha}`);
       } else {
-        logger.warn(`[fetch-and-schedule-evals] Could not determine latest commit SHA from API response.`);
+        logger.warn(`Could not determine latest commit SHA from API response.`);
       }
     } catch (commitError: any) {
-      logger.error(`[fetch-and-schedule-evals] Failed to fetch latest commit SHA: ${commitError.message}. Proceeding without it.`);
+      logger.error(`Failed to fetch latest commit SHA: ${commitError.message}. Proceeding without it.`, commitError);
+      captureError(commitError, { context: 'fetch-commit-sha' });
     }
 
     const treeApiUrl = `https://api.github.com/repos/weval/configs/git/trees/main?recursive=1`;
-    logger.info(`[fetch-and-schedule-evals] Fetching file tree from: ${treeApiUrl}`);
+    logger.info(`Fetching file tree from: ${treeApiUrl}`);
     const treeResponse = await axios.get(treeApiUrl, { headers: githubHeaders });
-    
+
     const filesInBlueprintDir = treeResponse.data.tree.filter(
       (node: any) => node.type === 'blob' && node.path.startsWith('blueprints/') && (node.path.endsWith('.yml') || node.path.endsWith('.yaml') || node.path.endsWith('.json'))
     );
 
     if (!Array.isArray(filesInBlueprintDir)) {
-      logger.error("[fetch-and-schedule-evals] Failed to fetch or filter file list from GitHub repo tree.", treeResponse.data);
+      logger.error("Failed to fetch or filter file list from GitHub repo tree.", { treeData: treeResponse.data });
+      captureError(new Error('Failed to process file list from GitHub repo'), { treeData: treeResponse.data });
+      await flushSentry();
       return { statusCode: 500, body: "Failed to process file list from GitHub repo." };
     }
 
-    logger.info(`[fetch-and-schedule-evals] Found ${filesInBlueprintDir.length} blueprint files in the repo tree.`);
+    logger.info(`Found ${filesInBlueprintDir.length} blueprint files in the repo tree.`);
 
     for (const file of filesInBlueprintDir) {
       const blueprintPath = file.path.startsWith('blueprints/')
           ? file.path.substring('blueprints/'.length)
           : file.path;
 
-      logger.info(`[fetch-and-schedule-evals] Processing config file: ${file.path} (path for ID: ${blueprintPath})`);
+      logger.info(`Processing config file: ${file.path} (path for ID: ${blueprintPath})`);
       
       try {
         const configFileResponse = await axios.get(file.url, { headers: rawContentHeaders });
@@ -94,7 +98,7 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
             const originalTags = [...config.tags];
             const normalizedTags = [...new Set(originalTags.map(tag => normalizeTag(tag)).filter(tag => tag))];
             if (JSON.stringify(originalTags) !== JSON.stringify(normalizedTags)) {
-                logger.info(`[fetch-and-schedule-evals] Blueprint tags for ${config.id || blueprintPath} were normalized from [${originalTags.join(', ')}] to [${normalizedTags.join(', ')}].`);
+                logger.info(`Blueprint tags for ${config.id || blueprintPath} were normalized from [${originalTags.join(', ')}] to [${normalizedTags.join(', ')}].`);
             }
             config.tags = normalizedTags;
         }
@@ -103,46 +107,46 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
         // The file path is now the single source of truth for the blueprint's ID.
         // Warn if a blueprint file still contains the deprecated 'id' field.
         if (config.id) {
-            logger.warn(`[fetch-and-schedule-evals] Blueprint source '${file.path}' contains a deprecated 'id' field ('${config.id}'). This will be ignored.`);
+            logger.warn(`Blueprint source '${file.path}' contains a deprecated 'id' field ('${config.id}'). This will be ignored.`);
         }
 
         // Always derive the ID from the file path.
         const id = generateBlueprintIdFromPath(blueprintPath);
-        logger.info(`[fetch-and-schedule-evals] Derived ID from path '${blueprintPath}': '${id}'`);
+        logger.info(`Derived ID from path '${blueprintPath}': '${id}'`);
         config.id = id;
 
         // If title is missing, derive it from the ID.
         if (!config.title) {
-          logger.info(`[fetch-and-schedule-evals] 'title' not found in blueprint '${file.path}'. Using derived ID as title: '${config.id}'`);
+          logger.info(`'title' not found in blueprint '${file.path}'. Using derived ID as title: '${config.id}'`);
           config.title = config.id;
         }
 
         if (!config.tags || !config.tags.includes('_periodic')) {
-          logger.info(`[fetch-and-schedule-evals] Blueprint ${config.id || blueprintPath} does not have the '_periodic' tag. Skipping scheduled run check.`);
+          logger.info(`Blueprint ${config.id || blueprintPath} does not have the '_periodic' tag. Skipping scheduled run check.`);
           continue; // Move to the next file
         }
 
         if (!config.id || !config.prompts) {
-          logger.warn(`[fetch-and-schedule-evals] Blueprint file ${file.path} is invalid or missing essential fields (id, prompts) after attempting to derive them. Skipping.`);
+          logger.warn(`Blueprint file ${file.path} is invalid or missing essential fields (id, prompts) after attempting to derive them. Skipping.`);
           continue;
         }
 
         if (!config.models || !Array.isArray(config.models) || config.models.length === 0) {
-          logger.info(`[fetch-and-schedule-evals] Models field for ${file.path} is missing, not an array, or empty. Defaulting to ["CORE"].`);
+          logger.info(`Models field for ${file.path} is missing, not an array, or empty. Defaulting to ["CORE"].`);
           config.models = ["CORE"];
         }
 
         const currentId = config.id!;
         const currentTitle = config.title;
 
-        logger.info(`[fetch-and-schedule-evals] Attempting to resolve model collections for ${currentId} from blueprint ${file.path}`);
-        config = await resolveModelsInConfig(config, githubToken, logger);
+        logger.info(`Attempting to resolve model collections for ${currentId} from blueprint ${file.path}`);
+        config = await resolveModelsInConfig(config, githubToken, logger as any);
         // Log after resolution attempt
-        logger.info(`[fetch-and-schedule-evals] Models for ${currentId} after resolution attempt: [${config.models.join(', ')}] (Count: ${config.models.length})`);
+        logger.info(`Models for ${currentId} after resolution attempt: [${config.models.join(', ')}] (Count: ${config.models.length})`);
 
         // Critical check: if after resolution, models array is empty, skip this config.
         if (config.models.length === 0) {
-          logger.warn(`[fetch-and-schedule-evals] Blueprint file ${file.path} (id: ${currentId}) has no models after resolution or resolution failed. Skipping evaluation for this blueprint.`);
+          logger.warn(`Blueprint file ${file.path} (id: ${currentId}) has no models after resolution or resolution failed. Skipping evaluation for this blueprint.`);
           continue;
         }
 
@@ -159,41 +163,42 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
             if (latestMatchingRun.timestamp) {
               const runAge = Date.now() - new Date(latestMatchingRun.timestamp).getTime();
               if (runAge < ONE_WEEK_IN_MS) {
-                logger.info(`[fetch-and-schedule-evals] Blueprint ${currentId} (file: ${file.path}, resolved hash: ${contentHash}) has a recent run (${latestMatchingRun.fileName}). Skipping.`);
+                logger.info(`Blueprint ${currentId} (file: ${file.path}, resolved hash: ${contentHash}) has a recent run (${latestMatchingRun.fileName}). Skipping.`);
                 needsRun = false;
               } else {
-                logger.info(`[fetch-and-schedule-evals] Blueprint ${currentId} (file: ${file.path}, resolved hash: ${contentHash}) has an old run (${latestMatchingRun.fileName}). Scheduling new run.`);
+                logger.info(`Blueprint ${currentId} (file: ${file.path}, resolved hash: ${contentHash}) has an old run (${latestMatchingRun.fileName}). Scheduling new run.`);
               }
             } else {
-               logger.info(`[fetch-and-schedule-evals] Blueprint ${currentId} (file: ${file.path}, resolved hash: ${contentHash}) has an existing run without a parsable timestamp (${latestMatchingRun.fileName}). Scheduling new run.`);
+               logger.info(`Blueprint ${currentId} (file: ${file.path}, resolved hash: ${contentHash}) has an existing run without a parsable timestamp (${latestMatchingRun.fileName}). Scheduling new run.`);
             }
           } else {
-              logger.info(`[fetch-and-schedule-evals] No existing run found with resolved hash ${contentHash} for blueprint ${currentId} (file: ${file.path}). Scheduling new run.`);
+              logger.info(`No existing run found with resolved hash ${contentHash} for blueprint ${currentId} (file: ${file.path}). Scheduling new run.`);
           }
         } else {
-          logger.info(`[fetch-and-schedule-evals] No existing runs found at all for blueprint ${currentId} (file: ${file.path}). Scheduling new run.`);
+          logger.info(`No existing runs found at all for blueprint ${currentId} (file: ${file.path}). Scheduling new run.`);
         }
 
         if (needsRun) {
           // This check is now redundant due to the one after resolveModelsInConfig, but kept for safety, can be removed.
           if (config.models.length === 0) {
-              logger.warn(`[fetch-and-schedule-evals] Blueprint ${currentId} (file: ${file.path}) still has no models before triggering. THIS SHOULD NOT HAPPEN. Skipping.`);
+              logger.warn(`Blueprint ${currentId} (file: ${file.path}) still has no models before triggering. THIS SHOULD NOT HAPPEN. Skipping.`);
               continue;
           }
-          logger.info(`[fetch-and-schedule-evals] Triggering 'execute-evaluation-background' for ${currentId} (resolved hash: ${contentHash}) from blueprint file ${file.path}`);
-          
-          const siteUrl = process.env.URL; 
+          logger.info(`Triggering 'execute-evaluation-background' for ${currentId} (resolved hash: ${contentHash}) from blueprint file ${file.path}`);
+
+          const siteUrl = process.env.URL;
           if (!siteUrl) {
-              logger.error("[fetch-and-schedule-evals] URL environment variable is not set. Cannot invoke background function.");
+              logger.error("URL environment variable is not set. Cannot invoke background function.");
+              captureError(new Error('URL environment variable not set'), { currentId, file: file.path });
               // Potentially return an error or stop processing further files if this is a critical config error for all
-              continue; 
+              continue;
           }
 
           const executionUrl = `${siteUrl}/.netlify/functions/execute-evaluation-background`;
 
           try {
-              await axios.post(executionUrl, 
-                  { 
+              await axios.post(executionUrl,
+                  {
                     config: { ...config, id: currentId }, // Explicitly set the canonical ID
                     commitSha: latestCommitSha
                   },
@@ -201,22 +206,29 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
                       headers: { 'Content-Type': 'application/json' }
                   }
               );
-              logger.info(`[fetch-and-schedule-evals] Successfully POSTed to '${executionUrl}' for ${currentId} from ${file.path}`);
+              logger.info(`Successfully POSTed to '${executionUrl}' for ${currentId} from ${file.path}`);
           } catch (invokeError: any) {
               let errorDetails = invokeError.message;
               if (invokeError.response) {
                   errorDetails += ` | Status: ${invokeError.response.status} | Data: ${JSON.stringify(invokeError.response.data)}`;
               }
-              logger.error(`[fetch-and-schedule-evals] Error POSTing to ${executionUrl} for ${file.path}: ${errorDetails}`);
+              logger.error(`Error POSTing to ${executionUrl} for ${file.path}: ${errorDetails}`, invokeError);
+              captureError(invokeError, { currentId, file: file.path, executionUrl });
           }
         }
       } catch (fetchConfigError: any) {
-        logger.error(`[fetch-and-schedule-evals] Error fetching or processing blueprint file ${file.path}:`, fetchConfigError.message, { stack: fetchConfigError.stack });
+        logger.error(`Error fetching or processing blueprint file ${file.path}`, fetchConfigError);
+        captureError(fetchConfigError, { file: file.path });
       }
     }
+
+    logger.info('Scheduled eval check completed successfully');
+    await flushSentry();
     return { statusCode: 200, body: "Scheduled eval check completed." };
   } catch (error: any) {
-    logger.error("[fetch-and-schedule-evals] Error in handler:", error.message, { stack: error.stack });
+    logger.error("Error in handler", error);
+    captureError(error, { handler: 'fetch-and-schedule-evals' });
+    await flushSentry();
     return { statusCode: 500, body: "Error processing scheduled eval check." };
   }
 };

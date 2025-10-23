@@ -15,6 +15,8 @@ import { configure } from '@/cli/config';
 import { CustomModelDefinition } from '@/lib/llm-clients/types';
 import { registerCustomModels } from '@/lib/llm-clients/client-dispatcher';
 import { cleanupTmpCache } from '@/lib/cache-service';
+import { getLogger, Logger } from '@/utils/logger';
+import { initSentry, captureError, setContext, flushSentry } from '@/utils/sentry';
 
 const s3Client = new S3Client({
   region: process.env.APP_S3_REGION!,
@@ -32,22 +34,16 @@ const streamToString = (stream: Readable): Promise<string> =>
     stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
   });
 
-const logger = {
-  info: (message: string) => console.log(`[Sandbox Pipeline] [INFO] ${message}`),
-  warn: (message: string) => console.warn(`[Sandbox Pipeline] [WARN] ${message}`),
-  error: (message: string) => console.error(`[Sandbox Pipeline] [ERROR] ${message}`),
-  success: (message: string) => console.log(`[Sandbox Pipeline] [SUCCESS] ${message}`),
-};
-type SandboxLogger = typeof logger;
+type SandboxLogger = Logger;
 
-const getStatusUpdater = (blueprintKey: string, runId: string) => {
+const getStatusUpdater = (blueprintKey: string, runId: string, logger: Logger) => {
   // Derive base path from blueprint location
   // e.g., "live/sandbox/runs/123/blueprint.yml" → "live/sandbox/runs/123"
   // or "live/workshop/runs/foo/bar/blueprint.yml" → "live/workshop/runs/foo/bar"
   const basePath = blueprintKey.replace(/\/blueprint\.yml$/, '');
 
   return async (status: string, message: string, extraData: object = {}) => {
-    logger.info(`Updating status for ${runId}: ${status} - ${message}`);
+    logger.info(`Updating status for ${runId}: ${status} - ${message}`, extraData);
     const statusKey = `${basePath}/status.json`;
     await s3Client.send(new PutObjectCommand({
       Bucket: process.env.APP_S3_BUCKET_NAME!,
@@ -59,26 +55,45 @@ const getStatusUpdater = (blueprintKey: string, runId: string) => {
 };
 
 export const handler: BackgroundHandler = async (event) => {
+  // Initialize Sentry for this function
+  initSentry('execute-sandbox-pipeline-background');
+
   const body = event.body ? JSON.parse(event.body) : {};
   const { runId, blueprintKey, sandboxVersion } = body;
+
+  // Set Sentry context for this invocation
+  setContext('sandboxPipeline', {
+    runId,
+    blueprintKey,
+    sandboxVersion,
+    netlifyContext: event.headers?.['x-nf-request-id'],
+  });
+
+  const logger = await getLogger(`sandbox:pipeline:bg:${runId}`);
 
   // Configure CLI before any CLI services are used
   configure({
     errorHandler: (error: Error) => {
-      logger.error(`[Sandbox Pipeline] CLI Error: ${error.message}`);
+      logger.error(`CLI Error: ${error.message}`, error);
+      if (error instanceof Error) {
+        captureError(error, { runId, blueprintKey });
+      }
     },
     logger: {
       info: (msg: string) => logger.info(msg),
       warn: (msg: string) => logger.warn(msg),
       error: (msg: string) => logger.error(msg),
-      success: (msg: string) => logger.success(msg),
+      success: (msg: string) => logger.info(msg),
     }
   });
 
-  logger.info(`[Sandbox Pipeline] CLI configured for runId: ${runId}`);
+  logger.info(`CLI configured for runId: ${runId}`);
 
   if (!runId || !blueprintKey) {
-    logger.error('Missing runId or blueprintKey in invocation.');
+    const errorMsg = 'Missing runId or blueprintKey in invocation';
+    logger.error(errorMsg, { runId, blueprintKey, body });
+    captureError(new Error(errorMsg), { runId, blueprintKey, body });
+    await flushSentry();
     return;
   }
 
@@ -87,7 +102,7 @@ export const handler: BackgroundHandler = async (event) => {
 
   // Derive base path from blueprint location (path-agnostic approach)
   const basePath = blueprintKey.replace(/\/blueprint\.yml$/, '');
-  const updateStatus = getStatusUpdater(blueprintKey, runId);
+  const updateStatus = getStatusUpdater(blueprintKey, runId, logger);
 
   try {
     await updateStatus('pending', 'Fetching blueprint...');
@@ -131,18 +146,18 @@ export const handler: BackgroundHandler = async (event) => {
     // --- END NORMALIZE TAGS ---
 
     await updateStatus('generating_responses', 'Generating model responses...');
-    
-    logger.info(`[Sandbox Pipeline] About to generate responses for models: ${config.models?.join(', ')}`);
-    
+
+    logger.info(`About to generate responses for models: ${config.models?.join(', ')}`);
+
     const generationProgressCallback = async (completed: number, total: number) => {
         await updateStatus('generating_responses', 'Generating model responses...', {
             progress: { completed, total },
         });
     };
 
-    logger.info(`[Sandbox Pipeline] Calling generateAllResponses with ${config.prompts?.length} prompts and ${config.models?.length} models`);
+    logger.info(`Calling generateAllResponses with ${config.prompts?.length} prompts and ${config.models?.length} models`);
     const allResponsesMap = await generateAllResponses(config, logger, true, generationProgressCallback);
-    logger.info(`[Sandbox Pipeline] generateAllResponses completed, got ${allResponsesMap.size} prompt responses`);
+    logger.info(`generateAllResponses completed, got ${allResponsesMap.size} prompt responses`);
 
     await updateStatus('evaluating', 'Running evaluations...');
     
@@ -233,7 +248,7 @@ export const handler: BackgroundHandler = async (event) => {
         Body: comparisonJson,
         ContentType: 'application/json',
     }));
-    logger.info(`[Sandbox Pipeline] Saved results to: ${resultKey}`);
+    logger.info(`Saved results to: ${resultKey}`);
 
     // For sandbox runs only, also save a legacy file for backwards compatibility
     if (basePath.startsWith('live/sandbox/')) {
@@ -248,18 +263,38 @@ export const handler: BackgroundHandler = async (event) => {
               Body: comparisonJson,
               ContentType: 'application/json',
           }));
-          logger.info(`[Sandbox Pipeline] Also wrote legacy comparison file for API compatibility: ${legacyKey}`);
+          logger.info(`Also wrote legacy comparison file for API compatibility: ${legacyKey}`);
       } catch (err: any) {
-          logger.warn(`[Sandbox Pipeline] Failed to write legacy comparison file for API compatibility: ${err.message}`);
+          logger.warn(`Failed to write legacy comparison file for API compatibility: ${err.message}`);
       }
     }
 
     const resultUrl = `/sandbox/results/${runId}`;
     await updateStatus('complete', 'Run finished!', { resultUrl });
 
+    logger.info('Sandbox pipeline completed successfully');
+    await flushSentry();
+
   } catch (error: any) {
-    logger.error(`Pipeline failed for runId ${runId}: ${error.message}`);
-    await updateStatus('error', 'An error occurred during the evaluation.', { details: error.message });
+    const errorContext = {
+      runId,
+      blueprintKey,
+      sandboxVersion,
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    };
+
+    logger.error(`Pipeline failed for runId ${runId}`, error);
+    captureError(error, errorContext);
+
+    await updateStatus('error', 'An error occurred during the evaluation.', {
+      details: error.message,
+      errorType: error.name,
+    });
+
+    // Ensure Sentry events are sent before function exits
+    await flushSentry();
   }
 };
 

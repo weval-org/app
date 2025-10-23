@@ -21,20 +21,14 @@ import { normalizeTag } from "../../src/app/utils/tagUtils";
 import { CustomModelDefinition } from "../../src/lib/llm-clients/types";
 import { registerCustomModels } from "../../src/lib/llm-clients/client-dispatcher";
 import { cleanupTmpCache } from "../../src/lib/cache-service";
-
-// Helper to create a simple console-based logger with a prefix
-const createLogger = (context: HandlerContext) => {
-  const prefix = `[execute-evaluation-background Function RequestId: ${context.awsRequestId}]`;
-  return {
-    info: (message: string, ...args: any[]) => console.log(`${prefix} INFO:`, message, ...args),
-    error: (message: string, ...args: any[]) => console.error(`${prefix} ERROR:`, message, ...args),
-    warn: (message: string, ...args: any[]) => console.warn(`${prefix} WARN:`, message, ...args),
-    success: (message: string, ...args: any[]) => console.log(`${prefix} SUCCESS:`, message, ...args),
-  };
-};
+import { getLogger } from "../../src/utils/logger";
+import { initSentry, captureError, setContext, flushSentry } from "../../src/utils/sentry";
 
 export const handler: Handler = async (event: HandlerEvent, context: HandlerContext) => {
-  const logger = createLogger(context);
+  // Initialize Sentry for this function
+  initSentry('execute-evaluation-background');
+
+  const logger = await getLogger(`eval:bg:${context.awsRequestId}`);
   logger.info("Function invoked.");
 
   // Clean up /tmp cache at start to prevent disk space issues
@@ -42,6 +36,7 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
 
   if (!event.body) {
     logger.error("No body received in the event.");
+    await flushSentry();
     return {
       statusCode: 400,
       body: JSON.stringify({ error: "No body received in the event." }),
@@ -53,7 +48,9 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
     requestPayload = JSON.parse(event.body);
     logger.info("Successfully parsed request body.");
   } catch (e: any) {
-    logger.error("Failed to parse request body as JSON:", e.message);
+    logger.error("Failed to parse request body as JSON", e);
+    captureError(e, { context: 'json_parse' });
+    await flushSentry();
     return {
       statusCode: 400,
       body: JSON.stringify({ error: "Invalid JSON in request body.", details: e.message }),
@@ -62,6 +59,13 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
 
   const config = requestPayload.config as ComparisonConfig;
   const commitSha = requestPayload.commitSha as string | undefined;
+
+  // Set Sentry context for this invocation
+  setContext('evaluation', {
+    configId: config?.id,
+    commitSha,
+    awsRequestId: context.awsRequestId,
+  });
 
   // --- NORMALIZE TAGS ---
   if (config.tags) {
@@ -154,10 +158,8 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
             logger.info('✅ Homepage summary, model summaries, and all related analytics rebuilt successfully.');
             
         } catch (summaryError: any) {
-            logger.error(`Failed to rebuild all summary files: ${summaryError.message}`);
-            if (process.env.DEBUG && summaryError.stack) {
-                logger.error(`Summary update stack trace: ${summaryError.stack}`);
-            }
+            logger.error(`Failed to rebuild all summary files`, summaryError);
+            captureError(summaryError, { configId: currentId, context: 'summary_rebuild' });
             // Do not fail the entire function here, as the main run was successful.
         }
     } else {
@@ -169,22 +171,26 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
     }
 
     if (pipelineOutputKey) { // Check original pipelineOutputKey for success reporting
-      logger.success(`Pipeline tasks completed for ${currentId}. Output related to: ${pipelineOutputKey}`);
+      logger.info(`Pipeline tasks completed for ${currentId}. Output related to: ${pipelineOutputKey}`);
+      await flushSentry();
       return {
-        statusCode: 200, 
-        body: JSON.stringify({ 
-          message: "Evaluation pipeline tasks completed.", 
-          blueprintId: currentId, 
+        statusCode: 200,
+        body: JSON.stringify({
+          message: "Evaluation pipeline tasks completed.",
+          blueprintId: currentId,
           runLabel: runLabel,
-          output: pipelineOutputKey 
+          output: pipelineOutputKey
         }),
       };
     } else {
       // This path might be hit if pipelineOutputKey was null/undefined from executeComparisonPipeline
-      logger.error(`Pipeline execution for ${currentId} did not yield a valid output path/key.`);
+      const error = new Error(`Pipeline execution for ${currentId} did not yield a valid output path/key.`);
+      logger.error(error.message);
+      captureError(error, { configId: currentId, runLabel, context: 'no_output_key' });
+      await flushSentry();
       return {
         statusCode: 500,
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           error: "Pipeline execution did not yield a valid output reference.",
           blueprintId: currentId,
           runLabel: runLabel
@@ -193,13 +199,21 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
     }
 
   } catch (error: any) {
-    logger.error(`Unhandled error during pipeline execution for ${currentId}:`, error.message, { stack: error.stack });
+    logger.error(`Unhandled error during pipeline execution for ${currentId}`, error);
+    captureError(error, {
+      configId: currentId,
+      commitSha,
+      context: 'pipeline_execution',
+    });
+
+    await flushSentry();
+
     return {
       statusCode: 500,
-      body: JSON.stringify({ 
-        error: "Unhandled error during pipeline execution.", 
-        details: error.message, 
-        blueprintId: currentId 
+      body: JSON.stringify({
+        error: "Unhandled error during pipeline execution.",
+        details: error.message,
+        blueprintId: currentId
       }),
     };
   }

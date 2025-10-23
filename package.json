@@ -2,6 +2,12 @@
   "name": "llm-sim-suite",
   "version": "0.1.0",
   "private": true,
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@sentry-internal/node-cpu-profiler",
+      "@sentry/cli"
+    ]
+  },
   "scripts": {
     "dev": "next dev",
     "build": "NODE_OPTIONS=--max-old-space-size=4096 next build",
@@ -67,6 +73,9 @@
     "@radix-ui/react-tabs": "^1.1.12",
     "@radix-ui/react-toast": "^1.2.14",
     "@radix-ui/react-tooltip": "^1.2.7",
+    "@sentry/nextjs": "^10.21.0",
+    "@sentry/node": "^10.21.0",
+    "@sentry/profiling-node": "^10.21.0",
     "@types/inquirer": "^9.0.8",
     "@types/node-fetch": "^2.6.12",
     "@types/nprogress": "^0.2.3",

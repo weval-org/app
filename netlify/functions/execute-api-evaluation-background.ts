@@ -8,53 +8,26 @@ import { trackStatus } from '../../src/lib/status-tracker';
 import { configure } from '../../src/cli/config';
 import { ComparisonConfig, EvaluationMethod } from '../../src/cli/types/cli_types';
 import { cleanupTmpCache } from '../../src/lib/cache-service';
-
-const logger = {
-  info: (message: string) => console.log(`[Sandbox Pipeline] [INFO] ${message}`),
-  warn: (message: string) => console.warn(`[Sandbox Pipeline] [WARN] ${message}`),
-  error: (message: string) => console.error(`[Sandbox Pipeline] [ERROR] ${message}`),
-  success: (message: string) => console.log(`[Sandbox Pipeline] [SUCCESS] ${message}`),
-};
-type SandboxLogger = typeof logger;
-
-// (Removed direct S3 helpers here; status is tracked via storageService in status-tracker)
-
-const createLogger = (context: HandlerContext) => {
-  const prefix = `[execute-api-evaluation-background Function RequestId: ${context.awsRequestId}]`;
-  return {
-    info: (message: string, ...args: any[]) => console.log(`${prefix} INFO:`, message, ...args),
-    warn: (message: string, ...args: any[]) => console.warn(`${prefix} WARN:`, message, ...args),
-    error: (message: string, ...args: any[]) => console.error(`${prefix} ERROR:`, message, ...args),
-    success: (message: string, ...args: any[]) => console.log(`${prefix} SUCCESS:`, message, ...args),
-  };
-};
+import { getLogger } from "../../src/utils/logger";
+import { initSentry, captureError, setContext, flushSentry } from "../../src/utils/sentry";
 
 const STORAGE_PREFIX = 'api-runs';
 
 export const handler: Handler = async (event: HandlerEvent, context: HandlerContext) => {
-  const logger = createLogger(context);
+  // Initialize Sentry for this function
+  initSentry('execute-api-evaluation-background');
 
   // Clean up /tmp cache at start to prevent disk space issues
   cleanupTmpCache(100); // Keep cache under 100MB
 
-  // Initialize CLI config so LLM clients (embeddings/generation) and logger are wired in serverless
-  try {
-    configure({
-      errorHandler: (err: Error) => logger.error(err.message),
-      logger: {
-        info: (msg: string) => logger.info(msg),
-        warn: (msg: string) => logger.warn(msg),
-        error: (msg: string) => logger.error(msg),
-        success: (msg: string) => logger.success(msg),
-      },
-    });
-  } catch {}
   let requestPayload: { runId: string; config: ComparisonConfig } | null = null;
 
   try {
     requestPayload = JSON.parse(event.body || '{}');
   } catch (e: any) {
-    logger.error("Failed to parse request body as JSON:", e.message);
+    const error = e instanceof Error ? e : new Error(String(e));
+    captureError(error, { parseError: e.message });
+    await flushSentry();
     return {
       statusCode: 400,
       body: JSON.stringify({ error: "Invalid JSON in request body.", details: e.message }),
@@ -63,15 +36,44 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
 
   const { runId, config } = requestPayload as { runId: string; config: ComparisonConfig };
 
+  // Set Sentry context for this invocation
+  setContext('apiEval', {
+    runId,
+    configId: config?.id,
+    netlifyContext: event.headers?.['x-nf-request-id'],
+  });
+
+  const logger = await getLogger(`api-eval:bg:${runId}`);
+
   if (!runId || !config || typeof config !== 'object') {
     logger.error("Invalid or missing 'runId' or 'config' in payload.", { payloadReceived: requestPayload });
+    captureError(new Error("Invalid or missing 'runId' or 'config' in payload"), { payloadReceived: requestPayload });
+    await flushSentry();
     return {
         statusCode: 400,
         body: JSON.stringify({ error: "Invalid or missing 'runId' or 'config' in payload." }),
     };
   }
-  
-  const statusTracker = trackStatus(STORAGE_PREFIX, runId, logger);
+
+  const statusTracker = trackStatus(STORAGE_PREFIX, runId, logger as any);
+
+  // Initialize CLI config so LLM clients (embeddings/generation) and logger are wired in serverless
+  try {
+    configure({
+      errorHandler: (err: Error) => {
+        logger.error(`error: ${err?.message || err}`, err);
+        if (err instanceof Error) {
+          captureError(err, { runId, configId: config?.id });
+        }
+      },
+      logger: {
+        info: (msg: string) => logger.info(msg),
+        warn: (msg: string) => logger.warn(msg),
+        error: (msg: string) => logger.error(msg),
+        success: (msg: string) => logger.info(msg),
+      },
+    });
+  } catch {}
 
   try {
     logger.info(`Starting API evaluation for runId: ${runId}`);
@@ -158,6 +160,9 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
             resultUrl: resultUrl,
         });
 
+        logger.info('API evaluation completed successfully');
+        await flushSentry();
+
         return {
             statusCode: 200,
             body: JSON.stringify({ message: "API evaluation pipeline finished.", runId, output: fileName, resultUrl }),
@@ -166,19 +171,31 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
         throw new Error("Pipeline execution did not return a valid output key.");
     }
   } catch (error: any) {
-    logger.error(`Unhandled error during pipeline execution for runId: ${runId}:`, error.message, { stack: error.stack });
-    
+    const errorContext = {
+      runId,
+      configId: config?.id,
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    };
+
+    logger.error(`Unhandled error during pipeline execution for runId: ${runId}`, error);
+    captureError(error, errorContext);
+
     await statusTracker.failed({
         error: "An unexpected error occurred during the evaluation pipeline.",
         details: error.message,
     });
 
+    // Ensure Sentry events are sent before function exits
+    await flushSentry();
+
     return {
       statusCode: 500,
-      body: JSON.stringify({ 
-        error: "Unhandled error during pipeline execution.", 
-        details: error.message, 
-        runId: runId 
+      body: JSON.stringify({
+        error: "Unhandled error during pipeline execution.",
+        details: error.message,
+        runId: runId
       }),
     };
   }

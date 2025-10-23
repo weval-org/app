@@ -77,3 +77,6 @@ google-cloud-*
 # Temporary and generated files
 ___*
 *___
+# Sentry
+.sentryclirc
+*.sentry-build-info

@@ -7,6 +7,7 @@ import { executeComparisonPipeline } from '@/cli/services/comparison-pipeline-se
 import { ComparisonConfig, EvaluationMethod, FinalComparisonOutputV2 } from '@/cli/types/cli_types';
 import { toSafeTimestamp } from '@/lib/timestampUtils';
 import { cleanupTmpCache } from '@/lib/cache-service';
+import { initSentry, captureError, setContext, flushSentry } from '@/utils/sentry';
 
 const s3Client = new S3Client({
   region: process.env.APP_S3_REGION!,
@@ -32,9 +33,9 @@ const streamToString = (stream: Readable): Promise<string> =>
     stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
   });
 
-const getStatusUpdater = (runId: string) => {
+const getStatusUpdater = (runId: string, logger: Awaited<ReturnType<typeof getLogger>>) => {
   return async (status: string, message: string, extraData: object = {}) => {
-    console.log(`[Story Quick Run] [${runId}] Updating status: ${status} - ${message}`);
+    logger.info(`Updating status: ${status} - ${message}`, extraData);
     const statusKey = `${STORY_RUNS_DIR}/${runId}/status.json`;
     await s3Client.send(new PutObjectCommand({
       Bucket: process.env.APP_S3_BUCKET_NAME!,
@@ -83,8 +84,18 @@ function compactify(run: FinalComparisonOutputV2) {
 
 
 export const handler: BackgroundHandler = async (event) => {
+  // Initialize Sentry for this function
+  initSentry('execute-story-quick-run-background');
+
   const body = event.body ? JSON.parse(event.body) : {};
   const { runId, blueprintKey } = body;
+
+  // Set Sentry context for this invocation
+  setContext('quickRun', {
+    runId,
+    blueprintKey,
+    netlifyContext: event.headers?.['x-nf-request-id'],
+  });
 
   const logger = await getLogger(`story:quick-run:bg:${runId}`);
   configure({
@@ -94,13 +105,21 @@ export const handler: BackgroundHandler = async (event) => {
       error: (m) => logger.error(m),
       success: (m) => logger.info(m),
     },
-    errorHandler: (err) => logger.error(`error: ${err?.message || err}`),
+    errorHandler: (err) => {
+      logger.error(`error: ${err?.message || err}`, err);
+      if (err instanceof Error) {
+        captureError(err, { runId, blueprintKey });
+      }
+    },
   });
 
-  const updateStatus = getStatusUpdater(runId);
+  const updateStatus = getStatusUpdater(runId, logger);
 
   if (!runId || !blueprintKey) {
-    logger.error('Missing runId or blueprintKey in invocation.');
+    const errorMsg = 'Missing runId or blueprintKey in invocation';
+    logger.error(errorMsg, { runId, blueprintKey, body });
+    captureError(new Error(errorMsg), { runId, blueprintKey, body });
+    await flushSentry();
     return;
   }
 
@@ -181,8 +200,27 @@ export const handler: BackgroundHandler = async (event) => {
 
     await updateStatus('complete', 'Run finished!', { result: compactResult });
 
+    logger.info('Story quick run completed successfully');
+    await flushSentry();
+
   } catch (error: any) {
-    logger.error(`Pipeline failed for runId ${runId}: ${error.message}`);
-    await updateStatus('error', 'An error occurred during the evaluation.', { details: error.message });
+    const errorContext = {
+      runId,
+      blueprintKey,
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    };
+
+    logger.error(`Pipeline failed for runId ${runId}`, error);
+    captureError(error, errorContext);
+
+    await updateStatus('error', 'An error occurred during the evaluation.', {
+      details: error.message,
+      errorType: error.name,
+    });
+
+    // Ensure Sentry events are sent before function exits
+    await flushSentry();
   }
 };

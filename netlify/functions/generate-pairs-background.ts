@@ -3,16 +3,14 @@ import { getLogger } from '@/utils/logger';
 import { listRunsForConfig, getResultByFileName } from '@/lib/storageService';
 import { populatePairwiseQueue, updateGenerationStatus, GenerationStatus } from '@/cli/services/pairwise-task-queue-service';
 import { ComparisonDataV2 as FetchedComparisonData } from '@/app/utils/types';
+import { initSentry, captureError, setContext, flushSentry } from '@/utils/sentry';
 
 export const handler: BackgroundHandler = async (event, context) => {
-  console.log('[generate-pairs-background] Function invoked');
-  console.log('[generate-pairs-background] Event:', JSON.stringify(event, null, 2));
-  console.log('[generate-pairs-background] Context:', JSON.stringify(context, null, 2));
+  // Initialize Sentry for this function
+  initSentry('generate-pairs-background');
 
   const body = event.body ? JSON.parse(event.body) : {};
   const { configId } = body;
-
-  console.log('[generate-pairs-background] Parsed configId:', configId);
 
   // Extract blob credentials from event (available in background functions)
   // The blobs field is not in the TypeScript types but is present at runtime
@@ -21,11 +19,9 @@ export const handler: BackgroundHandler = async (event, context) => {
   if (eventWithBlobs.blobs) {
     try {
       const blobsData = JSON.parse(Buffer.from(eventWithBlobs.blobs, 'base64').toString('utf-8'));
-      console.log('[generate-pairs-background] Decoded blobs data:', blobsData);
 
       // Extract siteId from headers - required for manual blob store configuration
       const siteId = event.headers['x-nf-site-id'];
-      console.log('[generate-pairs-background] Site ID from headers:', siteId);
 
       blobContext = {
         ...context,
@@ -35,16 +31,23 @@ export const handler: BackgroundHandler = async (event, context) => {
         }
       };
     } catch (e) {
-      console.warn('[generate-pairs-background] Failed to decode blobs data:', e);
+      // Non-critical error, continue without blob context
     }
   }
+
+  // Set Sentry context for this invocation
+  setContext('generatePairs', {
+    configId,
+    netlifyContext: event.headers?.['x-nf-request-id'],
+  });
 
   const logger = await getLogger(`pairs:generate-bg:${configId || 'unknown'}`);
   logger.info('Background function started');
 
   if (!configId) {
     logger.error('Missing configId in invocation.');
-    console.error('[generate-pairs-background] Missing configId in invocation body');
+    captureError(new Error('Missing configId in invocation'), { body });
+    await flushSentry();
     return;
   }
 
@@ -123,13 +126,19 @@ export const handler: BackgroundHandler = async (event, context) => {
     }, { context: blobContext });
 
     logger.info(`Successfully generated ${result.tasksAdded} pairs for config ${configId}.`);
-    console.log('[generate-pairs-background] Success! Generated', result.tasksAdded, 'pairs');
+    await flushSentry();
 
   } catch (error: any) {
-    console.error('[generate-pairs-background] FATAL ERROR:', error);
-    console.error('[generate-pairs-background] Error message:', error.message);
-    console.error('[generate-pairs-background] Error stack:', error.stack);
-    logger.error(`Failed to generate pairs for config ${configId}: ${error.message}`);
+    const errorContext = {
+      configId,
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    };
+
+    logger.error(`Failed to generate pairs for config ${configId}`, error);
+    captureError(error, errorContext);
+
     try {
       await updateGenerationStatus(configId, {
         status: 'error',
@@ -138,9 +147,11 @@ export const handler: BackgroundHandler = async (event, context) => {
         error: error.message,
       }, { context: blobContext });
     } catch (statusUpdateError: any) {
-      console.error('[generate-pairs-background] Failed to update error status:', statusUpdateError.message);
+      logger.error('Failed to update error status', statusUpdateError);
+      captureError(statusUpdateError, { context: 'status-update-error', configId });
     }
-  } finally {
-    console.log('[generate-pairs-background] Function execution completed');
+
+    // Ensure Sentry events are sent before function exits
+    await flushSentry();
   }
 };
