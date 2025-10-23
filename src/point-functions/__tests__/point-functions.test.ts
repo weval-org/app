@@ -246,6 +246,26 @@ describe('Point Functions', () => {
             const inaccurateResponse = '50 words';
             expect(js(inaccurateResponse, script, contextWithMessages)).toBe(0);
         });
+
+        it('should access generated assistant messages in fullConversationHistory', () => {
+            // Simulates fullConversationHistory being passed as context.messages
+            const contextWithGeneratedMessages: PointFunctionContext = {
+                config: {} as any,
+                prompt: {
+                    id: 'test',
+                    messages: [
+                        { role: 'user', content: 'What is 2+2?' },
+                        { role: 'assistant', content: 'The answer is 4.' },
+                        { role: 'user', content: 'What did you just say?' },
+                    ],
+                } as any,
+                modelId: 'test-model',
+            };
+
+            // Access the prior assistant message
+            const script = 'context.messages[1].content.includes("answer is 4")';
+            expect(js('I said 4', script, contextWithGeneratedMessages)).toBe(true);
+        });
     });
 
     describe('icontains_all_of', () => {

@@ -991,8 +991,15 @@ Output: <reflection>The text mentions empathy, which means the criterion is MET 
                     try {
                         const functionPoints = combinedNormalizedPoints.filter(p => p.isFunction);
                         const textPoints = combinedNormalizedPoints.filter(p => !p.isFunction);
-                        
-                        const context: PointFunctionContext = { config, prompt: promptConfig, modelId, logger: this.logger };
+
+                        // Create a modified prompt config with full conversation history (including generated messages)
+                        // This ensures context.messages in point functions includes all generated content
+                        const promptConfigWithHistory = {
+                            ...promptConfig,
+                            messages: responseData.fullConversationHistory || promptConfig.messages
+                        };
+
+                        const context: PointFunctionContext = { config, prompt: promptConfigWithHistory, modelId, logger: this.logger };
 
                         // Build aggregated subject text: concat all generated assistant turns; fallback to final-only
                         let subjectText = responseData.finalAssistantResponseText;
