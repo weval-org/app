@@ -210,7 +210,44 @@ export async function POST(req: NextRequest) {
         });
 
     } catch (error: any) {
-        console.error('Workspace setup failed:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        console.error('[GitHub API] Workspace setup failed:', {
+            shouldCreateFork,
+            error: error.message,
+            stack: error.stack,
+        });
+
+        let userMessage = error.message || 'Workspace setup failed';
+        let suggestedActions = [
+            'Try refreshing the page',
+            'Verify you are logged in to GitHub',
+            'Check that you have internet connectivity',
+        ];
+
+        if (error.message?.includes('403') || error.message?.includes('401')) {
+            userMessage = 'GitHub authentication failed. Please log out and log back in.';
+            suggestedActions = [
+                'Click your profile menu and select "Logout"',
+                'Log back in with GitHub',
+                'Grant the necessary permissions when prompted',
+            ];
+        } else if (error.message?.includes('404')) {
+            userMessage = 'Could not find the source repository. This may be a configuration issue.';
+            suggestedActions = [
+                'Contact support with the error ID below',
+            ];
+        } else if (error.message?.includes('timeout')) {
+            userMessage = 'GitHub is taking too long to respond. Please try again.';
+        }
+
+        return NextResponse.json({
+            error: userMessage,
+            errorId: `ERR_GITHUB_SETUP_${Date.now()}`,
+            suggestedActions,
+            technicalDetails: {
+                operation: 'workspace_setup',
+                shouldCreateFork,
+                originalError: error.message,
+            }
+        }, { status: 500 });
     }
 } 

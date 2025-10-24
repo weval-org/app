@@ -469,19 +469,47 @@ function SandboxClientPageInternal() {
                     return;
                 }
                 setIsModalSubmitting(true);
-                
+
                 const finalFilename = filename.endsWith('.yml') ? filename : `${filename}.yml`;
 
+                console.log('[PROMOTE] Starting promotion for:', finalFilename);
                 const newFile = await promoteBlueprint(finalFilename, editorContent);
-                
+                console.log('[PROMOTE] Promotion result:', newFile ? 'success' : 'failed');
+
                 if (newFile) {
-                    // Force load the new file, which will bypass the 'isDirty' check
-                    // and correctly set the new active blueprint, clearing the dirty state.
-                    await loadFile(newFile, { force: true });
-                    // Now that the state is clean, we can safely delete the old local blueprint.
-                    await deleteBlueprint(originalLocalBlueprint, { silent: true });
+                    // Try to load the new file from GitHub
+                    console.log('[PROMOTE] Attempting to load new file:', newFile.path);
+                    const loadSuccess = await loadFile(newFile, { force: true });
+                    console.log('[PROMOTE] Load result:', loadSuccess ? 'success' : 'failed');
+
+                    if (loadSuccess) {
+                        // Only delete local file if new file loaded successfully
+                        console.log('[PROMOTE] Deleting original local file:', originalLocalBlueprint.path);
+                        await deleteBlueprint(originalLocalBlueprint, { silent: true });
+                        console.log('[PROMOTE] Promotion complete - local file deleted');
+
+                        toast({
+                            title: "Promoted to GitHub",
+                            description: `Successfully saved ${finalFilename} and removed local draft.`,
+                        });
+                    } else {
+                        // Keep local file since new file failed to load
+                        console.warn('[PROMOTE] New file failed to load - keeping local draft');
+                        toast({
+                            variant: 'default',
+                            title: "Partial Success",
+                            description: `File saved to GitHub but failed to load. Your local draft is preserved.`,
+                        });
+                    }
+                } else {
+                    console.error('[PROMOTE] Promotion failed - local draft preserved');
+                    toast({
+                        variant: 'destructive',
+                        title: 'Save Failed',
+                        description: 'Could not save to GitHub. Your local draft is preserved.',
+                    });
                 }
-                
+
                 handleModalClose();
                 setIsModalSubmitting(false);
             }
@@ -803,7 +831,7 @@ function SandboxClientPageInternal() {
                         )
                     }
 
-                    {!isLocal && !activeBlueprint?.prStatus && (
+                    {!isLocal && !activeBlueprint?.prStatus && activeBlueprint?.branchName?.startsWith('proposal/') && (
                         <Button onClick={() => setIsProposalWizardOpen(true)} disabled={isCreatingPr || !activeBlueprint || isLoading || isDirty} size="sm" variant="outline">
                             <Icon name="git-pull-request" className="w-4 h-4 mr-2" />
                             {isCreatingPr ? 'Proposing...' : 'Propose'}

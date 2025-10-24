@@ -147,23 +147,43 @@ export function useGitHub(isLoggedIn: boolean, username: string | null) {
       toast({ title: "Saved to GitHub", description: `Successfully updated ${updatedFile.name}.` });
       return updatedFile;
     } catch (e: any) {
+      console.error('[useGitHub] Update file failed:', e);
       toast({
         variant: "destructive",
-        title: "Error Updating on GitHub",
-        description: e.message,
+        title: "Failed to Update File",
+        description: e.message || 'Could not save changes to GitHub. Your changes are preserved locally.',
       });
       return null;
     }
   }, [isLoggedIn, forkName, toast]);
 
-  const promoteBlueprintToBranch = useCallback(async (filename: string, content: string): Promise<BlueprintFile | null> => {
+  const promoteBlueprintToBranch = useCallback(async (
+    filename: string,
+    content: string,
+    existingProposal?: BlueprintFile
+  ): Promise<BlueprintFile | null> => {
     if (!isLoggedIn || !forkName || !username) {
       throw new Error('User not logged in or fork not available.');
     }
 
     try {
-      const cleanFilename = filename.replace(/\.yml$/, '').replace(/[^a-zA-Z0-9-]/g, '-');
-      const branchName = `proposal/${cleanFilename}-${Date.now()}`;
+      let branchName: string;
+      let isNew: boolean;
+      let sha: string | null = null;
+
+      if (existingProposal && existingProposal.branchName) {
+        // Reuse existing proposal branch
+        branchName = existingProposal.branchName;
+        isNew = false;
+        sha = existingProposal.sha; // Need SHA for update
+        console.log('[promoteBlueprintToBranch] Reusing existing branch:', branchName);
+      } else {
+        // Create new proposal branch
+        const cleanFilename = filename.replace(/\.yml$/, '').replace(/[^a-zA-Z0-9-]/g, '-');
+        branchName = `proposal/${cleanFilename}-${Date.now()}`;
+        isNew = true;
+        console.log('[promoteBlueprintToBranch] Creating new branch:', branchName);
+      }
 
       const response = await fetch('/api/github/workspace/file', {
         method: 'POST',
@@ -171,9 +191,9 @@ export function useGitHub(isLoggedIn: boolean, username: string | null) {
         body: JSON.stringify({
           path: `blueprints/users/${username}/${filename}`,
           content: content,
-          sha: null,
+          sha: sha,
           forkName: forkName,
-          isNew: true,
+          isNew: isNew,
           branchName: branchName,
         }),
       });
@@ -184,16 +204,33 @@ export function useGitHub(isLoggedIn: boolean, username: string | null) {
       }
 
       const newFile = await response.json();
-      
+
       const fileWithBranch = { ...newFile, branchName };
 
-      toast({ title: "Saved to GitHub", description: `Successfully saved ${filename} to a new branch.` });
+      const actionVerb = isNew ? 'created' : 'updated';
+      toast({
+        title: "Saved to GitHub",
+        description: `Successfully saved ${filename} to ${isNew ? 'a new' : 'existing'} branch.`
+      });
       return fileWithBranch;
     } catch (e: any) {
+      console.error('[useGitHub] Promote blueprint failed:', {
+        filename,
+        existingProposal: existingProposal?.branchName,
+        error: e.message,
+      });
+
+      let errorMessage = e.message;
+      if (e.message?.includes('Reference already exists')) {
+        errorMessage = 'A branch with this name already exists. Try refreshing the page.';
+      } else if (e.message?.includes('authentication') || e.message?.includes('401')) {
+        errorMessage = 'GitHub authentication failed. Please log out and log back in.';
+      }
+
       toast({
         variant: "destructive",
-        title: "Error Saving to GitHub",
-        description: e.message,
+        title: "Failed to Save to GitHub",
+        description: errorMessage || 'Could not create file on GitHub. Your local draft is preserved.',
       });
       return null;
     }
@@ -222,12 +259,18 @@ export function useGitHub(isLoggedIn: boolean, username: string | null) {
         }
 
         const prData = await response.json();
-        
+
+        console.log('[useGitHub] PR created:', {
+            number: prData.number,
+            url: prData.url, // API endpoint
+            html_url: prData.html_url, // Browser URL
+        });
+
         const newPrStatus: PRStatus = {
             number: prData.number,
             state: 'open',
             merged: false,
-            url: prData.url,
+            url: prData.html_url, // Use html_url for browser viewing
             title: data.title,
         };
 
@@ -302,15 +345,45 @@ export function useGitHub(isLoggedIn: boolean, username: string | null) {
   
   const loadFileContentFromGitHub = useCallback(async (path: string, branchName?: string) => {
     if (!forkName) {
-      throw new Error("Fork name not available");
+      throw new Error("Fork not available. Please refresh the page or log in again.");
     }
+
+    console.log('[useGitHub] Loading file from GitHub:', { path, branchName });
+
     const url = `/api/github/workspace/file?path=${encodeURIComponent(path)}&forkName=${encodeURIComponent(forkName)}${branchName ? `&branchName=${encodeURIComponent(branchName)}` : ''}`;
-    const response = await fetch(url);
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error || 'Failed to load file content.');
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        const err = await response.json();
+        const errorMessage = err.error || 'Failed to load file content from GitHub';
+
+        console.error('[useGitHub] Load file content failed:', {
+          path,
+          branchName,
+          status: response.status,
+          error: errorMessage,
+        });
+
+        // Provide more specific error messages
+        if (response.status === 404) {
+          throw new Error(`File not found: ${path}. It may have been deleted or moved.`);
+        } else if (response.status === 403) {
+          throw new Error('Access denied. You may not have permission to read this file.');
+        } else if (response.status === 401) {
+          throw new Error('Authentication failed. Please log out and log back in.');
+        }
+
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      console.log('[useGitHub] Successfully loaded file from GitHub');
+      return data;
+    } catch (e: any) {
+      console.error('[useGitHub] Unexpected error loading file:', e);
+      throw e;
     }
-    return response.json();
   }, [forkName]);
 
   const renameFile = useCallback(async (oldPath: string, newName: string, branchName: string): Promise<BlueprintFile | null> => {

@@ -127,49 +127,85 @@ export function useWorkspace(
     }
   }, [activeBlueprint, editorContent]);
 
-  const loadFile = useCallback(async (file: BlueprintFile | ActiveBlueprint, options: { force?: boolean } = {}) => {
+  const loadFile = useCallback(async (file: BlueprintFile | ActiveBlueprint, options: { force?: boolean } = {}): Promise<boolean> => {
     const { force = false } = options;
-    console.log(`[loadFile] Loading file: ${file.path}`);
+    console.log(`[loadFile] Loading file: ${file.path}`, { isLocal: file.isLocal, branchName: file.branchName });
+
     if (isDirtyRef.current && !force) {
         const discard = window.confirm("You have unsaved changes that will be lost. Are you sure you want to switch files?");
-        if (!discard) return;
+        if (!discard) {
+            console.log(`[loadFile] User cancelled due to unsaved changes`);
+            return false;
+        }
     }
-    
+
     if (activeBlueprintRef.current?.path === file.path) {
-        console.log(`[loadFile] File already active, returning.`);
-        return;
+        console.log(`[loadFile] File already active, no action needed`);
+        return true;
     }
 
     setIsFetchingFileContent(true);
     setEditorContent(null);
 
     try {
+        // Case 1: File already has content in memory
         if ('content' in file) {
+            console.log(`[loadFile] Loading file from memory`);
             setActiveBlueprint(file);
             setEditorContent(file.content);
-            return;
+            console.log(`[loadFile] Successfully loaded from memory`);
+            return true;
         }
 
+        // Case 2: Local file from localStorage
         if (file.isLocal) {
+            console.log(`[loadFile] Loading local file from localStorage`);
             const storedBlueprint = window.localStorage.getItem(file.path);
-            if (storedBlueprint) {
-                const parsed = JSON.parse(storedBlueprint);
-                setActiveBlueprint(parsed);
-                setEditorContent(parsed.content);
-            } else {
+            if (!storedBlueprint) {
                 throw new Error(`Could not find local blueprint with path: ${file.path}`);
             }
-        } else {
-            const { isLoggedIn: currentIsLoggedIn, forkName: currentForkName } = stateRef.current;
-            if (!currentIsLoggedIn || !currentForkName) return;
-
-            const { content, sha } = await loadFileContentFromGitHub(file.path, file.branchName);
-            const loadedBlueprint = { ...file, content, sha };
-            setActiveBlueprint(loadedBlueprint);
-            setEditorContent(content);
+            const parsed = JSON.parse(storedBlueprint);
+            setActiveBlueprint(parsed);
+            setEditorContent(parsed.content);
+            console.log(`[loadFile] Successfully loaded local file`);
+            return true;
         }
+
+        // Case 3: GitHub file - requires authentication
+        console.log(`[loadFile] Loading GitHub file`);
+        const { isLoggedIn: currentIsLoggedIn, forkName: currentForkName } = stateRef.current;
+
+        if (!currentIsLoggedIn) {
+            const error = new Error('Not logged in - cannot load GitHub file');
+            console.error(`[loadFile] ${error.message}`);
+            throw error;
+        }
+
+        if (!currentForkName) {
+            const error = new Error('No fork available - cannot load GitHub file');
+            console.error(`[loadFile] ${error.message}`);
+            throw error;
+        }
+
+        const { content, sha } = await loadFileContentFromGitHub(file.path, file.branchName);
+        const loadedBlueprint = { ...file, content, sha };
+        setActiveBlueprint(loadedBlueprint);
+        setEditorContent(content);
+        console.log(`[loadFile] Successfully loaded GitHub file`);
+        return true;
+
     } catch (e: any) {
-        toast({ variant: 'destructive', title: 'Error loading file', description: e.message });
+        console.error(`[loadFile] Failed to load file:`, e);
+        toast({
+            variant: 'destructive',
+            title: 'Error loading file',
+            description: `${e.message}. Your previous file remains active.`
+        });
+
+        // Clear the attempted load state - keep previous blueprint active
+        setEditorContent(activeBlueprintRef.current?.content || null);
+        setIsFetchingFileContent(false);
+        return false;
     } finally {
         setIsFetchingFileContent(false);
     }
@@ -274,7 +310,31 @@ export function useWorkspace(
             }
 
             const remoteFiles = (await response.json()) as BlueprintFile[];
+
+            console.log('[fetchFiles] 📥 API returned files:', {
+                count: remoteFiles.length,
+                files: remoteFiles.map(f => ({
+                    name: f.name,
+                    path: f.path,
+                    branch: f.branchName,
+                    sha: f.sha.substring(0, 7),
+                    prStatus: f.prStatus?.state || 'none'
+                }))
+            });
+
             const dedupedRemote = dedupeRemoteFilesByName(remoteFiles);
+
+            console.log('[fetchFiles] 🔍 After deduplication:', {
+                before: remoteFiles.length,
+                after: dedupedRemote.length,
+                removed: remoteFiles.length - dedupedRemote.length,
+                dedupedFiles: dedupedRemote.map(f => ({
+                    name: f.name,
+                    branch: f.branchName,
+                    prStatus: f.prStatus?.state || 'none'
+                }))
+            });
+
             const allFiles = [...localFilesFromDisk, ...dedupedRemote];
             setFiles(allFiles);
             
@@ -398,15 +458,40 @@ export function useWorkspace(
   const promoteBlueprint = useCallback(async (filename: string, content: string): Promise<BlueprintFile | null> => {
     setStatusState('saving');
     try {
-        const newFile = await promoteBlueprintToBranch(filename, content);
+        // Check if a proposal branch already exists for this filename (without an open PR)
+        const existingProposal = files.find(f =>
+            f.name === filename &&
+            f.branchName?.startsWith('proposal/') &&
+            !f.prStatus?.state // No PR or PR is closed
+        );
+
+        if (existingProposal) {
+            console.log('[promoteBlueprint] Found existing proposal branch, will reuse:', existingProposal.branchName);
+        } else {
+            console.log('[promoteBlueprint] No existing proposal branch, will create new one');
+        }
+
+        const newFile = await promoteBlueprintToBranch(filename, content, existingProposal);
         if (newFile) {
-            await fetchFiles(true);
+            console.log('[promoteBlueprint] File saved to GitHub:', newFile.name);
+
+            // Immediately add the new file to the list so UI updates instantly
+            setFiles(currentFiles => {
+                // Remove any existing file with same name (in case of update)
+                const filtered = currentFiles.filter(f => f.name !== newFile.name);
+                return [...filtered, newFile];
+            });
+
+            // Then refresh in background to ensure we have latest from GitHub
+            fetchFiles(true).then(() => {
+                console.log('[promoteBlueprint] Background refresh complete');
+            });
         }
         return newFile;
     } finally {
         setStatusState('ready');
     }
-  }, [promoteBlueprintToBranch, fetchFiles]);
+  }, [promoteBlueprintToBranch, fetchFiles, files]);
 
   const createBlueprintWithContent = useCallback(async (
     filename: string, 
@@ -535,10 +620,31 @@ export function useWorkspace(
     }
   }, [activeBlueprint?.path, files, loadFile, deleteFromLocalStorage, deleteFileFromGitHub, toast]);
 
-  const createPullRequest = useCallback(async (data: { title: string; body: string }) => {
+  const createPullRequest = useCallback(async (data: { title: string; body: string }): Promise<string | null> => {
     if (!activeBlueprint || !activeBlueprint.branchName) {
         throw new Error('No active blueprint on a feature branch to create a PR for.');
     }
+
+    // CRITICAL: Prevent PRs from main branch
+    if (activeBlueprint.branchName === 'main') {
+        toast({
+            variant: 'destructive',
+            title: 'Cannot Create PR from Main Branch',
+            description: 'You cannot propose a file that is on the main branch. Please save it to GitHub first to create a proposal branch.'
+        });
+        throw new Error('Cannot create PR from main branch');
+    }
+
+    // Ensure it's a proposal branch
+    if (!activeBlueprint.branchName.startsWith('proposal/')) {
+        toast({
+            variant: 'destructive',
+            title: 'Invalid Branch',
+            description: 'This file must be on a proposal branch (proposal/*) to create a PR.'
+        });
+        throw new Error('File not on proposal branch');
+    }
+
     if (isDirty) {
         toast({ variant: 'destructive', title: 'Unsaved Changes', description: 'Please save your changes before creating a proposal.' });
         throw new Error('Unsaved changes');
@@ -546,10 +652,10 @@ export function useWorkspace(
     setStatusState('creating_pr');
     try {
         const { prData, newPrStatus } = await createPullRequestOnGitHub(data, activeBlueprint);
-        
-        setFiles(currentFiles => 
-            currentFiles.map(f => 
-                f.path === activeBlueprint.path 
+
+        setFiles(currentFiles =>
+            currentFiles.map(f =>
+                f.path === activeBlueprint.path
                     ? { ...f, prStatus: newPrStatus }
                     : f
             )
@@ -559,7 +665,8 @@ export function useWorkspace(
             setActiveBlueprint({ ...activeBlueprint, prStatus: newPrStatus });
         }
 
-        return prData;
+        // Return the PR URL from newPrStatus (which has html_url)
+        return newPrStatus.url;
     } finally {
         setStatusState('ready');
     }

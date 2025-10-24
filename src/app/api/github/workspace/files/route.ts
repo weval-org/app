@@ -36,7 +36,14 @@ export async function GET(req: NextRequest) {
         const proposalBranches = allBranches
             .filter(branch => branch.name.startsWith('proposal/'))
             .map(branch => branch.name);
-        
+
+        console.log('[GitHub API] 🔍 Found branches:', {
+            total: allBranches.length,
+            main: allBranches.some(b => b.name === 'main') ? 'yes' : 'no',
+            proposalCount: proposalBranches.length,
+            proposalBranches: proposalBranches
+        });
+
         const branchesToScan = ['main', ...proposalBranches];
         const blueprintFileMap = new Map<string, BlueprintFile>();
 
@@ -52,13 +59,17 @@ export async function GET(req: NextRequest) {
                 });
 
                 if (Array.isArray(contents)) {
+                    const filesInBranch: string[] = [];
                     for (const item of contents) {
                         if (item.type === 'file' && (item.name.endsWith('.yml') || item.name.endsWith('.yaml'))) {
+                            filesInBranch.push(item.name);
+
                             // If we already have this file from a proposal branch, don't overwrite it with the one from main
                             if (blueprintFileMap.has(item.path) && branchName === 'main') {
+                                console.log(`[GitHub API] ⏭️  Skipping ${item.name} from main (already have from proposal branch)`);
                                 continue;
                             }
-                            
+
                             blueprintFileMap.set(item.path, {
                                 name: item.name,
                                 path: item.path,
@@ -68,6 +79,9 @@ export async function GET(req: NextRequest) {
                                 branchName: branchName,
                             });
                         }
+                    }
+                    if (filesInBranch.length > 0) {
+                        console.log(`[GitHub API] 📄 Branch '${branchName}' contains:`, filesInBranch);
                     }
                 }
             } catch (error: any) {
@@ -79,6 +93,15 @@ export async function GET(req: NextRequest) {
         }
 
         const allFiles = Array.from(blueprintFileMap.values());
+
+        console.log('[GitHub API] 📦 Returning files:', {
+            totalFiles: allFiles.length,
+            groupedByName: allFiles.reduce((acc, f) => {
+                acc[f.name] = (acc[f.name] || 0) + 1;
+                return acc;
+            }, {} as Record<string, number>)
+        });
+
         return NextResponse.json(allFiles);
 
     } catch (error: any) {

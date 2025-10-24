@@ -242,7 +242,7 @@ describe('useWorkspace', () => {
             promotedFile = await result.current.promoteBlueprint('promoted.yml', 'promoted content');
         });
 
-        expect(mockPromoteBlueprintToBranch).toHaveBeenCalledWith('promoted.yml', 'promoted content');
+        expect(mockPromoteBlueprintToBranch).toHaveBeenCalledWith('promoted.yml', 'promoted content', undefined);
         expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/api/github/workspace/files?forceRefresh=true'));
         expect(promotedFile).toEqual(newGitHubFile);
     });
@@ -287,7 +287,7 @@ describe('useWorkspace', () => {
             });
 
             expect(mockCreatePullRequestOnGitHub).toHaveBeenCalledWith({ title: 'New PR', body: 'PR body' }, expect.objectContaining({ path: remoteFile.path, branchName: remoteFile.branchName }));
-            expect(returnedPrData).toEqual(prData);
+            expect(returnedPrData).toEqual(prData.html_url);
             expect(result.current.activeBlueprint?.prStatus).toEqual(newPrStatus);
         });
 

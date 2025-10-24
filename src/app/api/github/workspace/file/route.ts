@@ -17,10 +17,11 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
+    const path = req.nextUrl.searchParams.get('path');
+    const forkName = req.nextUrl.searchParams.get('forkName');
+    const branchName = req.nextUrl.searchParams.get('branchName');
+
     try {
-        const path = req.nextUrl.searchParams.get('path');
-        const forkName = req.nextUrl.searchParams.get('forkName');
-        const branchName = req.nextUrl.searchParams.get('branchName');
 
         if (!path || !forkName) {
             return NextResponse.json({ error: 'File path and fork name are required' }, { status: 400 });
@@ -57,8 +58,29 @@ export async function GET(req: NextRequest) {
          });
 
     } catch (error: any) {
-        console.error('Get file content failed:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        console.error('[GitHub API] Get file content failed:', {
+            path,
+            branchName,
+            error: error.message,
+        });
+
+        let userMessage = error.message;
+        if (error.message?.includes('404')) {
+            userMessage = `File not found at "${path}". It may have been deleted or moved.`;
+        } else if (error.message?.includes('403')) {
+            userMessage = 'Access denied. You may not have permission to read this file.';
+        }
+
+        return NextResponse.json({
+            error: userMessage,
+            errorId: `ERR_GITHUB_FILE_LOAD_${Date.now()}`,
+            technicalDetails: {
+                operation: 'load_file',
+                path,
+                branchName: branchName || 'default',
+                originalError: error.message,
+            }
+        }, { status: 500 });
     }
 }
 
@@ -124,8 +146,34 @@ export async function POST(req: NextRequest) {
         });
 
     } catch (error: any) {
-        console.error('Save file failed:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        console.error('[GitHub API] Save file failed:', {
+            path,
+            branchName,
+            isNew,
+            error: error.message,
+            stack: error.stack,
+        });
+
+        // Provide more specific error messages
+        let userMessage = error.message;
+        if (error.message?.includes('Reference already exists')) {
+            userMessage = `Branch "${branchName}" already exists. Try refreshing the page or using a different filename.`;
+        } else if (error.message?.includes('404')) {
+            userMessage = 'Repository or branch not found. Please verify your GitHub setup.';
+        } else if (error.message?.includes('401') || error.message?.includes('403')) {
+            userMessage = 'GitHub authentication failed. Try logging out and logging back in.';
+        }
+
+        return NextResponse.json({
+            error: userMessage,
+            errorId: `ERR_GITHUB_FILE_SAVE_${Date.now()}`,
+            technicalDetails: {
+                operation: isNew ? 'create_file' : 'update_file',
+                path,
+                branchName,
+                originalError: error.message,
+            }
+        }, { status: 500 });
     }
 }
 
@@ -135,8 +183,15 @@ export async function DELETE(req: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    let path: string | undefined;
+    let branchName: string | undefined;
+
     try {
-        const { path, sha, forkName, branchName } = await req.json();
+        const body = await req.json();
+        path = body.path;
+        const sha = body.sha;
+        const forkName = body.forkName;
+        branchName = body.branchName;
 
         if (!path || !sha || !forkName || !branchName) {
             return NextResponse.json({ error: 'Missing required parameters: path, sha, forkName, branchName' }, { status: 400 });
@@ -155,8 +210,29 @@ export async function DELETE(req: NextRequest) {
 
         return NextResponse.json({ success: true });
     } catch (error: any) {
-        console.error('DELETE /api/github/workspace/file error:', error);
-        return NextResponse.json({ error: 'Failed to delete file from GitHub' }, { status: 500 });
+        console.error('[GitHub API] Delete file failed:', {
+            path,
+            branchName,
+            error: error.message,
+        });
+
+        let userMessage = error.message || 'Failed to delete file from GitHub';
+        if (error.message?.includes('404')) {
+            userMessage = 'File not found. It may have already been deleted.';
+        } else if (error.message?.includes('409')) {
+            userMessage = 'Cannot delete file due to a conflict. The file may have been modified.';
+        }
+
+        return NextResponse.json({
+            error: userMessage,
+            errorId: `ERR_GITHUB_FILE_DELETE_${Date.now()}`,
+            technicalDetails: {
+                operation: 'delete_file',
+                path,
+                branchName,
+                originalError: error.message,
+            }
+        }, { status: 500 });
     }
 }
 
