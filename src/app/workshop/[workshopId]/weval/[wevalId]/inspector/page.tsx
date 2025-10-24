@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { AnalysisProvider } from '@/app/analysis/context/AnalysisProvider';
-import { EngClientPage } from '@/app/analysis/[configId]/[runLabel]/[timestamp]/eng/EngClientPage';
+import { InspectorClientPage } from '@/app/analysis/[configId]/[runLabel]/[timestamp]/inspector/InspectorClientPage';
 import { ComparisonDataV2 } from '@/app/utils/types';
 import Link from 'next/link';
 
@@ -13,7 +13,7 @@ interface PageProps {
   params: Promise<{ workshopId: string; wevalId: string }>;
 }
 
-export default function WorkshopEngPage({ params }: PageProps) {
+export default function WorkshopInspectorPage({ params }: PageProps) {
   const { workshopId, wevalId } = use(params);
   const [data, setData] = useState<ComparisonDataV2 | null>(null);
   const [loading, setLoading] = useState(true);
@@ -49,7 +49,7 @@ export default function WorkshopEngPage({ params }: PageProps) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="ml-4 text-lg text-muted-foreground">Loading data explorer...</p>
+        <p className="ml-4 text-lg text-muted-foreground">Loading inspector...</p>
       </div>
     );
   }
@@ -61,7 +61,7 @@ export default function WorkshopEngPage({ params }: PageProps) {
           <div className="flex items-start gap-3 text-destructive mb-4">
             <AlertCircle className="h-5 w-5 mt-0.5" />
             <div>
-              <h2 className="font-semibold mb-1">Unable to Load Data Explorer</h2>
+              <h2 className="font-semibold mb-1">Unable to Load Inspector</h2>
               <p className="text-sm">{error || 'This evaluation may not have results available.'}</p>
             </div>
           </div>
@@ -83,7 +83,7 @@ export default function WorkshopEngPage({ params }: PageProps) {
       workshopId={workshopId}
       wevalId={wevalId}
     >
-      <EngClientPage />
+      <InspectorClientPage />
     </AnalysisProvider>
   );
 }

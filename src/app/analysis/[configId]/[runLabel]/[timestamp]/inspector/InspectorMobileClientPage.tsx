@@ -19,9 +19,9 @@ import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { prettifyTag, normalizeTag } from '@/app/utils/tagUtils';
 
-const debug = createClientLogger('EngMobileClientPage');
+const debug = createClientLogger('InspectorMobileClientPage');
 
-export const EngMobileClientPage: React.FC = () => {
+export const InspectorMobileClientPage: React.FC = () => {
   const {
     data,
     loading,

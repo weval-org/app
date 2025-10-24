@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { TextualBar } from './TextualBar';
 import { formatPercentage } from '../utils/textualUtils';
-import { LeaderboardViewProps } from '../types/engTypes';
+import { LeaderboardViewProps } from '../types/inspectorTypes';
 import { parseModelIdForDisplay, getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 
 /**

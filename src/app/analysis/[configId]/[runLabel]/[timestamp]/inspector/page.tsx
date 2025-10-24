@@ -4,7 +4,7 @@ import { generateAnalysisPageMetadata } from '@/app/utils/metadataUtils';
 import { notFound } from 'next/navigation';
 import { ComparisonDataV2 } from '@/app/utils/types';
 import { getResultByFileName, getCoreResult } from '@/lib/storageService';
-import { EngClientPage } from './EngClientPage';
+import { InspectorClientPage } from './InspectorClientPage';
 import { AnalysisProvider } from '@/app/analysis/context/AnalysisProvider';
 
 type ThisPageProps = {
@@ -47,7 +47,7 @@ const getComparisonData = cache(async (params: ThisPageProps['params']): Promise
     // Prefer direct core artefact read (works in SSR/Netlify without localhost fetch)
     const core = await getCoreResult(configId, runLabel, timestamp);
     if (core) {
-      console.log(`[Eng Page Fetch] Using core artefact for ${configId}/${runLabel}/${timestamp}`);
+      console.log(`[Inspector Page Fetch] Using core artefact for ${configId}/${runLabel}/${timestamp}`);
       return core as ComparisonDataV2;
     }
 
@@ -55,20 +55,20 @@ const getComparisonData = cache(async (params: ThisPageProps['params']): Promise
     const fileName = `${runLabel}_${timestamp}_comparison.json`;
     const jsonData = await getResultByFileName(configId, fileName);
     if (!jsonData) {
-      console.log(`[Eng Page Fetch] Data not found for file: ${fileName}`);
+      console.log(`[Inspector Page Fetch] Data not found for file: ${fileName}`);
       notFound();
     }
 
-    console.log(`[Eng Page Fetch] Using full data from storage for ${configId}/${runLabel}/${timestamp}`);
+    console.log(`[Inspector Page Fetch] Using full data from storage for ${configId}/${runLabel}/${timestamp}`);
     return jsonData as ComparisonDataV2;
 
   } catch (error) {
-    console.error(`[Eng Page Fetch] Failed to get comparison data for ${configId}/${runLabel}/${timestamp}:`, error);
+    console.error(`[Inspector Page Fetch] Failed to get comparison data for ${configId}/${runLabel}/${timestamp}:`, error);
     notFound();
   }
 });
 
-export default async function EngPage(props: ThisPageProps) {
+export default async function InspectorPage(props: ThisPageProps) {
   const data = await getComparisonData(props.params);
   const { configId, runLabel, timestamp } = await props.params;
 
@@ -79,7 +79,7 @@ export default async function EngPage(props: ThisPageProps) {
         runLabel={runLabel}
         timestamp={timestamp}
     >
-        <EngClientPage />
+        <InspectorClientPage />
     </AnalysisProvider>
   );
 }

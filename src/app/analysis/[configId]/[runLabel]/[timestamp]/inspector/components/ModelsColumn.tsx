@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { TextualBar } from './TextualBar';
 import { formatPercentage } from '../utils/textualUtils';
-import { ModelsColumnProps } from '../types/engTypes';
+import { ModelsColumnProps } from '../types/inspectorTypes';
 import { parseModelIdForDisplay, getModelDisplayLabel } from '@/app/utils/modelIdUtils';
 import { createClientLogger } from '@/app/utils/clientLogger';
 

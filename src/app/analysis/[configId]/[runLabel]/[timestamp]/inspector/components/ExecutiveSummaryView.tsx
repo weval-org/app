@@ -6,7 +6,7 @@ import Link from 'next/link';
 import ResponseRenderer from '@/app/components/ResponseRenderer';
 import { StructuredSummary } from '@/app/analysis/components/StructuredSummary';
 import { prettifyTag, normalizeTag } from '@/app/utils/tagUtils';
-import { ExecutiveSummaryViewProps } from '../types/engTypes';
+import { ExecutiveSummaryViewProps } from '../types/inspectorTypes';
 
 /**
  * Executive Summary view displaying blueprint overview, metadata, and summary content

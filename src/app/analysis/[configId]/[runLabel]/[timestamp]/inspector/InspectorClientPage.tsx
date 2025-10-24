@@ -12,7 +12,7 @@ import { ErrorBoundary } from '@/app/components/ErrorBoundary';
 import CIPLogo from '@/components/icons/CIPLogo';
 import Link from 'next/link';
 import Icon from '@/components/ui/icon';
-import { EngMobileClientPage } from './EngMobileClientPage';
+import { InspectorMobileClientPage } from './InspectorMobileClientPage';
 
 // Extracted hooks (barrel import)
 import { useIsMobile, useOptimisticNavigation, useScenarioStats } from './hooks';
@@ -37,13 +37,13 @@ import {
 
 // Extracted utilities
 import { formatPercentage, truncateText } from './utils/textualUtils';
-import { PATH_COLORS } from './utils/engConstants';
+import { PATH_COLORS } from './utils/inspectorConstants';
 import { parseTimestampFromPathname } from './utils/dateUtils';
 
 // Debug loggers
-const debug = createClientLogger('EngClientPage');
+const debug = createClientLogger('InspectorClientPage');
 
-export const EngClientPage: React.FC = () => {
+export const InspectorClientPage: React.FC = () => {
   const isMobile = useIsMobile();
 
   // Show nothing while detecting screen size (prevents layout shift)
@@ -57,15 +57,15 @@ export const EngClientPage: React.FC = () => {
 
   // Route to mobile-specific component
   if (isMobile) {
-    return <EngMobileClientPage />;
+    return <InspectorMobileClientPage />;
   }
 
   // Desktop version below
-  return <EngDesktopClientPage />;
+  return <InspectorDesktopClientPage />;
 };
 
 // Desktop 3-column version (refactored with extracted components)
-const EngDesktopClientPage: React.FC = () => {
+const InspectorDesktopClientPage: React.FC = () => {
   const {
     data,
     loading,
@@ -112,15 +112,15 @@ const EngDesktopClientPage: React.FC = () => {
 
   // Calculate navigation URLs
   const fullAnalysisUrl = useMemo(() => {
-    return pathname.replace(/\/eng$/, '');
+    return pathname.replace(/\/inspector$/, '');
   }, [pathname]);
 
   const simpleUrl = useMemo(() => {
-    return pathname.replace(/\/eng$/, '/simple');
+    return pathname.replace(/\/inspector$/, '/simple');
   }, [pathname]);
 
-  const baseEngUrl = useMemo(() => {
-    // Base eng URL without query params (resets state)
+  const baseInspectorUrl = useMemo(() => {
+    // Base inspector URL without query params (resets state)
     return pathname;
   }, [pathname]);
 
@@ -210,7 +210,7 @@ const EngDesktopClientPage: React.FC = () => {
 
             <h1 className="text-sm sm:text-base font-bold truncate min-w-0">
               <Link
-                href={baseEngUrl}
+                href={baseInspectorUrl}
                 className="hover:text-primary transition-colors"
                 title={config.title || config.configTitle || config.id || 'Unknown config'}
               >

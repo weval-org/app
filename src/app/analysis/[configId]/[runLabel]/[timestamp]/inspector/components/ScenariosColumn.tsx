@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import Icon from '@/components/ui/icon';
 import { TextualBar } from './TextualBar';
 import { formatPercentage, truncateText } from '../utils/textualUtils';
-import { ScenariosColumnProps } from '../types/engTypes';
+import { ScenariosColumnProps } from '../types/inspectorTypes';
 import { createClientLogger } from '@/app/utils/clientLogger';
 
 const debug = createClientLogger('ScenariosColumn');

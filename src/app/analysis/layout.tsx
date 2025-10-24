@@ -14,8 +14,8 @@ export default function FullWidthLayout({
   const pathname = usePathname();
   const isArticle = pathname?.includes('/article');
   const isCompare = pathname?.includes('/compare');
-  const isEng = pathname?.includes('/eng');
-  const isFullWidth = isCompare || isEng;
+  const isInspector = pathname?.includes('/inspector');
+  const isFullWidth = isCompare || isInspector;
 
   if (isArticle) {
     return (

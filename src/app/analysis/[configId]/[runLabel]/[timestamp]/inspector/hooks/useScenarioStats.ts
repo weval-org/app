@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { createClientLogger } from '@/app/utils/clientLogger';
-import { ScenarioStat } from '../types/engTypes';
+import { ScenarioStat } from '../types/inspectorTypes';
 import { LLMCoverageScores } from '@/types/shared';
 
 const debug = createClientLogger('useScenarioStats');

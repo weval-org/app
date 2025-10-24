@@ -4,9 +4,9 @@ import type { Metadata } from 'next';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
 import { AnalysisProvider } from '@/app/analysis/context/AnalysisProvider';
-import { EngClientPage } from '@/app/analysis/[configId]/[runLabel]/[timestamp]/eng/EngClientPage';
+import { InspectorClientPage } from '@/app/analysis/[configId]/[runLabel]/[timestamp]/inspector/InspectorClientPage';
 
-interface SandboxEngPageProps {
+interface SandboxInspectorPageProps {
   params: Promise<{
     sandboxId: string; // This is the runId
   }>;
@@ -39,7 +39,7 @@ async function getSandboxResult(runId: string): Promise<ComparisonDataV2 | null>
 
     // Development logging
     if (process.env.NODE_ENV === 'development') {
-        console.log(`[Sandbox Eng] Looking for result file at: ${resultKey}`);
+        console.log(`[Sandbox Inspector] Looking for result file at: ${resultKey}`);
     }
 
     try {
@@ -54,7 +54,7 @@ async function getSandboxResult(runId: string): Promise<ComparisonDataV2 | null>
             const parsedData = JSON.parse(content);
 
             if (process.env.NODE_ENV === 'development') {
-                console.log(`[Sandbox Eng] Loaded data for ${runId}`);
+                console.log(`[Sandbox Inspector] Loaded data for ${runId}`);
             }
 
             return parsedData;
@@ -69,10 +69,10 @@ async function getSandboxResult(runId: string): Promise<ComparisonDataV2 | null>
     }
 }
 
-export async function generateMetadata({ params }: SandboxEngPageProps): Promise<Metadata> {
+export async function generateMetadata({ params }: SandboxInspectorPageProps): Promise<Metadata> {
     const { sandboxId: runId } = await params;
     const data = await getSandboxResult(runId);
-    const title = data?.configTitle ? `${data.configTitle} - Data Explorer (Sandbox)` : 'Sandbox Data Explorer';
+    const title = data?.configTitle ? `${data.configTitle} - Inspector (Sandbox)` : 'Sandbox Inspector';
     const description = data?.config?.description || 'Interactive exploration of sandbox evaluation results.';
 
     return {
@@ -86,7 +86,7 @@ export async function generateMetadata({ params }: SandboxEngPageProps): Promise
 }
 
 
-export default async function SandboxEngPage({ params }: SandboxEngPageProps) {
+export default async function SandboxInspectorPage({ params }: SandboxInspectorPageProps) {
   const { sandboxId: runId } = await params;
   const data = await getSandboxResult(runId);
 
@@ -105,7 +105,7 @@ export default async function SandboxEngPage({ params }: SandboxEngPageProps) {
       isSandbox={isSandboxRun}
       sandboxId={runId}
     >
-      <EngClientPage />
+      <InspectorClientPage />
     </AnalysisProvider>
   );
 }

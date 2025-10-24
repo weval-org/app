@@ -6,12 +6,17 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
     IDEAL_MODEL_ID,
 } from '@/app/utils/calculationUtils';
-import DownloadResultsButton from '@/app/analysis/components/DownloadResultsButton';
 import SpecificEvaluationModal from '@/app/analysis/components/SpecificEvaluationModal';
 import DebugPanel from '@/app/analysis/components/DebugPanel';
 import CoverageHeatmapCanvas from '@/app/analysis/components/CoverageHeatmapCanvas';
@@ -158,45 +163,117 @@ export const ClientPage: React.FC = () => {
             {data.sourceCommitSha ? (
                 <Button asChild variant="outline" size="sm" className="px-3 py-1.5 text-xs">
                     <Link href={`${BLUEPRINT_CONFIG_REPO_URL}/blob/${data.sourceCommitSha}/blueprints/${data.sourceBlueprintFileName || getBlueprintPathFromId(data.configId) + '.yml'}`} target="_blank" rel="noopener noreferrer" title={`View blueprint at commit ${data.sourceCommitSha.substring(0, 7)}`}>
-                        <Icon name="git-commit" className="w-4 h-4 mr-2" />
-                        See Blueprint
+                        <Icon name="git-commit" className="w-4 h-4 mr-2" aria-hidden="true" />
+                        View Blueprint
                     </Link>
                 </Button>
             ) : (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button asChild variant="outline">
-                          <Link href={`${BLUEPRINT_CONFIG_REPO_URL}/blob/main/blueprints/${data.sourceBlueprintFileName || getBlueprintPathFromId(data.configId) + '.yml'}`} target="_blank" rel="noopener noreferrer">
-                              <Icon name="git-commit" className="w-4 h-4 mr-2" />
-                              View Latest Blueprint
-                          </Link>
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <div className="flex items-center">
-                        <Icon name="alert-triangle" className="w-4 h-4 mr-2 text-amber-500" />
-                        <p>Links to latest version, not the exact one from this run.</p>
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Button asChild variant="outline" size="sm" className="px-3 py-1.5 text-xs" title="Links to latest version, not the exact one from this run">
+                    <Link href={`${BLUEPRINT_CONFIG_REPO_URL}/blob/main/blueprints/${data.sourceBlueprintFileName || getBlueprintPathFromId(data.configId) + '.yml'}`} target="_blank" rel="noopener noreferrer">
+                        <Icon name="git-commit" className="w-4 h-4 mr-2" aria-hidden="true" />
+                        View Blueprint
+                    </Link>
+                </Button>
             )}
-            <Button asChild variant="outline" size="sm" className="px-3 py-1.5 text-xs">
-                <Link href={`/analysis/${configId}/${runLabel}/${timestamp}/thread`}>
-                    <Icon name="git-merge" className="w-4 h-4 mr-2" />
-                    Dialog Tree
-                </Link>
-            </Button>
-            <DownloadResultsButton data={data} label={`${data.configTitle || configId} - ${data.runLabel || runLabel}${timestamp ? ' (' + formatTimestampForDisplay(fromSafeTimestamp(timestamp)) + ')' : ''}`} />
-            <Button asChild variant="outline" size="sm" className="text-green-600 dark:text-green-400 border-green-600/70 dark:border-green-700/70 hover:bg-green-600/10 dark:hover:bg-green-700/30 hover:text-green-700 dark:hover:text-green-300 px-3 py-1.5 text-xs">
-                <Link href={`/api/comparison/${configId}/${runLabel}/${timestamp}/markdown`} download>
-                    <Icon name="file-text" className="w-3.5 h-3.5 mr-1.5" />
-                    Download Markdown
-                </Link>
-            </Button>
-            <Button onClick={handleExploreInSandbox} variant="outline" size="sm" className="bg-exciting text-exciting-foreground border-exciting hover:bg-exciting/90 hover:text-exciting-foreground text-xs">
-              <Icon name="flask-conical" className="w-4 h-4 mr-2" />
+
+            {/* Alternative Views Dropdown */}
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="px-3 py-1.5 text-xs" aria-label="Alternative analysis views">
+                        <Icon name="wand-2" className="w-4 h-4 mr-2" aria-hidden="true" />
+                        Alternative Views
+                        <Icon name="chevron-down" className="w-3 h-3 ml-1" aria-hidden="true" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    <DropdownMenuItem asChild>
+                        <Link href={`/analysis/${configId}/${runLabel}/${timestamp}/simple`} className="cursor-pointer">
+                            <Icon name="eye" className="w-4 h-4 mr-2" aria-hidden="true" />
+                            Simple View
+                        </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                        <Link href={`/analysis/${configId}/${runLabel}/${timestamp}/inspector`} className="cursor-pointer">
+                            <Icon name="search" className="w-4 h-4 mr-2" aria-hidden="true" />
+                            Inspector
+                        </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                        <Link href={`/analysis/${configId}/${runLabel}/${timestamp}/compare`} className="cursor-pointer">
+                            <Icon name="layout-grid" className="w-4 h-4 mr-2" aria-hidden="true" />
+                            Compare View
+                        </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                        <Link href={`/analysis/${configId}/${runLabel}/${timestamp}/thread`} className="cursor-pointer">
+                            <Icon name="git-branch" className="w-4 h-4 mr-2" aria-hidden="true" />
+                            Dialog Tree
+                        </Link>
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Download Dropdown */}
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="px-3 py-1.5 text-xs" aria-label="Download analysis data">
+                        <Icon name="download" className="w-4 h-4 mr-2" aria-hidden="true" />
+                        Download
+                        <Icon name="chevron-down" className="w-3 h-3 ml-1" aria-hidden="true" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                        onSelect={() => {
+                            const dataStr = JSON.stringify(data, null, 2);
+                            const blob = new Blob([dataStr], { type: 'application/json' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            const label = `${data.configTitle || configId} - ${data.runLabel || runLabel}`;
+                            const dataTimestamp = data.timestamp || timestamp || new Date().toISOString();
+                            a.download = `${label}_analysis_export_${dataTimestamp}.json`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                        }}
+                    >
+                        <Icon name="file-code-2" className="w-4 h-4 mr-2" aria-hidden="true" />
+                        Download JSON
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                        <Link href={`/api/comparison/${configId}/${runLabel}/${timestamp}/markdown`} download className="cursor-pointer">
+                            <Icon name="file-text" className="w-4 h-4 mr-2" aria-hidden="true" />
+                            Download Markdown
+                        </Link>
+                    </DropdownMenuItem>
+                    {data.executiveSummary && (
+                        <DropdownMenuItem
+                            onSelect={() => {
+                                const summaryText = typeof data.executiveSummary === 'string'
+                                    ? data.executiveSummary
+                                    : data.executiveSummary?.content || JSON.stringify(data.executiveSummary, null, 2);
+                                const blob = new Blob([summaryText], { type: 'text/markdown' });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `${data.configTitle || configId} - Executive Summary.md`;
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                URL.revokeObjectURL(url);
+                            }}
+                        >
+                            <Icon name="sparkles" className="w-4 h-4 mr-2" aria-hidden="true" />
+                            Executive Summary
+                        </DropdownMenuItem>
+                    )}
+                </DropdownMenuContent>
+            </DropdownMenu>
+
+            <Button onClick={handleExploreInSandbox} variant="outline" size="sm" className="bg-exciting text-exciting-foreground border-exciting hover:bg-exciting/90 hover:text-exciting-foreground text-xs" aria-label="Open in Sandbox Studio">
+              <Icon name="flask-conical" className="w-4 h-4 mr-2" aria-hidden="true" />
               Run in Sandbox
             </Button>
         </div>

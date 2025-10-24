@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { formatCriterionText } from '../../utils/engFormatting';
+import { formatCriterionText } from '../../utils/inspectorFormatting';
 
 /**
  * Component to render criterion text with smart truncation for function-style assertions

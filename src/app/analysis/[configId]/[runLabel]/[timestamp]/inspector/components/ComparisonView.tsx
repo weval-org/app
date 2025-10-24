@@ -5,11 +5,11 @@ import ResponseRenderer, { RenderAsType } from '@/app/components/ResponseRendere
 import ConversationHistory from '@/app/analysis/components/ConversationHistory';
 import { createClientLogger } from '@/app/utils/clientLogger';
 import Icon from '@/components/ui/icon';
-import { ComparisonViewProps } from '../types/engTypes';
+import { ComparisonViewProps } from '../types/inspectorTypes';
 import { CriterionText, JudgeReflection, ResponseSkeleton, EvaluationSkeleton } from './ui';
 import { TextualBar } from './TextualBar';
 import { formatPercentage, truncateText } from '../utils/textualUtils';
-import { PATH_COLORS } from '../utils/engConstants';
+import { PATH_COLORS } from '../utils/inspectorConstants';
 
 const debug = createClientLogger('ComparisonView');
 
