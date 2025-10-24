@@ -237,6 +237,9 @@ importers:
       '@next/bundle-analyzer':
         specifier: ^15.4.4
         version: 15.4.4
+      '@sentry/cli':
+        specifier: ^2.57.0
+        version: 2.57.0(encoding@0.1.13)
       '@tailwindcss/postcss':
         specifier: ^4.1.11
         version: 4.1.11
@@ -12837,7 +12840,7 @@ snapshots:
   https-proxy-agent@5.0.1:
     dependencies:
       agent-base: 6.0.2
-      debug: 4.4.0
+      debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
 
