@@ -64,7 +64,7 @@ export function getCache(namespace: string): Keyv {
             } else {
                 // Create SQLite cache as primary storage for local/server environments
                 // Use dynamic import to avoid loading sqlite3 in serverless environments
-                const KeyvSqlite = require('@keyv/sqlite');
+                const KeyvSqlite = require('@keyv/sqlite').default;
                 keyv = new Keyv({
                     store: new KeyvSqlite({
                         uri: `sqlite://${path.join(cacheDir, `${namespace}.sqlite`)}`,
