@@ -63,9 +63,22 @@ The `should` block accepts a list where each item can be in one of these formats
       - $word_count_between: [50, 100]
       - $is_json: true
       - $js: "r.length > 100" # Advanced JS expression
+
+      # External service integration
+      - $call:
+          service: fact-checker        # Named service from externalServices config
+          claim: "Paris is the capital"
+          response: "{response}"       # Template: model's response
+
+      - $call:
+          url: "https://api.example.com/validate"  # Inline URL (ad-hoc)
+          response: "{response}"
+          modelId: "{modelId}"
+          promptId: "{promptId}"
     ```
     *   **What it means**: "The response should pass a check against the built-in function (e.g., `contains`)."
     *   **Note**: For convenience, some function names are normalized. For example, the parser will treat `$contain` as `$contains`.
+    *   **External Services (`$call`)**: The `$call` function enables integration with external HTTP services for custom validation logic (fact-checking, code execution, domain-specific evaluation). Services can be pre-configured in the blueprint's `externalServices` section or specified inline with a `url` parameter. Template substitution is supported for `{response}`, `{modelId}`, `{promptId}`, `{messages}`, and `{promptText}`. See [examples/blueprints/CALL_DEMO_README.md](../examples/blueprints/CALL_DEMO_README.md) for complete documentation.
 
     **Negative Point-Functions (`$not_*`)**: For every major point-function, there is a corresponding negative variant prefixed with `$not_`. These functions invert the result of their positive counterparts, making it easy to check for the **absence** of patterns without using `should_not` blocks (which are deprecated due to their complexity and error-prone behavior).
 

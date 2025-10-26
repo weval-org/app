@@ -133,7 +133,9 @@ function buildRequestBody(
     const templateData: TemplateData = {
         response,
         modelId: context.modelId,
-        promptId: context.prompt.id
+        promptId: context.prompt.id,
+        messages: context.prompt?.messages,
+        promptText: context.prompt?.promptText
     };
 
     // Apply template substitution to all user params
@@ -152,13 +154,22 @@ function buildRequestBody(
  * External service call point function.
  * Calls an HTTP service to perform custom evaluation logic.
  *
+ * Supports template substitution for:
+ * - {response}: Model's response text
+ * - {modelId}: Model identifier
+ * - {promptId}: Prompt identifier
+ * - {messages}: Conversation history (array)
+ * - {promptText}: The prompt text
+ *
  * Usage:
  *   $call:
  *     service: fact-checker        # Named service
  *     claim: "Factual claim"
+ *     response: "{response}"
  *
  *   $call:
  *     url: "https://..."           # Or inline URL
+ *     messages: "{messages}"       # Pass conversation history
  *     param: "value"
  *
  * @param response - The model's response text

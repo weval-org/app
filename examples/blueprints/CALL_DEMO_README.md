@@ -4,12 +4,11 @@ This directory contains a runnable demonstration of the `$call` point function, 
 
 ## Overview
 
-The `$call` point function allows you to integrate external services into your evaluation pipeline. This is useful for:
+The `$call` point function allows you to integrate external services into your evaluation pipeline. This is useful for any custom scoring mechanisms you want to apply that can't be encapsulated within `$js`. Some examples we've tried out:
 
 - **Fact-checking**: Verify claims against external knowledge bases
 - **Code execution**: Run and test generated code in sandboxes
 - **Custom validation**: Use specialized services for domain-specific checks
-- **API compliance**: Validate responses against external API standards
 
 ## Files
 
@@ -104,7 +103,7 @@ Expected response:
 
 ## Blueprint Examples
 
-The `call-demo.yml` blueprint includes 7 examples:
+The `call-demo.yml` blueprint includes 8 examples:
 
 1. **Length Check** - Validates response length
 2. **Keyword Check** - Ensures required terms are present
@@ -113,6 +112,7 @@ The `call-demo.yml` blueprint includes 7 examples:
 5. **Mixed Evaluation** - Combines intrinsic, interpretive, and extrinsic evaluation
 6. **Template Substitution** - Demonstrates `{response}`, `{modelId}`, `{promptId}` templates
 7. **Forbidden Terms** - Checks for terms that should NOT appear
+8. **Multi-Turn Context** - Passes conversation history with `{messages}` template
 
 ## Configuration
 
@@ -164,6 +164,47 @@ The following templates are automatically replaced in request bodies:
 - `{response}` - The model's response text
 - `{modelId}` - The model identifier (e.g., "openai:gpt-4o-mini")
 - `{promptId}` - The prompt identifier from the blueprint
+- `{messages}` - The conversation history array (for multi-turn prompts)
+- `{promptText}` - The prompt text (for backwards compatibility)
+
+### Template Behavior
+
+**Simple substitution** (for strings, numbers, etc.):
+```yaml
+- $call:
+    url: "https://api.example.com"
+    response: "{response}"        # String substitution
+    model: "{modelId}"            # String substitution
+```
+
+**Object pass-through** (for arrays and complex objects):
+```yaml
+- $call:
+    url: "https://api.example.com"
+    messages: "{messages}"        # Passes the array directly
+    response: "{response}"
+```
+
+When `{messages}` appears as the entire value, it passes the conversation history array directly to your service. When embedded in a string (e.g., `"Messages: {messages}"`), it's JSON-stringified.
+
+### Multi-Turn Evaluation Example
+
+```yaml
+- id: multi-turn-check
+  messages:
+    - role: user
+      content: "What is the capital of France?"
+    - role: assistant
+      content: "The capital of France is Paris."
+    - role: user
+      content: "And what about Germany?"
+  should:
+    - $call:
+        service: my-evaluator
+        messages: "{messages}"       # Full conversation context
+        response: "{response}"       # Final response
+        promptText: "{promptText}"   # Original prompt if needed
+```
 
 ## Error Handling
 

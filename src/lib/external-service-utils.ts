@@ -29,22 +29,48 @@ export interface TemplateData {
     response: string;
     modelId: string;
     promptId: string;
+    messages?: any[];          // Conversation history for multi-turn prompts
+    promptText?: string;        // The prompt text (for backwards compatibility)
 }
 
 /**
- * Recursively substitutes {response}, {modelId}, {promptId} templates in an object.
+ * Recursively substitutes templates in an object.
+ * Supported templates: {response}, {modelId}, {promptId}, {messages}, {promptText}
  * Templates are replaced with actual values from the provided data.
  *
  * @param obj - Object, array, or primitive value to process
- * @param data - Template data containing response, modelId, promptId
+ * @param data - Template data containing response, modelId, promptId, messages, promptText
  * @returns Object with templates substituted
  */
 export function substituteTemplates(obj: any, data: TemplateData): any {
     if (typeof obj === 'string') {
-        return obj
-            .replace(/\{response\}/g, data.response)
-            .replace(/\{modelId\}/g, data.modelId)
-            .replace(/\{promptId\}/g, data.promptId);
+        // Special case: if the string is exactly a template, return the value directly
+        // This allows complex objects like arrays to be passed through
+        if (obj === '{messages}' && data.messages !== undefined) {
+            return data.messages;
+        }
+        if (obj === '{response}') return data.response;
+        if (obj === '{modelId}') return data.modelId;
+        if (obj === '{promptId}') return data.promptId;
+        if (obj === '{promptText}' && data.promptText !== undefined) {
+            return data.promptText;
+        }
+
+        // Otherwise, perform string replacement for embedded templates
+        let result = obj;
+        result = result.replace(/\{response\}/g, data.response);
+        result = result.replace(/\{modelId\}/g, data.modelId);
+        result = result.replace(/\{promptId\}/g, data.promptId);
+
+        // For complex objects in string context, use JSON representation
+        if (result.includes('{messages}') && data.messages !== undefined) {
+            result = result.replace(/\{messages\}/g, JSON.stringify(data.messages));
+        }
+        if (result.includes('{promptText}') && data.promptText !== undefined) {
+            result = result.replace(/\{promptText\}/g, data.promptText);
+        }
+
+        return result;
     }
 
     if (Array.isArray(obj)) {

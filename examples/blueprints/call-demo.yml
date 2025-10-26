@@ -137,3 +137,24 @@ models:
           - alcohol
           - drugs
         response: "{response}"
+
+---
+# Example 8: Multi-turn context (conversation history)
+- id: multi-turn-context
+  messages:
+    - role: user
+      content: "What is the capital of France?"
+    - role: assistant
+      content: "The capital of France is Paris."
+    - role: user
+      content: "And what about Germany?"
+  should:
+    - $call:
+        service: quality-checker
+        checkType: keywords
+        requiredTerms:
+          - Berlin
+        # Pass the full conversation history for context-aware evaluation
+        messages: "{messages}"
+        response: "{response}"
+        promptText: "{promptText}"
