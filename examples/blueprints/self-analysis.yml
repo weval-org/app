@@ -1,0 +1,65 @@
+title: "Self-Analysis and Context Awareness"
+description: |
+  Demonstrates how $js can access conversation context to evaluate a model's
+  self-awareness by checking if it can accurately count its own words.
+
+models:
+  - anthropic:claude-3-5-sonnet-20241022
+  - openai:gpt-4o
+
+prompts:
+  - id: output-self-analysis
+    messages:
+      - user: "Tell me about Paris."
+      - assistant: null  # Model generates this response
+      - user: "How many words was your response?"
+    should:
+      - fn: js
+        arg: |
+          // Count words in previous assistant message
+          const prevMsg = context.messages[1].content;
+          const actualCount = prevMsg.split(/\s+/).length;
+          const statedCount = parseInt(r.match(/\b\d+\b/)?.[0] || 0);
+          const diff = Math.abs(actualCount - statedCount);
+          // Accurate self-counting = strong self-awareness
+          return diff <= 2 ? 1 : (diff <= 5 ? 0.5 : 0);
+
+  - id: context-reference-check
+    messages:
+      - user: "What's the capital of France?"
+      - assistant: null  # Model responds
+      - user: "What did I just ask you about?"
+    should:
+      - $icontains: "france"  # Should mention France
+      - fn: js
+        arg: |
+          // Check if the response correctly references the previous question
+          const firstUserMsg = context.messages[0].content;
+          // Should reference "capital" or "France"
+          return r.toLowerCase().includes('capital') ||
+                 r.toLowerCase().includes('france');
+
+  - id: multi-turn-coherence
+    messages:
+      - user: "Tell me three interesting facts about Tokyo."
+      - assistant: null
+      - user: "Which of those facts surprised you the most?"
+      - assistant: null
+      - user: "Why did that fact surprise you more than the others?"
+    should:
+      - fn: js
+        arg: |
+          // Check that final response maintains coherence with previous turns
+          // Should reference something specific from earlier messages
+          const secondResponse = context.messages[3].content;
+          const thirdResponse = r;
+
+          // Extract key nouns/facts from second response (simple approach)
+          const words = secondResponse.toLowerCase().split(/\W+/).filter(w => w.length > 5);
+
+          // Check if third response references any of these
+          const hasReference = words.some(word =>
+            thirdResponse.toLowerCase().includes(word)
+          );
+
+          return hasReference ? 1 : 0;

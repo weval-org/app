@@ -226,12 +226,6 @@ export default async function HomePage() {
             </div>
           )}
           
-          {driftDetectionResult && (
-            <section>
-              <ModelDriftIndicator driftInfo={driftDetectionResult} />
-            </section>
-          )}
-          
           <div className="text-center pt-6 pb-4">
             <p className="text-sm text-muted-foreground">
               Weval is an open source project from the <Link href="https://cip.org" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">Collective Intelligence Project</Link>.
