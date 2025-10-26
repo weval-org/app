@@ -1,0 +1,24 @@
+title: "call Point Function - Simple Test"
+description: "Minimal test for $call functionality"
+author: "Weval Team"
+tags: ["demo", "test"]
+
+externalServices:
+  quality-checker:
+    url: "${DEMO_EVALUATOR_URL}"
+    method: POST
+    timeout_ms: 10000
+
+models:
+  - openai:gpt-4o-mini
+
+---
+- id: simple-test
+  prompt: "Write a brief explanation of photosynthesis."
+  should:
+    - $call:
+        service: quality-checker
+        checkType: keywords
+        requiredTerms:
+          - photosynthesis
+        response: "{response}"

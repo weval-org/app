@@ -20,6 +20,7 @@ import { icontains_any_of } from './icontains_any_of';
 import { istarts_with } from './istarts_with';
 import { iends_with } from './iends_with';
 import { js } from './js';
+import { call } from './call';
 import { tool_called } from './tool_called';
 import { tool_args_match } from './tool_args_match';
 import { tool_call_count_between } from './tool_call_count_between';
@@ -81,6 +82,8 @@ export const pointFunctions: Record<string, PointFunction> = {
     imatch_at_least_n_of,
     js,
     expr: js,
+    call,
+    external: call,
     tool_called,
     tool_args_match,
     tool_call_count_between,

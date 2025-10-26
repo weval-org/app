@@ -1,0 +1,122 @@
+title: "External Service Demo"
+description: "Demonstrates calling external HTTP services for custom evaluation logic (e.g., fact-checking, code execution)"
+author: "Weval Team"
+tags: ["demo", "external-services", "fact-checking"]
+
+# Define external services that can be called during evaluation
+externalServices:
+  # Example: Fact-checking service (would need real implementation)
+  fact-checker:
+    url: "https://fact-check-api.example.com/verify"
+    method: POST
+    headers:
+      Authorization: "Bearer ${FACT_CHECK_API_KEY}"
+    timeout_ms: 30000
+    max_retries: 2
+
+  # Example: Code execution sandbox (would need real implementation)
+  code-executor:
+    url: "https://sandbox.example.com/execute"
+    method: POST
+    headers:
+      X-API-Key: "${SANDBOX_API_KEY}"
+    timeout_ms: 60000
+
+models:
+  - openai:gpt-4o-mini
+
+---
+# Example 1: Fact-checking with named service
+- id: fact-check-example
+  prompt: "What is the capital of France? When did it become the capital?"
+  should:
+    # Basic point function (built-in)
+    - $contains: "Paris"
+
+    # External service call - fact-checking claim
+    - $call:
+        service: fact-checker
+        claim: "Paris is the capital of France"
+        response: "{response}"
+
+    # Another fact check with different claim
+    - $call:
+        service: fact-checker
+        claim: "Paris became the capital around 987 AD"
+        response: "{response}"
+
+---
+# Example 2: Code execution verification
+- id: code-execution-example
+  prompt: "Write a Python function that calculates the 10th Fibonacci number"
+  should:
+    # Check code structure
+    - $contains: "def"
+    - $word_count_between: [10, 100]
+
+    # Execute code in sandbox to verify correctness
+    - $call:
+        service: code-executor
+        language: python
+        code: "{response}"
+        tests:
+          - input: "fibonacci(10)"
+            expected: "55"
+          - input: "fibonacci(0)"
+            expected: "0"
+          - input: "fibonacci(1)"
+            expected: "1"
+
+---
+# Example 3: Inline service (without pre-configuration)
+- id: inline-service-example
+  prompt: "Design a REST API for user management with proper endpoints"
+  should:
+    # Basic checks
+    - $contains: "POST"
+    - $contains: "GET"
+
+    # One-off external validation without pre-configured service
+    - $call:
+        url: "https://api-validator.example.com/validate"
+        method: POST
+        headers:
+          X-Custom-Header: "value"
+        api_spec: "{response}"
+        check_rest_compliance: true
+        check_security: true
+
+---
+# Example 4: Template substitution demo
+- id: template-demo
+  prompt: "Explain quantum computing in simple terms"
+  should:
+    - $call:
+        service: fact-checker
+        # Templates are replaced: {response} → actual response text
+        text_to_check: "{response}"
+        # Templates work for metadata too
+        model_name: "{modelId}"
+        prompt_name: "{promptId}"
+        custom_threshold: 0.8
+
+---
+# Example 5: Combining multiple evaluation types
+- id: mixed-evaluation
+  prompt: "What are the health benefits of regular exercise? Cite scientific studies."
+  should:
+    # Intrinsic evaluation (point functions)
+    - $contains: "cardiovascular"
+    - $contains: "mental health"
+    - $word_count_between: [100, 500]
+
+    # Interpretive evaluation (LLM judge - implicit)
+    - "Provides clear and accurate health information"
+    - "Uses appropriate scientific terminology"
+
+    # Extrinsic evaluation (external service call)
+    - $call:
+        service: fact-checker
+        claim: "Regular exercise improves cardiovascular health"
+        response: "{response}"
+        require_citations: true

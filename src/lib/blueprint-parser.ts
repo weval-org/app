@@ -561,5 +561,31 @@ export function parseAndNormalizeBlueprint(content: string, fileType: 'json' | '
         return finalPrompt as PromptConfig;
     });
 
+    // Validate external services configuration
+    if (finalConfig.externalServices) {
+        for (const [serviceName, serviceConfig] of Object.entries(finalConfig.externalServices)) {
+            if (!serviceConfig.url) {
+                throw new Error(`External service '${serviceName}' must have a 'url' field`);
+            }
+
+            // Validate URL format
+            try {
+                new URL(serviceConfig.url);
+            } catch {
+                throw new Error(`External service '${serviceName}' has invalid URL: ${serviceConfig.url}`);
+            }
+
+            // Validate method if provided
+            if (serviceConfig.method && !['GET', 'POST', 'PUT'].includes(serviceConfig.method)) {
+                throw new Error(`External service '${serviceName}' has invalid method: ${serviceConfig.method}. Must be GET, POST, or PUT`);
+            }
+
+            // Validate timeout if provided
+            if (serviceConfig.timeout_ms !== undefined && (typeof serviceConfig.timeout_ms !== 'number' || serviceConfig.timeout_ms <= 0)) {
+                throw new Error(`External service '${serviceName}' has invalid timeout_ms: ${serviceConfig.timeout_ms}. Must be a positive number`);
+            }
+        }
+    }
+
     return finalConfig as ComparisonConfig;
 } 

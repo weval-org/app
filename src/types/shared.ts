@@ -175,6 +175,69 @@ export interface ToolUsePolicy {
     outputFormat?: 'json-line'; // current protocol: TOOL_CALL {json}
 }
 
+// --- External Service Types (for $call point function) ---
+
+/**
+ * Configuration for an external HTTP service that performs evaluation.
+ * Services receive the response text and custom parameters, return {score, explain}.
+ */
+export interface ExternalServiceConfig {
+    /** The HTTP endpoint URL */
+    url: string;
+
+    /** HTTP method (default: POST) */
+    method?: 'GET' | 'POST' | 'PUT';
+
+    /** HTTP headers (supports ${ENV_VAR} substitution) */
+    headers?: Record<string, string>;
+
+    /** Request timeout in milliseconds (default: 30000) */
+    timeout_ms?: number;
+
+    /** Whether to cache responses (default: true) */
+    cache?: boolean;
+
+    /** Number of retry attempts on failure (default: 2) */
+    max_retries?: number;
+
+    /** Backoff multiplier for retries in ms (default: 1000) */
+    retry_backoff_ms?: number;
+}
+
+/**
+ * Standard request body sent to external services.
+ */
+export interface ExternalServiceRequest {
+    /** The model's response text being evaluated */
+    response: string;
+
+    /** ID of the model that generated the response */
+    modelId: string;
+
+    /** ID of the prompt being evaluated */
+    promptId: string;
+
+    /** User-defined parameters (from blueprint) */
+    [key: string]: any;
+}
+
+/**
+ * Standard response format expected from external services.
+ */
+export interface ExternalServiceResponse {
+    /** Evaluation score (0.0 to 1.0) - REQUIRED */
+    score: number;
+
+    /** Explanation of the score - OPTIONAL */
+    explain?: string;
+
+    /** Error message if evaluation failed - OPTIONAL */
+    error?: string;
+
+    /** Any additional metadata (preserved but not used in scoring) */
+    [key: string]: any;
+}
+
 export interface WevalConfig {
     configId?: string;
     configTitle?: string;
@@ -208,6 +271,10 @@ export interface WevalConfig {
     render_as?: 'markdown' | 'html' | 'plaintext';
     // If true, sets default caching behavior for all prompts. Overridden by per-prompt noCache
     noCache?: boolean;
+    // External HTTP services for evaluation (e.g., fact-checking, code execution)
+    externalServices?: {
+        [serviceName: string]: ExternalServiceConfig;
+    };
 }
 
 export interface WevalResult {

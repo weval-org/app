@@ -1,0 +1,139 @@
+title: "$call Point Function Demo"
+description: "Demonstrates the $call point function with a real external service endpoint"
+author: "Weval Team"
+tags: ["demo", "external-services", "$call"]
+
+# Configure external services that can be called during evaluation
+# These can be real HTTP endpoints or mock services for testing
+externalServices:
+  # Demo quality checker - hosted as a Netlify function
+  # Local: http://localhost:8888/.netlify/functions/demo-external-evaluator
+  # Deployed: https://weval-demo.netlify.app/.netlify/functions/demo-external-evaluator
+  quality-checker:
+    url: "${DEMO_EVALUATOR_URL}"
+    method: POST
+    timeout_ms: 10000
+    max_retries: 2
+
+models:
+  - openai:gpt-4o-mini
+
+---
+# Example 1: Length validation
+- id: length-check
+  prompt: "Write a brief explanation of photosynthesis."
+  should:
+    # Use external service to check length constraints
+    - $call:
+        service: quality-checker
+        checkType: length
+        minLength: 50
+        maxLength: 500
+        response: "{response}"
+        modelId: "{modelId}"
+
+---
+# Example 2: Keyword validation
+- id: keyword-check
+  prompt: "Explain the water cycle including evaporation, condensation, and precipitation."
+  should:
+    # Check for required scientific terms
+    - $call:
+        service: quality-checker
+        checkType: keywords
+        requiredTerms:
+          - evaporation
+          - condensation
+          - precipitation
+        response: "{response}"
+
+---
+# Example 3: Comprehensive check (length + keywords)
+- id: comprehensive-check
+  prompt: "Describe the benefits of regular exercise in 2-3 sentences."
+  should:
+    - $call:
+        service: quality-checker
+        checkType: comprehensive
+        minLength: 100
+        maxLength: 400
+        requiredTerms:
+          - health
+          - exercise
+        forbiddenTerms:
+          - drugs
+          - steroids
+        response: "{response}"
+
+---
+# Example 4: Inline URL (no pre-configured service)
+- id: inline-url-example
+  prompt: "What is the capital of France?"
+  should:
+    # Using inline URL instead of named service
+    - $call:
+        url: "${DEMO_EVALUATOR_URL}"
+        method: POST
+        checkType: keywords
+        requiredTerms:
+          - Paris
+        response: "{response}"
+        promptId: "{promptId}"
+
+---
+# Example 5: Combining intrinsic, interpretive, and extrinsic evaluation
+- id: mixed-evaluation
+  prompt: "Write a professional email requesting a meeting with your manager."
+  should:
+    # Intrinsic evaluation (built-in point functions)
+    - $contains: "meeting"
+    - $word_count_between: [20, 150]
+
+    # Interpretive evaluation (LLM judge - implicit)
+    - "Email is professional and polite"
+    - "Clearly states the purpose of the meeting"
+
+    # Extrinsic evaluation (external service)
+    - $call:
+        service: quality-checker
+        checkType: comprehensive
+        minLength: 80
+        maxLength: 600
+        requiredTerms:
+          - meeting
+          - schedule
+        forbiddenTerms:
+          - urgent
+          - immediately
+          - asap
+        response: "{response}"
+
+---
+# Example 6: Template substitution demo
+- id: template-demo
+  prompt: "Explain quantum computing."
+  should:
+    - $call:
+        service: quality-checker
+        checkType: keywords
+        # Templates are automatically replaced
+        response: "{response}"        # → actual model response
+        modelId: "{modelId}"          # → 'openai:gpt-4o-mini'
+        promptId: "{promptId}"        # → 'template-demo'
+        requiredTerms:
+          - quantum
+          - computing
+
+---
+# Example 7: Error handling demo (forbidden terms)
+- id: forbidden-terms-check
+  prompt: "Explain how to stay healthy."
+  should:
+    - $call:
+        service: quality-checker
+        checkType: keywords
+        forbiddenTerms:
+          - cigarette
+          - alcohol
+          - drugs
+        response: "{response}"
