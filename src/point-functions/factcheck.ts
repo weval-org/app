@@ -32,12 +32,12 @@ export const factcheck: PointFunction = async (
 ): Promise<{ score: number; explain: string } | { error: string }> => {
     const logger = getConfig().logger;
 
-    // Validate args - should be a string instruction
-    if (typeof args !== 'string') {
-        return { error: "Argument for 'factcheck' must be a string instruction (e.g., 'focus on city names only')" };
+    // Validate args - should be a string instruction, or omitted entirely for general fact-checking
+    if (args !== undefined && args !== null && typeof args !== 'string') {
+        return { error: "Argument for 'factcheck' must be a string instruction (e.g., 'focus on city names only'), or omitted for general fact-checking" };
     }
 
-    const instruction = args;
+    const instruction = args || ''; // Empty string if omitted
 
     // Build request body for factcheck endpoint
     const requestBody: any = {

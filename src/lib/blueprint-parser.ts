@@ -78,8 +78,14 @@ function _normalizePointArray(pointsArray: any[], promptId: string | undefined):
     return pointsArray.map((exp: any): PointDefinition => {
         const newPoint: NormalizedPointObject = {};
 
-        // 1. Simple string: "This is a conceptual point."
+        // 1. Simple string: "This is a conceptual point." or "$function" (zero-arg function)
         if (typeof exp === 'string') {
+            // Check if this is a zero-arg function call (e.g., "$factcheck", "$is_json")
+            if (exp.startsWith('$') && exp.length > 1) {
+                // Extract function name (everything after $)
+                const fnName = exp.substring(1);
+                return { fn: fnName, fnArgs: undefined, multiplier: 1.0 };
+            }
             return { text: exp, multiplier: 1.0 };
         }
 

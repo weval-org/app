@@ -599,4 +599,72 @@ noCache: true
             expect(result.prompts[2].noCache).toBe(true); // Explicit
         });
     });
+
+    describe('Zero-Arg Function Syntax', () => {
+        test('should parse string starting with $ as zero-arg function call', () => {
+            const yamlContent = `
+models:
+  - openai:gpt-4o-mini
+---
+- id: test-zero-arg
+  prompt: "Test"
+  should:
+    - $factcheck
+    - $is_json
+`;
+            const result = parseAndNormalizeBlueprint(yamlContent, 'yaml');
+            expect(result.prompts).toHaveLength(1);
+            expect(result.prompts[0]?.points).toHaveLength(2);
+            expect(result.prompts[0]?.points?.[0]).toEqual({
+                fn: 'factcheck',
+                fnArgs: undefined,
+                multiplier: 1.0
+            });
+            expect(result.prompts[0]?.points?.[1]).toEqual({
+                fn: 'is_json',
+                fnArgs: undefined,
+                multiplier: 1.0
+            });
+        });
+
+        test('should not treat lone $ as a function', () => {
+            const yamlContent = `
+models:
+  - openai:gpt-4o-mini
+---
+- id: test-dollar
+  prompt: "Test"
+  should:
+    - "$"
+`;
+            const result = parseAndNormalizeBlueprint(yamlContent, 'yaml');
+            expect(result.prompts[0]?.points?.[0]).toEqual({
+                text: '$',
+                multiplier: 1.0
+            });
+        });
+
+        test('should handle mix of zero-arg and regular arg functions', () => {
+            const yamlContent = `
+models:
+  - openai:gpt-4o-mini
+---
+- id: test-mixed
+  prompt: "Test"
+  should:
+    - $factcheck
+    - $factcheck: "with instruction"
+    - $contains: "test"
+`;
+            const result = parseAndNormalizeBlueprint(yamlContent, 'yaml');
+            expect(result.prompts[0]?.points).toHaveLength(3);
+            const points = result.prompts[0]?.points || [];
+            expect((points[0] as any).fn).toBe('factcheck');
+            expect((points[0] as any).fnArgs).toBeUndefined();
+            expect((points[1] as any).fn).toBe('factcheck');
+            expect((points[1] as any).fnArgs).toBe('with instruction');
+            expect((points[2] as any).fn).toBe('contains');
+            expect((points[2] as any).fnArgs).toBe('test');
+        });
+    });
 }); 

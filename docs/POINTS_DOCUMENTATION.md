@@ -76,8 +76,9 @@ The `should` block accepts a list where each item can be in one of these formats
           modelId: "{modelId}"
           promptId: "{promptId}"
 
-      # Fact-checking shortcut (requires FACTCHECK_ENDPOINT_URL env var)
-      - $factcheck: "focus on city names and dates only"  # Auto-passes response as claim
+      # Fact-checking shortcut (requires BACKGROUND_FUNCTION_AUTH_TOKEN env var)
+      - $factcheck  # Checks everything (instruction optional)
+      - $factcheck: "focus on city names and dates only"  # With focused instruction
     ```
     *   **What it means**: "The response should pass a check against the built-in function (e.g., `contains`)."
     *   **Note**: For convenience, some function names are normalized. For example, the parser will treat `$contain` as `$contains`.

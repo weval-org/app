@@ -168,11 +168,12 @@ See `examples/blueprints/factcheck-multi-turn-test.yml` for comprehensive exampl
 
 ### Using Instructions
 
-The `instruction` parameter helps guide the fact-checker's focus:
+The `instruction` parameter helps guide the fact-checker's focus. It can be omitted entirely, provided as an empty string, or specified with guidance:
 
 ```yaml
-# Without instruction - checks everything
-- $factcheck: ""
+# Without instruction - checks everything (argument optional)
+- $factcheck
+- $factcheck: ""  # Equivalent to above
 
 # With instruction - focuses analysis
 - $factcheck: "focus on numerical claims and statistics only"
