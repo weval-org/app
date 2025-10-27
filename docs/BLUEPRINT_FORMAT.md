@@ -958,6 +958,25 @@ result.pointAssessments.filter(p => p.pathId).forEach(p => {
     - `number`: Clamped to the range [0, 1] for scoring
     - `{ score: number|boolean, explain?: string }`: Custom score with optional explanation
 
+    **External Service Integration: `$call` and `$factcheck`**
+
+    For validation that requires external services or web searches, Weval provides two special functions:
+
+    - **`$call`**: Integrate external HTTP services for custom validation (fact-checking, code execution, domain-specific evaluation). Can use pre-configured services or inline URLs with template substitution for `{response}`, `{modelId}`, `{promptId}`, etc. See [examples/blueprints/CALL_DEMO_README.md](../examples/blueprints/CALL_DEMO_README.md) for full documentation.
+
+    - **`$factcheck`**: Convenient shortcut for web-enabled fact-checking that automatically passes the response as a claim. Takes an instruction string to guide the fact-checker (e.g., "focus on dates and locations only"). Supports multi-turn conversations. See [examples/blueprints/FACTCHECK_README.md](../examples/blueprints/FACTCHECK_README.md) for complete guide.
+
+    ```yaml
+    should:
+      # Call external service
+      - $call:
+          service: fact-checker
+          claim: "{response}"
+
+      # Fact-check shortcut
+      - $factcheck: "verify numerical claims and statistics"
+    ```
+
     > 💡 **Recommended Pattern**: Use negative functions (`$not_*`) directly in `should` blocks rather than using `should_not` blocks. This makes blueprints more readable and avoids double-negative confusion. See the deprecation notice below for migration guidance.
 4.  **Full Object (Maximum Control)**: For weighting points or adding citations. This is the most verbose, legacy-compatible format.
     ```yaml

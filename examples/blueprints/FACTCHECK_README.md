@@ -94,11 +94,71 @@ externalServices:
         instruction: "verify the capital city name only"
 ```
 
+## Multi-Turn Conversation Support
+
+The fact-checker can intelligently handle multi-turn conversations, distinguishing between:
+- **AI-generated responses** (that need fact-checking)
+- **Hardcoded assistant messages** (scaffolding/examples - context only)
+- **User messages** (context only)
+
+This is particularly useful when evaluating conversational AI where some assistant turns are pre-scripted examples and others are actual AI-generated content.
+
+### How It Works
+
+In multi-turn prompts, use `assistant: null` to indicate where the AI should generate content. The fact-checker will **only** verify AI-generated responses, using everything else as context.
+
+```yaml
+- id: mountain-heights
+  description: "Multi-turn fact-check with hardcoded context"
+  messages:
+    - user: "What is the tallest mountain in the world?"
+    - assistant: "Let me help you with that."  # Hardcoded - NOT fact-checked
+    - user: "Be specific about the height"
+    - assistant: null  # AI generates - THIS gets fact-checked
+  should:
+    - $factcheck: "verify the mountain name and exact height in meters"
+```
+
+### Multi-Turn Request Format
+
+When calling the endpoint directly with conversation history:
+
+```bash
+curl -X POST http://localhost:8888/.netlify/functions/factcheck \
+  -H "Content-Type: application/json" \
+  -H "X-Background-Function-Auth-Token: $BACKGROUND_FUNCTION_AUTH_TOKEN" \
+  -d '{
+    "messages": [
+      {"role": "user", "content": "What is the tallest mountain?"},
+      {"role": "assistant", "content": "Let me help.", "generated": false},
+      {"role": "user", "content": "Be specific"},
+      {"role": "assistant", "content": "Mount Everest at 8,849 meters", "generated": true}
+    ],
+    "instruction": "verify mountain names and heights"
+  }'
+```
+
+The `generated` flag indicates which assistant messages were AI-produced and need fact-checking.
+
+### Example Blueprint
+
+See `examples/blueprints/factcheck-multi-turn-test.yml` for comprehensive examples including:
+- Simple multi-turn with single AI response
+- Multiple hardcoded context messages
+- Sequential multi-turn with multiple AI responses
+- False claim detection in conversations
+- Mixed accuracy across conversation turns
+
 ## Request Format
 
 ```typescript
 {
-  claim: string;           // Required: The claim to fact-check
+  claim?: string;          // Required (unless messages provided): Simple claim to fact-check
+  messages?: Array<{       // Required (unless claim provided): Multi-turn conversation
+    role: string;          // "user", "assistant", or "system"
+    content: string;       // Message content
+    generated?: boolean;   // For assistant messages: true if AI-generated, false if hardcoded
+  }>;
   instruction?: string;    // Optional: Additional focus/guidance (e.g., "focus on dates only")
   modelId?: string;        // Optional: Override default model
   maxTokens?: number;      // Optional: Max response tokens (default: 2000)
@@ -157,12 +217,12 @@ The final `score` integrates both accuracy AND confidence. A true claim with low
 
 ## Default Model
 
-The endpoint uses `openrouter:google/gemini-2.0-flash-exp:free` by default, which has web search capabilities. You can override this:
+The endpoint uses `openrouter:google/gemini-2.5-flash:online` by default, which has web search capabilities. You can override this with any web-enabled model:
 
 ```json
 {
   "claim": "Your claim here",
-  "modelId": "openrouter:google/gemini-2.5-flash:online"
+  "modelId": "openrouter:perplexity/llama-3.1-sonar-large-128k-online"
 }
 ```
 
