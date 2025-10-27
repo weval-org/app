@@ -5,6 +5,7 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getJsonFile, saveJsonFile } from '@/lib/storageService';
 import { WorkshopPaths } from '@/lib/workshop-utils';
 import { getLogger } from '@/utils/logger';
+import { callBackgroundFunction } from '@/lib/background-function-client';
 
 // S3 Client Initialization
 const s3Client = new S3Client({
@@ -72,12 +73,9 @@ export async function POST(
       }));
 
       // Invoke the background Netlify function (fire-and-forget)
-      const functionUrl = new URL('/.netlify/functions/execute-sandbox-pipeline-background', process.env.URL || 'http://localhost:8888');
-
-      fetch(functionUrl.toString(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ runId: executionRunId, blueprintKey, sandboxVersion: 'v2' }),
+      callBackgroundFunction({
+        functionName: 'execute-sandbox-pipeline-background',
+        body: { runId: executionRunId, blueprintKey, sandboxVersion: 'v2' }
       }).catch(console.error);
 
       logger.info(`[workshop:weval:retry] Started execution ${executionRunId}`);

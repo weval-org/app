@@ -6,6 +6,7 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { saveJsonFile } from '@/lib/storageService';
 import { WorkshopPaths } from '@/lib/workshop-utils';
 import { getLogger } from '@/utils/logger';
+import { callBackgroundFunction } from '@/lib/background-function-client';
 
 // S3 Client Initialization
 const s3Client = new S3Client({
@@ -92,23 +93,19 @@ export async function POST(request: NextRequest) {
       }));
 
       // Invoke the background Netlify function
-      const functionUrl = new URL('/.netlify/functions/execute-sandbox-pipeline-background', process.env.URL || 'http://localhost:8888');
-
-      logger.info(`[workshop:weval:create] Invoking background function at: ${functionUrl.toString()}`);
+      logger.info(`[workshop:weval:create] Invoking background function for execution`);
       logger.info(`[workshop:weval:create] Payload:`, { runId: executionRunId, blueprintKey, sandboxVersion: 'v2' });
 
       try {
-        const invocationResponse = await fetch(functionUrl.toString(), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ runId: executionRunId, blueprintKey, sandboxVersion: 'v2' }),
+        const invocationResponse = await callBackgroundFunction({
+          functionName: 'execute-sandbox-pipeline-background',
+          body: { runId: executionRunId, blueprintKey, sandboxVersion: 'v2' }
         });
 
         logger.info(`[workshop:weval:create] Background function invocation response: ${invocationResponse.status}`);
 
         if (!invocationResponse.ok) {
-          const errorText = await invocationResponse.text();
-          logger.error(`[workshop:weval:create] Background function failed: ${invocationResponse.status} - ${errorText}`);
+          logger.error(`[workshop:weval:create] Background function failed: ${invocationResponse.status} - ${invocationResponse.error || 'Unknown error'}`);
           executionStatus = 'error';
         } else {
           logger.info(`[workshop:weval:create] Started execution ${executionRunId}`);

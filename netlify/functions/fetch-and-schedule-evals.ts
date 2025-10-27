@@ -9,6 +9,7 @@ import { normalizeTag } from "@/app/utils/tagUtils";
 import { generateBlueprintIdFromPath } from "@/app/utils/blueprintIdUtils";
 import { getLogger } from "@/utils/logger";
 import { initSentry, captureError, setContext, flushSentry } from "@/utils/sentry";
+import { callBackgroundFunction } from "@/lib/background-function-client";
 
 const EVAL_CONFIGS_REPO_API_URL = "https://api.github.com/repos/weval/configs/contents/blueprints";
 const MODEL_COLLECTIONS_REPO_API_URL_BASE = "https://api.github.com/repos/weval/configs/contents/models";
@@ -194,26 +195,24 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
               continue;
           }
 
-          const executionUrl = `${siteUrl}/.netlify/functions/execute-evaluation-background`;
-
           try {
-              await axios.post(executionUrl,
-                  {
-                    config: { ...config, id: currentId }, // Explicitly set the canonical ID
-                    commitSha: latestCommitSha
-                  },
-                  {
-                      headers: { 'Content-Type': 'application/json' }
+              const response = await callBackgroundFunction({
+                  functionName: 'execute-evaluation-background',
+                  body: {
+                      config: { ...config, id: currentId }, // Explicitly set the canonical ID
+                      commitSha: latestCommitSha
                   }
-              );
-              logger.info(`Successfully POSTed to '${executionUrl}' for ${currentId} from ${file.path}`);
-          } catch (invokeError: any) {
-              let errorDetails = invokeError.message;
-              if (invokeError.response) {
-                  errorDetails += ` | Status: ${invokeError.response.status} | Data: ${JSON.stringify(invokeError.response.data)}`;
+              });
+
+              if (response.ok) {
+                  logger.info(`Successfully invoked background function for ${currentId} from ${file.path}`);
+              } else {
+                  logger.error(`Background function failed for ${currentId}: ${response.status} - ${response.error}`);
+                  captureError(new Error(`Background function failed: ${response.error}`), { currentId, file: file.path });
               }
-              logger.error(`Error POSTing to ${executionUrl} for ${file.path}: ${errorDetails}`, invokeError);
-              captureError(invokeError, { currentId, file: file.path, executionUrl });
+          } catch (invokeError: any) {
+              logger.error(`Error invoking background function for ${file.path}: ${invokeError.message}`, invokeError);
+              captureError(invokeError, { currentId, file: file.path });
           }
         }
       } catch (fetchConfigError: any) {

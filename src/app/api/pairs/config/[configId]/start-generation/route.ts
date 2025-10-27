@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getLogger } from '@/utils/logger';
 import { getGenerationStatus, updateGenerationStatus } from '@/cli/services/pairwise-task-queue-service';
+import { callBackgroundFunction } from '@/lib/background-function-client';
 
 export const revalidate = 0;
 
@@ -46,25 +47,19 @@ export async function POST(
     });
 
     // Trigger the background function
-    const baseUrl = process.env.URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:8888';
-    const functionUrl = new URL(
-      '/.netlify/functions/generate-pairs-background',
-      baseUrl
-    );
+    logger.info(`Invoking background function for configId: ${configId}`);
 
-    logger.info(`Invoking background function at: ${functionUrl.toString()}`);
-    logger.info(`Base URL (process.env.URL): ${process.env.URL}`);
-    logger.info(`Sending body:`, { configId });
-
-    fetch(functionUrl.toString(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ configId }),
+    callBackgroundFunction({
+      functionName: 'generate-pairs-background',
+      body: { configId }
     })
-      .then(async (response) => {
+      .then((response) => {
         logger.info(`Background function response status: ${response.status}`);
-        const text = await response.text();
-        logger.info(`Background function response body: ${text}`);
+        if (response.ok) {
+          logger.info(`Background function response data:`, response.data);
+        } else {
+          logger.error(`Background function error:`, response.error);
+        }
       })
       .catch(err => {
         logger.error(`Failed to invoke background function for configId ${configId}:`, err);

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import axios from 'axios';
 import { ComparisonConfig } from '@/cli/types/cli_types';
 import { resolveModelsInConfig, SimpleLogger } from '@/lib/blueprint-service';
+import { callBackgroundFunction } from '@/lib/background-function-client';
 
 // Simple logger for this API route
 const logger: SimpleLogger = {
@@ -43,29 +43,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: `No models found for id: ${config.id} after resolving collections. Evaluation cannot proceed.` }, { status: 400 });
     }
 
-    const netlifyFunctionUrl = `${process.env.URL}/.netlify/functions/execute-evaluation-background`;
-    logger.info(`Target background function URL: ${netlifyFunctionUrl}`);
-
-    if (!process.env.URL) {
-      logger.error('CRITICAL: process.env.URL is not set.');
-      return NextResponse.json({ message: 'Server configuration error: URL for Netlify functions not set.' }, { status: 500 });
-    }
-    
-    logger.info(`Attempting to POST to Netlify background function for id: ${config.id}`);
+    logger.info(`Attempting to invoke background function for id: ${config.id}`);
 
     try {
-      const response = await axios.post(netlifyFunctionUrl, { config: config }, { // Pass the MODIFIED config
-        timeout: 10000 
+      const response = await callBackgroundFunction({
+        functionName: 'execute-evaluation-background',
+        body: { config },
+        timeout: 10000
       });
-      logger.info(`Successfully POSTed to background function. Response status: ${response.status}, Data: ${JSON.stringify(response.data)}`);
-    } catch (error: any) {
-      logger.error(`CRITICAL ERROR during axios.post to ${netlifyFunctionUrl} for ${config.id}:`);
-      if (error.response) {
-        logger.error(`Error Response Status: ${error.response.status}`);
-        logger.error(`Error Response Data: ${JSON.stringify(error.response.data)}`);
+
+      if (response.ok) {
+        logger.info(`Successfully invoked background function. Response status: ${response.status}, Data: ${JSON.stringify(response.data)}`);
       } else {
-        logger.error(`Error Message: ${error.message}`);
+        logger.error(`Background function returned error. Status: ${response.status}, Error: ${response.error}`);
       }
+    } catch (error: any) {
+      logger.error(`CRITICAL ERROR invoking background function for ${config.id}: ${error.message}`);
       // Optionally, return a 500 error to the client if this critical step fails
       // return NextResponse.json({ message: 'Failed to invoke background evaluation function.', details: error.message }, { status: 500 });
     }

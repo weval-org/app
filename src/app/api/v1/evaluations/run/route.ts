@@ -7,6 +7,7 @@ import { executeComparisonPipeline } from '@/cli/services/comparison-pipeline-se
 import { generateConfigContentHash } from '@/lib/hash-utils';
 import { registerCustomModels } from '@/lib/llm-clients/client-dispatcher';
 import type { CustomModelDefinition } from '@/lib/llm-clients/types';
+import { callBackgroundFunction } from '@/lib/background-function-client';
 
 const PUBLIC_API_KEY = process.env.PUBLIC_API_KEY;
 const NETLIFY_FUNCTION_URL = `${process.env.NEXT_PUBLIC_APP_URL}/.netlify/functions/execute-api-evaluation-background`;
@@ -187,21 +188,13 @@ export async function POST(req: NextRequest) {
     console.log(`[API RUN] Triggering background evaluation for runId: ${runId}`);
     console.log(`[API RUN] Target function URL: ${NETLIFY_FUNCTION_URL}`);
 
-    // Fire-and-forget invocation of the background function (guard for tests)
-    try {
-        const maybePromise = (globalThis.fetch?.(NETLIFY_FUNCTION_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ runId, config }),
-        }) as any);
-        if (maybePromise && typeof maybePromise.then === 'function') {
-            maybePromise.catch((error: any) => {
-                console.error(`[API RUN] Error invoking background function for runId: ${runId}`, error);
-            });
-        }
-    } catch (error) {
+    // Fire-and-forget invocation of the background function
+    callBackgroundFunction({
+        functionName: 'execute-api-evaluation-background',
+        body: { runId, config }
+    }).catch((error: any) => {
         console.error(`[API RUN] Error invoking background function for runId: ${runId}`, error);
-    }
+    });
 
     const statusUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/v1/evaluations/status/${runId}`;
     const resultsUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/v1/evaluations/result/${runId}`;

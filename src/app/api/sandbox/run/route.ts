@@ -8,6 +8,7 @@ import { ComparisonConfig } from '@/cli/types/cli_types';
 import { parseAndNormalizeBlueprint } from '@/lib/blueprint-parser';
 import { CustomModelDefinition } from '@/lib/llm-clients/types';
 import { registerCustomModels } from '@/lib/llm-clients/client-dispatcher';
+import { callBackgroundFunction } from '@/lib/background-function-client';
 
 // Zod schema for the incoming request body
 const RunRequestSchema = z.object({
@@ -148,12 +149,9 @@ export async function POST(req: NextRequest) {
     }));
 
   // 6. Invoke the background Netlify function (fire-and-forget)
-    const functionUrl = new URL('/.netlify/functions/execute-sandbox-pipeline-background', process.env.URL || 'http://localhost:8888');
-    
-    fetch(functionUrl.toString(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ runId, blueprintKey, sandboxVersion: 'v2' }),
+    callBackgroundFunction({
+      functionName: 'execute-sandbox-pipeline-background',
+      body: { runId, blueprintKey, sandboxVersion: 'v2' }
     }).catch(console.error);
 
     // 7. Return the runId to the client
