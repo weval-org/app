@@ -16,10 +16,11 @@ interface ExpectationGroupProps {
   onUpdate: (expectations: PointDefinition[]) => void;
   variant: ExpectationVariant;
   isEditable: boolean;
+  isAdvancedMode?: boolean;
   placeholder?: string;
 }
 
-export function ExpectationGroup({ title, description, expectations, onUpdate, variant, isEditable, placeholder }: ExpectationGroupProps) {
+export function ExpectationGroup({ title, description, expectations, onUpdate, variant, isEditable, isAdvancedMode, placeholder }: ExpectationGroupProps) {
   const handleAdd = () => {
     const nextState = produce(expectations, draft => {
         draft.push({ text: '', multiplier: 1.0 });
@@ -64,14 +65,15 @@ export function ExpectationGroup({ title, description, expectations, onUpdate, v
             onRemove={() => handleRemove(index)}
             variant={variant}
             isEditable={isEditable}
+            isAdvancedMode={isAdvancedMode}
             placeholder={placeholder || "e.g., is empathetic and understanding"}
           />
         ))}
         {isEditable && (
-            <Button 
-                size="sm" 
-                variant="ghost" 
-                onClick={handleAdd} 
+            <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleAdd}
                 className="text-muted-foreground h-8"
             >
               <Icon name="plus" className="h-3.5 w-3.5 mr-1.5" />

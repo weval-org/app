@@ -190,6 +190,7 @@ export const PromptCard = React.memo(function PromptCard({ prompt, onUpdate, onR
             onUpdate={handleUpdateRequired}
             variant="should"
             isEditable={isEditable}
+            isAdvancedMode={isAdvancedMode}
             placeholder="Add a required criterion..."
         />
 
@@ -234,6 +235,7 @@ export const PromptCard = React.memo(function PromptCard({ prompt, onUpdate, onR
                                     onUpdate={(newPoints) => handleUpdateAlternativePath(index, newPoints)}
                                     variant="should"
                                     isEditable={isEditable}
+                                    isAdvancedMode={isAdvancedMode}
                                     placeholder="Add a criterion for this path..."
                                 />
                             </div>
@@ -462,6 +464,7 @@ export const PromptCard = React.memo(function PromptCard({ prompt, onUpdate, onR
                         onUpdate={setShouldNotField}
                         variant="should-not"
                         isEditable={isEditable}
+                        isAdvancedMode={isAdvancedMode}
                     />)}
                 </div>
             </div>

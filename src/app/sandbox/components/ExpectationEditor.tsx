@@ -15,6 +15,7 @@ import {
 import { useState } from 'react';
 import { useDebouncedCallback } from 'use-debounce';
 import Icon from '@/components/ui/icon';
+import { FunctionPointDisplay } from './FunctionPointDisplay';
 
 interface ExpectationEditorProps {
   expectation: PointDefinition;
@@ -22,6 +23,7 @@ interface ExpectationEditorProps {
   onRemove: () => void;
   variant: 'should' | 'should-not';
   isEditable: boolean;
+  isAdvancedMode?: boolean;
   placeholder?: string;
 }
 
@@ -29,10 +31,37 @@ const debouncedUpdate = (onUpdate: (updated: PointDefinition) => void, updated: 
   onUpdate(updated);
 };
 
-export function ExpectationEditor({ expectation, onUpdate, onRemove, variant, isEditable, placeholder }: ExpectationEditorProps) {
+// Helper to detect if point is function-based
+function isFunctionBasedPoint(point: any): boolean {
+  if (typeof point === 'string') return false;
+  if (!point || typeof point !== 'object') return false;
+
+  // Check for explicit fn field
+  if (point.fn) return true;
+
+  // Check for idiomatic $ functions
+  const keys = Object.keys(point);
+  return keys.some(key => key.startsWith('$') && key !== '$ref');
+}
+
+export function ExpectationEditor({ expectation, onUpdate, onRemove, variant, isEditable, isAdvancedMode, placeholder }: ExpectationEditorProps) {
   const [innerValue, setInnerValue] = useState(expectation);
   const debouncedOnUpdate = useDebouncedCallback(onUpdate, 300);
 
+  // Check if this is a function-based point
+  const isFunctionPoint = isFunctionBasedPoint(expectation);
+
+  // Only show function points when advanced mode is enabled
+  if (isFunctionPoint && isAdvancedMode) {
+    return <FunctionPointDisplay expectation={expectation} onRemove={onRemove} isEditable={isEditable} />;
+  }
+
+  // Hide function points when advanced mode is off
+  if (isFunctionPoint && !isAdvancedMode) {
+    return null;
+  }
+
+  // Regular text-based point
   const value = typeof expectation === 'object' && expectation !== null && 'text' in expectation ? expectation.text : '';
 
   const handleUpdate = (newValue: string) => {

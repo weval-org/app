@@ -38,6 +38,19 @@ interface FormPanelProps {
 
 const GUIDE_DISMISSED_KEY = 'sandbox_guide_dismissed';
 
+// Helper to detect if a point is function-based ($js, $call, etc.)
+function isFunctionBasedPoint(point: any): boolean {
+    if (typeof point === 'string') return false;
+    if (!point || typeof point !== 'object') return false;
+
+    // Check for explicit fn field
+    if (point.fn) return true;
+
+    // Check for idiomatic $ functions
+    const keys = Object.keys(point);
+    return keys.some(key => key.startsWith('$') && key !== '$ref'); // $ref is for reusable definitions, not a function
+}
+
 export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEditable, onShowTour }: FormPanelProps) {
     const [isAutoExtendModalOpen, setIsAutoExtendModalOpen] = useState(false);
     const [isExtending, setIsExtending] = useState(false);
@@ -60,8 +73,20 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
         );
         const hasToolUseFeatures = !!(parsedBlueprint as any).tools || !!(parsedBlueprint as any).toolUse;
 
+        // Check for function-based points ($js, $call, $factcheck, etc.)
+        const hasFunctionPoints = parsedBlueprint.prompts.some(p => {
+            const allPoints = [...(p.points || []), ...(p.should_not || [])];
+            return allPoints.some(point => {
+                if (Array.isArray(point)) {
+                    // Check nested points in alternative paths
+                    return point.some(innerPoint => isFunctionBasedPoint(innerPoint));
+                }
+                return isFunctionBasedPoint(point);
+            });
+        });
+
         // Only auto-enable on desktop if blueprint has advanced features
-        if (!isMobile && (hasGlobalAdvancedOptions || hasAlternativePaths || hasPromptLevelAdvancedFeatures || hasToolUseFeatures)) {
+        if (!isMobile && (hasGlobalAdvancedOptions || hasAlternativePaths || hasPromptLevelAdvancedFeatures || hasToolUseFeatures || hasFunctionPoints)) {
             setIsAdvancedMode(true);
         }
     }, [parsedBlueprint, isMobile]);
