@@ -1,0 +1,142 @@
+title: "Fact-Checking with Web-Enabled Evaluation"
+description: "Demonstrates using the fact-check endpoint to verify claims against online sources"
+author: "Weval Team"
+tags: ["demo", "fact-checking", "external-services", "web-enabled"]
+
+# Configure the fact-check service
+externalServices:
+  factchecker:
+    url: "${FACTCHECK_ENDPOINT_URL}"  # e.g., http://localhost:8888/.netlify/functions/factcheck
+    method: POST
+    timeout_ms: 65000  # Web searches can take time
+    max_retries: 1
+
+models:
+  - openai:gpt-4o-mini
+
+---
+# Example 1: Scientific claim verification
+- id: covid-vaccine-efficacy
+  prompt: |
+    What was the efficacy of the Pfizer-BioNTech COVID-19 vaccine
+    in the original clinical trials?
+  should:
+    # Basic content check
+    - $contains_any_of: ["95%", "efficacy", "clinical trial"]
+
+    # Fact-check the claim extracted from the response
+    - $call:
+        service: factchecker
+        claim: "{response}"
+        includeRaw: true
+
+---
+# Example 2: Historical fact checking
+- id: moon-landing-date
+  prompt: "When did the first moon landing occur and who were the astronauts?"
+  should:
+    - $contains: "1969"
+    - $contains: "Armstrong"
+
+    # Verify specific claim
+    - $call:
+        service: factchecker
+        claim: "Apollo 11 landed on the moon on July 20, 1969, with astronauts Neil Armstrong and Buzz Aldrin"
+
+---
+# Example 3: Statistical claim verification
+- id: global-population
+  prompt: "What is the current global population?"
+  should:
+    # Fact-check the response about population
+    - $call:
+        service: factchecker
+        claim: "The global population is {response}"
+        maxTokens: 1500
+
+---
+# Example 4: Technology claim verification
+- id: internet-invention
+  prompt: "Who invented the internet and when?"
+  should:
+    - $call:
+        service: factchecker
+        claim: "{response}"
+
+---
+# Example 5: Economic data verification
+- id: gdp-growth
+  prompt: "What was the US GDP growth rate in 2023?"
+  should:
+    - $word_count_between: [10, 100]
+
+    # Fact-check with high confidence requirement
+    - $call:
+        service: factchecker
+        claim: "According to official sources, {response}"
+
+---
+# Example 6: Multiple claims in one response
+- id: climate-facts
+  prompt: |
+    Provide three key facts about climate change:
+    1. Global temperature rise
+    2. Sea level changes
+    3. CO2 concentration levels
+  should:
+    # Check that response is structured
+    - $contains: "1."
+    - $contains: "2."
+    - $contains: "3."
+
+    # Fact-check the entire response
+    - $call:
+        service: factchecker
+        claim: "{response}"
+        maxTokens: 2500
+
+---
+# Example 7: Testing misinformation detection
+- id: detect-false-claim
+  prompt: "What is the chemical formula for water?"
+  should:
+    - $contains: "H2O"
+
+    # This should get a high score (true claim)
+    - $call:
+        service: factchecker
+        claim: "Water has the chemical formula H2O"
+
+---
+# Example 8: Controversial topic verification
+- id: medical-consensus
+  prompt: "What is the medical consensus on vaccine safety?"
+  should:
+    - $word_count_between: [50, 300]
+
+    # Fact-check for accuracy and source quality
+    - $call:
+        service: factchecker
+        claim: "{response}"
+
+---
+# Example 9: Recent events (time-sensitive)
+- id: current-event
+  prompt: "Who is the current Secretary-General of the United Nations?"
+  should:
+    # Fact-check should verify against current information
+    - $call:
+        service: factchecker
+        claim: "{response}"
+
+---
+# Example 10: Mathematical/scientific constant
+- id: speed-of-light
+  prompt: "What is the speed of light in a vacuum?"
+  should:
+    - $contains_any_of: ["299,792,458", "299792458", "3.00"]
+
+    # Verify the exact value
+    - $call:
+        service: factchecker
+        claim: "The speed of light in a vacuum is {response}"
