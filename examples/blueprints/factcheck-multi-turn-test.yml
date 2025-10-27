@@ -1,0 +1,67 @@
+# Test blueprint for multi-turn fact-checking
+# Tests that the factcheck endpoint properly handles conversation history
+# and only fact-checks AI-generated assistant responses
+
+title: "Fact-Check Multi-Turn Conversation Test"
+description: "Tests fact-checking with multi-turn conversations where some assistant messages are hardcoded and some are generated"
+
+models:
+  - openai:gpt-4o-mini
+
+---
+# Test 1: Simple multi-turn with one generated response
+- id: mountain-heights
+  description: "Tests fact-checking a single AI-generated response in a multi-turn conversation"
+  messages:
+    - user: "What is the tallest mountain in the world?"
+    - assistant: null  # This will be generated and fact-checked
+  should:
+    - $factcheck: "verify the mountain name and exact height in meters"
+
+---
+# Test 2: Multiple turns with hardcoded context
+- id: city-populations
+  description: "Tests that hardcoded assistant messages are not fact-checked, only generated ones"
+  messages:
+    - user: "Tell me about the largest cities in Africa."
+    - assistant: "I'll help you with that. Let me start with the basics."  # Hardcoded - should NOT be fact-checked
+    - user: "What are the top 3 by population?"
+    - assistant: null  # Generated - SHOULD be fact-checked
+  should:
+    - $factcheck: "focus on city names and population figures only"
+
+---
+# Test 3: Sequential multi-turn with multiple generated responses
+- id: planet-facts
+  description: "Tests fact-checking multiple AI-generated responses in sequence"
+  messages:
+    - user: "What is the largest planet in our solar system?"
+    - assistant: null  # First generated response
+    - user: "How many moons does it have?"
+    - assistant: null  # Second generated response
+  should:
+    - $factcheck: "verify planet facts and moon counts"
+
+---
+# Test 4: False claims in conversation
+- id: false-medical-claim
+  description: "Tests that factcheck correctly identifies false information in multi-turn"
+  messages:
+    - user: "Tell me about vitamin C"
+    - assistant: "Vitamin C is essential for health. Let me give you some details."
+    - user: "Can it cure the common cold?"
+    - assistant: null  # Should generate - likely to be nuanced or false
+  should:
+    - $factcheck: "focus on medical claims and scientific consensus"
+
+---
+# Test 5: Mixed true and false in same conversation
+- id: space-facts-mixed
+  description: "Tests fact-checking when conversation has mix of correct and incorrect info"
+  messages:
+    - user: "How far is the Moon from Earth?"
+    - assistant: null  # Should be factually correct
+    - user: "And how long does it take light to travel there?"
+    - assistant: null  # Should be factually correct
+  should:
+    - $factcheck: "verify distances and time calculations for accuracy"
