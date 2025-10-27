@@ -140,3 +140,32 @@ models:
     - $call:
         service: factchecker
         claim: "The speed of light in a vacuum is {response}"
+
+---
+# Example 11: Using $factcheck shortcut (RECOMMENDED)
+- id: city-populations
+  prompt: "What are the populations of Tokyo, Delhi, and Shanghai?"
+  should:
+    # The $factcheck shortcut automatically passes response as claim
+    - $factcheck: "focus on city names and population figures only"
+
+---
+# Example 12: $factcheck with conversation history
+- id: multi-turn-fact-check
+  messages:
+    - role: user
+      content: "What's the tallest mountain in the world?"
+    - role: assistant
+      content: "Mount Everest is the tallest mountain at 8,849 meters"
+    - role: user
+      content: "And what about the second tallest?"
+  should:
+    # Fact-check the final response in context
+    - $factcheck: "verify mountain names and exact heights in meters"
+
+---
+# Example 13: $factcheck for medical claims
+- id: medical-fact-check
+  prompt: "What is the recommended daily water intake for adults?"
+  should:
+    - $factcheck: "focus on numerical recommendations and health organizations"

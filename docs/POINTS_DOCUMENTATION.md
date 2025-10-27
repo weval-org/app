@@ -75,10 +75,14 @@ The `should` block accepts a list where each item can be in one of these formats
           response: "{response}"
           modelId: "{modelId}"
           promptId: "{promptId}"
+
+      # Fact-checking shortcut (requires FACTCHECK_ENDPOINT_URL env var)
+      - $factcheck: "focus on city names and dates only"  # Auto-passes response as claim
     ```
     *   **What it means**: "The response should pass a check against the built-in function (e.g., `contains`)."
     *   **Note**: For convenience, some function names are normalized. For example, the parser will treat `$contain` as `$contains`.
     *   **External Services (`$call`)**: The `$call` function enables integration with external HTTP services for custom validation logic (fact-checking, code execution, domain-specific evaluation). Services can be pre-configured in the blueprint's `externalServices` section or specified inline with a `url` parameter. Template substitution is supported for `{response}`, `{modelId}`, `{promptId}`, `{messages}`, and `{promptText}`. See [examples/blueprints/CALL_DEMO_README.md](../examples/blueprints/CALL_DEMO_README.md) for complete documentation.
+    *   **Fact-Checking Shortcut (`$factcheck`)**: The `$factcheck` function is a convenient wrapper for web-enabled fact-checking. It automatically passes the response as the claim and takes an instruction string to guide the fact-checker (e.g., "focus on dates and locations only"). Requires `FACTCHECK_ENDPOINT_URL` environment variable. See [examples/blueprints/FACTCHECK_README.md](../examples/blueprints/FACTCHECK_README.md) for details.
 
     **Negative Point-Functions (`$not_*`)**: For every major point-function, there is a corresponding negative variant prefixed with `$not_`. These functions invert the result of their positive counterparts, making it easy to check for the **absence** of patterns without using `should_not` blocks (which are deprecated due to their complexity and error-prone behavior).
 

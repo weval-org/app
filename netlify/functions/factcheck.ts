@@ -30,6 +30,7 @@ import { initSentry, captureError, flushSentry } from '../../src/utils/sentry';
 
 interface FactCheckRequest {
   claim: string;
+  instruction?: string;  // Optional: additional focus/guidance for the fact-checker
   modelId?: string;
   maxTokens?: number;
   includeRaw?: boolean;
@@ -85,6 +86,9 @@ const SYSTEM_PROMPT = `You are a rigorous fact-checker. Use the following heuris
 5. Note methodological limitations and sample sizes
 6. Distinguish between correlation and causation
 7. Be transparent about uncertainty and conflicting evidence
+
+**INPUT FORMAT:**
+You will receive a <CLAIM> to fact-check. Optionally, you may also receive an <INSTRUCTION> tag that provides additional focus or guidance on what aspects to prioritize in your analysis. Use this instruction to guide your research and analysis, but still maintain rigorous standards.
 
 **CRITICAL: Your output MUST use this exact XML structure:**
 
@@ -239,7 +243,15 @@ const handler: Handler = async (event: HandlerEvent): Promise<HandlerResponse> =
     }
 
     // Build user prompt
-    const userPrompt = `<CLAIM>\n${request.claim}\n</CLAIM>`;
+    let userPrompt = '';
+
+    // Add instruction if provided
+    if (request.instruction) {
+      userPrompt += `<INSTRUCTION>\n${request.instruction}\n</INSTRUCTION>\n\n`;
+      console.log('[Factcheck] Using instruction:', request.instruction);
+    }
+
+    userPrompt += `<CLAIM>\n${request.claim}\n</CLAIM>`;
 
     console.log('[Factcheck] Processing claim:', request.claim.substring(0, 100) + '...');
 

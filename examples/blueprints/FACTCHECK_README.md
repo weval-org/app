@@ -38,25 +38,42 @@ The fact-checker uses a hierarchical trust system:
 
 ## Using the Endpoint
 
-### Direct API Call
+### Method 1: $factcheck Shortcut (Recommended)
+
+The easiest way to use fact-checking in blueprints:
+
+```yaml
+- id: verify-populations
+  prompt: "What are the populations of Paris, London, and Berlin?"
+  should:
+    - $factcheck: "focus on city names and population figures only"
+```
+
+The `$factcheck` point function automatically:
+- Passes the model's response as the claim
+- Uses the instruction to guide the fact-checker
+- Requires only `FACTCHECK_ENDPOINT_URL` environment variable
+
+### Method 2: Direct API Call with Instruction
 
 ```bash
 curl -X POST http://localhost:8888/.netlify/functions/factcheck \
   -H "Content-Type: application/json" \
   -d '{
-    "claim": "The speed of light is 299,792,458 meters per second"
+    "claim": "Paris has a population of 2.1 million, London has 9 million, and Berlin has 3.7 million",
+    "instruction": "focus on city names and population figures only"
   }'
 ```
 
 Response:
 ```json
 {
-  "score": 0.98,
-  "explain": "## Truth Analysis\nThe claim is demonstrably true...\n\n## Sources Consulted\n- NIST (Very High Trust): Confirms exact value...\n\n**Confidence:** 95/100 | **Accuracy Score:** 98/100"
+  "score": 0.92,
+  "explain": "## Truth Analysis\nThe population figures are largely accurate...\n\n## Sources Consulted\n- Eurostat (Very High Trust): Confirms population data...\n\n**Confidence:** 90/100 | **Accuracy Score:** 92/100"
 }
 ```
 
-### In Blueprints with $call
+### Method 3: Using $call with Full Control
 
 ```yaml
 externalServices:
@@ -73,6 +90,7 @@ externalServices:
     - $call:
         service: factchecker
         claim: "{response}"
+        instruction: "verify the capital city name only"
 ```
 
 ## Request Format
@@ -80,10 +98,26 @@ externalServices:
 ```typescript
 {
   claim: string;           // Required: The claim to fact-check
+  instruction?: string;    // Optional: Additional focus/guidance (e.g., "focus on dates only")
   modelId?: string;        // Optional: Override default model
   maxTokens?: number;      // Optional: Max response tokens (default: 2000)
   includeRaw?: boolean;    // Optional: Include raw parsed XML in response
 }
+```
+
+### Using Instructions
+
+The `instruction` parameter helps guide the fact-checker's focus:
+
+```yaml
+# Without instruction - checks everything
+- $factcheck: ""
+
+# With instruction - focuses analysis
+- $factcheck: "focus on numerical claims and statistics only"
+- $factcheck: "verify dates and historical events"
+- $factcheck: "check scientific terminology and chemical formulas"
+- $factcheck: "concentrate on geographic facts and locations"
 ```
 
 ## Response Format

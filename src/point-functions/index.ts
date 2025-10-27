@@ -21,6 +21,7 @@ import { istarts_with } from './istarts_with';
 import { iends_with } from './iends_with';
 import { js } from './js';
 import { call } from './call';
+import { factcheck } from './factcheck';
 import { tool_called } from './tool_called';
 import { tool_args_match } from './tool_args_match';
 import { tool_call_count_between } from './tool_call_count_between';
@@ -84,6 +85,7 @@ export const pointFunctions: Record<string, PointFunction> = {
     expr: js,
     call,
     external: call,
+    factcheck,
     tool_called,
     tool_args_match,
     tool_call_count_between,
