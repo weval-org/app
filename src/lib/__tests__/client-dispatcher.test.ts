@@ -62,8 +62,10 @@ describe('LLM Client Dispatcher', () => {
 
         it('should throw an error for an invalid modelId format (multiple colons)', async () => {
             const options = { modelId: 'provider:model:extra', messages: [{role: 'user', content: 'test'}] };
+            // Note: Multiple colons are now allowed (for OpenRouter models like "google/gemini-2.0-flash-exp:free")
+            // So this will parse successfully but fail because "provider" is not a supported provider
             await expect(dispatchMakeApiCall(options)).rejects.toThrow(
-                'Invalid modelId format: "provider:model:extra". Expected "<provider>:<model-name>" for standard models, or a registered custom model ID.'
+                'Unsupported LLM provider: "provider" from model ID "provider:model:extra"'
             );
         });
 

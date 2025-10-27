@@ -13,8 +13,9 @@ export const handler: BackgroundHandler = async (event, context) => {
   // Check authentication
   const authError = checkBackgroundFunctionAuth(event);
   if (authError) {
+    console.error('[generate-pairs-background] Authentication failed:', authError);
     await flushSentry();
-    return authError;
+    return; // Background handlers return void, not responses
   }
 
   const body = event.body ? JSON.parse(event.body) : {};
