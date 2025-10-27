@@ -1,6 +1,8 @@
 import { Handler, HandlerEvent, HandlerResponse } from '@netlify/functions';
 import { getModelResponse } from '../../src/cli/services/llm-service';
 import { initSentry, captureError, flushSentry } from '../../src/utils/sentry';
+import { configure } from '../../src/cli/config';
+import { checkBackgroundFunctionAuth } from '../../src/lib/background-function-auth';
 
 /**
  * Fact-Checking API Endpoint
@@ -192,6 +194,26 @@ function formatExplanation(parsed: {
 const handler: Handler = async (event: HandlerEvent): Promise<HandlerResponse> => {
   // Initialize Sentry
   initSentry('factcheck');
+
+  // Configure CLI (required for llm-service)
+  configure({
+    errorHandler: (error: Error) => {
+      console.error('[Factcheck] Error:', error.message);
+    },
+    logger: {
+      info: (msg: string) => console.log('[Factcheck]', msg),
+      warn: (msg: string) => console.warn('[Factcheck]', msg),
+      error: (msg: string) => console.error('[Factcheck]', msg),
+      success: (msg: string) => console.log('[Factcheck]', msg)
+    }
+  });
+
+  // Check authentication
+  const authError = checkBackgroundFunctionAuth(event);
+  if (authError) {
+    await flushSentry();
+    return authError;
+  }
 
   // Only accept POST requests
   if (event.httpMethod !== 'POST') {

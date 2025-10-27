@@ -8,6 +8,7 @@ import { ComparisonConfig, EvaluationMethod, FinalComparisonOutputV2 } from '@/c
 import { toSafeTimestamp } from '@/lib/timestampUtils';
 import { cleanupTmpCache } from '@/lib/cache-service';
 import { initSentry, captureError, setContext, flushSentry } from '@/utils/sentry';
+import { checkBackgroundFunctionAuth } from '@/lib/background-function-auth';
 
 const s3Client = new S3Client({
   region: process.env.APP_S3_REGION!,
@@ -86,6 +87,13 @@ function compactify(run: FinalComparisonOutputV2) {
 export const handler: BackgroundHandler = async (event) => {
   // Initialize Sentry for this function
   initSentry('execute-story-quick-run-background');
+
+  // Check authentication
+  const authError = checkBackgroundFunctionAuth(event);
+  if (authError) {
+    await flushSentry();
+    return authError;
+  }
 
   const body = event.body ? JSON.parse(event.body) : {};
   const { runId, blueprintKey } = body;

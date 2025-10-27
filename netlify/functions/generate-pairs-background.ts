@@ -4,10 +4,18 @@ import { listRunsForConfig, getResultByFileName } from '@/lib/storageService';
 import { populatePairwiseQueue, updateGenerationStatus, GenerationStatus } from '@/cli/services/pairwise-task-queue-service';
 import { ComparisonDataV2 as FetchedComparisonData } from '@/app/utils/types';
 import { initSentry, captureError, setContext, flushSentry } from '@/utils/sentry';
+import { checkBackgroundFunctionAuth } from '@/lib/background-function-auth';
 
 export const handler: BackgroundHandler = async (event, context) => {
   // Initialize Sentry for this function
   initSentry('generate-pairs-background');
+
+  // Check authentication
+  const authError = checkBackgroundFunctionAuth(event);
+  if (authError) {
+    await flushSentry();
+    return authError;
+  }
 
   const body = event.body ? JSON.parse(event.body) : {};
   const { configId } = body;

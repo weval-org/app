@@ -10,12 +10,20 @@ import { ComparisonConfig, EvaluationMethod } from '../../src/cli/types/cli_type
 import { cleanupTmpCache } from '../../src/lib/cache-service';
 import { getLogger } from "../../src/utils/logger";
 import { initSentry, captureError, setContext, flushSentry } from "../../src/utils/sentry";
+import { checkBackgroundFunctionAuth } from "../../src/lib/background-function-auth";
 
 const STORAGE_PREFIX = 'api-runs';
 
 export const handler: Handler = async (event: HandlerEvent, context: HandlerContext) => {
   // Initialize Sentry for this function
   initSentry('execute-api-evaluation-background');
+
+  // Check authentication
+  const authError = checkBackgroundFunctionAuth(event);
+  if (authError) {
+    await flushSentry();
+    return authError;
+  }
 
   // Clean up /tmp cache at start to prevent disk space issues
   cleanupTmpCache(100); // Keep cache under 100MB

@@ -17,6 +17,7 @@ import { registerCustomModels } from '@/lib/llm-clients/client-dispatcher';
 import { cleanupTmpCache } from '@/lib/cache-service';
 import { getLogger, Logger } from '@/utils/logger';
 import { initSentry, captureError, setContext, flushSentry } from '@/utils/sentry';
+import { checkBackgroundFunctionAuth } from '@/lib/background-function-auth';
 
 const s3Client = new S3Client({
   region: process.env.APP_S3_REGION!,
@@ -57,6 +58,13 @@ const getStatusUpdater = (blueprintKey: string, runId: string, logger: Logger) =
 export const handler: BackgroundHandler = async (event) => {
   // Initialize Sentry for this function
   initSentry('execute-sandbox-pipeline-background');
+
+  // Check authentication
+  const authError = checkBackgroundFunctionAuth(event);
+  if (authError) {
+    await flushSentry();
+    return authError;
+  }
 
   const body = event.body ? JSON.parse(event.body) : {};
   const { runId, blueprintKey, sandboxVersion } = body;

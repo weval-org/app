@@ -136,8 +136,8 @@ cli.addCommand(backfillGranularResponsesCommand);
 cli.addCommand(authorDistanceCommand);
 
 cli.parseAsync(process.argv).catch(err => {
-  console.error('CLI Error:', err); 
-  process.exit(1); 
+  console.error('CLI Error:', err);
+  process.exit(1);
 });
 
 export default cli; 

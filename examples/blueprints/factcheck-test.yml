@@ -1,0 +1,124 @@
+title: "Fact-Check Test - Both Methods"
+description: "Test blueprint comparing $call and $factcheck shortcut side-by-side"
+author: "Weval Team"
+tags: ["test", "fact-checking"]
+
+# Method 1: Define external service for $call usage
+externalServices:
+  factchecker:
+    url: "${FACTCHECK_ENDPOINT_URL}"
+    method: POST
+    timeout_ms: 65000
+    max_retries: 1
+
+models:
+  - openai:gpt-4o-mini
+
+---
+# Test 1: Simple factual claim - using $call with named service
+- id: water-freezing-call
+  prompt: "At what temperature does water freeze?"
+  should:
+    # Using $call with named service (verbose method)
+    - $call:
+        service: factchecker
+        claim: "{response}"
+        instruction: "verify the temperature value in Celsius"
+
+---
+# Test 2: Same claim - using $factcheck shortcut
+- id: water-freezing-shortcut
+  prompt: "At what temperature does water freeze?"
+  should:
+    # Using $factcheck shortcut (recommended method)
+    - $factcheck: "verify the temperature value in Celsius"
+
+---
+# Test 3: Complex claim with populations - using $call
+- id: city-populations-call
+  prompt: "What are the populations of Paris, London, and Berlin?"
+  should:
+    - $contains: "Paris"
+
+    # Using $call with full config
+    - $call:
+        service: factchecker
+        claim: "{response}"
+        instruction: "focus on city names and population figures only"
+
+---
+# Test 4: Same complex claim - using $factcheck
+- id: city-populations-shortcut
+  prompt: "What are the populations of Paris, London, and Berlin?"
+  should:
+    - $contains: "Paris"
+
+    # Using $factcheck shortcut - much cleaner!
+    - $factcheck: "focus on city names and population figures only"
+
+---
+# Test 5: Scientific constant - using inline $call (no named service)
+- id: speed-of-light-inline
+  prompt: "What is the speed of light in a vacuum?"
+  should:
+    # Using inline $call (no pre-configured service)
+    - $call:
+        url: "${FACTCHECK_ENDPOINT_URL}"
+        method: POST
+        claim: "{response}"
+        instruction: "verify the exact numerical value"
+
+---
+# Test 6: Same constant - using $factcheck
+- id: speed-of-light-shortcut
+  prompt: "What is the speed of light in a vacuum?"
+  should:
+    # $factcheck is clearest for this simple case
+    - $factcheck: "verify the exact numerical value"
+
+---
+# Test 7: No instruction - using $call
+- id: general-check-call
+  prompt: "Who was the first person to walk on the moon?"
+  should:
+    - $call:
+        service: factchecker
+        claim: "{response}"
+        # No instruction - checks everything
+
+---
+# Test 8: No instruction - using $factcheck
+- id: general-check-shortcut
+  prompt: "Who was the first person to walk on the moon?"
+  should:
+    # Empty string instruction = check everything
+    - $factcheck: ""
+
+---
+# Test 9: Multi-turn conversation - using $call
+- id: multi-turn-call
+  messages:
+    - role: user
+      content: "What's the tallest mountain?"
+    - role: assistant
+      content: "Mount Everest at 8,849 meters"
+    - role: user
+      content: "And the second tallest?"
+  should:
+    - $call:
+        service: factchecker
+        claim: "{response}"
+        instruction: "verify mountain names and heights"
+
+---
+# Test 10: Multi-turn conversation - using $factcheck
+- id: multi-turn-shortcut
+  messages:
+    - role: user
+      content: "What's the tallest mountain?"
+    - role: assistant
+      content: "Mount Everest at 8,849 meters"
+    - role: user
+      content: "And the second tallest?"
+  should:
+    - $factcheck: "verify mountain names and heights"

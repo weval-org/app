@@ -39,15 +39,18 @@ export function registerCustomModels(customModels: CustomModelDefinition[]) {
 
 /**
  * Parses the model ID to extract the provider and the actual model name.
- * @param modelId - The full model identifier (e.g., "openrouter:google/gemini-pro").
+ * @param modelId - The full model identifier (e.g., "openrouter:google/gemini-pro" or "openrouter:google/gemini-2.0-flash-exp:free").
  * @returns An object containing the provider and the model name, or null if invalid.
  */
 function parseModelId(modelId: string): { provider: string; modelName: string } | null {
     const parts = modelId.split(':');
-    if (parts.length !== 2) {
+    if (parts.length < 2) {
         return null;
     }
-    const [provider, modelName] = parts;
+    // For OpenRouter and similar providers, the model name can contain colons (e.g., "google/gemini-2.0-flash-exp:free")
+    // So we take the first part as provider and join the rest as modelName
+    const provider = parts[0];
+    const modelName = parts.slice(1).join(':');
     return { provider: provider.toLowerCase(), modelName };
 }
 

@@ -1,5 +1,5 @@
 import { PointFunction, PointFunctionContext } from './types';
-import { makeHttpRequest, substituteEnvVars } from '../lib/external-service-utils';
+import { callBackgroundFunction } from '../lib/background-function-client';
 import { getCache, generateCacheKey } from '../lib/cache-service';
 import { getConfig } from '@/cli/config';
 
@@ -39,27 +39,8 @@ export const factcheck: PointFunction = async (
 
     const instruction = args;
 
-    // Get factcheck endpoint URL from environment
-    const factcheckUrl = process.env.FACTCHECK_ENDPOINT_URL;
-    if (!factcheckUrl) {
-        return {
-            error: 'FACTCHECK_ENDPOINT_URL environment variable is not set. Please configure the factcheck endpoint URL.'
-        };
-    }
-
-    // Substitute environment variables in URL if needed
-    let resolvedUrl: string;
-    try {
-        resolvedUrl = substituteEnvVars(factcheckUrl);
-    } catch (error: any) {
-        return {
-            error: `Failed to resolve factcheck URL: ${error.message}`
-        };
-    }
-
     // Build request body for factcheck endpoint
-    // Note: factcheck endpoint expects {claim, instruction}, not the standard ExternalServiceRequest format
-    const requestBody: any = {
+    const requestBody = {
         claim: response,
         instruction: instruction,
         includeRaw: false  // We don't need the raw parse in normal usage
@@ -70,8 +51,7 @@ export const factcheck: PointFunction = async (
     const cacheKey = generateCacheKey({
         type: 'factcheck',
         claim: response,
-        instruction,
-        url: resolvedUrl
+        instruction
     });
 
     try {
@@ -89,49 +69,48 @@ export const factcheck: PointFunction = async (
         logger.warn(`[factcheck] Cache check failed: ${error.message}`);
     }
 
-    // Make HTTP request to factcheck service
-    const serviceConfig = {
-        url: resolvedUrl,
-        method: 'POST' as const,
-        timeout_ms: 65000,  // Web searches take time
-        max_retries: 1
-    };
-
+    // Call factcheck background function
     try {
         logger.info('[factcheck] Calling factcheck service');
 
-        const result = await makeHttpRequest(serviceConfig, requestBody);
+        const result = await callBackgroundFunction({
+            functionName: 'factcheck',
+            body: requestBody,
+            timeout: 65000  // Web searches take time
+        });
 
-        // Validate response format
-        if (typeof result !== 'object' || result === null) {
-            return { error: 'Invalid response from factcheck service: not an object' };
+        // Check if the call failed
+        if (!result.ok) {
+            return { error: result.error || `Factcheck service returned HTTP ${result.status}` };
         }
 
-        if ('error' in result && typeof result.error === 'string') {
-            return { error: `Factcheck service error: ${result.error}` };
+        // Validate response data format
+        const data = result.data;
+        if (!data || typeof data !== 'object') {
+            return { error: 'Invalid response from factcheck service: no data' };
         }
 
-        if (!('score' in result) || typeof result.score !== 'number') {
+        if (typeof data.score !== 'number') {
             return { error: 'Invalid response from factcheck service: missing or invalid score' };
         }
 
-        if (result.score < 0 || result.score > 1) {
-            return { error: `Invalid score from factcheck service: ${result.score} (must be 0-1)` };
+        if (data.score < 0 || data.score > 1) {
+            return { error: `Invalid score from factcheck service: ${data.score} (must be 0-1)` };
         }
 
-        const response: { score: number; explain: string } = {
-            score: result.score,
-            explain: result.explain || 'No explanation provided'
+        const factcheckResponse: { score: number; explain: string } = {
+            score: data.score,
+            explain: data.explain || 'No explanation provided'
         };
 
         // Cache successful result (24 hours)
         try {
-            await cache.set(cacheKey, response, 60 * 60 * 24 * 1000);
+            await cache.set(cacheKey, factcheckResponse, 60 * 60 * 24 * 1000);
         } catch (error: any) {
             logger.warn(`[factcheck] Failed to cache result: ${error.message}`);
         }
 
-        return response;
+        return factcheckResponse;
 
     } catch (error: any) {
         logger.error(`[factcheck] Factcheck service call failed: ${error.message}`);

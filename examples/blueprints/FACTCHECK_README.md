@@ -59,6 +59,7 @@ The `$factcheck` point function automatically:
 ```bash
 curl -X POST http://localhost:8888/.netlify/functions/factcheck \
   -H "Content-Type: application/json" \
+  -H "X-Background-Function-Auth-Token: $BACKGROUND_FUNCTION_AUTH_TOKEN" \
   -d '{
     "claim": "Paris has a population of 2.1 million, London has 9 million, and Berlin has 3.7 million",
     "instruction": "focus on city names and population figures only"
@@ -167,9 +168,18 @@ The endpoint uses `openrouter:google/gemini-2.0-flash-exp:free` by default, whic
 
 ## Environment Variables
 
-- `FACTCHECK_ENDPOINT_URL` - URL of the fact-check endpoint
+**Required:**
+
+- `FACTCHECK_ENDPOINT_URL` - URL of the fact-check endpoint (only needed if calling directly, not needed when using `$factcheck`)
   - Local: `http://localhost:8888/.netlify/functions/factcheck`
   - Deployed: `https://your-domain.netlify.app/.netlify/functions/factcheck`
+
+- `BACKGROUND_FUNCTION_AUTH_TOKEN` - Shared secret for authenticating all background function calls
+  - Generate a random secret: `openssl rand -hex 32`
+  - Must be set in both:
+    - **Caller environment** (CLI, local .env file)
+    - **Netlify function environment** (Netlify dashboard or local .env)
+  - This token is used for all background functions, not just factcheck
 
 ## Example Blueprint
 
@@ -188,14 +198,18 @@ See `examples/blueprints/factcheck-demo.yml` for 10 comprehensive examples inclu
 
 ## Running the Demo
 
-1. **Start Netlify Dev:**
+1. **Set up environment variables** (add to your `.env` file):
    ```bash
-   netlify dev
+   # Generate a secure token
+   openssl rand -hex 32
+
+   # Add to .env file
+   BACKGROUND_FUNCTION_AUTH_TOKEN="your-generated-token-here"
    ```
 
-2. **Set environment variable:**
+2. **Start Netlify Dev:**
    ```bash
-   export FACTCHECK_ENDPOINT_URL="http://localhost:8888/.netlify/functions/factcheck"
+   netlify dev
    ```
 
 3. **Run the blueprint:**
@@ -209,6 +223,7 @@ See `examples/blueprints/factcheck-demo.yml` for 10 comprehensive examples inclu
 # True claim - should score high
 curl -X POST http://localhost:8888/.netlify/functions/factcheck \
   -H "Content-Type: application/json" \
+  -H "X-Background-Function-Auth-Token: $BACKGROUND_FUNCTION_AUTH_TOKEN" \
   -d '{
     "claim": "Water freezes at 0°C at standard atmospheric pressure",
     "includeRaw": true
@@ -217,6 +232,7 @@ curl -X POST http://localhost:8888/.netlify/functions/factcheck \
 # False claim - should score low
 curl -X POST http://localhost:8888/.netlify/functions/factcheck \
   -H "Content-Type: application/json" \
+  -H "X-Background-Function-Auth-Token: $BACKGROUND_FUNCTION_AUTH_TOKEN" \
   -d '{
     "claim": "The Earth is flat"
   }' | jq .
@@ -224,6 +240,7 @@ curl -X POST http://localhost:8888/.netlify/functions/factcheck \
 # Partially true claim - should score medium
 curl -X POST http://localhost:8888/.netlify/functions/factcheck \
   -H "Content-Type: application/json" \
+  -H "X-Background-Function-Auth-Token: $BACKGROUND_FUNCTION_AUTH_TOKEN" \
   -d '{
     "claim": "All programming languages are interpreted"
   }' | jq .

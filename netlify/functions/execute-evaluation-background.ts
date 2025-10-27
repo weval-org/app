@@ -23,10 +23,18 @@ import { registerCustomModels } from "../../src/lib/llm-clients/client-dispatche
 import { cleanupTmpCache } from "../../src/lib/cache-service";
 import { getLogger } from "../../src/utils/logger";
 import { initSentry, captureError, setContext, flushSentry } from "../../src/utils/sentry";
+import { checkBackgroundFunctionAuth } from "../../src/lib/background-function-auth";
 
 export const handler: Handler = async (event: HandlerEvent, context: HandlerContext) => {
   // Initialize Sentry for this function
   initSentry('execute-evaluation-background');
+
+  // Check authentication
+  const authError = checkBackgroundFunctionAuth(event);
+  if (authError) {
+    await flushSentry();
+    return authError;
+  }
 
   const logger = await getLogger(`eval:bg:${context.awsRequestId}`);
   logger.info("Function invoked.");
