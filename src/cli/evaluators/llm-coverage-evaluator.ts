@@ -999,7 +999,13 @@ Output: <reflection>The text mentions empathy, which means the criterion is MET 
                             messages: responseData.fullConversationHistory || promptConfig.messages
                         };
 
-                        const context: PointFunctionContext = { config, prompt: promptConfigWithHistory, modelId, logger: this.logger };
+                        const context: PointFunctionContext = {
+                            config,
+                            prompt: promptConfigWithHistory,
+                            modelId,
+                            logger: this.logger,
+                            generatedAssistantIndices: (responseData as any).generatedAssistantIndices
+                        };
 
                         // Build aggregated subject text: concat all generated assistant turns; fallback to final-only
                         let subjectText = responseData.finalAssistantResponseText;
