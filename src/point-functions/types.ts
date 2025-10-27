@@ -8,6 +8,7 @@ export interface PointFunctionContext {
     prompt: PromptConfig;
     modelId: string;
     logger?: Logger;
+    generatedAssistantIndices?: number[];  // Indices of assistant messages that were AI-generated (from assistant: null)
 }
 
 import type { SinglePointDefinition } from '@/types/shared';

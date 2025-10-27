@@ -33,6 +33,7 @@ import { checkBackgroundFunctionAuth } from '../../src/lib/background-function-a
 interface FactCheckRequest {
   claim: string;
   instruction?: string;  // Optional: additional focus/guidance for the fact-checker
+  messages?: Array<{role: string; content: string; generated?: boolean}>;  // Optional: full conversation context
   modelId?: string;
   maxTokens?: number;
   includeRaw?: boolean;
@@ -50,7 +51,7 @@ interface FactCheckResponse {
 }
 
 // System prompt with trust tiers and structured output format
-const SYSTEM_PROMPT = `You are a rigorous fact-checker. Use the following heuristics to judge trustworthy online material:
+const SYSTEM_PROMPT = `You are a rigorous fact-checker analyzing AI-generated responses. Use the following heuristics to judge trustworthy online material:
 
 **VERY HIGH TRUST:**
 - Peer-reviewed academic journals (Nature, Science, Cell, PNAS, etc.)
@@ -90,7 +91,19 @@ const SYSTEM_PROMPT = `You are a rigorous fact-checker. Use the following heuris
 7. Be transparent about uncertainty and conflicting evidence
 
 **INPUT FORMAT:**
-You will receive a <CLAIM> to fact-check. Optionally, you may also receive an <INSTRUCTION> tag that provides additional focus or guidance on what aspects to prioritize in your analysis. Use this instruction to guide your research and analysis, but still maintain rigorous standards.
+You will receive a <CLAIM> to fact-check. The claim may be presented in one of two formats:
+
+1. **Simple Claim:** Just the text to fact-check.
+2. **Conversation Format:** A full conversation transcript with <CONVERSATION> structure containing <USER> and <ASSISTANT> messages.
+
+When you receive a conversation:
+- **<USER> messages:** Context only. DO NOT fact-check user prompts.
+- **<ASSISTANT> messages with "HARD-CODED, DO NOT FACTCHECK":** Pre-supplied example responses for context. DO NOT fact-check these.
+- **<ASSISTANT> messages with "PLEASE FACT-CHECK THIS":** AI-generated responses. FACT-CHECK THESE THOROUGHLY.
+
+Focus your fact-checking ONLY on the AI-generated assistant responses (marked "PLEASE FACT-CHECK THIS"). Use the user messages and hardcoded assistant messages purely as context to understand what the AI was responding to.
+
+Optionally, you may also receive an <INSTRUCTION> tag that provides additional focus or guidance on what aspects to prioritize in your analysis. Use this instruction to guide your research and analysis, but still maintain rigorous standards.
 
 **CRITICAL: Your output MUST use this exact XML structure:**
 
@@ -136,7 +149,7 @@ This score should integrate both accuracy AND confidence. A highly accurate clai
 **IMPORTANT:** Do NOT fabricate sources. If you cannot find relevant information, state this clearly and assign low confidence. It is better to say "insufficient evidence" than to speculate.`;
 
 // Default to web-enabled Gemini Flash via OpenRouter
-const DEFAULT_MODEL = 'openrouter:google/gemini-2.0-flash-exp:free';
+const DEFAULT_MODEL = 'openrouter:google/gemini-2.5-flash:online';
 
 /**
  * Parse XML-structured response from LLM
@@ -273,7 +286,33 @@ const handler: Handler = async (event: HandlerEvent): Promise<HandlerResponse> =
       console.log('[Factcheck] Using instruction:', request.instruction);
     }
 
-    userPrompt += `<CLAIM>\n${request.claim}\n</CLAIM>`;
+    // Build the claim - either simple text or conversation format
+    if (request.messages && request.messages.length > 0) {
+      // Multi-turn conversation format
+      userPrompt += `<CLAIM>\n  <CONVERSATION>\n`;
+
+      for (const msg of request.messages) {
+        const role = msg.role.toUpperCase();
+
+        if (msg.role === 'user') {
+          userPrompt += `    <USER><!-- DO NOT FACTCHECK -->\n${msg.content}\n    </USER>\n`;
+        } else if (msg.role === 'assistant') {
+          if (msg.generated) {
+            userPrompt += `    <ASSISTANT><!-- PLEASE FACT-CHECK THIS -->\n${msg.content}\n    </ASSISTANT>\n`;
+          } else {
+            userPrompt += `    <ASSISTANT><!-- HARD-CODED, DO NOT FACTCHECK -->\n${msg.content}\n    </ASSISTANT>\n`;
+          }
+        } else if (msg.role === 'system') {
+          // Include system messages for context but don't fact-check
+          userPrompt += `    <SYSTEM><!-- DO NOT FACTCHECK -->\n${msg.content}\n    </SYSTEM>\n`;
+        }
+      }
+
+      userPrompt += `  </CONVERSATION>\n</CLAIM>`;
+    } else {
+      // Simple claim format
+      userPrompt += `<CLAIM>\n${request.claim}\n</CLAIM>`;
+    }
 
     console.log('[Factcheck] Processing claim:', request.claim.substring(0, 100) + '...');
 

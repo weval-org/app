@@ -40,18 +40,38 @@ export const factcheck: PointFunction = async (
     const instruction = args;
 
     // Build request body for factcheck endpoint
-    const requestBody = {
+    const requestBody: any = {
         claim: response,
         instruction: instruction,
         includeRaw: false  // We don't need the raw parse in normal usage
     };
+
+    // If we have a multi-turn conversation, pass the full context
+    if (context.prompt.messages && context.prompt.messages.length > 0) {
+        const generatedIndices = new Set(context.generatedAssistantIndices || []);
+
+        // Build messages array with marking which assistant messages were generated
+        let assistantIndex = 0;
+        requestBody.messages = context.prompt.messages.map((msg) => {
+            const isGenerated = msg.role === 'assistant' && generatedIndices.has(assistantIndex);
+            if (msg.role === 'assistant') {
+                assistantIndex++;
+            }
+            return {
+                role: msg.role,
+                content: msg.content || '',
+                generated: isGenerated
+            };
+        });
+    }
 
     // Check cache (24 hour TTL)
     const cache = getCache('llm-responses');
     const cacheKey = generateCacheKey({
         type: 'factcheck',
         claim: response,
-        instruction
+        instruction,
+        messages: requestBody.messages  // Include messages in cache key for multi-turn
     });
 
     try {
