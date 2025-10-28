@@ -100,7 +100,7 @@ export default async function HomePage() {
   
   // Featured config IDs for the top 3 showcase
   const FEATURED_CONFIG_IDS: string[] = [
-    'homework-int-help-heuristics',
+    'evidence-based-ai-tutoring',
     'sri-lanka-citizen-compendium-factum',
     'sycophancy-probe'
   ];

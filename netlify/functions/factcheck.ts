@@ -50,6 +50,49 @@ interface FactCheckResponse {
   };
 }
 
+interface FactCheckAttempt {
+  attemptNumber: number;
+  modelId: string;
+  timestamp: string;
+  userPrompt: string;
+  systemPrompt: string;
+  llmResponse?: string;
+  error?: string;
+  parseSuccess?: boolean;
+  parsedData?: any;
+}
+
+interface ModelConfig {
+  modelId: string;
+  maxTokens: number;
+  timeout: number;
+}
+
+// Configuration for resilient fact-checking
+const FACTCHECK_CONFIG = {
+  models: [
+    {
+      modelId: 'openrouter:google/gemini-2.5-flash:online',
+      maxTokens: 2000,
+      timeout: 60000
+    },
+    {
+      modelId: 'openrouter:qwen/qwen3-vl-30b-a3b-instruct:online',
+      maxTokens: 2000,
+      timeout: 60000
+    }
+  ],
+  retries: {
+    perModel: 2,           // Parse/format failures per model
+    network: 1,            // Network/API failures (in getModelResponse)
+    backoffMs: 1000       // Initial backoff, doubles each retry
+  },
+  logging: {
+    maxPromptLogLength: 500,
+    maxResponseLogLength: 1000
+  }
+};
+
 // System prompt with trust tiers and structured output format
 const SYSTEM_PROMPT = `You are a rigorous fact-checker analyzing AI-generated responses. Use the following heuristics to judge trustworthy online material:
 
@@ -105,7 +148,9 @@ Focus your fact-checking ONLY on the AI-generated assistant responses (marked "P
 
 Optionally, you may also receive an <INSTRUCTION> tag that provides additional focus or guidance on what aspects to prioritize in your analysis. Use this instruction to guide your research and analysis, but still maintain rigorous standards.
 
-**CRITICAL: Your output MUST use this exact XML structure:**
+**CRITICAL OUTPUT FORMAT REQUIREMENTS:**
+
+You MUST respond with EXACTLY this XML structure. Do NOT include any text before or after these tags. Do NOT use markdown. Do NOT provide conversational responses. ONLY output the XML below:
 
 <RESOURCE_ANALYSIS>
 List the key sources you found and consulted. For each source:
@@ -146,15 +191,53 @@ Analyze the claim's accuracy:
 This score should integrate both accuracy AND confidence. A highly accurate claim with low confidence due to limited sources might score 60-70 rather than 90-100.
 </SCORE>
 
-**IMPORTANT:** Do NOT fabricate sources. If you cannot find relevant information, state this clearly and assign low confidence. It is better to say "insufficient evidence" than to speculate.`;
+**EXAMPLE OUTPUT:**
+<RESOURCE_ANALYSIS>
+1. "Climate Change 2021" (IPCC, ipcc.ch) - VERY HIGH TRUST
+   - Comprehensive assessment of global warming
+   - Key finding: 1.1°C warming since pre-industrial
+   - Limitation: Data up to 2020
+</RESOURCE_ANALYSIS>
 
-// Default to web-enabled Gemini Flash via OpenRouter
-const DEFAULT_MODEL = 'openrouter:google/gemini-2.5-flash:online';
+<TRUTH_ANALYSIS>
+The claim that global temperatures have risen 1.1°C is strongly supported by IPCC data...
+</TRUTH_ANALYSIS>
+
+<CONFIDENCE>
+95
+</CONFIDENCE>
+
+<SCORE>
+92
+</SCORE>
+
+**REMEMBER:**
+- ALL four XML tags (RESOURCE_ANALYSIS, TRUTH_ANALYSIS, CONFIDENCE, SCORE) are REQUIRED
+- CONFIDENCE and SCORE must be integers between 0-100
+- Do NOT fabricate sources. If you cannot find relevant information, state this clearly and assign low confidence. It is better to say "insufficient evidence" than to speculate.
+- Your entire response should be valid XML with these four tags`;
+
+/**
+ * Sanitize user input for XML embedding
+ * Wraps content in CDATA to prevent XML parsing issues with special characters
+ */
+function sanitizeForXML(text: string): string {
+  // Escape any existing "]]>" sequences that would break CDATA
+  const escaped = text.replace(/]]>/g, ']]]]><![CDATA[>');
+  return `<![CDATA[${escaped}]]>`;
+}
+
+/**
+ * Sleep utility for retry backoff
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 /**
  * Parse XML-structured response from LLM
  */
-function parseFactCheckResponse(llmResponse: string): {
+function parseFactCheckResponse(llmResponse: string, modelId: string): {
   resourceAnalysis: string;
   truthAnalysis: string;
   confidence: number;
@@ -166,22 +249,33 @@ function parseFactCheckResponse(llmResponse: string): {
   const confidenceMatch = llmResponse.match(/<CONFIDENCE>\s*(\d+)\s*<\/CONFIDENCE>/i);
   const scoreMatch = llmResponse.match(/<SCORE>\s*(\d+)\s*<\/SCORE>/i);
 
-  if (!resourceMatch || !truthMatch || !confidenceMatch || !scoreMatch) {
-    throw new Error('Invalid response format: Missing required XML tags');
+  // Check which tags are missing for better error messages
+  const missing: string[] = [];
+  if (!resourceMatch) missing.push('RESOURCE_ANALYSIS');
+  if (!truthMatch) missing.push('TRUTH_ANALYSIS');
+  if (!confidenceMatch) missing.push('CONFIDENCE');
+  if (!scoreMatch) missing.push('SCORE');
+
+  if (missing.length > 0) {
+    const responseSample = llmResponse.substring(0, 200).replace(/\n/g, ' ');
+    throw new Error(
+      `Invalid response format from ${modelId}: Missing tags [${missing.join(', ')}]. ` +
+      `Response started with: "${responseSample}..."`
+    );
   }
 
-  const resourceAnalysis = resourceMatch[1].trim();
-  const truthAnalysis = truthMatch[1].trim();
-  const confidence = parseInt(confidenceMatch[1], 10);
-  const score = parseInt(scoreMatch[1], 10);
+  const resourceAnalysis = resourceMatch![1].trim();
+  const truthAnalysis = truthMatch![1].trim();
+  const confidence = parseInt(confidenceMatch![1], 10);
+  const score = parseInt(scoreMatch![1], 10);
 
   // Validate ranges
   if (isNaN(confidence) || confidence < 0 || confidence > 100) {
-    throw new Error(`Invalid confidence score: ${confidenceMatch[1]}`);
+    throw new Error(`Invalid confidence score: ${confidenceMatch![1]}`);
   }
 
   if (isNaN(score) || score < 0 || score > 100) {
-    throw new Error(`Invalid accuracy score: ${scoreMatch[1]}`);
+    throw new Error(`Invalid accuracy score: ${scoreMatch![1]}`);
   }
 
   return {
@@ -202,6 +296,223 @@ function formatExplanation(parsed: {
   score: number;
 }): string {
   return `## Truth Analysis\n${parsed.truthAnalysis}\n\n## Sources Consulted\n${parsed.resourceAnalysis}\n\n**Confidence:** ${parsed.confidence}/100 | **Accuracy Score:** ${parsed.score}/100`;
+}
+
+/**
+ * Build the user prompt from request
+ */
+function buildUserPrompt(request: FactCheckRequest): string {
+  let userPrompt = '';
+
+  // Add instruction if provided
+  if (request.instruction) {
+    userPrompt += `<INSTRUCTION>\n${sanitizeForXML(request.instruction)}\n</INSTRUCTION>\n\n`;
+  }
+
+  // Build the claim - either simple text or conversation format
+  if (request.messages && request.messages.length > 0) {
+    // Multi-turn conversation format
+    userPrompt += `<CLAIM>\n  <CONVERSATION>\n`;
+
+    for (const msg of request.messages) {
+      if (msg.role === 'user') {
+        userPrompt += `    <USER><!-- DO NOT FACTCHECK -->\n${sanitizeForXML(msg.content)}\n    </USER>\n`;
+      } else if (msg.role === 'assistant') {
+        if (msg.generated) {
+          userPrompt += `    <ASSISTANT><!-- PLEASE FACT-CHECK THIS -->\n${sanitizeForXML(msg.content)}\n    </ASSISTANT>\n`;
+        } else {
+          userPrompt += `    <ASSISTANT><!-- HARD-CODED, DO NOT FACTCHECK -->\n${sanitizeForXML(msg.content)}\n    </ASSISTANT>\n`;
+        }
+      } else if (msg.role === 'system') {
+        userPrompt += `    <SYSTEM><!-- DO NOT FACTCHECK -->\n${sanitizeForXML(msg.content)}\n    </SYSTEM>\n`;
+      }
+    }
+
+    userPrompt += `  </CONVERSATION>\n</CLAIM>`;
+  } else {
+    // Simple claim format
+    userPrompt += `<CLAIM>\n${sanitizeForXML(request.claim)}\n</CLAIM>`;
+  }
+
+  return userPrompt;
+}
+
+/**
+ * Attempt a single fact-check with a specific model
+ */
+async function attemptFactCheck(
+  config: ModelConfig,
+  request: FactCheckRequest,
+  userPrompt: string
+): Promise<{
+  llmResponse: string;
+  parsed: {
+    resourceAnalysis: string;
+    truthAnalysis: string;
+    confidence: number;
+    score: number;
+  };
+}> {
+  const llmResponse = await getModelResponse({
+    modelId: config.modelId,
+    systemPrompt: SYSTEM_PROMPT,
+    prompt: userPrompt,
+    temperature: 0.3,
+    maxTokens: config.maxTokens,
+    useCache: false,
+    timeout: config.timeout,
+    retries: FACTCHECK_CONFIG.retries.network
+  });
+
+  const parsed = parseFactCheckResponse(llmResponse, config.modelId);
+
+  return { llmResponse, parsed };
+}
+
+/**
+ * Fact-check with retries and model fallback
+ */
+async function factCheckWithRetries(
+  request: FactCheckRequest
+): Promise<FactCheckResponse> {
+  const attempts: FactCheckAttempt[] = [];
+  const userPrompt = buildUserPrompt(request);
+
+  // Select models to try
+  let modelsToTry = FACTCHECK_CONFIG.models;
+  if (request.modelId) {
+    // User specified a model, only try that one
+    modelsToTry = FACTCHECK_CONFIG.models.filter(m => m.modelId === request.modelId);
+    if (modelsToTry.length === 0) {
+      // Custom model not in our config, use it anyway
+      modelsToTry = [{
+        modelId: request.modelId,
+        maxTokens: request.maxTokens || 2000,
+        timeout: 60000
+      }];
+    }
+  }
+
+  // Try each model in sequence
+  for (const config of modelsToTry) {
+    // Try this model with retries
+    for (let attempt = 1; attempt <= FACTCHECK_CONFIG.retries.perModel; attempt++) {
+      const attemptNumber = attempts.length + 1;
+
+      try {
+        console.log(`[Factcheck] Attempt ${attemptNumber}: ${config.modelId} (retry ${attempt}/${FACTCHECK_CONFIG.retries.perModel})`);
+
+        const result = await attemptFactCheck(config, request, userPrompt);
+
+        // Success! Log and return
+        attempts.push({
+          attemptNumber,
+          modelId: config.modelId,
+          timestamp: new Date().toISOString(),
+          userPrompt,
+          systemPrompt: SYSTEM_PROMPT,
+          llmResponse: result.llmResponse,
+          parseSuccess: true,
+          parsedData: result.parsed
+        });
+
+        console.log(
+          `[Factcheck] Success on attempt ${attemptNumber} with ${config.modelId} - ` +
+          `Score: ${result.parsed.score}, Confidence: ${result.parsed.confidence}`
+        );
+
+        // Build and return response
+        const response: FactCheckResponse = {
+          score: result.parsed.score / 100,
+          explain: formatExplanation(result.parsed)
+        };
+
+        if (request.includeRaw) {
+          response.raw = result.parsed;
+        }
+
+        return response;
+
+      } catch (error: any) {
+        // Log failed attempt with details
+        const errorMessage = error.message || 'Unknown error';
+
+        attempts.push({
+          attemptNumber,
+          modelId: config.modelId,
+          timestamp: new Date().toISOString(),
+          userPrompt,
+          systemPrompt: SYSTEM_PROMPT,
+          error: errorMessage,
+          parseSuccess: false
+        });
+
+        console.error(
+          `[Factcheck] Attempt ${attemptNumber} failed with ${config.modelId}:`,
+          errorMessage
+        );
+
+        // If this was the last retry for this model, log more details
+        if (attempt === FACTCHECK_CONFIG.retries.perModel) {
+          console.error(`[Factcheck] All retries exhausted for ${config.modelId}, trying next model if available`);
+          break;
+        }
+
+        // Wait before retrying (exponential backoff)
+        const backoffMs = FACTCHECK_CONFIG.retries.backoffMs * attempt;
+        console.log(`[Factcheck] Waiting ${backoffMs}ms before retry...`);
+        await sleep(backoffMs);
+      }
+    }
+  }
+
+  // All models and retries failed - prepare comprehensive error
+  const uniqueModels = [...new Set(attempts.map(a => a.modelId))];
+  const allErrors = attempts.map(a => a.error).filter(Boolean);
+
+  console.error('[Factcheck] All attempts failed:', {
+    totalAttempts: attempts.length,
+    modelsAttempted: uniqueModels,
+    errors: allErrors
+  });
+
+  // Log detailed information about each attempt for debugging
+  console.error('[Factcheck] Detailed attempt log:');
+  attempts.forEach(attempt => {
+    console.error(`  - Attempt ${attempt.attemptNumber} (${attempt.modelId}):`, {
+      timestamp: attempt.timestamp,
+      error: attempt.error,
+      parseSuccess: attempt.parseSuccess,
+      promptLength: attempt.userPrompt.length,
+      promptSample: attempt.userPrompt.substring(0, FACTCHECK_CONFIG.logging.maxPromptLogLength)
+    });
+  });
+
+  const finalError = new Error(
+    `Fact-check failed after ${attempts.length} attempts across ${uniqueModels.length} model(s): ${uniqueModels.join(', ')}`
+  );
+
+  // Send comprehensive error to Sentry
+  captureError(finalError, {
+    endpoint: 'factcheck',
+    claim: request.claim.substring(0, 200),
+    instruction: request.instruction,
+    hasMessages: !!request.messages,
+    messageCount: request.messages?.length,
+    totalAttempts: attempts.length,
+    modelsAttempted: uniqueModels,
+    attempts: attempts.map(a => ({
+      attemptNumber: a.attemptNumber,
+      model: a.modelId,
+      timestamp: a.timestamp,
+      error: a.error,
+      parseSuccess: a.parseSuccess,
+      responseSample: a.llmResponse?.substring(0, FACTCHECK_CONFIG.logging.maxResponseLogLength),
+      promptSample: a.userPrompt.substring(0, FACTCHECK_CONFIG.logging.maxPromptLogLength)
+    }))
+  });
+
+  throw finalError;
 }
 
 const handler: Handler = async (event: HandlerEvent): Promise<HandlerResponse> => {
@@ -277,77 +588,16 @@ const handler: Handler = async (event: HandlerEvent): Promise<HandlerResponse> =
       };
     }
 
-    // Build user prompt
-    let userPrompt = '';
-
-    // Add instruction if provided
+    console.log('[Factcheck] Processing claim:', request.claim.substring(0, 100) + '...');
     if (request.instruction) {
-      userPrompt += `<INSTRUCTION>\n${request.instruction}\n</INSTRUCTION>\n\n`;
       console.log('[Factcheck] Using instruction:', request.instruction);
     }
-
-    // Build the claim - either simple text or conversation format
-    if (request.messages && request.messages.length > 0) {
-      // Multi-turn conversation format
-      userPrompt += `<CLAIM>\n  <CONVERSATION>\n`;
-
-      for (const msg of request.messages) {
-        const role = msg.role.toUpperCase();
-
-        if (msg.role === 'user') {
-          userPrompt += `    <USER><!-- DO NOT FACTCHECK -->\n${msg.content}\n    </USER>\n`;
-        } else if (msg.role === 'assistant') {
-          if (msg.generated) {
-            userPrompt += `    <ASSISTANT><!-- PLEASE FACT-CHECK THIS -->\n${msg.content}\n    </ASSISTANT>\n`;
-          } else {
-            userPrompt += `    <ASSISTANT><!-- HARD-CODED, DO NOT FACTCHECK -->\n${msg.content}\n    </ASSISTANT>\n`;
-          }
-        } else if (msg.role === 'system') {
-          // Include system messages for context but don't fact-check
-          userPrompt += `    <SYSTEM><!-- DO NOT FACTCHECK -->\n${msg.content}\n    </SYSTEM>\n`;
-        }
-      }
-
-      userPrompt += `  </CONVERSATION>\n</CLAIM>`;
-    } else {
-      // Simple claim format
-      userPrompt += `<CLAIM>\n${request.claim}\n</CLAIM>`;
+    if (request.messages) {
+      console.log('[Factcheck] Using conversation format with', request.messages.length, 'messages');
     }
 
-    console.log('[Factcheck] Processing claim:', request.claim.substring(0, 100) + '...');
-
-    // Call LLM service
-    const modelId = request.modelId || DEFAULT_MODEL;
-    const maxTokens = request.maxTokens || 2000;
-
-    const llmResponse = await getModelResponse({
-      modelId,
-      systemPrompt: SYSTEM_PROMPT,
-      prompt: userPrompt,
-      temperature: 0.3,  // Slightly creative for analysis but mostly deterministic
-      maxTokens,
-      useCache: false,   // Don't cache fact-checks (info may change)
-      timeout: 60000,    // 60s timeout for web searches
-      retries: 1
-    });
-
-    console.log('[Factcheck] Received LLM response, parsing...');
-
-    // Parse the structured response
-    const parsed = parseFactCheckResponse(llmResponse);
-
-    console.log('[Factcheck] Parsed scores - Accuracy:', parsed.score, 'Confidence:', parsed.confidence);
-
-    // Build response
-    const response: FactCheckResponse = {
-      score: parsed.score / 100,  // Convert 0-100 to 0-1 for $call compatibility
-      explain: formatExplanation(parsed)
-    };
-
-    // Include raw parsed data if requested
-    if (request.includeRaw) {
-      response.raw = parsed;
-    }
+    // Perform fact-check with retries and model fallback
+    const response = await factCheckWithRetries(request);
 
     await flushSentry();
 
@@ -358,11 +608,16 @@ const handler: Handler = async (event: HandlerEvent): Promise<HandlerResponse> =
     };
 
   } catch (error: any) {
-    console.error('Error in factcheck endpoint:', error);
-    captureError(error, {
-      endpoint: 'factcheck',
-      claim: event.body ? JSON.parse(event.body).claim?.substring(0, 100) : undefined
-    });
+    console.error('[Factcheck] Handler error:', error.message);
+
+    // factCheckWithRetries already logged details to Sentry if it was a retry failure
+    // For other errors (validation, etc), log them here
+    if (!error.message?.includes('attempts across')) {
+      captureError(error, {
+        endpoint: 'factcheck',
+        claim: event.body ? JSON.parse(event.body).claim?.substring(0, 100) : undefined
+      });
+    }
 
     await flushSentry();
 
