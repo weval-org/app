@@ -321,9 +321,10 @@ describe('LLMCoverageEvaluator', () => {
             const input = createMockEvaluationInput('prompt-backup-success', points);
             
             requestIndividualJudgeSpy.mockImplementation(async (mrt, kpt, aokp, pct, suiteDesc, judge) => {
-                if (judge.model === 'openai:gpt-4.1-mini') return { coverage_extent: 0.8, reflection: 'Good from GPT-4' };
-                if (judge.model === 'openrouter:google/gemini-2.5-flash') return { error: 'Gemini failed' };
-                if (judge.model === 'anthropic:claude-3-5-haiku-latest') return { coverage_extent: 0.6, reflection: 'Backup Claude result' };
+                if (judge.model === 'openrouter:qwen/qwen3-30b-a3b-instruct-2507') return { coverage_extent: 0.8, reflection: 'Good from Qwen' };
+                if (judge.model === 'openrouter:openai/gpt-oss-120b') return { error: 'GPT-OSS failed' };
+                if (judge.model === 'openrouter:z-ai/glm-4.5') return { error: 'GLM failed' };
+                if (judge.model === 'openrouter:anthropic/claude-haiku-4.5') return { coverage_extent: 0.6, reflection: 'Backup Claude result' };
                 return { error: 'unexpected judge' };
             });
 
@@ -332,11 +333,11 @@ describe('LLMCoverageEvaluator', () => {
 
             // Should have been called times: primary judges + 1 backup
             expect(requestIndividualJudgeSpy).toHaveBeenCalledTimes(DEFAULT_JUDGES.length + 1);
-            const gpt41Count = DEFAULT_JUDGES.filter(j => j.model === 'openai:gpt-4.1-mini').length;
-            const expected = parseFloat((((gpt41Count * 0.8) + 0.6) / (gpt41Count + 1)).toFixed(2));
+            const qwenCount = DEFAULT_JUDGES.filter(j => j.model === 'openrouter:qwen/qwen3-30b-a3b-instruct-2507').length;
+            const expected = parseFloat((((qwenCount * 0.8) + 0.6) / (qwenCount + 1)).toFixed(2));
             expect(assessment.coverageExtent).toBe(expected);
             expect(assessment.judgeModelId).toContain('consensus(');
-            expect(assessment.individualJudgements).toHaveLength(gpt41Count + 1);
+            expect(assessment.individualJudgements).toHaveLength(qwenCount + 1);
             expect(assessment.reflection).toContain('NOTE: Backup judge was used to supplement failed primary judges.');
             expect(assessment.error).toBeUndefined(); // Should be no error since backup succeeded
         });
@@ -445,10 +446,10 @@ describe('LLMCoverageEvaluator', () => {
             const input = createMockEvaluationInput('prompt-backup-no-error', points);
             
             requestIndividualJudgeSpy.mockImplementation(async (mrt, kpt, aokp, pct, suiteDesc, judge) => {
-                if (judge.model === 'openai:gpt-4.1-mini') return { coverage_extent: 0.8, reflection: 'Good from GPT-4' };
-                if (judge.model === 'openrouter:google/gemini-2.5-flash') return { error: 'Gemini failed' };
-                if (judge.model === 'openai:gpt-4.1-mini' && judge.approach === 'holistic') return { error: 'Holistic GPT-4 failed' };
-                if (judge.model === 'anthropic:claude-3-5-haiku-latest') return { coverage_extent: 0.6, reflection: 'Backup Claude result' };
+                if (judge.model === 'openrouter:qwen/qwen3-30b-a3b-instruct-2507') return { coverage_extent: 0.8, reflection: 'Good from Qwen' };
+                if (judge.model === 'openrouter:openai/gpt-oss-120b') return { error: 'GPT-OSS failed' };
+                if (judge.model === 'openrouter:z-ai/glm-4.5') return { error: 'GLM failed' };
+                if (judge.model === 'openrouter:anthropic/claude-haiku-4.5') return { coverage_extent: 0.6, reflection: 'Backup Claude result' };
                 return { error: 'unexpected judge' };
             });
 
@@ -462,8 +463,8 @@ describe('LLMCoverageEvaluator', () => {
             
             const assessment = coverageResult?.pointAssessments?.[0];
             expect(assessment?.error).toBeUndefined();
-            const gpt41Count = DEFAULT_JUDGES.filter(j => j.model === 'openai:gpt-4.1-mini').length;
-            const expected = parseFloat((((gpt41Count * 0.8) + 0.6) / (gpt41Count + 1)).toFixed(2));
+            const qwenCount = DEFAULT_JUDGES.filter(j => j.model === 'openrouter:qwen/qwen3-30b-a3b-instruct-2507').length;
+            const expected = parseFloat((((qwenCount * 0.8) + 0.6) / (qwenCount + 1)).toFixed(2));
             expect(assessment?.coverageExtent).toBe(expected);
             expect(assessment?.reflection).toContain('NOTE: Backup judge was used to supplement failed primary judges.');
 
@@ -1083,7 +1084,7 @@ describe('LLMCoverageEvaluator', () => {
                 if (judge.model === 'openrouter:openai/gpt-oss-120b') {
                     return { error: 'GPT-OSS failed' };
                 }
-                if (judge.model === 'anthropic:claude-3-5-haiku-latest') {
+                if (judge.model === 'openrouter:anthropic/claude-haiku-4.5') {
                     return { coverage_extent: 0.8, reflection: 'Backup Claude result' };
                 }
                 return { error: 'unexpected judge' };

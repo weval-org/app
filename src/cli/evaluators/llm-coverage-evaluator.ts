@@ -55,11 +55,11 @@ export const DEFAULT_JUDGES: Judge[] = [
         approach: 'holistic'
     },
 
-    // {
-    //     id: 'holistic-zai-glm-4.5',
-    //     model: 'openrouter:z-ai/glm-4.5',
-    //     approach: 'holistic'
-    // }
+    {
+        id: 'holistic-zai-glm-4.5',
+        model: 'openrouter:z-ai/glm-4.5',
+        approach: 'holistic'
+    }
 ];
 
 const DEFAULT_BACKUP_JUDGE: Judge = {
