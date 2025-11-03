@@ -55,16 +55,16 @@ export const DEFAULT_JUDGES: Judge[] = [
         approach: 'holistic'
     },
 
-    {
-        id: 'holistic-zai-glm-4.5',
-        model: 'openrouter:z-ai/glm-4.5',
-        approach: 'holistic'
-    }
+    // {
+    //     id: 'holistic-zai-glm-4.5',
+    //     model: 'openrouter:z-ai/glm-4.5',
+    //     approach: 'holistic'
+    // }
 ];
 
 const DEFAULT_BACKUP_JUDGE: Judge = {
-    id: 'backup-claude-3-5-haiku',
-    model: 'anthropic:claude-3-5-haiku-latest',
+    id: 'backup-claude-4-5-haiku',
+    model: 'openrouter:anthropic/claude-haiku-4.5',
     approach: 'holistic'
 };
 
