@@ -456,10 +456,11 @@ export const PromptCard = React.memo(function PromptCard({ prompt, onUpdate, onR
                 <div className="space-y-3 pt-2">
                     {renderRubric()}
 
-                    {/* Should Not Section (remains as is) */}
+                    {/* Should Not Section (deprecated) */}
                     {prompt.should_not && prompt.should_not.length > 0 && (
                     <ExpectationGroup
-                        title="The response SHOULD NOT..."
+                        title="The response SHOULD NOT... (DEPRECATED)"
+                        description="⚠️ should_not blocks are deprecated. Use negative functions ($not_contains, $not_matches, etc.) in 'should' block instead."
                         expectations={prompt.should_not || []}
                         onUpdate={setShouldNotField}
                         variant="should-not"
