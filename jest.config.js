@@ -17,6 +17,9 @@ const config = {
     '<rootDir>/src/cli/',
     '<rootDir>/src/lib/',
   ],
+  transformIgnorePatterns: [
+    'node_modules/(?!(aws-sdk-client-mock|sinon)/)',
+  ],
 };
 
 module.exports = createJestConfig(config); 

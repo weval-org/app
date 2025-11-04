@@ -139,6 +139,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "autoprefixer": "^10.4.21",
+    "aws-sdk-client-mock": "^4.1.0",
     "boxen": "^8.0.1",
     "chalk": "^5.4.1",
     "commander": "^14.0.0",
