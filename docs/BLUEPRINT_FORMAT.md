@@ -22,15 +22,14 @@ This is the recommended structure for most blueprints. The first YAML document c
 
 ```yaml
 # Configuration Header (First YAML Document)
-id: my-blueprint-v1
 title: "My First Blueprint"
 models:
   - openai:gpt-4o-mini
 ---
 # List of Prompts (Second YAML Document)
-- id: p1
+- id: france-capital
   prompt: "What is the capital of France?"
-- id: p2
+- id: basic-math
   prompt: "What is 2 + 2?"
 ```
 
@@ -67,14 +66,13 @@ For consistency with the JSON format, you can define the entire blueprint as a s
 
 ```yaml
 # Single YAML document with a 'prompts' key
-id: my-blueprint-v1
 title: "My First Blueprint"
 models:
   - openai:gpt-4o-mini
 prompts:
-  - id: p1
+  - id: france-capital
     prompt: "What is the capital of France?"
-  - id: p2
+  - id: basic-math
     prompt: "What is 2 + 2?"
 ```
 
@@ -434,8 +432,7 @@ Example:
   should:
     - Asks at least one clarifying question before giving suggestions.
     - $word_count_between: [30, 500]
-  should_not:
-    - $matches: "(?i)not a (financial|tax) advisor" # example negative check
+    - $not_imatches: "not a (financial|tax) advisor"  # Use negative function instead of should_not
 ```
 
 Notes and guarantees:
@@ -1299,9 +1296,7 @@ toolUse:
         name: "search"
         where: {query: "2023 climate report"}
         normalizeWhitespace: true
-    - $tool_call_count_between: [3, 5]
-  should_not:
-    - $tool_call_count_between: [6, 999]  # Too many calls
+    - $tool_call_count_between: [3, 5]  # Total calls should be 3-5
 ```
 
 ### Important considerations
@@ -1309,3 +1304,63 @@ toolUse:
 **Fairness:** When testing tool-use, clearly enumerate the available tools and their argument schemas in the system prompt. Requiring specific tool names or argument structures without documenting them in the prompt makes the evaluation unfair, as models cannot infer arbitrary conventions.
 
 **Experimental status:** The emission format (`TOOL_CALL {"name":"...","arguments":{...}}`) and point function semantics may change in future versions. This format was chosen for simplicity but is not based on any standard protocol.
+
+---
+
+## Best Practices for Production Blueprints
+
+When creating blueprints for the public repository or production use, follow these practices to ensure your evaluations are maintainable, trackable, and professional.
+
+### Always Provide Meaningful Prompt IDs
+
+For production blueprints, always include descriptive IDs for each prompt:
+
+```yaml
+# ✅ Good - Clear intent, easy to track
+- id: france-capital-geography
+  prompt: "What is the capital of France?"
+  should:
+    - "Mentions Paris"
+
+- id: france-capital-spelling-variation
+  prompt: "What's the capital of France?"
+  should:
+    - "Mentions Paris"
+
+# ❌ Avoid - No ID means auto-generated hash
+- prompt: "What is the capital of France?"
+  # Auto-ID: "a7f3c2e1" (hard to track, changes if prompt edited)
+```
+
+**Why prompt IDs matter:**
+- **Longitudinal tracking**: Track test performance over time even as you refine prompt wording
+- **Easier debugging**: Logs and results show meaningful names instead of hashes
+- **Professional appearance**: Public benchmarks should have clear, intentional naming
+- **Collaboration**: Team members can reference specific tests by name
+
+**Naming conventions:**
+- Use **kebab-case**: `france-capital-test` not `France_Capital_Test`
+- Be **descriptive**: `tax-home-office-contractor` not `test1`
+- Be **specific**: `paris-capital-spelling` not `geography-test`
+- Include **context** when helpful: `udhr-article19-privacy` not just `privacy`
+
+**Sandbox exception:** When using the [Sandbox Studio](https://weval.org/sandbox) for rapid experimentation, prompt IDs are optional and will be auto-generated. This keeps the experimentation workflow frictionless.
+
+### Use Negative Functions Instead of `should_not`
+
+Prefer negative point-functions (`$not_*`) in `should` blocks over `should_not` blocks:
+
+```yaml
+# ✅ Recommended - Clear and explicit
+should:
+  - "Provides accurate tax information"
+  - $not_contains_any_of: ["guaranteed", "risk-free", "can't lose"]
+  - $not_imatches: "not a (financial|tax) advisor"
+
+# ⚠️ Deprecated - Avoid should_not blocks
+should_not:
+  - $contains_any_of: ["guaranteed", "risk-free", "can't lose"]
+  - $matches: "(?i)not a (financial|tax) advisor"
+```
+
+This makes blueprints more readable and avoids double-negative confusion. See [migration guide](#migrating-from-should_not-to-negative-functions) above for more details.
