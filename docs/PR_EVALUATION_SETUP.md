@@ -4,21 +4,59 @@ This guide explains the complete automation system for blueprint evaluations in 
 
 ## Overview
 
-Weval uses a **two-tier evaluation system**:
+Weval uses a **three-layer validation and evaluation system**:
 
-1. **PR Evaluations (Staging)** - Validate blueprints before merge
-2. **Production Evaluations** - Official results after merge
+1. **GitHub Actions Validation (Layer 1)** - Fast, free YAML/structure validation
+2. **PR Evaluations (Layer 2 - Staging)** - Cost-controlled evaluation before merge
+3. **Production Evaluations (Layer 3)** - Full evaluation after merge
 
-### PR Evaluations (Staging)
+## Validation & Evaluation Layers
 
-When a user creates a PR with a blueprint file:
+### Layer 1: GitHub Actions Validation (FREE, ~30 seconds)
+
+**Purpose:** Catch errors early before expensive evaluation runs
+
+**Triggered by:** Every PR that modifies blueprint files
+
+**What it validates:**
+- ✅ YAML/JSON syntax is valid
+- ✅ Required fields exist (id, prompts, etc.)
+- ✅ **Security check:** Username matches directory (`blueprints/users/{pr-author}/`)
+- ✅ Prompt structure is correct
+
+**Location:** `.github/workflows/blueprint-validation.yml` in configs repo
+
+**Result:** PR is blocked if validation fails (GitHub status check)
+
+**Benefits:**
+- Instant feedback (no waiting for webhook)
+- No cost (runs on GitHub's servers)
+- Prevents webhook from running on broken files
+- **Double security layer** (validates username at both GitHub Actions AND webhook)
+
+### Layer 2: PR Evaluations (Staging - COST-CONTROLLED)
+
+**Purpose:** Validate blueprint works with real models, but control costs
+
+**Triggered by:** Webhook after Layer 1 passes
+
+**What it does:**
 1. Validates the blueprint (structure, username matching, size limits)
-2. Automatically runs evaluation against all configured models
-3. Posts status updates as GitHub comments
-4. Displays real-time progress at `https://weval.org/pr-eval/{pr-number}/{blueprint-path}`
-5. Results stored temporarily in `live/pr-evals/`
+2. **Auto-trims if needed:** Max 10 prompts, CORE models only, 2 temps, 2 systems
+3. Runs evaluation against trimmed configuration
+4. Posts status updates as GitHub comments
+5. Displays real-time progress at `https://weval.org/pr-eval/{pr-number}/{blueprint-path}`
 
-### Production Evaluations
+**Cost limits:**
+- Max 100 total responses per PR evaluation
+- Only CORE model collection allowed
+- Blueprint auto-trimmed to fit limits (not rejected)
+
+**Storage:** `live/pr-evals/{pr-number}/` (temporary)
+
+**Result:** PR comment with status link and analysis link
+
+### Layer 3: Production Evaluations (UNLIMITED)
 
 When blueprints are merged to main:
 1. Push webhook detects new/modified blueprints
