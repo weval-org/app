@@ -74,6 +74,7 @@ async function postCompletionComment(
   blueprintPath: string,
   success: boolean,
   basePath: string,
+  configId?: string,
   error?: string
 ): Promise<void> {
   const githubToken = process.env.GITHUB_TOKEN;
@@ -84,13 +85,16 @@ async function postCompletionComment(
 
   const octokit = new Octokit({ auth: githubToken });
   const resultsUrl = `https://weval.org/pr-eval/${prNumber}/${encodeURIComponent(blueprintPath)}`;
+  const analysisUrl = configId ? `https://weval.org/analysis/${configId}` : null;
 
   let commentBody: string;
 
   if (success) {
     commentBody =
       `✅ **Evaluation complete for \`${blueprintPath}\`**\n\n` +
-      `[View detailed results →](${resultsUrl})\n\n` +
+      `[View evaluation status →](${resultsUrl})` +
+      (analysisUrl ? ` | [**View full analysis →**](${analysisUrl})` : '') +
+      `\n\n` +
       `The blueprint has been successfully evaluated against all configured models.`;
   } else {
     commentBody =
@@ -345,7 +349,7 @@ export const handler: BackgroundHandler = async (event) => {
     });
 
     // Post success comment to PR
-    await postCompletionComment(prNumber, blueprintPath, true, basePath);
+    await postCompletionComment(prNumber, blueprintPath, true, basePath, config.id);
 
     logger.info(`✅ PR evaluation complete for ${blueprintPath}`);
     await flushSentry();

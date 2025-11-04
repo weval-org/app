@@ -236,7 +236,18 @@ export default function PREvaluationPage() {
         {/* Results */}
         {isComplete && data.results && (
           <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Results Summary</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-gray-900">Results Summary</h2>
+              {data.results.configId && (
+                <Link
+                  href={`/analysis/${data.results.configId}`}
+                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors font-medium inline-flex items-center gap-2"
+                >
+                  <span>View Full Analysis</span>
+                  <span>→</span>
+                </Link>
+              )}
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
               <div className="bg-gray-50 p-4 rounded-lg">
@@ -296,10 +307,17 @@ export default function PREvaluationPage() {
               <p className="text-green-800 font-semibold mb-2">
                 ✅ Evaluation completed successfully!
               </p>
-              <p className="text-green-700 text-sm">
+              <p className="text-green-700 text-sm mb-3">
                 The blueprint has been validated and evaluated against all configured models.
-                You can merge this PR if the results look good.
               </p>
+              {data.results.configId && (
+                <Link
+                  href={`/analysis/${data.results.configId}`}
+                  className="inline-block px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition-colors"
+                >
+                  View Full Analysis & Scores →
+                </Link>
+              )}
             </div>
           </div>
         )}
