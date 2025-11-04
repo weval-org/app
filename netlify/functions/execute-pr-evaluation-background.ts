@@ -258,65 +258,73 @@ export const handler: BackgroundHandler = async (event) => {
     // Generate responses
     await updateStatus('generating_responses', 'Generating model responses...', { progress: { completed: 0, total: 0 } });
 
-    const modelIds = config.models?.map(m => typeof m === 'string' ? m : m.id) || [];
-    const responsesMap = new Map<string, PromptResponseData>();
-
-    const progressCallback = (completed: number, total: number) => {
-      updateStatus('generating_responses', `Generating responses... (${completed}/${total})`, {
-        progress: { completed, total }
-      }).catch(err => logger.error('Failed to update progress:', err));
+    const progressCallback = async (completed: number, total: number): Promise<void> => {
+      try {
+        await updateStatus('generating_responses', `Generating responses... (${completed}/${total})`, {
+          progress: { completed, total }
+        });
+      } catch (err) {
+        logger.error('Failed to update progress:', err);
+      }
     };
 
-    await generateAllResponses(config, modelIds, responsesMap, logger, progressCallback);
-    logger.info(`Generated ${responsesMap.size} responses.`);
-
-    // Run evaluators
-    await updateStatus('evaluating', 'Running evaluations...');
-
-    const evalMethods: EvaluationMethod[] = config.evaluationConfig || ['embedding', 'llm-coverage'];
-    const evaluationInput: EvaluationInput = {
+    const responsesMap = await generateAllResponses(
       config,
-      modelIds,
-      responsesMap,
-    };
+      logger,
+      false, // useCache = false for PR evals
+      progressCallback
+    );
+
+    const modelIds = Array.from(new Set(
+      Array.from(responsesMap.values()).flatMap(data =>
+        Object.keys(data.modelResponses)
+      )
+    ));
+
+    logger.info(`Generated ${responsesMap.size} responses across ${modelIds.length} models.`);
+
+    // Run evaluators (simplified for PR evals - just use LLM coverage)
+    await updateStatus('evaluating', 'Running evaluations...');
 
     const evaluationResults: Record<string, any> = {};
 
-    for (const method of evalMethods) {
-      logger.info(`Running ${method} evaluator...`);
+    // Build evaluation inputs for all prompts
+    const evalInputs: EvaluationInput[] = Array.from(responsesMap.values()).map(promptData => ({
+      promptData,
+      config,
+      effectiveModelIds: modelIds,
+    }));
 
-      if (method === 'embedding') {
-        const embeddingEvaluator = new EmbeddingEvaluator();
-        evaluationResults.embedding = await embeddingEvaluator.evaluate(evaluationInput, logger);
-      } else if (method === 'llm-coverage') {
-        const llmEvaluator = new LLMCoverageEvaluator();
-        evaluationResults['llm-coverage'] = await llmEvaluator.evaluate(evaluationInput, logger);
-      }
-    }
+    // Run LLM coverage evaluator
+    const llmEvaluator = new LLMCoverageEvaluator(logger, false);
+    const llmCoverageResults = await llmEvaluator.evaluate(evalInputs);
+
+    evaluationResults['llm-coverage'] = llmCoverageResults;
 
     // Build final output
     await updateStatus('saving', 'Aggregating and saving results...');
 
-    const finalOutput: FinalComparisonOutputV2 = {
-      blueprintId: config.id || 'unknown',
-      title: config.title || config.id || 'Untitled',
+    const finalOutput = {
+      configId: config.id || 'unknown',
+      configTitle: config.title || config.id || 'Untitled',
       description: config.description,
-      citation: config.citation,
       tags: config.tags,
+      config: config,
       prompts: config.prompts || [],
       models: modelIds,
       executiveSummary: undefined, // Skip for PR evals
-      evaluation: {
+      evaluationResults: {
         embedding: evaluationResults.embedding,
         'llm-coverage': evaluationResults['llm-coverage'],
       },
-      modelResponses: Array.from(responsesMap.entries()).map(([key, data]) => ({
-        modelId: data.modelId,
-        promptIndex: data.promptIndex,
-        promptHash: data.promptHash,
-        response: data.response,
-        usedSystemPrompt: data.usedSystemPrompt,
-      })),
+      // Include response data from the map
+      allFinalAssistantResponses: Array.from(responsesMap.entries()).reduce((acc, [key, data]) => {
+        if (!acc[data.promptId]) acc[data.promptId] = {};
+        Object.keys(data.modelResponses).forEach(modelId => {
+          acc[data.promptId][modelId] = data.modelResponses[modelId].finalAssistantResponseText;
+        });
+        return acc;
+      }, {} as Record<string, Record<string, string>>),
     };
 
     // Save results
