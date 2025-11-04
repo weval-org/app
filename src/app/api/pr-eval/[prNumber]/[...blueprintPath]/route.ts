@@ -60,9 +60,9 @@ async function fetchFromS3(key: string): Promise<string | null> {
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { prNumber: string; blueprintPath: string[] } }
+  { params }: { params: Promise<{ prNumber: string; blueprintPath: string[] }> }
 ) {
-  const { prNumber, blueprintPath } = params;
+  const { prNumber, blueprintPath } = await params;
   const blueprintPathStr = blueprintPath.join('/');
 
   console.log(`[PR Eval API] Fetching data for PR #${prNumber}, blueprint: ${blueprintPathStr}`);
