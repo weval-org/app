@@ -49,16 +49,14 @@ toolUse:
   should:
     - $contains_all_of: ["alpha", "beta", "gamma"]
     - $matches: "^alpha beta gamma\\.$"
-  should_not:
-    - $icontains: "error"
+    - $not_icontains: "error"
 
 # 2) Deterministic fail: looks for phrase that won't be in fixtures
 - id: deterministic-fail
   prompt: "Reply with the word 'success' only."
   should:
     - $contains: "this-string-will-not-appear"
-  should_not:
-    - $contains: "failure"
+    - $not_contains: "failure"
 
 # 3) JSON shape + JS check with weight
 - id: json-and-js
@@ -68,8 +66,7 @@ toolUse:
     - $is_json: true
     - $js: "try { const o = JSON.parse(r); return !!(o.name && typeof o.count==='number' && Array.isArray(o.tags)); } catch { return false }"
     - "Includes a helpful explanation above or below the JSON block.": "(conceptual point; judge LLM grades this)"
-  should_not:
-    - $imatches: "error|exception|stack"
+    - $not_imatches: "error|exception|stack"
 
 # 4) Reusable point via $ref and word count bounds
 - id: reusable-points
