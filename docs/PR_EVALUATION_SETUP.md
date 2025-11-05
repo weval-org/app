@@ -153,13 +153,56 @@ You need **two webhooks** for the full workflow:
    - **Active**: ✓ Checked
 3. Click "Add webhook"
 
-### 3. Verify Environment Variables
+### 3. GitHub Authentication Setup
+
+**Recommended: GitHub App** (Professional, scoped permissions)
+
+1. Go to `https://github.com/organizations/weval-org/settings/apps`
+2. Click "New GitHub App"
+3. Configure:
+   - **Name:** `Weval Evaluator` (or similar)
+   - **Homepage URL:** `https://weval.org`
+   - **Webhook URL:** Leave blank (we use custom webhooks)
+   - **Permissions:**
+     - Repository permissions → Issues: **Read & Write**
+     - Repository permissions → Pull Requests: **Read & Write**
+   - Uncheck "Active" under Webhook (we handle webhooks separately)
+4. Click "Create GitHub App"
+5. Generate a private key (downloads a `.pem` file)
+6. Install the app on the `weval-org/configs` repository
+7. Note the **App ID** and **Installation ID**
+
+**Convert Private Key:**
+```bash
+# Convert .pem to single-line format for Netlify
+awk 'NF {sub(/\r/, ""); printf "%s\\n",$0;}' your-private-key.pem
+```
+
+**Alternative: Personal Access Token** (Fallback for local dev)
+
+If GitHub App credentials are not available, the system falls back to PAT.
+Create at: https://github.com/settings/tokens with scopes:
+- `repo` - Full control of private repositories
+- `write:discussion` - Access to comments on PRs
+
+**Comments will appear from:**
+- GitHub App: `weval-bot[bot]` ✅ (professional)
+- PAT: Your personal account (less ideal)
+
+### 4. Verify Environment Variables
 
 Ensure these are set in Netlify (or `.env` for local testing):
 
 ```bash
-# Required
-GITHUB_TOKEN=ghp_your_github_personal_access_token
+# GitHub Authentication (GitHub App - Recommended)
+GITHUB_APP_ID=1234567
+GITHUB_APP_INSTALLATION_ID=12345678
+GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\nMIIEow...your-key-with-\n-literals...\n-----END RSA PRIVATE KEY-----"
+
+# GitHub Authentication (PAT - Fallback)
+# GITHUB_TOKEN=ghp_your_personal_access_token
+
+# Webhook
 GITHUB_WEBHOOK_SECRET=your_webhook_secret_from_step1
 BACKGROUND_FUNCTION_AUTH_TOKEN=your_background_function_token
 
@@ -178,13 +221,9 @@ OPENROUTER_API_KEY=sk-or-your_openrouter_key
 NEXT_PUBLIC_APP_URL=https://weval.org
 ```
 
-### 4. GitHub Token Permissions
-
-The `GITHUB_TOKEN` needs these permissions:
-- `repo` - Full control of private repositories
-- `write:discussion` - Access to comments on PRs
-
-You can create a Personal Access Token at: https://github.com/settings/tokens
+**Important:** For `GITHUB_APP_PRIVATE_KEY` in Netlify UI:
+- Paste the single-line format directly (no outer quotes needed in Netlify)
+- For local `.env`, wrap in double quotes
 
 ### 5. Test the Setup
 

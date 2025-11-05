@@ -1,7 +1,7 @@
 import type { BackgroundHandler } from '@netlify/functions';
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
-import { Octokit } from '@octokit/rest';
+import { getAuthenticatedOctokit, logAuthConfig } from '@/lib/github-auth';
 import { parseAndNormalizeBlueprint } from '@/lib/blueprint-parser';
 import { generateAllResponses } from '@/cli/services/comparison-pipeline-service.non-stream';
 import { EmbeddingEvaluator } from '@/cli/evaluators/embedding-evaluator';
@@ -77,13 +77,9 @@ async function postCompletionComment(
   configId?: string,
   error?: string
 ): Promise<void> {
-  const githubToken = process.env.GITHUB_TOKEN;
-  if (!githubToken) {
-    console.error('[PR Eval] No GITHUB_TOKEN available for posting comment');
-    return;
-  }
-
-  const octokit = new Octokit({ auth: githubToken });
+  try {
+    const octokit = await getAuthenticatedOctokit();
+    logAuthConfig();
   const resultsUrl = `https://weval.org/pr-eval/${prNumber}/${encodeURIComponent(blueprintPath)}`;
   const analysisUrl = configId ? `https://weval.org/analysis/${configId}` : null;
 
@@ -104,7 +100,6 @@ async function postCompletionComment(
       `Please check the blueprint syntax and try again.`;
   }
 
-  try {
     await octokit.issues.createComment({
       owner: UPSTREAM_OWNER,
       repo: UPSTREAM_REPO,

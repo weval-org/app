@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Octokit } from '@octokit/rest';
 import crypto from 'crypto';
+import { getAuthenticatedOctokit } from '@/lib/github-auth';
 import { callBackgroundFunction } from '@/lib/background-function-client';
 import { prEvaluationLimiter, webhookIPLimiter, webhookGlobalLimiter } from '@/lib/webhook-rate-limiter';
 import { checkPREvalLimits, formatLimitViolations, PR_EVAL_LIMITS } from '@/lib/pr-eval-limiter';
 
 const GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET;
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const UPSTREAM_OWNER = 'weval-org';
 const UPSTREAM_REPO = 'configs';
 const MAX_BLUEPRINTS_PER_PR = 3;
@@ -288,14 +287,18 @@ export async function POST(req: NextRequest) {
   const userLimit = prEvaluationLimiter.check(prAuthor);
   if (!userLimit.allowed) {
     console.warn(`[GitHub Webhook] Rate limit exceeded for user: ${prAuthor}`);
-    const octokit = new Octokit({ auth: GITHUB_TOKEN });
-    await postPRComment(
-      octokit,
-      prNumber,
-      `⚠️ **Rate limit exceeded**\n\n` +
-      `@${prAuthor}, you have exceeded the maximum number of PR evaluations per hour.\n\n` +
-      `Please wait ${userLimit.retryAfter} seconds before triggering another evaluation.`
-    );
+    try {
+      const octokit = await getAuthenticatedOctokit();
+      await postPRComment(
+        octokit,
+        prNumber,
+        `⚠️ **Rate limit exceeded**\n\n` +
+        `@${prAuthor}, you have exceeded the maximum number of PR evaluations per hour.\n\n` +
+        `Please wait ${userLimit.retryAfter} seconds before triggering another evaluation.`
+      );
+    } catch (authError: any) {
+      console.error('[GitHub Webhook] Failed to post rate limit comment:', authError.message);
+    }
     return NextResponse.json(
       { error: 'Rate limit exceeded for user', retryAfter: userLimit.retryAfter },
       {
@@ -305,12 +308,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (!GITHUB_TOKEN) {
-    console.error('[GitHub Webhook] GITHUB_TOKEN not configured');
-    return NextResponse.json({ error: 'GitHub token not configured' }, { status: 500 });
+  let octokit;
+  try {
+    octokit = await getAuthenticatedOctokit();
+  } catch (authError: any) {
+    console.error('[GitHub Webhook] GitHub authentication failed:', authError.message);
+    return NextResponse.json({ error: 'GitHub authentication failed' }, { status: 500 });
   }
-
-  const octokit = new Octokit({ auth: GITHUB_TOKEN });
 
   try {
     // Fetch PR files
@@ -390,7 +394,8 @@ export async function POST(req: NextRequest) {
       const config = yaml.load(content) as any;
 
       // Check PR evaluation limits
-      const limitCheck = await checkPREvalLimits(config, GITHUB_TOKEN);
+      // Note: checkPREvalLimits doesn't need auth for public model collections
+      const limitCheck = await checkPREvalLimits(config);
 
       if (!limitCheck.allowed) {
         // Blueprint exceeds limits - we'll trim it and run the trimmed version
