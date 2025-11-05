@@ -51,6 +51,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.850.0",
+    "@aws-sdk/client-secrets-manager": "^3.922.0",
     "@codemirror/lang-yaml": "^6.1.2",
     "@keyv/sqlite": "^4.0.6",
     "@netlify/blobs": "^10.0.7",

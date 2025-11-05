@@ -157,6 +157,8 @@ You need **two webhooks** for the full workflow:
 
 **Recommended: GitHub App** (Professional, scoped permissions)
 
+#### Create GitHub App
+
 1. Go to `https://github.com/organizations/weval-org/settings/apps`
 2. Click "New GitHub App"
 3. Configure:
@@ -172,13 +174,42 @@ You need **two webhooks** for the full workflow:
 6. Install the app on the `weval-org/configs` repository
 7. Note the **App ID** and **Installation ID**
 
-**Convert Private Key:**
+#### Store Private Key in AWS Secrets Manager (Recommended for Production)
+
+⚠️ **Important**: GitHub App private keys are ~1.6-3KB and will cause Netlify Functions to exceed AWS Lambda's 4KB environment variable limit. Store the key in **AWS Secrets Manager** instead.
+
+**Step 1: Create Secret in AWS**
 ```bash
-# Convert .pem to single-line format for Netlify
-awk 'NF {sub(/\r/, ""); printf "%s\\n",$0;}' your-private-key.pem
+# Store the private key in AWS Secrets Manager
+aws secretsmanager create-secret \
+  --name weval/github-app-private-key \
+  --description "Weval GitHub App private key" \
+  --secret-string file://your-private-key.pem \
+  --region us-east-1
 ```
 
-**Alternative: Personal Access Token** (Fallback for local dev)
+**Step 2: Set Netlify Environment Variable**
+```bash
+# Instead of storing the full key, just store the secret name
+GITHUB_APP_PRIVATE_KEY_SECRET_NAME=weval/github-app-private-key
+```
+
+The application will automatically fetch the key from Secrets Manager at runtime using your existing AWS credentials.
+
+**Alternative: Inline Private Key** (Local development only)
+
+For local development, you can use the inline format:
+```bash
+# Convert .pem to single-line format
+awk 'NF {sub(/\r/, ""); printf "%s\\n",$0;}' your-private-key.pem
+
+# Set in .env (wrap in quotes)
+GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\nMIIE...your-key...\n-----END RSA PRIVATE KEY-----"
+```
+
+⚠️ **Don't use this in Netlify** - it will exceed the 4KB limit.
+
+#### Alternative: Personal Access Token (Fallback)
 
 If GitHub App credentials are not available, the system falls back to PAT.
 Create at: https://github.com/settings/tokens with scopes:
@@ -194,10 +225,13 @@ Create at: https://github.com/settings/tokens with scopes:
 Ensure these are set in Netlify (or `.env` for local testing):
 
 ```bash
-# GitHub Authentication (GitHub App - Recommended)
+# GitHub Authentication (GitHub App - Production)
 GITHUB_APP_ID=1234567
 GITHUB_APP_INSTALLATION_ID=12345678
-GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\nMIIEow...your-key-with-\n-literals...\n-----END RSA PRIVATE KEY-----"
+GITHUB_APP_PRIVATE_KEY_SECRET_NAME=weval/github-app-private-key  # ✅ Recommended for Netlify
+
+# GitHub Authentication (GitHub App - Local Dev)
+# GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA..."  # Only for local .env
 
 # GitHub Authentication (PAT - Fallback)
 # GITHUB_TOKEN=ghp_your_personal_access_token
@@ -206,7 +240,7 @@ GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\nMIIEow...your-key-with-
 GITHUB_WEBHOOK_SECRET=your_webhook_secret_from_step1
 BACKGROUND_FUNCTION_AUTH_TOKEN=your_background_function_token
 
-# Storage (S3)
+# Storage (S3) - Also used for Secrets Manager access
 STORAGE_PROVIDER=s3
 APP_S3_BUCKET_NAME=your_bucket_name
 APP_S3_REGION=us-east-1
@@ -221,9 +255,10 @@ OPENROUTER_API_KEY=sk-or-your_openrouter_key
 NEXT_PUBLIC_APP_URL=https://weval.org
 ```
 
-**Important:** For `GITHUB_APP_PRIVATE_KEY` in Netlify UI:
-- Paste the single-line format directly (no outer quotes needed in Netlify)
-- For local `.env`, wrap in double quotes
+**Important Notes:**
+- **Production (Netlify)**: Use `GITHUB_APP_PRIVATE_KEY_SECRET_NAME` to avoid the 4KB Lambda limit
+- **Local Development**: Use `GITHUB_APP_PRIVATE_KEY` inline in your `.env` file (wrap in quotes)
+- The AWS credentials (`APP_AWS_ACCESS_KEY_ID`, `APP_AWS_SECRET_ACCESS_KEY`) are used for both S3 storage and Secrets Manager access
 
 ### 5. Test the Setup
 
