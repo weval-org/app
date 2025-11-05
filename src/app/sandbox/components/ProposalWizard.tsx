@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -35,6 +35,11 @@ export function ProposalWizard({
   const [body, setBody] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [prUrl, setPrUrl] = useState<string | null>(null);
+
+  // Update title when blueprintName changes (e.g., after file rename)
+  useEffect(() => {
+    setTitle(`feat(blueprints): Add ${blueprintName}`);
+  }, [blueprintName]);
 
   const resetAndClose = () => {
     onClose();
