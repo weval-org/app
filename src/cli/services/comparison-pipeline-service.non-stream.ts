@@ -49,7 +49,7 @@ export async function generateAllResponses(
 
     // Group models by provider
     const modelsByProvider = new Map<string, string[]>();
-    const modelIds = config.models.map(m => typeof m === 'string' ? m : m.id);
+    const modelIds = (config.models || []).map(m => typeof m === 'string' ? m : m.id);
 
     // Skip consumer:* models (handled separately)
     const nonConsumerModels = modelIds.filter(id => !id.startsWith('consumer:'));

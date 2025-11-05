@@ -3,6 +3,7 @@ import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3
 import { Readable } from 'stream';
 import { getAuthenticatedOctokit, logAuthConfig } from '@/lib/github-auth';
 import { parseAndNormalizeBlueprint } from '@/lib/blueprint-parser';
+import { resolveModelsInConfig, SimpleLogger } from '@/lib/blueprint-service';
 import { generateAllResponses } from '@/cli/services/comparison-pipeline-service.non-stream';
 import { EmbeddingEvaluator } from '@/cli/evaluators/embedding-evaluator';
 import { LLMCoverageEvaluator } from '@/cli/evaluators/llm-coverage-evaluator';
@@ -202,6 +203,22 @@ export const handler: BackgroundHandler = async (event) => {
     // Parse blueprint
     await updateStatus('validating', 'Validating blueprint structure...');
     let config = parseAndNormalizeBlueprint(blueprintContent, 'yaml');
+
+    // Set default model collection if none specified
+    if (!config.models || config.models.length === 0) {
+      logger.info('No models specified in blueprint. Defaulting to CORE collection for PR evaluation.');
+      config.models = ['CORE'];
+    }
+
+    // Resolve model collections (e.g., "CORE" -> actual model IDs from weval-org/configs)
+    logger.info(`Resolving model collections for PR #${prNumber}...`);
+    config = await resolveModelsInConfig(config, process.env.GITHUB_TOKEN, logger as SimpleLogger);
+    logger.info(`Models after resolution: ${config.models?.length || 0} models - [${(config.models || []).slice(0, 5).join(', ')}${config.models && config.models.length > 5 ? '...' : ''}]`);
+
+    // Verify we have models after resolution
+    if (!config.models || config.models.length === 0) {
+      throw new Error('No models available after resolution. Cannot proceed with evaluation.');
+    }
 
     // Apply PR evaluation limits (trim if needed)
     const githubToken = process.env.GITHUB_TOKEN;
