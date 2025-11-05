@@ -88,8 +88,10 @@ export async function GET(req: NextRequest) {
     // Encrypt the token before storing it in the cookie
     const encryptedToken = await encryptToken(accessToken, sessionSecret);
 
-    const nextResponse = NextResponse.redirect(new URL('/sandbox', req.nextUrl.origin));
-    
+    // Always redirect to production URL (weval.org) after successful login
+    // This ensures users end up on the canonical domain regardless of where they started
+    const nextResponse = NextResponse.redirect(new URL('/sandbox', appUrl));
+
     nextResponse.cookies.set('github_session', encryptedToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV !== 'development',
@@ -97,11 +99,12 @@ export async function GET(req: NextRequest) {
         path: '/',
     });
 
-    console.log("[Auth Callback] GitHub authentication successful. Redirecting to sandbox.");
+    console.log(`[Auth Callback] GitHub authentication successful. Redirecting to ${appUrl}/sandbox`);
     return nextResponse;
 
   } catch (err: any) {
     console.error('[Auth Callback] Final exception caught:', err);
-    return NextResponse.redirect(new URL('/sandbox?error=' + encodeURIComponent(err.message), req.nextUrl.origin));
+    // Use appUrl for error redirect too (we're past validation at this point)
+    return NextResponse.redirect(new URL('/sandbox?error=' + encodeURIComponent(err.message), appUrl));
   }
 } 
