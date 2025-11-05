@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { Octokit } from '@octokit/rest';
 import { getAuthenticatedOctokit } from '@/lib/github-auth';
 import { callBackgroundFunction } from '@/lib/background-function-client';
 import { prEvaluationLimiter, webhookIPLimiter, webhookGlobalLimiter } from '@/lib/webhook-rate-limiter';
