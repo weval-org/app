@@ -107,10 +107,18 @@ export async function getAuthenticatedOctokit(config?: GitHubAuthConfig): Promis
         privateKey: privateKey,
       });
 
-      const octokit = await app.getInstallationOctokit(parseInt(installationId));
+      // Get installation access token
+      const { data: installation } = await app.octokit.request(
+        'POST /app/installations/{installation_id}/access_tokens',
+        {
+          installation_id: parseInt(installationId),
+        }
+      );
 
       console.log('[GitHub Auth] ✅ Successfully authenticated as GitHub App');
-      return octokit as unknown as Octokit;
+
+      // Create Octokit instance with installation token
+      return new Octokit({ auth: installation.token });
 
     } catch (error: any) {
       console.error('[GitHub Auth] ❌ GitHub App authentication failed:', error.message);
