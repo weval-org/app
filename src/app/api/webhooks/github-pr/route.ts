@@ -136,28 +136,47 @@ async function fetchBlueprintContent(octokit: Octokit, owner: string, repo: stri
 
 /**
  * Validate blueprint YAML syntax
+ *
+ * Supports all valid blueprint structures:
+ * - Structure 1: Header + prompts (two documents separated by ---)
+ * - Structure 2: Stream of prompt documents (multiple docs separated by ---)
+ * - Structure 3: Single document with prompts array
+ * - Structure 4: List of prompts only
  */
 async function validateBlueprint(content: string): Promise<{ valid: boolean; error?: string }> {
   try {
     const yaml = await import('js-yaml');
-    const parsed = yaml.load(content);
+    // Use loadAll to support multi-document YAML (separated by ---)
+    const docs = yaml.loadAll(content).filter(doc => doc !== null && doc !== undefined);
 
-    // Basic structure validation
-    if (!parsed || typeof parsed !== 'object') {
-      return { valid: false, error: 'Blueprint must be a valid YAML object' };
+    if (docs.length === 0) {
+      return { valid: false, error: 'Blueprint file is empty' };
     }
 
-    const config = parsed as any;
-
-    if (!config.id || typeof config.id !== 'string') {
-      return { valid: false, error: 'Blueprint must have an "id" field' };
+    // Structure 1: Header + prompts array in second doc
+    if (docs.length > 1 && typeof docs[0] === 'object' && !Array.isArray(docs[0]) && Array.isArray(docs[1])) {
+      return { valid: true };
     }
 
-    if (!config.prompts || !Array.isArray(config.prompts) || config.prompts.length === 0) {
-      return { valid: false, error: 'Blueprint must have a non-empty "prompts" array' };
+    // Structure 2: Stream of prompt documents (all objects)
+    if (docs.every(doc => typeof doc === 'object' && !Array.isArray(doc))) {
+      return { valid: true };
     }
 
-    return { valid: true };
+    // Structure 3: Single doc with prompts key
+    if (docs.length === 1 && typeof docs[0] === 'object' && !Array.isArray(docs[0])) {
+      const config = docs[0] as any;
+      if (config.prompts && Array.isArray(config.prompts)) {
+        return { valid: true };
+      }
+    }
+
+    // Structure 4: Single doc that is a list of prompts
+    if (docs.length === 1 && Array.isArray(docs[0])) {
+      return { valid: true };
+    }
+
+    return { valid: false, error: 'Blueprint must be in one of the supported formats (see docs)' };
   } catch (error: any) {
     return { valid: false, error: `YAML parse error: ${error.message}` };
   }
@@ -390,9 +409,10 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // Parse blueprint for limit checking
-      const yaml = await import('js-yaml');
-      const config = yaml.load(content) as any;
+      // Parse blueprint for limit checking using the proper parser
+      // This handles all multi-document formats correctly
+      const { parseAndNormalizeBlueprint } = await import('@/lib/blueprint-parser');
+      const config = parseAndNormalizeBlueprint(content, 'yaml');
 
       // Check PR evaluation limits
       // Note: checkPREvalLimits doesn't need auth for public model collections
