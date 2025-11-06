@@ -14,7 +14,7 @@ interface PRMetadata {
 }
 
 interface EvalStatus {
-  status: 'pending' | 'validating' | 'generating_responses' | 'evaluating' | 'saving' | 'complete' | 'error';
+  status: 'pending' | 'validating' | 'generating_responses' | 'evaluating' | 'running_pipeline' | 'saving' | 'complete' | 'error';
   message: string;
   updatedAt: string;
   progress?: {
@@ -41,6 +41,7 @@ const STATUS_DISPLAY = {
   validating: { label: 'Validating', color: 'text-yellow-600', icon: '🔍' },
   generating_responses: { label: 'Generating Responses', color: 'text-purple-600', icon: '🤖' },
   evaluating: { label: 'Evaluating', color: 'text-indigo-600', icon: '📊' },
+  running_pipeline: { label: 'Running Evaluation', color: 'text-indigo-600', icon: '⚡' },
   saving: { label: 'Saving Results', color: 'text-green-600', icon: '💾' },
   complete: { label: 'Complete', color: 'text-green-600', icon: '✅' },
   error: { label: 'Error', color: 'text-red-600', icon: '❌' },
