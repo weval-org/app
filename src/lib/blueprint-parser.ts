@@ -7,6 +7,27 @@ import stableStringify from 'json-stable-stringify';
 const ALLOWED_RENDER_AS_VALUES = ['markdown', 'html', 'plaintext'];
 
 /**
+ * Reserved prefixes for system use (e.g., PR evaluations, staging, etc.)
+ * Blueprint IDs starting with these prefixes are not allowed for user blueprints.
+ */
+export const RESERVED_CONFIG_ID_PREFIXES = ['_pr_', '_staging_', '_test_'];
+
+/**
+ * Validates that a config ID does not use a reserved system prefix.
+ * @throws Error if the configId starts with a reserved prefix
+ */
+export function validateReservedPrefixes(configId: string): void {
+  for (const prefix of RESERVED_CONFIG_ID_PREFIXES) {
+    if (configId.startsWith(prefix)) {
+      throw new Error(
+        `Blueprint ID '${configId}' uses reserved prefix '${prefix}' ` +
+        `which is reserved for system use. Please rename your blueprint to avoid this prefix.`
+      );
+    }
+  }
+}
+
+/**
  * Internal interface for building normalized point objects during parsing.
  * This represents the object variant of SinglePointDefinition being constructed.
  */

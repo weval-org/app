@@ -3,7 +3,6 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getAuthenticatedOctokit, logAuthConfig } from '@/lib/github-auth';
 import { parseAndNormalizeBlueprint } from '@/lib/blueprint-parser';
 import { resolveModelsInConfig, SimpleLogger } from '@/lib/blueprint-service';
-import { generateBlueprintIdFromPath } from '@/app/utils/blueprintIdUtils';
 import { executeComparisonPipeline } from '@/cli/services/comparison-pipeline-service';
 import { ComparisonConfig, EvaluationMethod } from '@/cli/types/cli_types';
 import { normalizeTag } from '@/app/utils/tagUtils';
@@ -15,6 +14,7 @@ import { getLogger, Logger } from '@/utils/logger';
 import { initSentry, captureError, setContext, flushSentry } from '@/utils/sentry';
 import { checkBackgroundFunctionAuth } from '@/lib/background-function-auth';
 import { applyPREvalLimits, checkPREvalLimits } from '@/lib/pr-eval-limiter';
+import { getConfigSummary, saveConfigSummary, updateSummaryDataWithNewRun } from '@/lib/storageService';
 
 const UPSTREAM_OWNER = 'weval-org';
 const UPSTREAM_REPO = 'configs';
@@ -28,16 +28,31 @@ const s3Client = new S3Client({
 });
 
 /**
- * Generate storage path for PR evaluation
+ * Sanitize blueprint path for PR evaluation storage/ID
+ * blueprints/users/alice/my-blueprint.yml -> alice-my-blueprint
  */
-function getPRStoragePath(prNumber: number, blueprintPath: string): string {
-  // Sanitize blueprint path to create a safe directory name
-  // blueprints/users/alice/my-blueprint.yml -> alice-my-blueprint
-  const sanitized = blueprintPath
+function sanitizeBlueprintPath(blueprintPath: string): string {
+  return blueprintPath
     .replace(/^blueprints\/users\//, '')
     .replace(/\.ya?ml$/, '')
     .replace(/\//g, '-');
+}
 
+/**
+ * Generate PR-specific config ID using reserved _pr_ prefix
+ * Format: _pr_{prNumber}_{sanitized}
+ * Example: _pr_123_alice-my-blueprint
+ */
+function generatePRConfigId(prNumber: number, blueprintPath: string): string {
+  const sanitized = sanitizeBlueprintPath(blueprintPath);
+  return `_pr_${prNumber}_${sanitized}`;
+}
+
+/**
+ * Generate storage path for PR evaluation
+ */
+function getPRStoragePath(prNumber: number, blueprintPath: string): string {
+  const sanitized = sanitizeBlueprintPath(blueprintPath);
   return `live/pr-evals/${prNumber}/${sanitized}`;
 }
 
@@ -198,19 +213,15 @@ export const handler: BackgroundHandler = async (event) => {
     await updateStatus('validating', 'Validating blueprint structure...');
     let config = parseAndNormalizeBlueprint(blueprintContent, 'yaml');
 
-    // Generate ID from path (single source of truth)
-    // Strip 'blueprints/' prefix before generating ID
-    const pathForId = blueprintPath.startsWith('blueprints/')
-      ? blueprintPath.substring('blueprints/'.length)
-      : blueprintPath;
-
-    // Warn if blueprint contains deprecated 'id' field
+    // Generate PR-specific config ID using reserved _pr_ prefix
+    // Format: _pr_{prNumber}_{sanitized}
+    // This allows the analysis page to detect PR evaluations and route to correct storage
     if (config.id) {
-      logger.warn(`Blueprint '${blueprintPath}' contains deprecated 'id' field ('${config.id}'). This will be ignored and replaced with path-derived ID.`);
+      logger.warn(`Blueprint '${blueprintPath}' contains deprecated 'id' field ('${config.id}'). This will be ignored and replaced with PR-specific ID.`);
     }
-    const derivedId = generateBlueprintIdFromPath(pathForId);
-    logger.info(`Derived ID from path '${blueprintPath}' (stripped: '${pathForId}'): '${derivedId}'`);
-    config.id = derivedId;
+    const prConfigId = generatePRConfigId(prNumber, blueprintPath);
+    logger.info(`Generated PR config ID: '${prConfigId}' for PR #${prNumber}, path: '${blueprintPath}'`);
+    config.id = prConfigId;
 
     // Use ID as title if title is missing
     if (!config.title) {
@@ -326,6 +337,24 @@ export const handler: BackgroundHandler = async (event) => {
     logger.info(`Pipeline complete. Evaluation finished with optimized artifact structure.`);
 
     await updateStatus('saving', 'Finalizing...');
+
+    // Update config summary using shared abstraction (same as run-config.ts)
+    logger.info('Updating config summary for analysis page...');
+    try {
+      const existingConfigSummary = await getConfigSummary(prConfigId);
+      const existingConfigsArray = existingConfigSummary ? [existingConfigSummary] : null;
+      const updatedConfigArray = updateSummaryDataWithNewRun(
+        existingConfigsArray,
+        finalOutput,
+        fileName || `pr-${prNumber}_${finalOutput.timestamp}_comparison.json`
+      );
+      const newConfigSummary = updatedConfigArray[0];
+      await saveConfigSummary(prConfigId, newConfigSummary);
+      logger.info(`Config summary saved for ${prConfigId}`);
+    } catch (summaryError: any) {
+      logger.error(`Failed to update config summary: ${summaryError.message}`);
+      // Non-fatal - evaluation completed successfully even if summary fails
+    }
 
     // Pre-authenticate GitHub for comment posting (avoids re-fetching from Secrets Manager)
     logger.info('Pre-authenticating GitHub for final operations...');

@@ -5,6 +5,8 @@ import { getAuthenticatedOctokit } from '@/lib/github-auth';
 import { callBackgroundFunction } from '@/lib/background-function-client';
 import { prEvaluationLimiter, webhookIPLimiter, webhookGlobalLimiter } from '@/lib/webhook-rate-limiter';
 import { checkPREvalLimits, formatLimitViolations, PR_EVAL_LIMITS } from '@/lib/pr-eval-limiter';
+import { validateReservedPrefixes } from '@/lib/blueprint-parser';
+import { generateBlueprintIdFromPath } from '@/app/utils/blueprintIdUtils';
 
 const GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET;
 const UPSTREAM_OWNER = 'weval-org';
@@ -83,6 +85,21 @@ function parseBlueprintFiles(files: any[], prAuthor: string): {
       invalid.push({
         filename,
         reason: `Username mismatch: directory is '${username}' but PR author is '${prAuthor}'`
+      });
+      continue;
+    }
+
+    // Validate blueprint ID doesn't use reserved prefixes
+    try {
+      const pathForId = filename.startsWith('blueprints/')
+        ? filename.substring('blueprints/'.length)
+        : filename;
+      const generatedId = generateBlueprintIdFromPath(pathForId);
+      validateReservedPrefixes(generatedId);
+    } catch (error: any) {
+      invalid.push({
+        filename,
+        reason: error.message || 'Blueprint ID validation failed'
       });
       continue;
     }

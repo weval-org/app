@@ -47,6 +47,7 @@ import { getConfig } from '@/cli/config';
 import pLimit from '@/lib/pLimit';
 import { ModelSummary, PainPointsSummary, RedlinesAnnotation } from '@/types/shared';
 import { TopicChampionInfo } from '@/app/components/home/types';
+import { RESERVED_CONFIG_ID_PREFIXES } from '@/lib/blueprint-parser';
 
 const storageProvider = process.env.STORAGE_PROVIDER || (['development', 'test'].includes(process.env.NODE_ENV || '') ? 'local' : 's3');
 
@@ -145,6 +146,43 @@ export const streamToBuffer = (stream: Readable): Promise<Buffer> =>
     stream.on('error', reject);
     stream.on('end', () => resolve(Buffer.concat(chunks)));
   });
+
+/**
+ * Determines the storage base path for a given configId by detecting reserved prefixes.
+ *
+ * For PR evaluations (configId starts with _pr_):
+ *   - Format: _pr_{prNumber}_{sanitized}
+ *   - Returns: live/pr-evals/{prNumber}/{sanitized}
+ *
+ * For regular blueprints:
+ *   - Returns: live/blueprints/{configId}
+ *
+ * @example
+ * getConfigBasePath('_pr_123_alice-test') => 'live/pr-evals/123/alice-test'
+ * getConfigBasePath('users__alice__test') => 'live/blueprints/users__alice__test'
+ */
+export function getConfigBasePath(configId: string): string {
+  // Detect PR evaluation configId: _pr_{prNumber}_{sanitized}
+  if (configId.startsWith('_pr_')) {
+    const match = configId.match(/^_pr_(\d+)_(.+)$/);
+    if (match) {
+      const [, prNumber, sanitized] = match;
+      return path.join(LIVE_DIR, 'pr-evals', prNumber, sanitized);
+    }
+    // Fallback if format doesn't match (shouldn't happen)
+    console.warn(`[StorageService] ConfigId '${configId}' starts with _pr_ but doesn't match expected format`);
+  }
+
+  // Check for other reserved prefixes (future: _staging_, _test_, etc.)
+  for (const prefix of RESERVED_CONFIG_ID_PREFIXES) {
+    if (configId.startsWith(prefix) && prefix !== '_pr_') {
+      console.warn(`[StorageService] ConfigId '${configId}' uses reserved prefix '${prefix}' but no routing defined yet`);
+    }
+  }
+
+  // Default: regular blueprint
+  return path.join(LIVE_DIR, 'blueprints', configId);
+}
 
 const LATEST_RUNS_SUMMARY_KEY = 'multi/latest_runs_summary.json';
 const MODELS_DIR = 'models';
@@ -369,13 +407,15 @@ export async function saveHomepageSummary(summaryData: HomepageSummaryFileConten
 
 /**
  * Retrieves the summary for a single configuration.
+ * Automatically routes to correct storage location based on configId prefix (e.g., _pr_ for PR evaluations).
  * @param configId The configuration ID.
  * @returns The parsed summary data for the config, or null if not found.
  */
 export async function getConfigSummary(configId: string): Promise<EnhancedComparisonConfigInfo | null> {
   const fileName = 'summary.json';
   let fileContent: string | null = null;
-  const s3Key = path.join(LIVE_DIR, 'blueprints', configId, fileName);
+  const basePath = getConfigBasePath(configId);
+  const s3Key = path.join(basePath, fileName);
   const localPath = path.join(RESULTS_DIR, s3Key);
 
   if (storageProvider === 's3' && s3Client && s3BucketName) {
@@ -442,7 +482,8 @@ export async function getConfigSummary(configId: string): Promise<EnhancedCompar
  */
 export async function saveConfigSummary(configId: string, summaryData: EnhancedComparisonConfigInfo): Promise<void> {
   const fileName = 'summary.json';
-  const s3Key = path.join(LIVE_DIR, 'blueprints', configId, fileName);
+  const basePath = getConfigBasePath(configId);
+  const s3Key = path.join(basePath, fileName);
   const localPath = path.join(RESULTS_DIR, s3Key);
 
   // Prepare data for serialization: convert Maps to objects
@@ -545,7 +586,8 @@ function artefactPaths(configId: string, runBase: string, relative: string) {
     return workshopPaths(configId, runBase, relative);
   }
 
-  const s3Key = path.join(LIVE_DIR, 'blueprints', configId, runBase, relative);
+  const basePath = getConfigBasePath(configId);
+  const s3Key = path.join(basePath, runBase, relative);
   const localPath = path.join(RESULTS_DIR, s3Key);
   const cachePath = path.join(CACHE_DIR, configId, runBase, relative);
   return { s3Key, localPath, cachePath };
@@ -1113,8 +1155,9 @@ export async function listRunsForConfig(configId: string): Promise<Array<{ runLa
     }
   };
 
-  const s3Prefix = `${LIVE_DIR}/blueprints/${configId}/`;
-  const localPath = path.join(RESULTS_DIR, LIVE_DIR, 'blueprints', configId);
+  const basePath = getConfigBasePath(configId);
+  const s3Prefix = `${basePath}/`;
+  const localPath = path.join(RESULTS_DIR, basePath);
 
   if (storageProvider === 's3' && s3Client && s3BucketName) {
     try {
@@ -1191,7 +1234,8 @@ export async function listRunsForConfig(configId: string): Promise<Array<{ runLa
  * @returns The parsed JSON data or null if not found or on error.
  */
 export async function getResultByFileName(configId: string, fileName: string): Promise<any | null> {
-  const s3Key = path.join(LIVE_DIR, 'blueprints', configId, fileName);
+  const basePath = getConfigBasePath(configId);
+  const s3Key = path.join(basePath, fileName);
   const localPath = path.join(RESULTS_DIR, s3Key);
   const cachePath = path.join(CACHE_DIR, configId, fileName);
 
@@ -1450,10 +1494,11 @@ async function deleteS3Objects(keys: string[]): Promise<boolean> {
  */
 export async function deleteConfigData(configId: string): Promise<number> {
   if (storageProvider === 's3' && s3Client && s3BucketName) {
-    // Support deletion from both legacy and new layouts
+    // Support deletion from both legacy and current layouts (including PR evals)
+    const basePath = getConfigBasePath(configId);
     const prefixes = [
-      path.join(MULTI_DIR, configId, ''),
-      path.join(LIVE_DIR, 'blueprints', configId, ''),
+      path.join(MULTI_DIR, configId, ''), // Legacy location
+      `${basePath}/`, // Current location (routes correctly for PR evals)
     ];
 
     let allKeys: string[] = [];
@@ -1509,9 +1554,10 @@ export async function deleteConfigData(configId: string): Promise<number> {
       return -1;
     }
   } else if (storageProvider === 'local') {
-    // Support deletion from both legacy and new layouts
+    // Support deletion from both legacy and current layouts (including PR evals)
+    const basePath = getConfigBasePath(configId);
     const legacyDir = path.join(process.cwd(), RESULTS_DIR, MULTI_DIR, configId);
-    const newDir = path.join(process.cwd(), RESULTS_DIR, LIVE_DIR, 'blueprints', configId);
+    const currentDir = path.join(process.cwd(), RESULTS_DIR, basePath);
 
     const deleteDirIfExists = async (dirPath: string, label: string): Promise<number> => {
       try {
@@ -1528,8 +1574,8 @@ export async function deleteConfigData(configId: string): Promise<number> {
 
     try {
       const legacyCount = await deleteDirIfExists(legacyDir, 'legacy');
-      const newCount = await deleteDirIfExists(newDir, 'live');
-      const total = legacyCount + newCount;
+      const currentCount = await deleteDirIfExists(currentDir, 'current');
+      const total = legacyCount + currentCount;
 
       // Best-effort: clear any cached artefacts for this config
       try {
