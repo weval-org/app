@@ -5,10 +5,8 @@ import { getAuthenticatedOctokit, logAuthConfig } from '@/lib/github-auth';
 import { parseAndNormalizeBlueprint } from '@/lib/blueprint-parser';
 import { resolveModelsInConfig, SimpleLogger } from '@/lib/blueprint-service';
 import { generateBlueprintIdFromPath } from '@/app/utils/blueprintIdUtils';
-import { generateAllResponses } from '@/cli/services/comparison-pipeline-service.non-stream';
-import { EmbeddingEvaluator } from '@/cli/evaluators/embedding-evaluator';
-import { LLMCoverageEvaluator } from '@/cli/evaluators/llm-coverage-evaluator';
-import { ComparisonConfig, FinalComparisonOutputV2, EvaluationMethod, PromptResponseData, EvaluationInput } from '@/cli/types/cli_types';
+import { executeComparisonPipeline } from '@/cli/services/comparison-pipeline-service';
+import { ComparisonConfig, EvaluationMethod } from '@/cli/types/cli_types';
 import { normalizeTag } from '@/app/utils/tagUtils';
 import { configure } from '@/cli/config';
 import { CustomModelDefinition } from '@/lib/llm-clients/types';
@@ -296,88 +294,35 @@ export const handler: BackgroundHandler = async (event) => {
     logger.info(`Starting evaluation for blueprint: ${config.id || 'unnamed'}`);
     logger.info(`Models: ${config.models?.length || 0}, Prompts: ${config.prompts?.length || 0}`);
 
-    // Generate responses
-    await updateStatus('generating_responses', 'Generating model responses...', { progress: { completed: 0, total: 0 } });
+    // Use the standard evaluation pipeline (same as regular evaluations)
+    // Note: We use noSave=true because PR evals have custom storage structure
+    const evalMethods: EvaluationMethod[] = ['llm-coverage']; // Skip embedding for PR evals
+    const runLabel = `pr-${prNumber}`;
 
-    const progressCallback = async (completed: number, total: number): Promise<void> => {
-      try {
-        await updateStatus('generating_responses', `Generating responses... (${completed}/${total})`, {
-          progress: { completed, total }
-        });
-      } catch (err) {
-        logger.error('Failed to update progress:', err);
-      }
-    };
+    await updateStatus('running_pipeline', 'Running evaluation pipeline...');
 
-    const responsesMap = await generateAllResponses(
+    const { data: finalOutput, fileName } = await executeComparisonPipeline(
       config,
+      runLabel,
+      evalMethods,
       logger,
-      false, // useCache = false for PR evals
-      progressCallback
+      undefined, // existingResponsesMap
+      undefined, // forcePointwiseKeyEval
+      false, // useCache - don't cache PR eval responses
+      commitSha, // Include commit SHA
+      undefined, // blueprintFileName
+      false, // requireExecutiveSummary
+      true, // skipExecutiveSummary - skip for PR evals (faster)
+      undefined, // genOptions
+      undefined, // prefilledCoverage
+      undefined, // fixturesCtx
+      true, // noSave - we'll save manually to pr-evals/ location
     );
 
-    const modelIds = Array.from(new Set(
-      Array.from(responsesMap.values()).flatMap(data =>
-        Object.keys(data.modelResponses)
-      )
-    ));
+    logger.info(`Pipeline complete. Evaluation finished successfully.`);
 
-    logger.info(`Generated ${responsesMap.size} responses across ${modelIds.length} models.`);
-
-    // Run evaluators (simplified for PR evals - just use LLM coverage)
-    await updateStatus('evaluating', 'Running evaluations...', { progress: { completed: 0, total: 0 } });
-
-    const evaluationResults: Record<string, any> = {};
-
-    // Build evaluation inputs for all prompts
-    const evalInputs: EvaluationInput[] = Array.from(responsesMap.values()).map(promptData => ({
-      promptData,
-      config,
-      effectiveModelIds: modelIds,
-    }));
-
-    // Progress callback for evaluation
-    const evaluationProgressCallback = async (completed: number, total: number): Promise<void> => {
-      try {
-        await updateStatus('evaluating', `Evaluating... (${completed}/${total})`, {
-          progress: { completed, total }
-        });
-      } catch (err) {
-        logger.error('Failed to update evaluation progress:', err);
-      }
-    };
-
-    // Run LLM coverage evaluator with progress tracking
-    const llmEvaluator = new LLMCoverageEvaluator(logger, false);
-    const llmCoverageResults = await llmEvaluator.evaluate(evalInputs, evaluationProgressCallback);
-
-    evaluationResults['llm-coverage'] = llmCoverageResults;
-
-    // Build final output
-    await updateStatus('saving', 'Aggregating and saving results...');
-
-    const finalOutput = {
-      configId: config.id || 'unknown',
-      configTitle: config.title || config.id || 'Untitled',
-      description: config.description,
-      tags: config.tags,
-      config: config,
-      prompts: config.prompts || [],
-      models: modelIds,
-      executiveSummary: undefined, // Skip for PR evals
-      evaluationResults: {
-        embedding: evaluationResults.embedding,
-        'llm-coverage': evaluationResults['llm-coverage'],
-      },
-      // Include response data from the map
-      allFinalAssistantResponses: Array.from(responsesMap.entries()).reduce((acc, [key, data]) => {
-        if (!acc[data.promptId]) acc[data.promptId] = {};
-        Object.keys(data.modelResponses).forEach(modelId => {
-          acc[data.promptId][modelId] = data.modelResponses[modelId].finalAssistantResponseText;
-        });
-        return acc;
-      }, {} as Record<string, Record<string, string>>),
-    };
+    // Save to PR-specific location
+    await updateStatus('saving', 'Saving results...');
 
     // Pre-authenticate GitHub for comment posting (avoids re-fetching from Secrets Manager)
     logger.info('Pre-authenticating GitHub for final operations...');
