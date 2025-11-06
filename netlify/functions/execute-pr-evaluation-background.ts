@@ -4,6 +4,7 @@ import { Readable } from 'stream';
 import { getAuthenticatedOctokit, logAuthConfig } from '@/lib/github-auth';
 import { parseAndNormalizeBlueprint } from '@/lib/blueprint-parser';
 import { resolveModelsInConfig, SimpleLogger } from '@/lib/blueprint-service';
+import { generateBlueprintIdFromPath } from '@/app/utils/blueprintIdUtils';
 import { generateAllResponses } from '@/cli/services/comparison-pipeline-service.non-stream';
 import { EmbeddingEvaluator } from '@/cli/evaluators/embedding-evaluator';
 import { LLMCoverageEvaluator } from '@/cli/evaluators/llm-coverage-evaluator';
@@ -208,6 +209,21 @@ export const handler: BackgroundHandler = async (event) => {
     await updateStatus('validating', 'Validating blueprint structure...');
     let config = parseAndNormalizeBlueprint(blueprintContent, 'yaml');
 
+    // Generate ID from path (single source of truth)
+    // Warn if blueprint contains deprecated 'id' field
+    if (config.id) {
+      logger.warn(`Blueprint '${blueprintPath}' contains deprecated 'id' field ('${config.id}'). This will be ignored and replaced with path-derived ID.`);
+    }
+    const derivedId = generateBlueprintIdFromPath(blueprintPath);
+    logger.info(`Derived ID from path '${blueprintPath}': '${derivedId}'`);
+    config.id = derivedId;
+
+    // Use ID as title if title is missing
+    if (!config.title) {
+      logger.info(`'title' not found in blueprint. Using derived ID as title: '${config.id}'`);
+      config.title = config.id;
+    }
+
     // Set default model collection if none specified
     if (!config.models || config.models.length === 0) {
       logger.info('No models specified in blueprint. Defaulting to CORE collection for PR evaluation.');
@@ -384,7 +400,8 @@ export const handler: BackgroundHandler = async (event) => {
       }),
 
       // Post success comment to PR (reusing authenticated octokit instance)
-      postCompletionComment(prNumber, blueprintPath, true, basePath, config.id, undefined, octokit),
+      // Note: Don't pass configId - PR evals use different storage structure than regular analysis pages
+      postCompletionComment(prNumber, blueprintPath, true, basePath, undefined, undefined, octokit),
     ]);
 
     logger.info(`✅ PR evaluation complete for ${blueprintPath}`);
