@@ -1,6 +1,5 @@
 import type { BackgroundHandler } from '@netlify/functions';
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
-import { Readable } from 'stream';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getAuthenticatedOctokit, logAuthConfig } from '@/lib/github-auth';
 import { parseAndNormalizeBlueprint } from '@/lib/blueprint-parser';
 import { resolveModelsInConfig, SimpleLogger } from '@/lib/blueprint-service';
@@ -27,14 +26,6 @@ const s3Client = new S3Client({
     secretAccessKey: process.env.APP_AWS_SECRET_ACCESS_KEY!,
   },
 });
-
-const streamToString = (stream: Readable): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    stream.on('data', (chunk) => chunks.push(chunk));
-    stream.on('error', reject);
-    stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
-  });
 
 /**
  * Generate storage path for PR evaluation
@@ -295,7 +286,6 @@ export const handler: BackgroundHandler = async (event) => {
     logger.info(`Models: ${config.models?.length || 0}, Prompts: ${config.prompts?.length || 0}`);
 
     // Use the standard evaluation pipeline (same as regular evaluations)
-    // Note: We use noSave=true because PR evals have custom storage structure
     const evalMethods: EvaluationMethod[] = ['llm-coverage']; // Skip embedding for PR evals
     const runLabel = `pr-${prNumber}`;
 
@@ -312,6 +302,7 @@ export const handler: BackgroundHandler = async (event) => {
       }
     };
 
+    // Execute pipeline with custom storage path for PR evaluations
     const { data: finalOutput, fileName } = await executeComparisonPipeline(
       config,
       runLabel,
@@ -327,34 +318,25 @@ export const handler: BackgroundHandler = async (event) => {
       undefined, // genOptions
       undefined, // prefilledCoverage
       undefined, // fixturesCtx
-      true, // noSave - we'll save manually to pr-evals/ location
+      false, // noSave - let pipeline handle optimized artifact saving
       progressCallback, // Progress updates for generation and evaluation
+      basePath, // customBasePath - save to pr-evals/ location with full artifact structure
     );
 
-    logger.info(`Pipeline complete. Evaluation finished successfully.`);
+    logger.info(`Pipeline complete. Evaluation finished with optimized artifact structure.`);
 
-    // Save to PR-specific location
-    await updateStatus('saving', 'Saving results...');
+    await updateStatus('saving', 'Finalizing...');
 
     // Pre-authenticate GitHub for comment posting (avoids re-fetching from Secrets Manager)
     logger.info('Pre-authenticating GitHub for final operations...');
     const octokit = await getAuthenticatedOctokit();
     logAuthConfig();
 
-    // Parallelize final operations (S3 uploads and GitHub comment)
-    const resultKey = `${basePath}/_comparison.json`;
+    // Finalize: update status and post comment
     const completedAt = new Date().toISOString();
     const resultUrl = `https://weval.org/pr-eval/${prNumber}/${encodeURIComponent(blueprintPath)}`;
 
     await Promise.all([
-      // Upload results to S3
-      s3Client.send(new PutObjectCommand({
-        Bucket: process.env.APP_S3_BUCKET_NAME!,
-        Key: resultKey,
-        Body: JSON.stringify(finalOutput, null, 2),
-        ContentType: 'application/json',
-      })).then(() => logger.info(`Results saved to: ${resultKey}`)),
-
       // Update final status
       updateStatus('complete', 'Evaluation complete!', {
         completedAt,

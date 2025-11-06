@@ -780,12 +780,14 @@ export async function artefactExists(configId: string, runBase: string, relative
  * @param configId The configuration ID.
  * @param fileNameWithTimestamp The full filename, e.g., myrun_contenthash_2024-01-01T12-30-00Z_comparison.json.
  * @param data The JSON data to save.
+ * @param customBasePath Optional custom base path (e.g., 'live/pr-evals/123/sanitized') to override default 'live/blueprints/{configId}'
  * @returns The path/key where the data was saved or null on error.
  */
-export async function saveResult(configId: string, fileNameWithTimestamp: string, data: any): Promise<string | null> {
+export async function saveResult(configId: string, fileNameWithTimestamp: string, data: any, customBasePath?: string): Promise<string | null> {
   // 1. Save legacy monolithic file (back-compat during migration)
   const jsonData = JSON.stringify(data, null, 2);
-  const s3Key = path.join(LIVE_DIR, 'blueprints', configId, fileNameWithTimestamp);
+  const baseDir = customBasePath || path.join(LIVE_DIR, 'blueprints', configId);
+  const s3Key = path.join(baseDir, fileNameWithTimestamp);
   const localPath = path.join(RESULTS_DIR, s3Key);
 
   let savedPath: string | null = null;
@@ -826,7 +828,7 @@ export async function saveResult(configId: string, fileNameWithTimestamp: string
     // helper to write a JSON artefact to the same provider we just used
     const writeJsonArtefact = async (relativePath: string, obj: any) => {
       const artefactJson = JSON.stringify(obj);
-      const artefactS3Key = path.join(LIVE_DIR, 'blueprints', configId, runBase, relativePath);
+      const artefactS3Key = path.join(baseDir, runBase, relativePath);
       const artefactLocalPath = path.join(RESULTS_DIR, artefactS3Key);
 
       if (storageProvider === 's3' && s3Client && s3BucketName) {

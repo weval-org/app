@@ -30,6 +30,7 @@ async function aggregateAndSaveResults(
     skipExecutiveSummary?: boolean,
     noSave?: boolean,
     generationApproach?: any,
+    customBasePath?: string,
 ): Promise<{ data: FinalComparisonOutputV2, fileName: string | null }> {
     logger.info('[PipelineService] Aggregating results...');
     logger.info(`[PipelineService] Received blueprint ID for saving: '${config.id}'`);
@@ -168,7 +169,7 @@ async function aggregateAndSaveResults(
     }
 
     try {
-        await saveResultToStorage(resolvedConfigId, fileName, finalOutput);
+        await saveResultToStorage(resolvedConfigId, fileName, finalOutput, customBasePath);
         logger.info(`[PipelineService] Successfully saved aggregated results to storage with key/filename: ${fileName}`);
         return { data: finalOutput, fileName: fileName };
     } catch (error: any) {
@@ -207,6 +208,7 @@ export async function executeComparisonPipeline(
     fixturesCtx?: { fixtures: FixtureSet; strict: boolean },
     noSave?: boolean,
     onProgress?: ProgressCallback,
+    customBasePath?: string,
 ): Promise<{ data: FinalComparisonOutputV2, fileName: string | null }> {
     logger.info(`[PipelineService] Starting comparison pipeline for configId: '${config.id || config.configId}' runLabel: '${runLabel}'`);
     
@@ -503,6 +505,7 @@ export async function executeComparisonPipeline(
         skipExecutiveSummary,
         noSave,
         genApproach,
+        customBasePath,
     );
     logger.info(`[PipelineService] executeComparisonPipeline finished successfully. Results at: ${finalResult.fileName}`);
     return finalResult;
