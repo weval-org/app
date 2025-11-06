@@ -210,12 +210,17 @@ export const handler: BackgroundHandler = async (event) => {
     let config = parseAndNormalizeBlueprint(blueprintContent, 'yaml');
 
     // Generate ID from path (single source of truth)
+    // Strip 'blueprints/' prefix before generating ID
+    const pathForId = blueprintPath.startsWith('blueprints/')
+      ? blueprintPath.substring('blueprints/'.length)
+      : blueprintPath;
+
     // Warn if blueprint contains deprecated 'id' field
     if (config.id) {
       logger.warn(`Blueprint '${blueprintPath}' contains deprecated 'id' field ('${config.id}'). This will be ignored and replaced with path-derived ID.`);
     }
-    const derivedId = generateBlueprintIdFromPath(blueprintPath);
-    logger.info(`Derived ID from path '${blueprintPath}': '${derivedId}'`);
+    const derivedId = generateBlueprintIdFromPath(pathForId);
+    logger.info(`Derived ID from path '${blueprintPath}' (stripped: '${pathForId}'): '${derivedId}'`);
     config.id = derivedId;
 
     // Use ID as title if title is missing
