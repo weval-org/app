@@ -76,11 +76,15 @@ async function postCompletionComment(
   success: boolean,
   basePath: string,
   configId?: string,
-  error?: string
+  error?: string,
+  octokit?: Awaited<ReturnType<typeof getAuthenticatedOctokit>>
 ): Promise<void> {
   try {
-    const octokit = await getAuthenticatedOctokit();
-    logAuthConfig();
+    // Use provided octokit instance or create new one (fallback for error cases)
+    const octokitInstance = octokit || await getAuthenticatedOctokit();
+    if (!octokit) {
+      logAuthConfig(); // Only log if we had to create a new instance
+    }
   const resultsUrl = `https://weval.org/pr-eval/${prNumber}/${encodeURIComponent(blueprintPath)}`;
   const analysisUrl = configId ? `https://weval.org/analysis/${configId}` : null;
 
@@ -101,7 +105,7 @@ async function postCompletionComment(
       `Please check the blueprint syntax and try again.`;
   }
 
-    await octokit.issues.createComment({
+    await octokitInstance.issues.createComment({
       owner: UPSTREAM_OWNER,
       repo: UPSTREAM_REPO,
       issue_number: prNumber,
@@ -354,25 +358,34 @@ export const handler: BackgroundHandler = async (event) => {
       }, {} as Record<string, Record<string, string>>),
     };
 
-    // Save results
+    // Pre-authenticate GitHub for comment posting (avoids re-fetching from Secrets Manager)
+    logger.info('Pre-authenticating GitHub for final operations...');
+    const octokit = await getAuthenticatedOctokit();
+    logAuthConfig();
+
+    // Parallelize final operations (S3 uploads and GitHub comment)
     const resultKey = `${basePath}/_comparison.json`;
-    await s3Client.send(new PutObjectCommand({
-      Bucket: process.env.APP_S3_BUCKET_NAME!,
-      Key: resultKey,
-      Body: JSON.stringify(finalOutput, null, 2),
-      ContentType: 'application/json',
-    }));
+    const completedAt = new Date().toISOString();
+    const resultUrl = `https://weval.org/pr-eval/${prNumber}/${encodeURIComponent(blueprintPath)}`;
 
-    logger.info(`Results saved to: ${resultKey}`);
+    await Promise.all([
+      // Upload results to S3
+      s3Client.send(new PutObjectCommand({
+        Bucket: process.env.APP_S3_BUCKET_NAME!,
+        Key: resultKey,
+        Body: JSON.stringify(finalOutput, null, 2),
+        ContentType: 'application/json',
+      })).then(() => logger.info(`Results saved to: ${resultKey}`)),
 
-    // Update final status
-    await updateStatus('complete', 'Evaluation complete!', {
-      completedAt: new Date().toISOString(),
-      resultUrl: `https://weval.org/pr-eval/${prNumber}/${encodeURIComponent(blueprintPath)}`,
-    });
+      // Update final status
+      updateStatus('complete', 'Evaluation complete!', {
+        completedAt,
+        resultUrl,
+      }),
 
-    // Post success comment to PR
-    await postCompletionComment(prNumber, blueprintPath, true, basePath, config.id);
+      // Post success comment to PR (reusing authenticated octokit instance)
+      postCompletionComment(prNumber, blueprintPath, true, basePath, config.id, undefined, octokit),
+    ]);
 
     logger.info(`✅ PR evaluation complete for ${blueprintPath}`);
     await flushSentry();
