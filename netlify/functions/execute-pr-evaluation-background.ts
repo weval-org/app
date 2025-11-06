@@ -372,9 +372,8 @@ export const handler: BackgroundHandler = async (event) => {
         resultUrl,
       }),
 
-      // Post success comment to PR (reusing authenticated octokit instance)
-      // Note: Don't pass configId - PR evals use different storage structure than regular analysis pages
-      postCompletionComment(prNumber, blueprintPath, true, basePath, undefined, undefined, octokit),
+      // Post success comment to PR with analysis link (reusing authenticated octokit instance)
+      postCompletionComment(prNumber, blueprintPath, true, basePath, prConfigId, undefined, octokit),
     ]);
 
     logger.info(`✅ PR evaluation complete for ${blueprintPath}`);
