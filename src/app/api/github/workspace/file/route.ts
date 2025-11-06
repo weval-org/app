@@ -104,15 +104,16 @@ export async function POST(req: NextRequest) {
         const upstreamRepo = 'configs';
 
         if (isNew) {
-            // Get the SHA of the main branch from the UPSTREAM repo
+            // Get the SHA of the main branch from the user's FORK
+            // (Not from upstream, as the fork may not have that exact SHA if out of sync)
             const mainBranch = await octokit.repos.getBranch({
-                owner: upstreamOwner,
-                repo: upstreamRepo,
+                owner,
+                repo,
                 branch: 'main',
             });
             const mainSha = mainBranch.data.commit.sha;
 
-            // Create the new branch on the user's FORK pointing to the upstream SHA
+            // Create the new branch on the user's FORK pointing to their fork's main SHA
             await octokit.git.createRef({
                 owner,
                 repo,
