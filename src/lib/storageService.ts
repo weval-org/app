@@ -824,6 +824,7 @@ export async function saveResult(configId: string, fileNameWithTimestamp: string
   // 2. Write companion artefacts (core.json + prompt responses)
   try {
     const runBase = fileNameWithTimestamp.replace(/_comparison\.json$/i, '');
+    const failedArtifacts: Array<{ path: string; error: string }> = [];
 
     // helper to write a JSON artefact to the same provider we just used
     const writeJsonArtefact = async (relativePath: string, obj: any) => {
@@ -852,6 +853,33 @@ export async function saveResult(configId: string, fileNameWithTimestamp: string
         }
       } catch {}
 
+    };
+
+    // Retry wrapper: tries up to 3 times with exponential backoff
+    const writeWithRetry = async (relativePath: string, obj: any): Promise<void> => {
+      const maxAttempts = 3;
+      let lastError: Error | null = null;
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          await writeJsonArtefact(relativePath, obj);
+          return; // Success!
+        } catch (error: any) {
+          lastError = error;
+          if (attempt < maxAttempts) {
+            // Exponential backoff: 100ms, 200ms, 400ms
+            const delayMs = 100 * Math.pow(2, attempt - 1);
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+          }
+        }
+      }
+
+      // All retries failed
+      failedArtifacts.push({
+        path: relativePath,
+        error: lastError?.message || 'Unknown error'
+      });
+      console.error(`[StorageService] Failed to write artifact after ${maxAttempts} attempts: ${relativePath}`, lastError);
     };
 
     // Build core.json (lightweight slice)
@@ -942,10 +970,11 @@ export async function saveResult(configId: string, fileNameWithTimestamp: string
       return clone;
     };
 
-    await writeJsonArtefact('core.json', buildCoreData(data));
+    await writeWithRetry('core.json', buildCoreData(data));
 
-    // Concurrency limiter: lower for S3, higher for local FS
-    const limit = pLimit(storageProvider === 's3' ? 8 : 32);
+    // Concurrency limiter: S3 can handle much higher concurrency than local FS
+    // S3 supports 3,500 PUT/s per prefix; local FS has kernel/disk I/O limits
+    const limit = pLimit(storageProvider === 's3' ? 50 : 16);
     const artefactWrites: Promise<void>[] = [];
 
     // Prompt-level responses
@@ -953,14 +982,14 @@ export async function saveResult(configId: string, fileNameWithTimestamp: string
       for (const promptId of Object.keys(data.allFinalAssistantResponses)) {
         // Keep bulk file for backward compatibility
         artefactWrites.push(
-          limit(() => writeJsonArtefact(path.join('responses', `${promptId}.json`), data.allFinalAssistantResponses[promptId]))
+          limit(() => writeWithRetry(path.join('responses', `${promptId}.json`), data.allFinalAssistantResponses[promptId]))
         );
 
         // NEW: Write individual response files per model for optimized lazy loading
         const responsesForPrompt = data.allFinalAssistantResponses[promptId];
         for (const modelId of Object.keys(responsesForPrompt)) {
           artefactWrites.push(
-            limit(() => writeJsonArtefact(
+            limit(() => writeWithRetry(
               path.join('responses', promptId, `${getSafeModelId(modelId)}.json`),
               responsesForPrompt[modelId]
             ))
@@ -974,7 +1003,7 @@ export async function saveResult(configId: string, fileNameWithTimestamp: string
     for (const pid of Object.keys(coverage)) {
       for (const mid of Object.keys(coverage[pid])) {
         artefactWrites.push(
-          limit(() => writeJsonArtefact(path.join('coverage', pid, `${getSafeModelId(mid)}.json`), coverage[pid][mid]))
+          limit(() => writeWithRetry(path.join('coverage', pid, `${getSafeModelId(mid)}.json`), coverage[pid][mid]))
         );
       }
     }
@@ -986,7 +1015,7 @@ export async function saveResult(configId: string, fileNameWithTimestamp: string
           const history = data.fullConversationHistories[pid][mid];
           if (Array.isArray(history) && history.length > 0) {
             artefactWrites.push(
-              limit(() => writeJsonArtefact(path.join('histories', pid, `${getSafeModelId(mid)}.json`), { history }))
+              limit(() => writeWithRetry(path.join('histories', pid, `${getSafeModelId(mid)}.json`), { history }))
             );
           }
         }
@@ -996,6 +1025,14 @@ export async function saveResult(configId: string, fileNameWithTimestamp: string
     // Wait for all artefacts to finish writing
     if (artefactWrites.length > 0) {
       await Promise.all(artefactWrites);
+    }
+
+    // Log any failures (but don't fail the entire save operation)
+    if (failedArtifacts.length > 0) {
+      console.warn(`[StorageService] ${failedArtifacts.length} artifact(s) failed to write after retries:`);
+      failedArtifacts.forEach(({ path, error }) => {
+        console.warn(`  - ${path}: ${error}`);
+      });
     }
   } catch (artefactErr: any) {
     console.warn(`[StorageService] Companion artefact write failed (non-fatal): ${artefactErr.message}`);
