@@ -104,21 +104,43 @@ export async function POST(req: NextRequest) {
         const upstreamRepo = 'configs';
 
         if (isNew) {
-            // Get the SHA of the main branch from the user's FORK
-            // (Not from upstream, as the fork may not have that exact SHA if out of sync)
-            const mainBranch = await octokit.repos.getBranch({
-                owner,
-                repo,
+            // Step 1: Get upstream's main branch SHA
+            const upstreamMain = await octokit.repos.getBranch({
+                owner: upstreamOwner,
+                repo: upstreamRepo,
                 branch: 'main',
             });
-            const mainSha = mainBranch.data.commit.sha;
+            const upstreamSha = upstreamMain.data.commit.sha;
 
-            // Create the new branch on the user's FORK pointing to their fork's main SHA
+            // Step 2: Try to sync fork's main with upstream's main
+            // This ensures the branch we create is based on the latest upstream code
+            let syncedSha = upstreamSha;
+            try {
+                await octokit.git.updateRef({
+                    owner,
+                    repo,
+                    ref: 'heads/main',
+                    sha: upstreamSha,
+                    force: false, // Only fast-forward, don't overwrite diverged changes
+                });
+                console.log(`[Workspace] Successfully synced ${owner}/${repo} main with upstream`);
+            } catch (syncError: any) {
+                // If sync fails (e.g., fork has diverged), use fork's current main instead
+                console.warn(`[Workspace] Could not fast-forward sync fork's main (${syncError.message}). Using fork's current main.`);
+                const forkMain = await octokit.repos.getBranch({
+                    owner,
+                    repo,
+                    branch: 'main',
+                });
+                syncedSha = forkMain.data.commit.sha;
+            }
+
+            // Step 3: Create the new branch pointing to the synced SHA
             await octokit.git.createRef({
                 owner,
                 repo,
                 ref: `refs/heads/${branchName}`,
-                sha: mainSha,
+                sha: syncedSha,
             });
         }
         
