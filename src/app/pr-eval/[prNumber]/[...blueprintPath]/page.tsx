@@ -50,12 +50,30 @@ const STATUS_DISPLAY = {
 /**
  * Generate PR-specific config ID for analysis page routing
  * Format: _pr_{prNumber}_{sanitized}
+ *
+ * Handles multiple possible blueprintPath formats:
+ * - blueprints/users/padolsey/art-appreciation-and-analysis
+ * - padolsey/art-appreciation-and-analysis
+ * - blueprints/users/padolsey/art-appreciation-and-analysis.yml
  */
 function generatePRConfigId(prNumber: string, blueprintPath: string): string {
-  const sanitized = blueprintPath
-    .replace(/^blueprints\/users\//, '')
-    .replace(/\.ya?ml$/, '')
-    .replace(/\//g, '-');
+  let sanitized = blueprintPath;
+
+  // Remove 'blueprints/users/' prefix if present
+  if (sanitized.startsWith('blueprints/users/')) {
+    sanitized = sanitized.substring('blueprints/users/'.length);
+  }
+  // Also handle 'blueprints/' prefix alone
+  else if (sanitized.startsWith('blueprints/')) {
+    sanitized = sanitized.substring('blueprints/'.length);
+  }
+
+  // Remove .yml or .yaml extension
+  sanitized = sanitized.replace(/\.ya?ml$/, '');
+
+  // Replace remaining slashes with dashes
+  sanitized = sanitized.replace(/\//g, '-');
+
   return `_pr_${prNumber}_${sanitized}`;
 }
 
