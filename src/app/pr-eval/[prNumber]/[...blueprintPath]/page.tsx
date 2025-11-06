@@ -47,6 +47,18 @@ const STATUS_DISPLAY = {
   error: { label: 'Error', color: 'text-red-600', icon: '❌' },
 };
 
+/**
+ * Generate PR-specific config ID for analysis page routing
+ * Format: _pr_{prNumber}_{sanitized}
+ */
+function generatePRConfigId(prNumber: string, blueprintPath: string): string {
+  const sanitized = blueprintPath
+    .replace(/^blueprints\/users\//, '')
+    .replace(/\.ya?ml$/, '')
+    .replace(/\//g, '-');
+  return `_pr_${prNumber}_${sanitized}`;
+}
+
 export default function PREvaluationPage() {
   const params = useParams();
   const prNumber = params.prNumber as string;
@@ -140,6 +152,10 @@ export default function PREvaluationPage() {
   const statusInfo = data.status ? STATUS_DISPLAY[data.status.status] : null;
   const isComplete = data.status?.status === 'complete';
   const isError = data.status?.status === 'error';
+
+  // Generate the correct PR-specific configId for analysis page routing
+  // This ensures the analysis page can find the data in live/pr-evals/ location
+  const prConfigId = generatePRConfigId(prNumber, blueprintPath);
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -239,34 +255,34 @@ export default function PREvaluationPage() {
           <div className="bg-white rounded-lg shadow-md p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-bold text-gray-900">Results Summary</h2>
-              {data.results.configId && (
-                <Link
-                  href={`/analysis/${data.results.configId}`}
-                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors font-medium inline-flex items-center gap-2"
-                >
-                  <span>View Full Analysis</span>
-                  <span>→</span>
-                </Link>
-              )}
+              <Link
+                href={`/analysis/${prConfigId}`}
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors font-medium inline-flex items-center gap-2"
+              >
+                <span>View Full Analysis</span>
+                <span>→</span>
+              </Link>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
               <div className="bg-gray-50 p-4 rounded-lg">
                 <div className="text-sm text-gray-600 mb-1">Models Evaluated</div>
                 <div className="text-3xl font-bold text-gray-900">
-                  {data.results.models?.length || 0}
+                  {data.results.effectiveModels?.length || 0}
                 </div>
               </div>
               <div className="bg-gray-50 p-4 rounded-lg">
                 <div className="text-sm text-gray-600 mb-1">Total Prompts</div>
                 <div className="text-3xl font-bold text-gray-900">
-                  {data.results.prompts?.length || 0}
+                  {data.results.promptIds?.length || 0}
                 </div>
               </div>
               <div className="bg-gray-50 p-4 rounded-lg">
                 <div className="text-sm text-gray-600 mb-1">Total Responses</div>
                 <div className="text-3xl font-bold text-gray-900">
-                  {data.results.modelResponses?.length || 0}
+                  {data.results.allFinalAssistantResponses
+                    ? Object.values(data.results.allFinalAssistantResponses).reduce((sum: number, responses: any) => sum + Object.keys(responses).length, 0)
+                    : 0}
                 </div>
               </div>
             </div>
@@ -274,23 +290,23 @@ export default function PREvaluationPage() {
             <div className="prose max-w-none">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Blueprint Details</h3>
               <dl className="grid grid-cols-1 gap-2 text-sm">
-                {data.results.title && (
+                {(data.results.configTitle || data.results.config?.title) && (
                   <>
                     <dt className="font-semibold text-gray-700">Title:</dt>
-                    <dd className="text-gray-900">{data.results.title}</dd>
+                    <dd className="text-gray-900">{data.results.configTitle || data.results.config?.title}</dd>
                   </>
                 )}
-                {data.results.description && (
+                {data.results.description || data.results.config?.description && (
                   <>
                     <dt className="font-semibold text-gray-700">Description:</dt>
-                    <dd className="text-gray-900">{data.results.description}</dd>
+                    <dd className="text-gray-900">{data.results.description || data.results.config?.description}</dd>
                   </>
                 )}
-                {data.results.tags && data.results.tags.length > 0 && (
+                {(data.results.config?.tags && data.results.config.tags.length > 0) && (
                   <>
                     <dt className="font-semibold text-gray-700">Tags:</dt>
                     <dd className="flex flex-wrap gap-2">
-                      {data.results.tags.map((tag: string, i: number) => (
+                      {data.results.config.tags.map((tag: string, i: number) => (
                         <span
                           key={i}
                           className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs"
@@ -311,14 +327,12 @@ export default function PREvaluationPage() {
               <p className="text-green-700 text-sm mb-3">
                 The blueprint has been validated and evaluated against all configured models.
               </p>
-              {data.results.configId && (
-                <Link
-                  href={`/analysis/${data.results.configId}`}
-                  className="inline-block px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition-colors"
-                >
-                  View Full Analysis & Scores →
-                </Link>
-              )}
+              <Link
+                href={`/analysis/${prConfigId}`}
+                className="inline-block px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition-colors"
+              >
+                View Full Analysis & Scores →
+              </Link>
             </div>
           </div>
         )}
