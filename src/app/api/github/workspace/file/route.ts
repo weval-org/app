@@ -104,29 +104,36 @@ export async function POST(req: NextRequest) {
         const upstreamRepo = 'configs';
 
         if (isNew) {
-            // Step 1: Get upstream's main branch SHA
-            const upstreamMain = await octokit.repos.getBranch({
-                owner: upstreamOwner,
-                repo: upstreamRepo,
-                branch: 'main',
-            });
-            const upstreamSha = upstreamMain.data.commit.sha;
-
-            // Step 2: Try to sync fork's main with upstream's main
-            // This ensures the branch we create is based on the latest upstream code
-            let syncedSha = upstreamSha;
+            // Step 1: Sync fork with upstream using GitHub's merge upstream API
+            // This handles both fast-forward and diverged cases by creating a merge commit
+            let syncedSha: string;
             try {
-                await octokit.git.updateRef({
+                const mergeResult = await octokit.repos.mergeUpstream({
                     owner,
                     repo,
-                    ref: 'heads/main',
-                    sha: upstreamSha,
-                    force: false, // Only fast-forward, don't overwrite diverged changes
+                    branch: 'main',
                 });
-                console.log(`[Workspace] Successfully synced ${owner}/${repo} main with upstream`);
+                console.log(`[Workspace] Successfully synced ${owner}/${repo} main with upstream (merge type: ${mergeResult.data.merge_type})`);
+
+                // After merge, get the updated main branch SHA
+                const updatedMain = await octokit.repos.getBranch({
+                    owner,
+                    repo,
+                    branch: 'main',
+                });
+                syncedSha = updatedMain.data.commit.sha;
             } catch (syncError: any) {
-                // If sync fails (e.g., fork has diverged), use fork's current main instead
-                console.warn(`[Workspace] Could not fast-forward sync fork's main (${syncError.message}). Using fork's current main.`);
+                // If sync fails, get fork's current main SHA
+                // This can happen if:
+                // - Fork is already up to date (409 conflict)
+                // - Merge conflicts exist (409 conflict)
+                // - Fork doesn't have upstream configured
+                if (syncError.status === 409) {
+                    console.log(`[Workspace] Fork already up to date with upstream or has conflicts`);
+                } else {
+                    console.warn(`[Workspace] Could not sync fork with upstream (${syncError.message})`);
+                }
+
                 const forkMain = await octokit.repos.getBranch({
                     owner,
                     repo,
@@ -135,7 +142,7 @@ export async function POST(req: NextRequest) {
                 syncedSha = forkMain.data.commit.sha;
             }
 
-            // Step 3: Create the new branch pointing to the synced SHA
+            // Step 2: Create the new branch pointing to the synced SHA
             await octokit.git.createRef({
                 owner,
                 repo,
