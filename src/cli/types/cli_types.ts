@@ -83,7 +83,7 @@ export interface LLMCoverageEvaluationResult {
 
 export interface Evaluator {
     getMethodName(): EvaluationMethod;
-    evaluate(inputs: EvaluationInput[]): Promise<Partial<WevalEvaluationResults & Pick<FinalComparisonOutputV2, 'extractedKeyPoints'>>>;
+    evaluate(inputs: EvaluationInput[], onProgress?: (completed: number, total: number) => Promise<void>): Promise<Partial<WevalEvaluationResults & Pick<FinalComparisonOutputV2, 'extractedKeyPoints'>>>;
 }
 
 // Judge and LLMCoverageEvaluationConfig now imported from shared

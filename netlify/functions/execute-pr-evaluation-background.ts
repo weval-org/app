@@ -299,7 +299,18 @@ export const handler: BackgroundHandler = async (event) => {
     const evalMethods: EvaluationMethod[] = ['llm-coverage']; // Skip embedding for PR evals
     const runLabel = `pr-${prNumber}`;
 
-    await updateStatus('running_pipeline', 'Running evaluation pipeline...');
+    await updateStatus('running_pipeline', 'Starting evaluation pipeline...');
+
+    // Progress callback for generation and evaluation phases
+    const progressCallback = async (completed: number, total: number): Promise<void> => {
+      try {
+        await updateStatus('running_pipeline', `Processing... (${completed}/${total})`, {
+          progress: { completed, total }
+        });
+      } catch (err) {
+        logger.error('Failed to update progress:', err);
+      }
+    };
 
     const { data: finalOutput, fileName } = await executeComparisonPipeline(
       config,
@@ -317,6 +328,7 @@ export const handler: BackgroundHandler = async (event) => {
       undefined, // prefilledCoverage
       undefined, // fixturesCtx
       true, // noSave - we'll save manually to pr-evals/ location
+      progressCallback, // Progress updates for generation and evaluation
     );
 
     logger.info(`Pipeline complete. Evaluation finished successfully.`);

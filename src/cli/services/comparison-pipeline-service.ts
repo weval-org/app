@@ -6,7 +6,7 @@ import { LLMCoverageEvaluator } from '@/cli/evaluators/llm-coverage-evaluator';
 import { saveResult as saveResultToStorage } from '@/lib/storageService';
 import { toSafeTimestamp } from '@/lib/timestampUtils';
 import { generateExecutiveSummary as generateExecutiveSummary } from './executive-summary-service';
-import { generateAllResponses } from './comparison-pipeline-service.non-stream';
+import { generateAllResponses, ProgressCallback } from './comparison-pipeline-service.non-stream';
 import { buildDeckXml, parseResponsesXml, validateResponses } from '@/cli/services/consumer-deck';
 import { collectConsumerSlices } from '@/cli/services/consumer-service';
 import crypto from 'crypto';
@@ -186,6 +186,7 @@ async function aggregateAndSaveResults(
  * @param existingResponsesMap - Optional map of pre-generated responses.
  * @param forcePointwiseKeyEval - Optional flag to force pointwise key evaluation.
  * @param useCache - Optional flag to enable caching for model responses.
+ * @param onProgress - Optional progress callback for generation and evaluation phases.
  * @returns A promise that resolves to an object containing the full comparison data and the filename it was saved under.
  */
 export async function executeComparisonPipeline(
@@ -205,6 +206,7 @@ export async function executeComparisonPipeline(
     prefilledCoverage?: Record<string, Record<string, any>>,
     fixturesCtx?: { fixtures: FixtureSet; strict: boolean },
     noSave?: boolean,
+    onProgress?: ProgressCallback,
 ): Promise<{ data: FinalComparisonOutputV2, fileName: string | null }> {
     logger.info(`[PipelineService] Starting comparison pipeline for configId: '${config.id || config.configId}' runLabel: '${runLabel}'`);
     
@@ -220,7 +222,7 @@ export async function executeComparisonPipeline(
 
         if (consumerModels.length === 0) {
             // No consumer models → normal generation
-            allResponsesMap = await generateAllResponses(config, logger, useCache, undefined, genOptions, runLabel, fixturesCtx);
+            allResponsesMap = await generateAllResponses(config, logger, useCache, onProgress, genOptions, runLabel, fixturesCtx);
         } else {
             // For system permutations, step the user through each variant with a dedicated deck (global <system>)
             const sysVariants: (string | null)[] = Array.isArray(config.systems) && config.systems.length > 0
@@ -234,7 +236,7 @@ export async function executeComparisonPipeline(
             if (!bulkMode) {
                 // Standard per-prompt generation for API models
                 const apiOnlyConfig = { ...config, models: apiModels } as ComparisonConfig;
-                apiMap = await generateAllResponses(apiOnlyConfig, logger, useCache, undefined, genOptions, runLabel, fixturesCtx);
+                apiMap = await generateAllResponses(apiOnlyConfig, logger, useCache, onProgress, genOptions, runLabel, fixturesCtx);
             } else {
                 logger.info('[PipelineService] BULK MODE enabled for API models. Generating one deck call per model×system variant.');
                 // Build empty map
@@ -424,7 +426,7 @@ export async function executeComparisonPipeline(
                 return pruned;
             });
         }
-        const results = await evaluator.evaluate(inputsForThisEvaluator);
+        const results = await evaluator.evaluate(inputsForThisEvaluator, onProgress);
         if (evaluator.getMethodName() === 'llm-coverage') {
             // Deep-merge coverage results to avoid overwriting prefilled entries
             const dest = (combinedEvaluationResults.llmCoverageScores = combinedEvaluationResults.llmCoverageScores || {});
