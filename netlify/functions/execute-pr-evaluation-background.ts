@@ -300,7 +300,7 @@ export const handler: BackgroundHandler = async (event) => {
     logger.info(`Generated ${responsesMap.size} responses across ${modelIds.length} models.`);
 
     // Run evaluators (simplified for PR evals - just use LLM coverage)
-    await updateStatus('evaluating', 'Running evaluations...');
+    await updateStatus('evaluating', 'Running evaluations...', { progress: { completed: 0, total: 0 } });
 
     const evaluationResults: Record<string, any> = {};
 
@@ -311,9 +311,20 @@ export const handler: BackgroundHandler = async (event) => {
       effectiveModelIds: modelIds,
     }));
 
-    // Run LLM coverage evaluator
+    // Progress callback for evaluation
+    const evaluationProgressCallback = async (completed: number, total: number): Promise<void> => {
+      try {
+        await updateStatus('evaluating', `Evaluating... (${completed}/${total})`, {
+          progress: { completed, total }
+        });
+      } catch (err) {
+        logger.error('Failed to update evaluation progress:', err);
+      }
+    };
+
+    // Run LLM coverage evaluator with progress tracking
     const llmEvaluator = new LLMCoverageEvaluator(logger, false);
-    const llmCoverageResults = await llmEvaluator.evaluate(evalInputs);
+    const llmCoverageResults = await llmEvaluator.evaluate(evalInputs, evaluationProgressCallback);
 
     evaluationResults['llm-coverage'] = llmCoverageResults;
 
