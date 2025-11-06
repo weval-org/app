@@ -125,22 +125,22 @@ export async function POST(req: NextRequest) {
         const userResponse = await octokit.users.getAuthenticated();
         const userLogin = userResponse.data.login;
         
-        // Quick check: if we already have a fork, we can skip most of the work
+        // Quick check: if we already have a fork with the expected name, we can skip most of the work
         let userFork;
         try {
             userFork = await octokit.repos.get({
                 owner: userLogin,
-                repo: 'configs'
+                repo: DEFAULT_FORK_NAME
             });
-            
+
             // If we get here, the fork exists, so we can return early
             if (userFork.data) {
                 console.log(`Found existing user fork: '${userFork.data.full_name}' (quick check)`);
-                await ensurePlaceholderFile(octokit, userLogin, 'configs');
-                return NextResponse.json({ 
+                await ensurePlaceholderFile(octokit, userLogin, DEFAULT_FORK_NAME);
+                return NextResponse.json({
                     message: 'Workspace setup completed successfully',
                     forkName: userFork.data.full_name,
-                    forkCreated: false 
+                    forkCreated: false
                 });
             }
         } catch (error: any) {
@@ -162,11 +162,25 @@ export async function POST(req: NextRequest) {
             console.log(`Found existing user fork: '${userFork.full_name}'`);
             forkFullName = userFork.full_name;
         } else if (shouldCreateFork) {
-            console.log(`No existing fork found. Creating one as requested...`);
-            const newForkResponse = await octokit.repos.createFork({
-                owner: UPSTREAM_OWNER,
-                repo: UPSTREAM_REPO_NAME,
-            });
+            console.log(`No existing fork found. Creating one named '${DEFAULT_FORK_NAME}'...`);
+            let newForkResponse;
+            try {
+                newForkResponse = await octokit.repos.createFork({
+                    owner: UPSTREAM_OWNER,
+                    repo: UPSTREAM_REPO_NAME,
+                    name: DEFAULT_FORK_NAME,
+                });
+            } catch (forkError: any) {
+                // Check if error is due to repo name already being taken
+                if (forkError.status === 422 || forkError.message?.includes('name already exists')) {
+                    throw new Error(
+                        `A repository named '${DEFAULT_FORK_NAME}' already exists in your account but is not a fork of weval-org/configs. ` +
+                        `Please rename or delete that repository, or use a different GitHub account.`
+                    );
+                }
+                throw forkError; // Re-throw other errors
+            }
+
             forkFullName = newForkResponse.data.full_name;
             forkCreated = true;
 
