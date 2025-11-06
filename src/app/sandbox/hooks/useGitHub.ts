@@ -6,6 +6,94 @@ import { BlueprintFile, PRStatus, ActiveBlueprint } from './useWorkspace';
 
 const GITHUB_FILES_CACHE_KEY = 'sandboxV2_github_files_cache';
 const PR_STATUSES_CACHE_KEY = 'sandboxV2_pr_statuses_cache';
+const EXPECTED_FORK_REPO_NAME = 'weval-configs';
+
+/**
+ * Workspace state detection for granular error messages
+ */
+type WorkspaceState =
+  | { type: 'not_logged_in' }
+  | { type: 'missing_username' }
+  | { type: 'setup_not_started' }
+  | { type: 'setup_in_progress' }
+  | { type: 'stale_fork', staleForkName: string }
+  | { type: 'ready', forkName: string };
+
+function detectWorkspaceState(
+  isLoggedIn: boolean,
+  username: string | null,
+  forkName: string | null,
+  isSyncingWithGitHub: boolean
+): WorkspaceState {
+  if (!isLoggedIn) {
+    return { type: 'not_logged_in' };
+  }
+
+  if (!username) {
+    return { type: 'missing_username' };
+  }
+
+  if (!forkName) {
+    return isSyncingWithGitHub
+      ? { type: 'setup_in_progress' }
+      : { type: 'setup_not_started' };
+  }
+
+  // Check for stale fork name (old 'configs' instead of new 'weval-configs')
+  const repoName = forkName.split('/')[1];
+  if (repoName && repoName !== EXPECTED_FORK_REPO_NAME) {
+    return { type: 'stale_fork', staleForkName: forkName };
+  }
+
+  return { type: 'ready', forkName };
+}
+
+/**
+ * Generate user-friendly error message based on workspace state
+ */
+function getWorkspaceErrorMessage(state: WorkspaceState): {
+  title: string;
+  description: string;
+  action?: { label: string; handler: () => void };
+} {
+  switch (state.type) {
+    case 'not_logged_in':
+      return {
+        title: 'GitHub Login Required',
+        description: 'Please log in with your GitHub account to save blueprints.',
+      };
+
+    case 'missing_username':
+      return {
+        title: 'GitHub Profile Error',
+        description: 'Unable to retrieve your GitHub username. Please try logging out and logging back in.',
+      };
+
+    case 'setup_not_started':
+      return {
+        title: 'Workspace Not Set Up',
+        description: 'Your workspace needs to be initialized before you can save files. Please complete the workspace setup first.',
+      };
+
+    case 'setup_in_progress':
+      return {
+        title: 'Setup In Progress',
+        description: 'Your workspace is being set up. Please wait a moment and try again.',
+      };
+
+    case 'stale_fork':
+      return {
+        title: 'Workspace Needs Update',
+        description: `Your workspace is using an outdated fork (${state.staleForkName}). Please reset your workspace to use the new format.`,
+      };
+
+    default:
+      return {
+        title: 'Unknown Error',
+        description: 'An unexpected error occurred. Please refresh the page.',
+      };
+  }
+}
 
 export function useGitHub(isLoggedIn: boolean, username: string | null) {
   const { toast } = useToast();
@@ -117,11 +205,25 @@ export function useGitHub(isLoggedIn: boolean, username: string | null) {
   }, [toast, forkName]);
 
   const updateFileOnGitHub = useCallback(async (path: string, content: string, sha: string, branchName: string): Promise<BlueprintFile | null> => {
-    if (!isLoggedIn || !forkName) {
-      throw new Error('User not logged in or fork not available.');
+    // Check workspace state with granular error detection
+    const state = detectWorkspaceState(isLoggedIn, username, forkName, isSyncingWithGitHub);
+    if (state.type !== 'ready') {
+      const errorInfo = getWorkspaceErrorMessage(state);
+      toast({
+        variant: "destructive",
+        title: errorInfo.title,
+        description: errorInfo.description,
+      });
+      return null;
     }
+
     if (!branchName) {
-      throw new Error('A branch name is required to update a file on GitHub.');
+      toast({
+        variant: "destructive",
+        title: "Branch Required",
+        description: "A branch name is required to update a file on GitHub. This is a technical error - please refresh the page.",
+      });
+      return null;
     }
 
     try {
@@ -132,7 +234,7 @@ export function useGitHub(isLoggedIn: boolean, username: string | null) {
           path,
           content,
           sha,
-          forkName,
+          forkName: state.forkName,
           isNew: false,
           branchName,
         }),
@@ -155,15 +257,23 @@ export function useGitHub(isLoggedIn: boolean, username: string | null) {
       });
       return null;
     }
-  }, [isLoggedIn, forkName, toast]);
+  }, [isLoggedIn, username, forkName, isSyncingWithGitHub, toast]);
 
   const promoteBlueprintToBranch = useCallback(async (
     filename: string,
     content: string,
     existingProposal?: BlueprintFile
   ): Promise<BlueprintFile | null> => {
-    if (!isLoggedIn || !forkName || !username) {
-      throw new Error('User not logged in or fork not available.');
+    // Check workspace state with granular error detection
+    const state = detectWorkspaceState(isLoggedIn, username, forkName, isSyncingWithGitHub);
+    if (state.type !== 'ready') {
+      const errorInfo = getWorkspaceErrorMessage(state);
+      toast({
+        variant: "destructive",
+        title: errorInfo.title,
+        description: errorInfo.description,
+      });
+      return null;
     }
 
     try {
@@ -192,7 +302,7 @@ export function useGitHub(isLoggedIn: boolean, username: string | null) {
           path: `blueprints/users/${username}/${filename}`,
           content: content,
           sha: sha,
-          forkName: forkName,
+          forkName: state.forkName,
           isNew: isNew,
           branchName: branchName,
         }),
@@ -234,7 +344,7 @@ export function useGitHub(isLoggedIn: boolean, username: string | null) {
       });
       return null;
     }
-  }, [isLoggedIn, forkName, username, toast]);
+  }, [isLoggedIn, forkName, username, isSyncingWithGitHub, toast]);
 
   const createPullRequest = useCallback(async (data: { title: string; body: string }, activeBlueprint: ActiveBlueprint) => {
     if (!activeBlueprint || !forkName || !activeBlueprint.branchName) {
@@ -421,12 +531,52 @@ export function useGitHub(isLoggedIn: boolean, username: string | null) {
     }
   }, [forkName, toast]);
 
+  /**
+   * Reset workspace state - clears local cache and fork configuration
+   * Use this when user needs to start fresh (e.g., stale fork, corrupted state)
+   */
+  const resetWorkspace = useCallback(() => {
+    console.log('[resetWorkspace] Clearing workspace state and cache');
+
+    // Clear React state
+    setForkName(null);
+    setPrStatuses({});
+    setForkCreationRequired(false);
+    setIsSyncingWithGitHub(false);
+    setSetupMessage('');
+
+    // Clear localStorage cache
+    try {
+      window.localStorage.removeItem(GITHUB_FILES_CACHE_KEY);
+      window.localStorage.removeItem(PR_STATUSES_CACHE_KEY);
+      console.log('[resetWorkspace] Cleared localStorage cache');
+    } catch (e) {
+      console.warn('[resetWorkspace] Failed to clear localStorage:', e);
+    }
+
+    toast({
+      title: 'Workspace Reset',
+      description: 'Your workspace has been reset. Please set up your workspace again to continue.',
+    });
+  }, [toast]);
+
+  /**
+   * Detect current workspace state for error handling
+   */
+  const workspaceState = detectWorkspaceState(
+    isLoggedIn,
+    username,
+    forkName,
+    isSyncingWithGitHub
+  );
+
   return {
     forkName,
     prStatuses,
     forkCreationRequired,
     isSyncingWithGitHub,
     setupMessage,
+    workspaceState,
     setForkName,
     setForkCreationRequired,
     setIsSyncingWithGitHub,
@@ -442,5 +592,6 @@ export function useGitHub(isLoggedIn: boolean, username: string | null) {
     deleteFileFromGitHub,
     loadFileContentFromGitHub,
     renameFile,
+    resetWorkspace,
   };
 } 
