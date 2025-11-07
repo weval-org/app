@@ -242,7 +242,7 @@ export function FileNavigator({
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                                 <DropdownMenuItem onClick={onManageWorkspace}>
-                                    <Icon name="cog" className="w-4 h-4 mr-2" />
+                                    <Icon name="github" className="w-4 h-4 mr-2" />
                                     Manage Workspace
                                 </DropdownMenuItem>
                                 {forkName && (

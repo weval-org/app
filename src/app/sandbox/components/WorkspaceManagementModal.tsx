@@ -209,7 +209,7 @@ export function WorkspaceManagementModal({
                 </>
               ) : (
                 <>
-                  <Icon name="play" className="mr-2 h-4 w-4" />
+                  <Icon name="arrow-right" className="mr-2 h-4 w-4" />
                   Set Up Workspace
                 </>
               )}

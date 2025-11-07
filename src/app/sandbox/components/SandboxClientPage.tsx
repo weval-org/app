@@ -24,7 +24,7 @@ import { generateMinimalBlueprintYaml } from '../utils/yaml-generator';
 import { parseAndNormalizeBlueprint } from '@/lib/blueprint-parser';
 import { useImmer } from 'use-immer';
 import { InputModal } from './InputModal';
-import { WorkspaceSetupModal } from './WorkspaceSetupModal';
+import { WorkspaceManagementModal } from './WorkspaceManagementModal';
 import { RunsSidebar } from './RunsSidebar';
 import {
   DropdownMenu,
@@ -83,8 +83,10 @@ function SandboxClientPageInternal() {
         deletingFilePath,
         fetchFiles,
         renameBlueprint,
+        workspaceState,
+        resetWorkspace,
     } = useWorkspace(
-        user?.isLoggedIn ?? false, 
+        user?.isLoggedIn ?? false,
         user?.username ?? null,
         isAuthLoading
     );
@@ -102,6 +104,7 @@ function SandboxClientPageInternal() {
     const [modelsToConfirm, setModelsToConfirm] = useState<string[]>([]);
     const [isAnonymousRunModalOpen, setIsAnonymousRunModalOpen] = useState(false);
     const [isAutoCreateModalOpen, setIsAutoCreateModalOpen] = useState(false);
+    const [isManageWorkspaceOpen, setIsManageWorkspaceOpen] = useState(false);
     const [isModalSubmitting, setIsModalSubmitting] = useState(false);
     // Import overlay state for ?config=...
     const [isImportingFromConfig, setIsImportingFromConfig] = useState(false);
@@ -175,6 +178,21 @@ function SandboxClientPageInternal() {
             handleWorkspaceSetup();
         }
     }, [user?.isLoggedIn, clearAuth, setupWorkspace]);
+
+    // Auto-open workspace management modal if workspace needs attention after login
+    useEffect(() => {
+        // Only auto-open if user just logged in and workspace needs setup/attention
+        if (user?.isLoggedIn && setupInitiatedRef.current) {
+            const needsAttention =
+                workspaceState.type === 'setup_not_started' ||
+                workspaceState.type === 'stale_fork';
+
+            if (needsAttention && !isManageWorkspaceOpen && !forkCreationRequired) {
+                console.log('[SandboxClientPage] Workspace needs attention, opening management modal');
+                setIsManageWorkspaceOpen(true);
+            }
+        }
+    }, [user?.isLoggedIn, workspaceState.type, isManageWorkspaceOpen, forkCreationRequired]);
 
     // Reset setup flag when user logs out
     useEffect(() => {
@@ -1111,6 +1129,8 @@ function SandboxClientPageInternal() {
                         deletingFilePath={deletingFilePath}
                         user={user}
                         forkName={forkName}
+                        workspaceState={workspaceState}
+                        onManageWorkspace={() => setIsManageWorkspaceOpen(true)}
                         onLogin={handleLogin}
                         isLoggingInWithGitHub={isLoggingInWithGitHub}
                         onLogout={handleLogout}
@@ -1329,16 +1349,26 @@ function SandboxClientPageInternal() {
                 }}
                 status={runStatus}
             />
-            <WorkspaceSetupModal
-                isOpen={forkCreationRequired}
-                onClose={() => setForkCreationRequired(false)}
-                onConfirm={async () => {
+            <WorkspaceManagementModal
+                isOpen={isManageWorkspaceOpen || forkCreationRequired}
+                onClose={() => {
+                    setIsManageWorkspaceOpen(false);
+                    setForkCreationRequired(false);
+                }}
+                workspaceState={workspaceState}
+                forkName={forkName}
+                onSetupWorkspace={async () => {
                     const result = await setupWorkspace(true);
                     if (result?.authFailure) {
                         clearAuth();
                     }
+                    if (result?.success) {
+                        setIsManageWorkspaceOpen(false);
+                        setForkCreationRequired(false);
+                    }
                 }}
-                isConfirming={status === 'setting_up'}
+                onResetWorkspace={resetWorkspace}
+                isSettingUp={status === 'setting_up'}
             />
             <Dialog open={!!fileToDelete} onOpenChange={(isOpen) => !isOpen && setFileToDelete(null)}>
                 <DialogContent>
