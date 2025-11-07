@@ -1358,7 +1358,9 @@ function SandboxClientPageInternal() {
                 workspaceState={workspaceState}
                 forkName={forkName}
                 onSetupWorkspace={async () => {
+                    console.log('[SandboxClientPage] onSetupWorkspace called - calling setupWorkspace(true)');
                     const result = await setupWorkspace(true);
+                    console.log('[SandboxClientPage] setupWorkspace result:', result);
                     if (result?.authFailure) {
                         clearAuth();
                     }
