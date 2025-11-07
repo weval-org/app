@@ -19,6 +19,14 @@ import {
 import { cn } from '@/lib/utils';
 import Icon from '@/components/ui/icon';
 
+type WorkspaceState =
+  | { type: 'not_logged_in' }
+  | { type: 'missing_username' }
+  | { type: 'setup_not_started' }
+  | { type: 'setup_in_progress' }
+  | { type: 'stale_fork', staleForkName: string }
+  | { type: 'ready', forkName: string };
+
 const getPrIcon = (status: PRStatus) => {
     if (status.merged) {
       return <Icon name="git-merge" className="w-4 h-4 text-purple-500" />;
@@ -27,6 +35,23 @@ const getPrIcon = (status: PRStatus) => {
       return <Icon name="git-pull-request" className="w-4 h-4 text-green-500" />;
     }
     return <Icon name="git-pull-request-closed" className="w-4 h-4 text-red-500" />;
+};
+
+const getWorkspaceStatusBadge = (state: WorkspaceState): { icon: string; label: string; color: string } | null => {
+    switch (state.type) {
+        case 'ready':
+            return { icon: 'check-circle', label: 'Ready', color: 'text-green-600' };
+        case 'setup_not_started':
+            return { icon: 'alert-circle', label: 'Setup Required', color: 'text-yellow-600' };
+        case 'setup_in_progress':
+            return { icon: 'loader-2', label: 'Setting Up...', color: 'text-blue-600' };
+        case 'stale_fork':
+            return { icon: 'alert-triangle', label: 'Update Required', color: 'text-orange-600' };
+        case 'missing_username':
+            return { icon: 'x-circle', label: 'Error', color: 'text-red-600' };
+        default:
+            return null;
+    }
 };
 
 export interface FileNavigatorProps {
@@ -45,6 +70,8 @@ export interface FileNavigatorProps {
     deletingFilePath: string | null;
     user: User | null;
     forkName: string | null;
+    workspaceState: WorkspaceState;
+    onManageWorkspace: () => void;
     onLogin: () => void;
     isLoggingInWithGitHub: boolean;
     onLogout: () => void;
@@ -53,22 +80,24 @@ export interface FileNavigatorProps {
     onTourBlurbClick: () => void;
 }
 
-export function FileNavigator({ 
-    files, 
-    activeFilePath, 
-    onSelectFile, 
+export function FileNavigator({
+    files,
+    activeFilePath,
+    onSelectFile,
     onDeleteFile,
     onRenameFile,
     onDuplicateFile,
-    onCreateNew, 
+    onCreateNew,
     onAutoCreate,
-    isLoading, 
+    isLoading,
     isSyncingWithGitHub,
     isCreating,
     isDeleting,
     deletingFilePath,
     user,
     forkName,
+    workspaceState,
+    onManageWorkspace,
     onLogin,
     isLoggingInWithGitHub,
     onLogout,
@@ -190,11 +219,19 @@ export function FileNavigator({
                             </div>
                             <div className="flex-grow min-w-0">
                                 <div className="font-semibold text-sm truncate">{user.username}</div>
-                                {forkName && (
-                                    <div className="text-xs text-muted-foreground truncate">
-                                        {forkName}
-                                    </div>
-                                )}
+                                {workspaceState.type !== 'not_logged_in' && (() => {
+                                    const badge = getWorkspaceStatusBadge(workspaceState);
+                                    if (!badge) return null;
+                                    return (
+                                        <div className="flex items-center gap-1 text-xs">
+                                            <Icon
+                                                name={badge.icon as any}
+                                                className={cn("w-3 h-3", badge.color, badge.icon === 'loader-2' && "animate-spin")}
+                                            />
+                                            <span className={cn("truncate", badge.color)}>{badge.label}</span>
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         </div>
                         <DropdownMenu>
@@ -204,18 +241,28 @@ export function FileNavigator({
                                 </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={onManageWorkspace}>
+                                    <Icon name="cog" className="w-4 h-4 mr-2" />
+                                    Manage Workspace
+                                </DropdownMenuItem>
                                 {forkName && (
-                                    <DropdownMenuItem asChild>
-                                        <a 
-                                            href={`https://github.com/${forkName}`} 
-                                            target="_blank" 
-                                            rel="noopener noreferrer"
-                                        >
-                                            View Fork
-                                        </a>
-                                    </DropdownMenuItem>
+                                    <>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem asChild>
+                                            <a
+                                                href={`https://github.com/${forkName}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                            >
+                                                <Icon name="external-link" className="w-4 h-4 mr-2" />
+                                                View Fork
+                                            </a>
+                                        </DropdownMenuItem>
+                                    </>
                                 )}
+                                <DropdownMenuSeparator />
                                  <DropdownMenuItem onClick={onLogout}>
+                                    <Icon name="log-out" className="w-4 h-4 mr-2" />
                                     Logout
                                 </DropdownMenuItem>
                             </DropdownMenuContent>

@@ -88,6 +88,7 @@ export function useWorkspace(
     forkCreationRequired,
     isSyncingWithGitHub,
     setupMessage: setupGitHubMessage,
+    workspaceState,
     setForkCreationRequired,
     setIsSyncingWithGitHub,
     setSetupMessage: setGitHubSetupMessage,
@@ -99,6 +100,7 @@ export function useWorkspace(
     deleteFileFromGitHub,
     loadFileContentFromGitHub,
     renameFile: renameFileOnGitHub,
+    resetWorkspace,
   } = useGitHub(isLoggedIn, username);
 
   const {
@@ -830,7 +832,8 @@ export function useWorkspace(
     forkCreationRequired,
     isSyncingWithGitHub,
     deletingFilePath,
-    
+    workspaceState,
+
     // Actions
     setupWorkspace,
     loadFile,
@@ -849,5 +852,6 @@ export function useWorkspace(
     fetchFiles,
     setForkCreationRequired,
     renameBlueprint,
+    resetWorkspace,
   };
 }
