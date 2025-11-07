@@ -115,8 +115,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    const { searchParams } = new URL(req.url);
-    const shouldCreateFork = searchParams.get('createFork') === 'true';
+    const body = await req.json();
+    const shouldCreateFork = body.createFork === true;
 
     try {
         const { Octokit } = await import('@octokit/rest');

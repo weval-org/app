@@ -176,21 +176,29 @@ export function useGitHub(isLoggedIn: boolean, username: string | null) {
 
         const result = await response.json();
         console.log('[setupWorkspace] Setup response:', result);
-        
+
+        // Check if API is telling us fork creation is required
+        if (result.forkCreationRequired) {
+            console.log('[setupWorkspace] API returned forkCreationRequired=true');
+            setForkCreationRequired(true);
+            setSetupMessage('');
+            return { forkCreationRequired: true };
+        }
+
         if (result.forkCreated) {
             setSetupMessage('Fork created successfully! Setting up your blueprint directory...');
         } else {
             setSetupMessage('Found existing fork. Setting up your blueprint directory...');
         }
-        
+
         await new Promise(resolve => setTimeout(resolve, 500));
-        
+
         console.log(`[setupWorkspace] Setting forkName to: ${result.forkName}`);
         setForkName(result.forkName);
         setForkCreationRequired(false);
-        
+
         setSetupMessage('Loading your blueprints...');
-        
+
         return { success: true, forkName: result.forkName };
     } catch (error: any) {
         console.error('[setupWorkspace] Error:', error);
