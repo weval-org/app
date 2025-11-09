@@ -179,10 +179,15 @@ function SandboxClientPageInternal() {
         }
     }, [user?.isLoggedIn, clearAuth, setupWorkspace]);
 
+    // Track if user has explicitly dismissed the workspace setup modal
+    const [hasUserDismissedSetup, setHasUserDismissedSetup] = useState(false);
+
     // Auto-open workspace management modal if workspace needs attention after login
     useEffect(() => {
         // Only auto-open if user just logged in and workspace needs setup/attention
-        if (user?.isLoggedIn && setupInitiatedRef.current) {
+        // AND user hasn't explicitly dismissed it
+        // AND we're not currently in the process of setting up (to avoid race condition)
+        if (user?.isLoggedIn && setupInitiatedRef.current && !hasUserDismissedSetup && status !== 'setting_up') {
             const needsAttention =
                 workspaceState.type === 'setup_not_started' ||
                 workspaceState.type === 'stale_fork';
@@ -192,12 +197,13 @@ function SandboxClientPageInternal() {
                 setIsManageWorkspaceOpen(true);
             }
         }
-    }, [user?.isLoggedIn, workspaceState.type, isManageWorkspaceOpen, forkCreationRequired]);
+    }, [user?.isLoggedIn, workspaceState.type, isManageWorkspaceOpen, forkCreationRequired, hasUserDismissedSetup, status]);
 
-    // Reset setup flag when user logs out
+    // Reset setup flag and dismissal when user logs out
     useEffect(() => {
         if (!user?.isLoggedIn) {
             setupInitiatedRef.current = false;
+            setHasUserDismissedSetup(false);
         }
     }, [user?.isLoggedIn]);
 
@@ -1354,6 +1360,7 @@ function SandboxClientPageInternal() {
                 onClose={() => {
                     setIsManageWorkspaceOpen(false);
                     setForkCreationRequired(false);
+                    setHasUserDismissedSetup(true); // Allow user to use sandbox locally
                 }}
                 workspaceState={workspaceState}
                 forkName={forkName}
@@ -1367,6 +1374,7 @@ function SandboxClientPageInternal() {
                     if (result?.success) {
                         setIsManageWorkspaceOpen(false);
                         setForkCreationRequired(false);
+                        setHasUserDismissedSetup(false); // Clear dismissal on successful setup
                     }
                 }}
                 onResetWorkspace={resetWorkspace}

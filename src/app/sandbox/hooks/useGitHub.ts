@@ -557,6 +557,7 @@ export function useGitHub(isLoggedIn: boolean, username: string | null) {
     try {
       window.localStorage.removeItem(GITHUB_FILES_CACHE_KEY);
       window.localStorage.removeItem(PR_STATUSES_CACHE_KEY);
+      window.localStorage.removeItem('lastActiveBlueprintPath'); // Clear stale file reference
       console.log('[resetWorkspace] Cleared localStorage cache');
     } catch (e) {
       console.warn('[resetWorkspace] Failed to clear localStorage:', e);

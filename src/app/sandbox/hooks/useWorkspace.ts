@@ -284,14 +284,17 @@ export function useWorkspace(
     }
     
     try {
-        const localFilesFromDisk = loadFilesFromLocalStorage();
+        const allFilesFromCache = loadFilesFromLocalStorage();
+        // Only keep truly local files - don't merge stale cached GitHub files
+        const localFilesFromDisk = allFilesFromCache.filter(f => f.isLocal);
+
         if (localFilesFromDisk.length > 0) {
             setFiles(localFilesFromDisk);
             if (!activeBlueprintRef.current) {
                 loadFile(localFilesFromDisk[0]);
             }
         }
-        
+
         if (!effectiveForkName) {
             if (localFilesFromDisk.length === 0) {
                  const { file, blueprint } = initializeDefaultBlueprint();
@@ -339,9 +342,26 @@ export function useWorkspace(
 
             const allFiles = [...localFilesFromDisk, ...dedupedRemote];
             setFiles(allFiles);
-            
+
+            // Clean up stale "lastActiveBlueprintPath" if it points to a file that no longer exists
+            const lastActivePath = localStorage.getItem('lastActiveBlueprintPath');
+            if (lastActivePath && !allFiles.some(f => f.path === lastActivePath)) {
+              console.log('[fetchFiles] 🧹 Clearing stale lastActiveBlueprintPath:', lastActivePath);
+              localStorage.removeItem('lastActiveBlueprintPath');
+            }
+
             if (!activeBlueprintRef.current && allFiles.length > 0) {
-                loadFile(allFiles[0]);
+                // Try to load the first file, but don't fail if it's on a deleted branch
+                try {
+                  await loadFile(allFiles[0]);
+                } catch (error) {
+                  console.warn('[fetchFiles] Failed to load first file, continuing anyway:', error);
+                  // If first file fails (e.g. deleted branch), try a local file
+                  const localFile = allFiles.find(f => f.isLocal);
+                  if (localFile) {
+                    await loadFile(localFile);
+                  }
+                }
             } else if (allFiles.length === 0) {
                 const { file, blueprint } = initializeDefaultBlueprint();
                 saveToLocalStorage(blueprint, []);
@@ -797,7 +817,16 @@ export function useWorkspace(
   }, [activeBlueprint, loadFile, renameInLocalStorage, renameFileOnGitHub]);
 
   useEffect(() => {
-    const allFiles = loadFilesFromLocalStorage();
+    // Wait for auth to complete before loading cached files
+    // This prevents "not logged in" errors when trying to load GitHub files from cache
+    if (isAuthLoading) {
+      return;
+    }
+
+    const allFilesFromCache = loadFilesFromLocalStorage();
+    // Only load truly local files on initial mount - don't load stale GitHub file references
+    const allFiles = allFilesFromCache.filter(f => f.isLocal);
+
     if (allFiles.length === 0) {
         const { blueprint, file } = initializeDefaultBlueprint();
         saveToLocalStorage(blueprint, []);
@@ -806,14 +835,31 @@ export function useWorkspace(
         setEditorContent(blueprint.content);
     } else {
         const lastActivePath = localStorage.getItem('lastActiveBlueprintPath');
+
+        // Check if lastActivePath is stale (points to non-existent file)
+        if (lastActivePath && !allFiles.some(f => f.path === lastActivePath)) {
+          console.log('[Initial load] 🧹 Clearing stale lastActiveBlueprintPath:', lastActivePath);
+          localStorage.removeItem('lastActiveBlueprintPath');
+        }
+
         const fileToLoad = allFiles.find((f: BlueprintFile) => f.path === lastActivePath) || allFiles[0];
         if (fileToLoad) {
-            loadFile(fileToLoad);
+            // Only load if it's local, or if we're logged in (for GitHub files)
+            if (fileToLoad.isLocal || isLoggedIn) {
+              loadFile(fileToLoad).catch((error) => {
+                console.warn('[Initial load] Failed to load cached file, continuing anyway:', error);
+                // If cached file fails to load (e.g. deleted branch), just show files list
+                setFiles(allFiles);
+              });
+            } else {
+              // Just show the files list without loading
+              setFiles(allFiles);
+            }
         } else {
             setFiles(allFiles);
         }
     }
-  }, [initializeDefaultBlueprint, loadFilesFromLocalStorage, loadFile, saveToLocalStorage, setActiveBlueprint, setEditorContent]);
+  }, [isAuthLoading, isLoggedIn, initializeDefaultBlueprint, loadFilesFromLocalStorage, loadFile, saveToLocalStorage, setActiveBlueprint, setEditorContent]);
 
   return {
     status,

@@ -170,38 +170,80 @@ export function WorkspaceManagementModal({
 
           {/* Setup Info */}
           {needsSetup && (
+            <div className="bg-muted p-4 rounded-md space-y-3">
+              <div className="space-y-2">
+                <p className="text-sm font-semibold flex items-center gap-2">
+                  <Icon name="info" className="h-4 w-4 text-blue-600" />
+                  First time? Set up your GitHub workspace
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  This creates a fork where your blueprints will be saved. Required for GitHub features.
+                </p>
+                <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground pl-2">
+                  <li>Creates a fork of <code className="text-xs bg-background px-1 py-0.5 rounded">weval-org/configs</code></li>
+                  <li>Fork will be named <code className="text-xs bg-background px-1 py-0.5 rounded">weval-configs</code></li>
+                  <li>Initializes your blueprint directory</li>
+                  <li>Enables saving blueprints to GitHub</li>
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {/* Reset Info */}
+          {workspaceState.type === 'ready' && (
             <div className="bg-muted p-4 rounded-md space-y-2">
-              <p className="text-sm font-semibold">What happens during setup:</p>
-              <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
-                <li>Creates a fork of <code className="text-xs bg-background px-1 py-0.5 rounded">weval-org/configs</code></li>
-                <li>Fork will be named <code className="text-xs bg-background px-1 py-0.5 rounded">weval-configs</code></li>
-                <li>Initializes your blueprint directory</li>
-                <li>Enables saving blueprints to GitHub</li>
-              </ul>
+              <p className="text-sm font-semibold flex items-center gap-2">
+                <Icon name="info" className="h-4 w-4 text-blue-600" />
+                Having problems?
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Reset will clear your local workspace settings and cached data. Your GitHub fork and blueprints will not be affected. Use this if you're experiencing sync issues.
+              </p>
+            </div>
+          )}
+
+          {/* Close to use locally hint */}
+          {needsSetup && (
+            <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 p-3 rounded-md">
+              <p className="text-xs text-blue-800 dark:text-blue-200">
+                <strong>Tip:</strong> You can close this dialog and use the sandbox locally. GitHub features will be available once you complete setup.
+              </p>
             </div>
           )}
         </div>
 
         <DialogFooter className="flex-col sm:flex-row gap-2">
-          {/* Reset Button (always available except during setup) */}
-          {workspaceState.type !== 'setup_in_progress' && workspaceState.type !== 'not_logged_in' && (
+          {/* Reset Button (only when workspace is ready) */}
+          {workspaceState.type === 'ready' && (
             <Button
               variant="outline"
               onClick={() => setShowResetConfirm(true)}
-              className="sm:mr-auto"
+              className="sm:mr-auto text-destructive border-destructive hover:bg-destructive/10"
             >
-              <Icon name="refresh-cw" className="mr-2 h-4 w-4" />
-              Reset Workspace
+              <Icon name="alert-triangle" className="mr-2 h-4 w-4" />
+              Troubleshoot: Reset
+            </Button>
+          )}
+
+          {/* Reset Button (for stale fork - more prominent) */}
+          {workspaceState.type === 'stale_fork' && (
+            <Button
+              variant="outline"
+              onClick={() => setShowResetConfirm(true)}
+              className="sm:mr-auto text-orange-600 border-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/30"
+            >
+              <Icon name="alert-triangle" className="mr-2 h-4 w-4" />
+              Reset to Update
             </Button>
           )}
 
           <Button variant="ghost" onClick={onClose}>
-            Close
+            {needsSetup ? 'Skip for Now' : 'Close'}
           </Button>
 
           {/* Setup Button (only when setup needed) */}
           {needsSetup && (
-            <Button onClick={onSetupWorkspace} disabled={isSettingUp}>
+            <Button onClick={onSetupWorkspace} disabled={isSettingUp} className="bg-primary hover:bg-primary/90">
               {isSettingUp ? (
                 <>
                   <Icon name="loader-2" className="mr-2 h-4 w-4 animate-spin" />
@@ -209,8 +251,8 @@ export function WorkspaceManagementModal({
                 </>
               ) : (
                 <>
-                  <Icon name="arrow-right" className="mr-2 h-4 w-4" />
-                  Set Up Workspace
+                  <Icon name="github" className="mr-2 h-4 w-4" />
+                  Create GitHub Fork
                 </>
               )}
             </Button>

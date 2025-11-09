@@ -9,6 +9,7 @@ import { parseAndNormalizeBlueprint } from '@/lib/blueprint-parser';
 import { CustomModelDefinition } from '@/lib/llm-clients/types';
 import { registerCustomModels } from '@/lib/llm-clients/client-dispatcher';
 import { callBackgroundFunction } from '@/lib/background-function-client';
+import { resolveModelsInConfig } from '@/lib/blueprint-service';
 
 // Zod schema for the incoming request body
 const RunRequestSchema = z.object({
@@ -58,7 +59,44 @@ export async function POST(req: NextRequest) {
     } catch (e: any) {
         return NextResponse.json({ error: 'Invalid blueprint YAML.', details: e.message }, { status: 400 });
     }
-    
+
+    // 2a. Resolve model collection placeholders (e.g., "CORE" -> actual model IDs from GitHub)
+    try {
+        const githubToken = process.env.GITHUB_TOKEN;
+        console.log(`[Sandbox API] Resolving model collections in blueprint (runId: ${runId})...`);
+        parsedConfig = await resolveModelsInConfig(parsedConfig, githubToken, {
+            info: (msg) => console.log(`[Sandbox API] ${msg}`),
+            error: (msg) => console.error(`[Sandbox API] ${msg}`),
+            warn: (msg) => console.warn(`[Sandbox API] ${msg}`),
+        });
+        console.log(`[Sandbox API] Model resolution complete. Resolved models:`, parsedConfig.models);
+    } catch (e: any) {
+        console.error(`[Sandbox API] Failed to resolve model collections:`, e);
+        return NextResponse.json({
+            error: 'Failed to resolve model collections from GitHub.',
+            details: e.message
+        }, { status: 500 });
+    }
+
+    // 2b. Also resolve selectedModels if they contain collection placeholders
+    let resolvedSelectedModels = selectedModels;
+    if (selectedModels && selectedModels.length > 0) {
+        try {
+            const githubToken = process.env.GITHUB_TOKEN;
+            const tempConfig: ComparisonConfig = { ...parsedConfig, models: selectedModels };
+            const resolved = await resolveModelsInConfig(tempConfig, githubToken, {
+                info: (msg) => console.log(`[Sandbox API] ${msg}`),
+                error: (msg) => console.error(`[Sandbox API] ${msg}`),
+                warn: (msg) => console.warn(`[Sandbox API] ${msg}`),
+            });
+            resolvedSelectedModels = resolved.models?.filter(m => typeof m === 'string') as string[] || selectedModels;
+            console.log(`[Sandbox API] Resolved selectedModels from [${selectedModels.join(', ')}] to [${resolvedSelectedModels.join(', ')}]`);
+        } catch (e: any) {
+            console.warn(`[Sandbox API] Failed to resolve selectedModels, using original values:`, e);
+            // Fall back to original selectedModels if resolution fails
+        }
+    }
+
     // 3. Configure run based on mode (Advanced vs. Quick)
     
     // --- Custom Model Registration ---
@@ -77,8 +115,8 @@ export async function POST(req: NextRequest) {
       // For advanced (logged-in) users, use the models they selected in the modal.
       // Fallback to blueprint's models or default if none are provided.
       const configModels = parsedConfig.models ? parsedConfig.models.map(m => typeof m === 'string' ? m : m.id) : [];
-      finalModels = (selectedModels && selectedModels.length > 0)
-        ? selectedModels
+      finalModels = (resolvedSelectedModels && resolvedSelectedModels.length > 0)
+        ? resolvedSelectedModels
         : (configModels.length > 0)
             ? configModels
             : DEFAULT_ADVANCED_MODELS;
@@ -98,24 +136,24 @@ export async function POST(req: NextRequest) {
     // 4. Construct the final ComparisonConfig
     let finalConfigModels: (string | CustomModelDefinition)[];
     
-    if (isDev && selectedModels && selectedModels.length > 0) {
+    if (isDev && resolvedSelectedModels && resolvedSelectedModels.length > 0) {
       // In development mode, preserve the full model definitions for custom models
-      const requestedModelIds = new Set(selectedModels);
+      const requestedModelIds = new Set(resolvedSelectedModels);
       const originalModels = Array.isArray(parsedConfig.models) ? parsedConfig.models : [];
-      
+
       // Filter original models to only include those requested
       const filteredModels = originalModels.filter(model => {
         const modelId = typeof model === 'string' ? model : model.id;
         return requestedModelIds.has(modelId);
       });
 
-      // Add any simple string models from selectedModels that weren't in the original definitions
-      for (const modelId of selectedModels) {
+      // Add any simple string models from resolvedSelectedModels that weren't in the original definitions
+      for (const modelId of resolvedSelectedModels) {
         if (!filteredModels.some(m => (typeof m === 'string' ? m : m.id) === modelId)) {
           filteredModels.push(modelId);
         }
       }
-      
+
       finalConfigModels = filteredModels;
     } else {
       // Production or fallback behavior - use finalModels as strings
