@@ -51,9 +51,9 @@ const ComparePromptSelector: React.FC = () => {
       const basePath = `/analysis/${configId}/${runLabel}/${timestamp}/compare`;
 
       if (selectedPromptId === '__ALL__') {
-        router.push(basePath);
+        window.location.href = basePath;
       } else {
-        router.push(`${basePath}?prompt=${selectedPromptId}`);
+        window.location.href = `${basePath}?prompt=${selectedPromptId}`;
       }
     };
 
