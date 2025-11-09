@@ -286,7 +286,7 @@ export function useWorkspace(
     try {
         const allFilesFromCache = loadFilesFromLocalStorage();
         // Only keep truly local files - don't merge stale cached GitHub files
-        const localFilesFromDisk = allFilesFromCache.filter(f => f.isLocal);
+        const localFilesFromDisk = allFilesFromCache.filter((f: BlueprintFile) => f.isLocal);
 
         if (localFilesFromDisk.length > 0) {
             setFiles(localFilesFromDisk);
@@ -825,7 +825,7 @@ export function useWorkspace(
 
     const allFilesFromCache = loadFilesFromLocalStorage();
     // Only load truly local files on initial mount - don't load stale GitHub file references
-    const allFiles = allFilesFromCache.filter(f => f.isLocal);
+    const allFiles = allFilesFromCache.filter((f: BlueprintFile) => f.isLocal);
 
     if (allFiles.length === 0) {
         const { blueprint, file } = initializeDefaultBlueprint();
@@ -837,7 +837,7 @@ export function useWorkspace(
         const lastActivePath = localStorage.getItem('lastActiveBlueprintPath');
 
         // Check if lastActivePath is stale (points to non-existent file)
-        if (lastActivePath && !allFiles.some(f => f.path === lastActivePath)) {
+        if (lastActivePath && !allFiles.some((f: BlueprintFile) => f.path === lastActivePath)) {
           console.log('[Initial load] 🧹 Clearing stale lastActiveBlueprintPath:', lastActivePath);
           localStorage.removeItem('lastActiveBlueprintPath');
         }
