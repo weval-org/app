@@ -15,12 +15,315 @@ import Breadcrumbs from '@/app/components/Breadcrumbs';
 import { Badge } from '@/components/ui/badge';
 import { prettifyTag, normalizeTag } from '@/app/utils/tagUtils';
 import CIPLogo from '@/components/icons/CIPLogo';
+import { useRouter } from 'next/navigation';
+
+const ComparePromptSelector: React.FC = () => {
+    const router = useRouter();
+    const {
+        data,
+        configId,
+        runLabel,
+        timestamp,
+        currentPromptId,
+    } = useAnalysis();
+
+    const getPromptContextDisplayString = (promptId: string): string => {
+        if (!data || !data.promptContexts) return promptId;
+        const context = data.promptContexts[promptId];
+        if (typeof context === 'string') {
+          return context;
+        }
+        if (Array.isArray(context) && context.length > 0) {
+          const lastUserMessage = [...context].reverse().find(msg => msg.role === 'user');
+          if (lastUserMessage && typeof lastUserMessage.content === 'string') {
+            const text = lastUserMessage.content;
+            return `User: ${text.substring(0, 300)}${text.length > 300 ? '...' : ''}`;
+          }
+          return `Multi-turn context (${context.length} messages)`;
+        }
+        return promptId;
+    };
+
+    if (!data || !data.promptIds || data.promptIds.length === 0) return null;
+
+    const handleSelectChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+      const selectedPromptId = event.target.value;
+      const basePath = `/analysis/${configId}/${runLabel}/${timestamp}/compare`;
+
+      if (selectedPromptId === '__ALL__') {
+        router.push(basePath);
+      } else {
+        router.push(`${basePath}?prompt=${selectedPromptId}`);
+      }
+    };
+
+    return (
+      <div className="mb-6">
+        <label htmlFor="prompt-selector" className="block text-sm font-medium text-muted-foreground dark:text-muted-foreground mb-1">Select Prompt:</label>
+        <select
+          id="prompt-selector"
+          value={currentPromptId || '__ALL__'}
+          onChange={handleSelectChange}
+          className="block w-full p-2 border border-border dark:border-border rounded-md shadow-sm focus:ring-primary focus:border-primary bg-card dark:bg-card text-card-foreground dark:text-card-foreground text-sm"
+        >
+          <option value="__ALL__" className="bg-background text-foreground dark:bg-background dark:text-foreground">All Prompts (Grid View)</option>
+          {data.promptIds.map(promptId => (
+            <option key={promptId} value={promptId} title={getPromptContextDisplayString(promptId)} className="bg-background text-foreground dark:bg-background dark:text-foreground">
+              {promptId} - {getPromptContextDisplayString(promptId)}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+};
+
+const SystemPromptDisplay: React.FC = () => {
+    const { data } = useAnalysis();
+    const [activeSystemTab, setActiveSystemTab] = useState(0);
+
+    if (!data?.config) return null;
+
+    // Determine system prompts - check multiple sources
+    let systems: string[] = [];
+
+    // Check for systems array
+    if (Array.isArray(data.config.systems) && data.config.systems.length > 0) {
+        systems = data.config.systems.filter((s): s is string => typeof s === 'string' && s !== null);
+    }
+    // Check for singular system property
+    else if (data.config.system && typeof data.config.system === 'string') {
+        systems = [data.config.system];
+    }
+
+    if (systems.length === 0) return null;
+
+    // If only one system prompt, just display it
+    if (systems.length === 1) {
+        return (
+            <div className="mb-6">
+                <label className="block text-sm font-medium text-muted-foreground mb-1">System Prompt:</label>
+                <div className="bg-muted/50 border border-border rounded-md p-3">
+                    <pre className="text-xs whitespace-pre-wrap font-mono text-foreground">{systems[0]}</pre>
+                </div>
+            </div>
+        );
+    }
+
+    // Multiple system prompts - show as tabs
+    return (
+        <div className="mb-6">
+            <label className="block text-sm font-medium text-muted-foreground mb-1">System Prompts:</label>
+            <div className="border border-border rounded-md overflow-hidden">
+                <div className="flex gap-1 p-1 bg-muted/30 border-b border-border">
+                    {systems.map((_, idx) => (
+                        <button
+                            key={idx}
+                            onClick={() => setActiveSystemTab(idx)}
+                            className={`px-3 py-1.5 text-xs rounded transition-colors ${
+                                activeSystemTab === idx
+                                    ? 'bg-primary text-primary-foreground font-semibold'
+                                    : 'bg-muted hover:bg-muted/80 text-muted-foreground'
+                            }`}
+                        >
+                            Variant {idx}
+                        </button>
+                    ))}
+                </div>
+                <div className="bg-muted/50 p-3">
+                    <pre className="text-xs whitespace-pre-wrap font-mono text-foreground">{systems[activeSystemTab]}</pre>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const getScoreColor = (score: number) => {
     if (score >= 0.75) return 'bg-green-600';
     if (score >= 0.5) return 'bg-yellow-600';
     if (score > 0) return 'bg-red-600';
     return 'bg-slate-500';
+};
+
+const GridViewCard = ({
+    promptId,
+    modelVariants,
+    onClick,
+    onInView,
+    loadingQueue,
+    renderAs,
+    overlayMode,
+}: {
+    promptId: string;
+    modelVariants: Array<{ modelId: string; temperature?: number; coverageScore?: number | null }>;
+    onClick: (modelId: string) => void;
+    onInView: (modelId: string) => void;
+    loadingQueue: Set<string>;
+    renderAs?: RenderAsType;
+    overlayMode: boolean;
+}) => {
+  const { getCachedResponse, isLoadingResponse } = useAnalysis();
+  const [activeTab, setActiveTab] = useState(0);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const hasBeenInView = useRef(false);
+
+  const currentVariant = modelVariants[activeTab];
+  const parsed = parseModelIdForDisplay(currentVariant.modelId);
+  const baseDisplayLabel = getModelDisplayLabel(parsed, { prettifyModelName: true });
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !hasBeenInView.current) {
+          hasBeenInView.current = true;
+          // Load all variants when card comes into view
+          modelVariants.forEach(variant => {
+            const response = getCachedResponse(promptId, variant.modelId);
+            const isQueued = loadingQueue.has(`${promptId}:${variant.modelId}`);
+            const isLoading = isLoadingResponse(promptId, variant.modelId);
+            if (!response && !isQueued && !isLoading) {
+              onInView(variant.modelId);
+            }
+          });
+          if (cardRef.current) {
+            observer.unobserve(cardRef.current);
+          }
+        }
+      },
+      { rootMargin: '200px' }
+    );
+
+    if (cardRef.current) {
+      observer.observe(cardRef.current);
+    }
+
+    return () => {
+      if (cardRef.current) {
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        observer.unobserve(cardRef.current);
+      }
+    };
+  }, [promptId, modelVariants, getCachedResponse, loadingQueue, isLoadingResponse, onInView]);
+
+  return (
+    <div ref={cardRef} className="relative w-full" style={{ aspectRatio: '1 / 1' }}>
+      <Card className="h-full overflow-hidden hover:shadow-lg transition-shadow flex flex-col">
+        <div className="border-b border-border bg-slate-100 dark:bg-slate-800 p-2 flex-shrink-0">
+          <h3 className="font-semibold text-xs truncate" title={getModelDisplayLabel(currentVariant.modelId)}>
+            {baseDisplayLabel}
+          </h3>
+        </div>
+
+        {modelVariants.length > 1 && (
+          <div className="flex gap-1 p-1 border-b border-border bg-muted/30 flex-shrink-0">
+            {modelVariants.map((variant, idx) => {
+              const temp = variant.temperature ?? 1.0;
+              return (
+                <button
+                  key={idx}
+                  onClick={() => setActiveTab(idx)}
+                  className={`flex-1 px-2 py-1 text-xs rounded transition-colors ${
+                    activeTab === idx
+                      ? 'bg-primary text-primary-foreground font-semibold'
+                      : 'bg-muted hover:bg-muted/80 text-muted-foreground'
+                  }`}
+                  title={`Temperature: ${temp}`}
+                >
+                  T:{temp}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {currentVariant.coverageScore !== null && currentVariant.coverageScore !== undefined && hasBeenInView.current && (
+          <div
+            className={`absolute top-2 right-2 z-10 px-1.5 py-0.5 rounded-full text-xs font-semibold text-white shadow-md ${getScoreColor(currentVariant.coverageScore)}`}
+            title={`Coverage Score: ${(currentVariant.coverageScore * 100).toFixed(1)}%`}
+          >
+            {Math.round(currentVariant.coverageScore * 100)}
+          </div>
+        )}
+
+        <div className="flex-1 relative overflow-hidden">
+          {overlayMode ? (
+            // Overlay mode: stack all responses with opacity
+            <div className="absolute inset-0 cursor-pointer" onClick={() => onClick(currentVariant.modelId)}>
+              {modelVariants.map((variant, idx) => {
+                const response = getCachedResponse(promptId, variant.modelId);
+                const isLoading = isLoadingResponse(promptId, variant.modelId);
+                const isQueued = loadingQueue.has(`${promptId}:${variant.modelId}`);
+                const showLoading = (isLoading || isQueued) && !response;
+                const opacity = 1 / modelVariants.length;
+
+                return (
+                  <div
+                    key={variant.modelId}
+                    className="absolute inset-0 overflow-y-auto"
+                    style={{ opacity }}
+                  >
+                    {showLoading ? (
+                      <CardContent className="p-2">
+                        <div className="space-y-2">
+                          <Skeleton className="h-3 w-3/4" />
+                          <Skeleton className="h-3 w-full" />
+                          <Skeleton className="h-3 w-5/6" />
+                        </div>
+                      </CardContent>
+                    ) : response ? (
+                      <CardContent className="p-2 text-xs">
+                        <ResponseRenderer content={response} renderAs={renderAs} />
+                      </CardContent>
+                    ) : (
+                      <CardContent className="p-2">
+                        <p className="text-muted-foreground italic text-xs">No response</p>
+                      </CardContent>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            // Tab mode: show only active variant
+            <div className="h-full cursor-pointer overflow-y-auto" onClick={() => onClick(currentVariant.modelId)}>
+              {(() => {
+                const response = getCachedResponse(promptId, currentVariant.modelId);
+                const isLoading = isLoadingResponse(promptId, currentVariant.modelId);
+                const isQueued = loadingQueue.has(`${promptId}:${currentVariant.modelId}`);
+                const showLoading = (isLoading || isQueued) && !response;
+
+                if (showLoading) {
+                  return (
+                    <CardContent className="p-2">
+                      <div className="space-y-2">
+                        <Skeleton className="h-3 w-3/4" />
+                        <Skeleton className="h-3 w-full" />
+                        <Skeleton className="h-3 w-5/6" />
+                      </div>
+                    </CardContent>
+                  );
+                }
+                if ((response === null || response.trim() === '') && hasBeenInView.current) {
+                  return (
+                    <CardContent className="p-2">
+                      <p className="text-muted-foreground italic text-xs">No response available.</p>
+                    </CardContent>
+                  );
+                }
+                if (response) {
+                  return (
+                    <CardContent className="p-2 text-xs">
+                      <ResponseRenderer content={response} renderAs={renderAs} />
+                    </CardContent>
+                  );
+                }
+                return <CardContent className="p-2 bg-muted/20" />;
+              })()}
+            </div>
+          )}
+        </div>
+      </Card>
+    </div>
+  );
 };
 
 const ModelResponseCell = ({
@@ -142,6 +445,7 @@ const ModelResponseCell = ({
 export const ComparePageClient: React.FC = () => {
     const { data, pageTitle, breadcrumbItems, isSandbox, configId, runLabel, timestamp, sandboxId, workshopId, wevalId, fetchModalResponseBatch, openModelEvaluationDetailModal, currentPromptId } = useAnalysis();
     const [loadingQueue, setLoadingQueue] = useState(() => new Set<string>());
+    const [overlayMode, setOverlayMode] = useState(false);
 
     const requestLoad = useCallback((promptId: string, modelId: string) => {
       setLoadingQueue(prev => {
@@ -177,14 +481,36 @@ export const ComparePageClient: React.FC = () => {
         return () => clearInterval(intervalId);
     }, [loadingQueue, fetchModalResponseBatch]);
 
-    const { models, prompts } = useMemo(() => {
+    const { models, prompts, modelGroups } = useMemo(() => {
         if (!data) {
-            return { models: [], prompts: [] };
+            return { models: [], prompts: [], modelGroups: [] };
         }
 
         const models = data.effectiveModels
             .filter(m => m.toUpperCase() !== IDEAL_MODEL_ID.toUpperCase())
             .sort((a, b) => getModelDisplayLabel(a).localeCompare(getModelDisplayLabel(b)));
+
+        // Group models by base ID (without temperature) for grid view
+        const groupMap = new Map<string, Array<{ modelId: string; temperature?: number }>>();
+        models.forEach(modelId => {
+            const parsed = parseModelIdForDisplay(modelId);
+            const baseId = parsed.baseId;
+            if (!groupMap.has(baseId)) {
+                groupMap.set(baseId, []);
+            }
+            groupMap.get(baseId)!.push({
+                modelId,
+                temperature: parsed.temperature,
+            });
+        });
+        // Sort each group by temperature
+        groupMap.forEach(group => {
+            group.sort((a, b) => (a.temperature ?? 1.0) - (b.temperature ?? 1.0));
+        });
+        const modelGroups = Array.from(groupMap.entries()).map(([baseId, variants]) => ({
+            baseId,
+            variants,
+        }));
 
         // Filter promptIds based on currentPromptId query parameter
         const promptIdsToShow = currentPromptId
@@ -206,7 +532,7 @@ export const ComparePageClient: React.FC = () => {
             return { id: promptId, text: displayText, renderAs: promptConfig?.render_as as RenderAsType | undefined };
         });
 
-        return { models, prompts };
+        return { models, prompts, modelGroups };
     }, [data, currentPromptId]);
 
     const handleCellClick = (promptId: string, modelId: string) => {
@@ -342,9 +668,66 @@ export const ComparePageClient: React.FC = () => {
                 </div>
             </header>
 
-            <main className="flex-1 min-h-0">
-                <div className="h-full overflow-auto relative w-full">
-                    <table className="border-separate border-spacing-0 w-full">
+            <main className="flex-1 min-h-0 overflow-auto">
+                <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
+                    <div className="flex items-start justify-between gap-4 mb-6">
+                        <div className="flex-1">
+                            <ComparePromptSelector />
+                            <SystemPromptDisplay />
+                        </div>
+                        {currentPromptId && (
+                            <div className="flex-shrink-0 pt-6">
+                                <Button
+                                    variant={overlayMode ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={() => setOverlayMode(!overlayMode)}
+                                    className="text-xs"
+                                >
+                                    <Icon name={overlayMode ? "layers" : "layers"} className="w-3.5 h-3.5 mr-1.5" />
+                                    {overlayMode ? "Overlay On" : "Overlay Off"}
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+
+                    {currentPromptId ? (
+                        // Grid view for single prompt - using ~10vw per card
+                        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(max(10vw, 150px), 1fr))' }}>
+                            {modelGroups.map(group => {
+                                const promptConfig = data.config.prompts?.find(p => p.id === currentPromptId);
+                                const renderAs = promptConfig?.render_as as RenderAsType | undefined;
+
+                                // Build variants with coverage scores
+                                const modelVariants = group.variants.map(variant => {
+                                    const coverageResult = data.evaluationResults?.llmCoverageScores?.[currentPromptId]?.[variant.modelId];
+                                    const score = (coverageResult && !('error' in coverageResult) && typeof coverageResult.avgCoverageExtent === 'number')
+                                        ? coverageResult.avgCoverageExtent
+                                        : null;
+                                    return {
+                                        modelId: variant.modelId,
+                                        temperature: variant.temperature,
+                                        coverageScore: score,
+                                    };
+                                });
+
+                                return (
+                                    <GridViewCard
+                                        key={group.baseId}
+                                        promptId={currentPromptId}
+                                        modelVariants={modelVariants}
+                                        onInView={(modelId) => requestLoad(currentPromptId, modelId)}
+                                        loadingQueue={loadingQueue}
+                                        onClick={(modelId) => handleCellClick(currentPromptId, modelId)}
+                                        renderAs={renderAs}
+                                        overlayMode={overlayMode}
+                                    />
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        // Table view for all prompts
+                        <div className="overflow-auto relative w-full">
+                            <table className="border-separate border-spacing-0 w-full">
                         <thead>
                             <tr>
                                 <th className="bg-slate-100 dark:bg-slate-800 border border-border p-2 sticky top-0 left-0 z-40 shadow-sm bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-sm" style={{minWidth: '400px', width: '400px'}}>
@@ -409,6 +792,8 @@ export const ComparePageClient: React.FC = () => {
                             })}
                         </tbody>
                     </table>
+                        </div>
+                    )}
                 </div>
             </main>
 
