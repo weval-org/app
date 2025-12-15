@@ -7,10 +7,10 @@ import { fromSafeTimestamp } from '@/lib/timestampUtils';
 export const revalidate = 3600; // Revalidate once per hour (Next.js built-in caching)
 
 export async function GET(
-    request: NextRequest, 
-    context: { params: Promise<{ configId: string, runLabel: string, timestamp: string }> } // Note: Timestamp is in context but not used in this simpler route version
+    request: NextRequest,
+    context: { params: Promise<{ configId: string, runLabel: string }> }
 ) {
-    const { configId, runLabel: routeRunLabel, timestamp: routeTimestamp } = await context.params; // routeTimestamp available if needed, but unused
+    const { configId, runLabel: routeRunLabel } = await context.params;
 
     if (typeof configId !== 'string' || typeof routeRunLabel !== 'string') { // Simpler check, no timestamp
         return NextResponse.json({ error: 'Config ID and Run Label must be strings' }, { status: 400 });
