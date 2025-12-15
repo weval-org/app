@@ -35,6 +35,22 @@ export type {
 export type SearchableBlueprintSummary = BlueprintSummaryInfo & { searchText: string };
 
 /**
+ * Lightweight entry for autocomplete suggestions.
+ * Contains LLM-extracted keywords for semantic matching even when
+ * users can't recall exact titles.
+ */
+export interface AutocompleteEntry {
+    configId: string;
+    title: string;
+    tags: string[];
+    snippet: string;           // Description, first 150 chars
+    keywords: string[];        // LLM-extracted semantic terms
+    domain?: string;           // e.g., "medical", "legal", "safety", "education"
+    topModel?: string;         // Best performing model name
+    score?: number;            // Best model's score (0-1)
+}
+
+/**
  * The unified internal representation of a point after normalization.
  * This is what evaluators will work with.
  */

@@ -33,7 +33,7 @@ import {
 } from '@/cli/utils/summaryCalculationUtils';
 import { fromSafeTimestamp, toSafeTimestamp } from '@/lib/timestampUtils';
 // ModelSummary is imported below with other shared types to avoid duplication
-import { SearchableBlueprintSummary } from '@/cli/types/cli_types';
+import { SearchableBlueprintSummary, AutocompleteEntry } from '@/cli/types/cli_types';
 import {
     RESULTS_DIR,
     MULTI_DIR,
@@ -2652,7 +2652,61 @@ export async function getSearchIndex(): Promise<SearchableBlueprintSummary[] | n
         console.error(`[StorageService] Failed to get search index: ${error.message}`);
         throw error;
     }
-} 
+}
+
+export async function saveAutocompleteIndex(index: AutocompleteEntry[]): Promise<number> {
+    const filePath = 'autocomplete-index.json';
+    const s3Key = path.join(LIVE_DIR, 'aggregates', filePath);
+    const localFilePath = path.join(RESULTS_DIR, s3Key);
+    const fileContent = JSON.stringify(index, null, 2);
+    const fileSizeInBytes = Buffer.byteLength(fileContent, 'utf8');
+
+    if (storageProvider === 's3') {
+        if (!s3Client || !s3BucketName) {
+            throw new Error('S3 client or bucket name is not configured.');
+        }
+        await s3Client.send(new PutObjectCommand({
+            Bucket: s3BucketName,
+            Key: s3Key,
+            Body: fileContent,
+            ContentType: 'application/json',
+        }));
+    } else {
+        await fs.mkdir(path.dirname(localFilePath), { recursive: true });
+        await fs.writeFile(localFilePath, fileContent, 'utf-8');
+    }
+    return fileSizeInBytes;
+}
+
+export async function getAutocompleteIndex(): Promise<AutocompleteEntry[] | null> {
+    const filePath = 'autocomplete-index.json';
+    const s3Key = path.join(LIVE_DIR, 'aggregates', filePath);
+    const localFilePath = path.join(RESULTS_DIR, s3Key);
+    try {
+        if (storageProvider === 's3') {
+            if (!s3Client || !s3BucketName) throw new Error('S3 client or bucket name not configured.');
+            const command = new GetObjectCommand({ Bucket: s3BucketName, Key: s3Key });
+            const { Body } = await s3Client.send(command);
+            if (!Body) return null;
+            const bodyString = await streamToString(Body as Readable);
+            return JSON.parse(bodyString);
+        } else {
+            try {
+                await fs.access(localFilePath);
+            } catch {
+                return null; // File does not exist
+            }
+            const data = await fs.readFile(localFilePath, 'utf-8');
+            return JSON.parse(data);
+        }
+    } catch (error: any) {
+        if (error.name === 'NoSuchKey' || error.code === 'ENOENT') {
+            return null; // File doesn't exist, return null which is an expected condition
+        }
+        console.error(`[StorageService] Failed to get autocomplete index: ${error.message}`);
+        throw error;
+    }
+}
 
 export async function listBackups(): Promise<string[]> {
   if (storageProvider === 's3' && s3Client && s3BucketName) {
