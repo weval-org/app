@@ -21,9 +21,12 @@ interface SimplifiedBlueprintCardProps {
 }
 
 export default function SimplifiedBlueprintCard({ blueprint: bp }: SimplifiedBlueprintCardProps) {
-  const latestRunInstanceUrl = bp.latestRunActualLabel && bp.latestRunSafeTimestamp ? 
-    `/analysis/${bp.id || bp.configId}/${encodeURIComponent(bp.latestRunActualLabel)}/${bp.latestRunSafeTimestamp}` 
+  const latestRunInstanceUrl = bp.latestRunActualLabel && bp.latestRunSafeTimestamp ?
+    `/analysis/${bp.id || bp.configId}/${encodeURIComponent(bp.latestRunActualLabel)}/${bp.latestRunSafeTimestamp}`
     : null;
+
+  // When wrapped in a Link, we must suppress nested <a> tags to avoid hydration errors
+  const isLinked = !!latestRunInstanceUrl;
 
   const CardContent = () => (
     <Card className="bg-card/80 dark:bg-card/70 backdrop-blur-lg group ring-1 ring-border dark:ring-border/70 flex flex-col hover:ring-primary/50 transition-all duration-200 hover:shadow-lg">
@@ -57,7 +60,7 @@ export default function SimplifiedBlueprintCard({ blueprint: bp }: SimplifiedBlu
                   );
                   return (
                     <span className="inline-flex items-center rounded-full bg-muted/60 px-2 py-0.5 border border-border/60" title="Blueprint author">
-                      {url ? (
+                      {url && !isLinked ? (
                         <a href={url} target="_blank" rel="noopener noreferrer" className="hover:underline">
                           {content}
                         </a>
@@ -69,7 +72,7 @@ export default function SimplifiedBlueprintCard({ blueprint: bp }: SimplifiedBlu
             )}
             {bp.description && (
               <div className="text-sm text-muted-foreground dark:text-muted-foreground mb-3 leading-relaxed line-clamp-3 pr-4 group-hover:text-foreground/80 dark:group-hover:text-foreground/80">
-                <ResponseRenderer content={bp.description} />
+                <ResponseRenderer content={bp.description} suppressLinks={isLinked} />
               </div>
             )}
           </div>
