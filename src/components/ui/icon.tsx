@@ -97,6 +97,7 @@ import {
   Cpu,
   Undo,
   Keyboard,
+  Menu,
   type LucideProps
 } from 'lucide-react';
 
@@ -200,7 +201,8 @@ const iconMap = {
   'maximize-2': Maximize2,
   'cpu': Cpu,
   'undo': Undo,
-  'keyboard': Keyboard
+  'keyboard': Keyboard,
+  'menu': Menu
 };
 
 export type IconName = keyof typeof iconMap;

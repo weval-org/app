@@ -13,7 +13,6 @@ import TopTagsSection from '@/app/components/home/TopTagsSection';
 import { processBlueprintSummaries } from '@/app/utils/blueprintSummaryUtils';
 import Link from 'next/link';
 import Icon from '@/components/ui/icon';
-import { SearchAutocomplete } from '@/app/components/SearchAutocomplete';
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:8888' : 'https://weval.org');
 
@@ -126,44 +125,19 @@ export default async function HomePageV2() {
       <div className="fixed inset-0 -z-10 dark:bg-gradient-to-br dark:from-slate-900 dark:to-slate-800 bg-gradient-to-br from-slate-50 to-slate-100" />
       <div className="max-w-7xl mx-auto">
 
-        {/* Hero Section with Search */}
-        <div className="w-full bg-background pt-24 pb-4 text-foreground">
+        {/* Hero Section - simplified tagline */}
+        <div className="w-full bg-background pt-8 pb-4 text-foreground">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-8">
-              <h1 className="text-4xl font-bold mb-3">Find AI Evaluations</h1>
-              <p className="text-lg text-muted-foreground">
-                Search across {publicEvalCount} community-built evaluations testing models on real-world tasks.
+            <div className="text-center">
+              <h1 className="text-3xl sm:text-4xl font-bold mb-2">The Open Platform for AI Evaluation</h1>
+              <p className="text-base sm:text-lg text-muted-foreground">
+                {publicEvalCount} community-built evaluations testing models on real-world tasks
               </p>
-            </div>
-
-            <SearchAutocomplete
-              placeholder="Search by topic, domain, or model... (e.g., 'medical advice', 'legal', 'GPT-4')"
-              className="max-w-2xl mx-auto"
-            />
-
-            <div className="flex justify-center gap-4 mt-6 text-sm">
-              <Link
-                href="/sandbox"
-                className="inline-flex items-center gap-1.5 text-primary hover:text-primary/80 transition-colors"
-              >
-                <Icon name="edit-3" className="h-4 w-4" />
-                Create an Evaluation
-              </Link>
-              <span className="text-border">|</span>
-              <Link
-                href="/all"
-                className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <Icon name="layout-grid" className="h-4 w-4" />
-                Browse All
-              </Link>
             </div>
           </div>
         </div>
 
         <div className="px-4 sm:px-6 lg:px-8 sm:pb-2 md:pb-4 pt-4 md:pt-6 space-y-8 md:space-y-10">
-
-          <hr className="my-4 border-border/70 dark:border-slate-700/50 w-3/4 mx-auto" />
 
           {/* Dev Mode Info */}
           {process.env.NODE_ENV === 'development' && homepageStats && (
