@@ -38,33 +38,34 @@ interface SearchEvaluationsProps {
 export function SearchEvaluations({ initialBlueprints, currentPage, totalPages, totalItems: propTotalItems }: SearchEvaluationsProps) {
     const [query, setQuery] = useState('');
     const [searchQuery, setSearchQuery] = useState(''); // The actual query used for search
-    const [allResults, setAllResults] = useState<BlueprintSummaryInfo[]>(initialBlueprints);
+    const [searchResults, setSearchResults] = useState<BlueprintSummaryInfo[]>([]);
     const [isSearchActive, setIsSearchActive] = useState(false);
     const [isPending, startTransition] = useTransition();
 
-    // Calculate pagination for current results
-    // For search results, use the search result count; for paginated view, use the prop total
-    const searchResultCount = allResults.length;
-    const calculatedTotalPages = Math.ceil(searchResultCount / ITEMS_PER_PAGE);
-    const effectiveCurrentPage = isSearchActive ? 1 : currentPage; // Always start search results at page 1
-    const effectiveTotalPages = isSearchActive ? calculatedTotalPages : totalPages;
+    // When not searching: server already paginated, use initialBlueprints directly
+    // When searching: do client-side pagination on search results
+    const searchResultCount = searchResults.length;
+    const effectiveTotalPages = isSearchActive ? Math.ceil(searchResultCount / ITEMS_PER_PAGE) : totalPages;
     const effectiveTotalItems = isSearchActive ? searchResultCount : propTotalItems;
 
-    const startIndex = (effectiveCurrentPage - 1) * ITEMS_PER_PAGE;
+    // For display text: calculate the range being shown
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
-    const paginatedResults = allResults.slice(startIndex, endIndex);
+
+    // Results to display: server-paginated blueprints OR client-paginated search results
+    const displayResults = isSearchActive ? searchResults.slice(0, ITEMS_PER_PAGE) : initialBlueprints;
 
     const performSearch = async (searchTerm: string) => {
         if (searchTerm.length > 2) {
             setIsSearchActive(true);
             startTransition(async () => {
                 const response = await fetch(`/api/search?q=${searchTerm}`);
-                const searchResults: BlueprintSummaryInfo[] = await response.json();
-                setAllResults(searchResults);
+                const results: BlueprintSummaryInfo[] = await response.json();
+                setSearchResults(results);
             });
         } else if (searchTerm.length === 0) {
             setIsSearchActive(false);
-            setAllResults(initialBlueprints);
+            setSearchResults([]);
         }
     };
 
@@ -84,7 +85,7 @@ export function SearchEvaluations({ initialBlueprints, currentPage, totalPages, 
         setQuery('');
         setSearchQuery('');
         setIsSearchActive(false);
-        setAllResults(initialBlueprints);
+        setSearchResults([]);
     };
 
     return (
@@ -156,18 +157,18 @@ export function SearchEvaluations({ initialBlueprints, currentPage, totalPages, 
                     <BlueprintCardSkeleton />
                     <BlueprintCardSkeleton />
                 </div>
-            ) : paginatedResults.length > 0 ? (
+            ) : displayResults.length > 0 ? (
                 <>
                     <div className="space-y-4">
-                        {paginatedResults.map(bp => (
+                        {displayResults.map(bp => (
                             <DetailedBlueprintCard key={bp.configId} blueprint={bp} />
                         ))}
                     </div>
-                    
+
                     {!isSearchActive && effectiveTotalPages > 1 && (
                         <div className="mt-8">
-                            <PaginationControls 
-                                currentPage={effectiveCurrentPage} 
+                            <PaginationControls
+                                currentPage={currentPage}
                                 totalPages={effectiveTotalPages}
                             />
                         </div>
