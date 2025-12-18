@@ -1,5 +1,5 @@
 import React from 'react';
-import { getAllBlueprintSummaries } from '@/app/utils/homepageDataUtils';
+import { getAllBlueprintSummaries, EnhancedComparisonConfigInfo } from '@/app/utils/homepageDataUtils';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { fromSafeTimestamp } from '@/lib/timestampUtils';
@@ -9,13 +9,35 @@ import Icon from '@/components/ui/icon';
 
 const ITEMS_PER_PAGE = 20;
 
+// Config ID prefixes that indicate non-public evaluations
+const EXCLUDED_CONFIG_ID_PREFIXES = ['_pr_', '_staging_', '_test_', 'api-run-', 'sandbox-'];
+
+// Tags that indicate non-public/internal evaluations
+const EXCLUDED_TAGS = ['_test', '_sandbox_test'];
+
+function isPublicEvaluation(config: EnhancedComparisonConfigInfo): boolean {
+    const configId = config.id || config.configId || '';
+    // Check config ID prefix
+    if (EXCLUDED_CONFIG_ID_PREFIXES.some(prefix => configId.startsWith(prefix))) {
+        return false;
+    }
+    // Check tags
+    if (config.tags && config.tags.some(tag => EXCLUDED_TAGS.includes(tag))) {
+        return false;
+    }
+    return true;
+}
+
 export default async function AllBlueprintsPage(props: {
     searchParams: Promise<{ page?: string }>;
 }) {
     const searchParams = await props.searchParams;
     const page = parseInt(searchParams?.page || '1', 10);
-    const allConfigs = await getAllBlueprintSummaries();
-    
+    const rawConfigs = await getAllBlueprintSummaries();
+
+    // Filter out internal/sandbox configs
+    const allConfigs = rawConfigs.filter(isPublicEvaluation);
+
     // Sort all configs by latest run before pagination to ensure consistency
     allConfigs.sort((a, b) => {
         const dateA = a.latestRunTimestamp ? new Date(fromSafeTimestamp(a.latestRunTimestamp)).getTime() : 0;
@@ -23,7 +45,8 @@ export default async function AllBlueprintsPage(props: {
         return dateB - dateA;
     });
 
-    const totalPages = Math.ceil(allConfigs.length / ITEMS_PER_PAGE);
+    const totalItems = allConfigs.length;
+    const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
     const currentPage = Math.max(1, Math.min(page, totalPages));
 
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -58,7 +81,7 @@ export default async function AllBlueprintsPage(props: {
             
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
                 <div className="flex justify-between items-center mb-8">
-                    <h2 className="text-3xl font-bold tracking-tight">All Evaluations ({allConfigs.length})</h2>
+                    <h2 className="text-3xl font-bold tracking-tight">All Evaluations ({totalItems})</h2>
                     <Button asChild variant="ghost">
                         <Link href="/">
                             <Icon name="arrow-left" className="w-4 h-4 mr-2" />
@@ -67,10 +90,11 @@ export default async function AllBlueprintsPage(props: {
                     </Button>
                 </div>
                 
-                <SearchEvaluations 
-                    initialBlueprints={blueprints} 
+                <SearchEvaluations
+                    initialBlueprints={blueprints}
                     currentPage={currentPage}
                     totalPages={totalPages}
+                    totalItems={totalItems}
                 />
             </main>
         </div>

@@ -32,21 +32,24 @@ interface SearchEvaluationsProps {
     initialBlueprints: BlueprintSummaryInfo[];
     currentPage: number;
     totalPages: number;
+    totalItems: number;
 }
 
-export function SearchEvaluations({ initialBlueprints, currentPage, totalPages }: SearchEvaluationsProps) {
+export function SearchEvaluations({ initialBlueprints, currentPage, totalPages, totalItems: propTotalItems }: SearchEvaluationsProps) {
     const [query, setQuery] = useState('');
     const [searchQuery, setSearchQuery] = useState(''); // The actual query used for search
     const [allResults, setAllResults] = useState<BlueprintSummaryInfo[]>(initialBlueprints);
     const [isSearchActive, setIsSearchActive] = useState(false);
     const [isPending, startTransition] = useTransition();
-    
+
     // Calculate pagination for current results
-    const totalItems = allResults.length;
-    const calculatedTotalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+    // For search results, use the search result count; for paginated view, use the prop total
+    const searchResultCount = allResults.length;
+    const calculatedTotalPages = Math.ceil(searchResultCount / ITEMS_PER_PAGE);
     const effectiveCurrentPage = isSearchActive ? 1 : currentPage; // Always start search results at page 1
     const effectiveTotalPages = isSearchActive ? calculatedTotalPages : totalPages;
-    
+    const effectiveTotalItems = isSearchActive ? searchResultCount : propTotalItems;
+
     const startIndex = (effectiveCurrentPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
     const paginatedResults = allResults.slice(startIndex, endIndex);
@@ -141,9 +144,9 @@ export function SearchEvaluations({ initialBlueprints, currentPage, totalPages }
             {/* Results summary */}
             <div className="mb-6 text-sm text-muted-foreground">
                 {isSearchActive ? (
-                    <span>Found {totalItems} result{totalItems === 1 ? '' : 's'} for &quot;{searchQuery}&quot;</span>
+                    <span>Found {effectiveTotalItems} result{effectiveTotalItems === 1 ? '' : 's'} for &quot;{searchQuery}&quot;</span>
                 ) : (
-                    <span>Showing {startIndex + 1}-{Math.min(endIndex, totalItems)} of {totalItems} evaluations</span>
+                    <span>Showing {startIndex + 1}-{Math.min(endIndex, effectiveTotalItems)} of {effectiveTotalItems} evaluations</span>
                 )}
             </div>
 
