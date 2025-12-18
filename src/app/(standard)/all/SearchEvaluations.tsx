@@ -142,12 +142,20 @@ export function SearchEvaluations({ initialBlueprints, currentPage, totalPages, 
                 )}
             </div>
 
-            {/* Results summary */}
-            <div className="mb-6 text-sm text-muted-foreground">
-                {isSearchActive ? (
-                    <span>Found {effectiveTotalItems} result{effectiveTotalItems === 1 ? '' : 's'} for &quot;{searchQuery}&quot;</span>
-                ) : (
-                    <span>Showing {startIndex + 1}-{Math.min(endIndex, effectiveTotalItems)} of {effectiveTotalItems} evaluations</span>
+            {/* Results summary and top pagination */}
+            <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="text-sm text-muted-foreground">
+                    {isSearchActive ? (
+                        <span>Found {effectiveTotalItems} result{effectiveTotalItems === 1 ? '' : 's'} for &quot;{searchQuery}&quot;</span>
+                    ) : (
+                        <span>Showing {startIndex + 1}-{Math.min(endIndex, effectiveTotalItems)} of {effectiveTotalItems} evaluations</span>
+                    )}
+                </div>
+                {!isSearchActive && effectiveTotalPages > 1 && !isPending && (
+                    <PaginationControls
+                        currentPage={currentPage}
+                        totalPages={effectiveTotalPages}
+                    />
                 )}
             </div>
 
