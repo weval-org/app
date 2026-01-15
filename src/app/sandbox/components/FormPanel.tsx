@@ -88,6 +88,8 @@ export function FormPanel({ parsedBlueprint, onUpdate, isLoading, isSaving, isEd
         // Only auto-enable on desktop if blueprint has advanced features
         if (!isMobile && (hasGlobalAdvancedOptions || hasAlternativePaths || hasPromptLevelAdvancedFeatures || hasToolUseFeatures || hasFunctionPoints)) {
             setIsAdvancedMode(true);
+        } else {
+            setIsAdvancedMode(false);
         }
     }, [parsedBlueprint, isMobile]);
 
