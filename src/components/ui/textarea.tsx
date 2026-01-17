@@ -32,6 +32,7 @@ const AutoExpandTextarea = React.forwardRef<HTMLTextAreaElement, AutoExpandTexta
   ({ className, minRows = 1, maxRows = 10, value, onChange, ...props }, ref) => {
     const textareaRef = React.useRef<HTMLTextAreaElement>(null);
     const [internalValue, setInternalValue] = React.useState(value || '');
+    const isUserTypingRef = React.useRef(false);
     const { isMobile } = useMobile();
 
     // Combine refs
@@ -97,13 +98,14 @@ const AutoExpandTextarea = React.forwardRef<HTMLTextAreaElement, AutoExpandTexta
 
     const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       const newValue = e.target.value;
+      isUserTypingRef.current = true;
       setInternalValue(newValue);
-      
+
       // Call the parent onChange if provided
       if (onChange) {
         onChange(e);
       }
-      
+
       // Adjust height immediately with the fresh content (desktop only)
       if (!isMobile) {
         setTimeout(() => adjustHeight(newValue), 0);
@@ -111,9 +113,14 @@ const AutoExpandTextarea = React.forwardRef<HTMLTextAreaElement, AutoExpandTexta
     };
 
     // Update internal value when external value changes
+    // BUT only if the change didn't originate from user typing
     React.useEffect(() => {
-      setInternalValue(value || '');
-    }, [value]);
+      const externalValue = value || '';
+      if (!isUserTypingRef.current && externalValue !== internalValue) {
+        setInternalValue(externalValue);
+      }
+      isUserTypingRef.current = false;
+    }, [value, internalValue]);
 
     return (
       <textarea
