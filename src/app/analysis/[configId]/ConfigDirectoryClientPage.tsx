@@ -89,61 +89,61 @@ const ConfigDirectoryClientPage: React.FC<ConfigDirectoryClientPageProps> = ({
                             : `/analysis/${config.configId}`;
 
                         return (
-                            <Card key={config.configId}>
-                                <CardContent className="p-4">
-                                    <div className="flex items-start justify-between gap-4">
-                                        <div className="flex-1 min-w-0">
-                                            <h3 className="font-semibold text-lg">
-                                                <Link
-                                                    href={latestRunUrl}
-                                                    className="hover:underline text-primary"
-                                                >
+                            <Link key={config.configId} href={latestRunUrl} className="block">
+                                <Card className="hover:ring-2 hover:ring-primary/50 transition-all cursor-pointer">
+                                    <CardContent className="p-4">
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div className="flex-1 min-w-0">
+                                                <h3 className="font-semibold text-lg text-primary group-hover:underline">
                                                     {config.title}
-                                                </Link>
-                                            </h3>
-                                            {config.description && (
-                                                <div className="text-sm text-muted-foreground mt-1 line-clamp-3 prose prose-sm dark:prose-invert max-w-none">
-                                                    <ResponseRenderer content={config.description} />
-                                                </div>
-                                            )}
-                                            {config.tags.length > 0 && (
-                                                <div className="flex flex-wrap gap-1 mt-3">
-                                                    {config.tags.slice(0, 5).map((tag) => (
-                                                        <Badge key={tag} variant="secondary" className="text-xs">
-                                                            {prettifyTag(tag)}
-                                                        </Badge>
-                                                    ))}
-                                                    {config.tags.length > 5 && (
-                                                        <Badge variant="outline" className="text-xs">
-                                                            +{config.tags.length - 5}
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                            )}
+                                                </h3>
+                                                {config.description && (
+                                                    <div className="text-sm text-muted-foreground mt-1 line-clamp-3 prose prose-sm dark:prose-invert max-w-none">
+                                                        <ResponseRenderer content={config.description} suppressLinks />
+                                                    </div>
+                                                )}
+                                                {config.tags.length > 0 && (
+                                                    <div className="flex flex-wrap gap-1 mt-3">
+                                                        {config.tags.slice(0, 5).map((tag) => (
+                                                            <Badge key={tag} variant="secondary" className="text-xs">
+                                                                {prettifyTag(tag)}
+                                                            </Badge>
+                                                        ))}
+                                                        {config.tags.length > 5 && (
+                                                            <Badge variant="outline" className="text-xs">
+                                                                +{config.tags.length - 5}
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="text-right text-sm shrink-0 space-y-1">
+                                                {config.latestHybridScore !== null && (
+                                                    <div className="font-semibold text-base">
+                                                        {(config.latestHybridScore * 100).toFixed(1)}%
+                                                    </div>
+                                                )}
+                                                {config.latestRunTimestamp && (
+                                                    <div className="text-xs text-muted-foreground">
+                                                        {formatTimestampForDisplay(fromSafeTimestamp(config.latestRunTimestamp))}
+                                                    </div>
+                                                )}
+                                                {config.runCount > 1 && (
+                                                    <span
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            window.location.href = `/analysis/${config.configId}`;
+                                                        }}
+                                                        className="text-xs text-muted-foreground hover:text-primary hover:underline block cursor-pointer"
+                                                    >
+                                                        All {config.runCount} runs
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
-                                        <div className="text-right text-sm shrink-0 space-y-1">
-                                            {config.latestHybridScore !== null && (
-                                                <div className="font-semibold text-base">
-                                                    {(config.latestHybridScore * 100).toFixed(1)}%
-                                                </div>
-                                            )}
-                                            {config.latestRunTimestamp && (
-                                                <div className="text-xs text-muted-foreground">
-                                                    {formatTimestampForDisplay(fromSafeTimestamp(config.latestRunTimestamp))}
-                                                </div>
-                                            )}
-                                            {config.runCount > 1 && (
-                                                <Link
-                                                    href={`/analysis/${config.configId}`}
-                                                    className="text-xs text-muted-foreground hover:text-primary hover:underline block"
-                                                >
-                                                    All {config.runCount} runs
-                                                </Link>
-                                            )}
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
+                                    </CardContent>
+                                </Card>
+                            </Link>
                         );
                     })}
                 </div>
