@@ -12,6 +12,7 @@ import CoverageHeatmapCanvas from '@/app/analysis/components/CoverageHeatmapCanv
 import { ApiRunsResponse } from '../page';
 import ClientDateTime from '@/app/components/ClientDateTime';
 import Icon from '@/components/ui/icon';
+import { buildConfigBreadcrumbs } from '@/app/utils/blueprintIdUtils';
 
 export interface RunInstanceInfo extends EnhancedRunInfo {
   configId: string;
@@ -66,7 +67,7 @@ export default function RunLabelInstancesClientPage({ configId, runLabel, data }
 
   const breadcrumbItems = useMemo(() => [
     { label: 'Home', href: '/' },
-    { label: configTitle || configId, href: `/analysis/${configId}` },
+    ...buildConfigBreadcrumbs(configId, configTitle || undefined),
     { label: `Run: ${runLabel}` }
   ], [configId, runLabel, configTitle]);
 

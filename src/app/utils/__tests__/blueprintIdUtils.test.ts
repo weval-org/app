@@ -1,4 +1,4 @@
-import { generateBlueprintIdFromPath, getBlueprintPathFromId } from '../blueprintIdUtils';
+import { generateBlueprintIdFromPath, getBlueprintPathFromId, validateBlueprintId, buildConfigBreadcrumbs } from '../blueprintIdUtils';
 
 describe('generateBlueprintIdFromPath', () => {
     it('should handle a simple yml file', () => {
@@ -62,5 +62,77 @@ describe('getBlueprintPathFromId', () => {
 
     it('should handle an empty string', () => {
         expect(getBlueprintPathFromId('')).toBe('');
+    });
+});
+
+describe('validateBlueprintId', () => {
+    it('should not throw for a valid simple ID', () => {
+        expect(() => validateBlueprintId('my-test')).not.toThrow();
+    });
+
+    it('should not throw for a valid ID with directories', () => {
+        expect(() => validateBlueprintId('subdir__my-test')).not.toThrow();
+    });
+
+    it('should throw for an ID ending with __', () => {
+        expect(() => validateBlueprintId('subdir__')).toThrow(/cannot end with '__'/);
+    });
+
+    it('should throw for a deeply nested ID ending with __', () => {
+        expect(() => validateBlueprintId('a__b__c__')).toThrow(/cannot end with '__'/);
+    });
+
+    it('should not throw for an ID containing __ in the middle', () => {
+        expect(() => validateBlueprintId('a__b__c')).not.toThrow();
+    });
+});
+
+describe('buildConfigBreadcrumbs', () => {
+    it('should handle a simple ID with no directories', () => {
+        const result = buildConfigBreadcrumbs('my-test');
+        expect(result).toEqual([
+            { label: 'my-test', href: '/analysis/my-test' }
+        ]);
+    });
+
+    it('should handle a simple ID with a custom title', () => {
+        const result = buildConfigBreadcrumbs('my-test', 'My Test Blueprint');
+        expect(result).toEqual([
+            { label: 'My Test Blueprint', href: '/analysis/my-test' }
+        ]);
+    });
+
+    it('should handle a single directory level', () => {
+        const result = buildConfigBreadcrumbs('disability__ableist-language');
+        expect(result).toEqual([
+            { label: 'disability/', href: '/analysis/disability__' },
+            { label: 'ableist-language', href: '/analysis/disability__ableist-language' }
+        ]);
+    });
+
+    it('should handle a single directory level with custom title', () => {
+        const result = buildConfigBreadcrumbs('disability__ableist-language', 'Ableist Language Detection');
+        expect(result).toEqual([
+            { label: 'disability/', href: '/analysis/disability__' },
+            { label: 'Ableist Language Detection', href: '/analysis/disability__ableist-language' }
+        ]);
+    });
+
+    it('should handle multiple directory levels', () => {
+        const result = buildConfigBreadcrumbs('compass__personality__openness');
+        expect(result).toEqual([
+            { label: 'compass/', href: '/analysis/compass__' },
+            { label: 'personality/', href: '/analysis/compass__personality__' },
+            { label: 'openness', href: '/analysis/compass__personality__openness' }
+        ]);
+    });
+
+    it('should handle multiple directory levels with custom title', () => {
+        const result = buildConfigBreadcrumbs('compass__personality__openness', 'Openness to Experience');
+        expect(result).toEqual([
+            { label: 'compass/', href: '/analysis/compass__' },
+            { label: 'personality/', href: '/analysis/compass__personality__' },
+            { label: 'Openness to Experience', href: '/analysis/compass__personality__openness' }
+        ]);
     });
 }); 

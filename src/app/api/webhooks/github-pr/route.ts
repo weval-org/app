@@ -6,7 +6,7 @@ import { callBackgroundFunction } from '@/lib/background-function-client';
 import { prEvaluationLimiter, webhookIPLimiter, webhookGlobalLimiter } from '@/lib/webhook-rate-limiter';
 import { checkPREvalLimits, formatLimitViolations, PR_EVAL_LIMITS } from '@/lib/pr-eval-limiter';
 import { validateReservedPrefixes } from '@/lib/blueprint-parser';
-import { generateBlueprintIdFromPath } from '@/app/utils/blueprintIdUtils';
+import { generateBlueprintIdFromPath, validateBlueprintId } from '@/app/utils/blueprintIdUtils';
 
 const GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET;
 const UPSTREAM_OWNER = 'weval-org';
@@ -89,13 +89,14 @@ function parseBlueprintFiles(files: any[], prAuthor: string): {
       continue;
     }
 
-    // Validate blueprint ID doesn't use reserved prefixes
+    // Validate blueprint ID doesn't use reserved prefixes or patterns
     try {
       const pathForId = filename.startsWith('blueprints/')
         ? filename.substring('blueprints/'.length)
         : filename;
       const generatedId = generateBlueprintIdFromPath(pathForId);
       validateReservedPrefixes(generatedId);
+      validateBlueprintId(generatedId);
     } catch (error: any) {
       invalid.push({
         filename,

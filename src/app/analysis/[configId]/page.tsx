@@ -3,7 +3,8 @@ import type { Metadata, ResolvingMetadata } from 'next';
 import { cache } from 'react';
 import { EnhancedRunInfo } from '@/app/utils/homepageDataUtils';
 import ConfigRunsClientPage from './ConfigRunsClientPage';
-import { getConfigSummary } from '@/lib/storageService';
+import ConfigDirectoryClientPage from './ConfigDirectoryClientPage';
+import { getConfigSummary, getConfigsByPrefix, ConfigDirectoryEntry } from '@/lib/storageService';
 
 export interface ApiRunsResponse {
     runs: EnhancedRunInfo[];
@@ -57,6 +58,16 @@ export async function generateMetadata(
   _parent: ResolvingMetadata
 ): Promise<Metadata> {
   const { configId } = await props.params;
+
+  // Handle directory listing (configId ends with __)
+  if (configId.endsWith('__')) {
+    const displayPath = configId.slice(0, -2).replace(/__/g, '/');
+    return {
+      title: `Blueprints in ${displayPath}/`,
+      description: `All evaluation blueprints in the ${displayPath} directory`,
+    };
+  }
+
   try {
     const data = await getConfigRunsData(configId);
     const titleBase = data.configTitle || configId;
@@ -74,10 +85,19 @@ export async function generateMetadata(
 
 export default async function ConfigRunsPage({ params }: ThisPageProps) {
   const thisParams = await params;
-  const data = await getConfigRunsData(thisParams.configId);
+  const configId = thisParams.configId;
+
+  // Handle directory listing (configId ends with __)
+  if (configId.endsWith('__')) {
+    const configs = await getConfigsByPrefix(configId);
+    return <ConfigDirectoryClientPage prefix={configId} configs={configs} />;
+  }
+
+  // Normal single-config view
+  const data = await getConfigRunsData(configId);
   return (
-    <ConfigRunsClientPage 
-      configId={thisParams.configId} 
+    <ConfigRunsClientPage
+      configId={configId}
       configTitle={data.configTitle || 'Unknown Configuration'}
       description={data.configDescription || undefined}
       tags={data.configTags || undefined}

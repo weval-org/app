@@ -6,7 +6,7 @@ import { listRunsForConfig } from "@/lib/storageService";
 import { resolveModelsInConfig, SimpleLogger } from "@/lib/blueprint-service";
 import { parseAndNormalizeBlueprint, validateReservedPrefixes } from "@/lib/blueprint-parser";
 import { normalizeTag } from "@/app/utils/tagUtils";
-import { generateBlueprintIdFromPath } from "@/app/utils/blueprintIdUtils";
+import { generateBlueprintIdFromPath, validateBlueprintId } from "@/app/utils/blueprintIdUtils";
 import { getLogger } from "@/utils/logger";
 import { initSentry, captureError, setContext, flushSentry } from "@/utils/sentry";
 import { callBackgroundFunction } from "@/lib/background-function-client";
@@ -115,9 +115,10 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
         const id = generateBlueprintIdFromPath(blueprintPath);
         logger.info(`Derived ID from path '${blueprintPath}': '${id}'`);
 
-        // Validate that the ID doesn't use a reserved prefix
+        // Validate that the ID doesn't use reserved prefixes or patterns
         try {
           validateReservedPrefixes(id);
+          validateBlueprintId(id);
         } catch (error: any) {
           logger.warn(`Skipping blueprint '${file.path}': ${error.message}`);
           continue; // Skip this blueprint

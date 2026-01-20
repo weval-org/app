@@ -12,6 +12,7 @@ import { AnalysisProvider } from '@/app/analysis/context/AnalysisProvider';
 import { EnhancedRunInfo } from '@/app/utils/homepageDataUtils';
 import { fromSafeTimestamp, formatTimestampForDisplay } from '@/lib/timestampUtils';
 import Icon from '@/components/ui/icon';
+import { buildConfigBreadcrumbs } from '@/app/utils/blueprintIdUtils';
 
 interface ConfigRunsClientPageProps {
     configId: string;
@@ -43,7 +44,7 @@ const ConfigRunsClientPage: React.FC<ConfigRunsClientPageProps> = ({
 
     const breadcrumbItems = useMemo(() => [
         { label: 'Home', href: '/' },
-        { label: configTitle, href: `/analysis/${configId}` },
+        ...buildConfigBreadcrumbs(configId, configTitle),
     ], [configId, configTitle]);
 
     const pageTitle = useMemo(() => `${configTitle} - All Runs`, [configTitle]);

@@ -1135,6 +1135,55 @@ export async function listConfigIds(): Promise<string[]> {
 }
 
 /**
+ * Entry for directory listing - minimal config metadata.
+ */
+export interface ConfigDirectoryEntry {
+  configId: string;
+  title: string;
+  description: string | null;
+  tags: string[];
+  latestRunTimestamp: string | null;
+  latestRunLabel: string | null;
+  latestHybridScore: number | null;
+  runCount: number;
+}
+
+/**
+ * Lists all configs matching a given prefix.
+ * Used for directory-style browsing (e.g., /analysis/compass__ lists all compass__* configs).
+ * @param prefix The prefix to match (e.g., "compass__")
+ * @returns Array of config directory entries with minimal metadata
+ */
+export async function getConfigsByPrefix(prefix: string): Promise<ConfigDirectoryEntry[]> {
+  const allConfigIds = await listConfigIds();
+  const matchingIds = allConfigIds.filter(id => id.startsWith(prefix));
+
+  const entries = await Promise.all(
+    matchingIds.map(async (configId): Promise<ConfigDirectoryEntry | null> => {
+      try {
+        const summary = await getConfigSummary(configId);
+        const latestRun = summary?.runs?.[0];
+        return {
+          configId,
+          title: summary?.title || summary?.configTitle || configId,
+          description: summary?.description || null,
+          tags: summary?.tags || [],
+          latestRunTimestamp: latestRun?.timestamp || null,
+          latestRunLabel: latestRun?.runLabel || null,
+          latestHybridScore: latestRun?.hybridScoreStats?.average ?? null,
+          runCount: summary?.runs?.length || 0,
+        };
+      } catch (error) {
+        console.warn(`[StorageService] Error fetching summary for ${configId}:`, error);
+        return null;
+      }
+    })
+  );
+
+  return entries.filter((e): e is ConfigDirectoryEntry => e !== null);
+}
+
+/**
  * Lists all runs for a given configId.
  * For S3, lists objects within the configId "directory".
  * For local, lists files in the configId directory.

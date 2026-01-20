@@ -46,7 +46,7 @@ import { ModelRunPerformance, ModelSummary } from '@/types/shared';
 import { getModelDisplayLabel, parseModelIdForDisplay } from '@/app/utils/modelIdUtils';
 import { populatePairwiseQueue } from '../services/pairwise-task-queue-service';
 import { normalizeTag } from '@/app/utils/tagUtils';
-import { generateBlueprintIdFromPath } from '@/app/utils/blueprintIdUtils';
+import { generateBlueprintIdFromPath, validateBlueprintId } from '@/app/utils/blueprintIdUtils';
 import { CustomModelDefinition } from '@/lib/llm-clients/types';
 import { registerCustomModels } from '@/lib/llm-clients/client-dispatcher';
 import { EnhancedComparisonConfigInfo, EnhancedRunInfo } from '../../app/utils/homepageDataUtils';
@@ -314,6 +314,9 @@ export async function loadAndValidateConfig(options: {
 
     // Always derive the ID from the source path.
     const id = generateBlueprintIdFromPath(sourceName);
+
+    // Validate the ID doesn't use reserved patterns
+    validateBlueprintId(id);
 
     logger.info(`Deriving blueprint ID from file path: '${sourceName}' -> '${id}'`);
     configJson.id = id;

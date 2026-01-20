@@ -19,6 +19,7 @@ import { useToast } from '@/components/ui/use-toast';
 
 import { IDEAL_MODEL_ID } from '@/app/utils/calculationUtils';
 import type { BreadcrumbItem } from '@/app/components/Breadcrumbs';
+import { buildConfigBreadcrumbs } from '@/app/utils/blueprintIdUtils';
 
 interface AnalysisProviderProps {
     // For full analysis mode
@@ -304,13 +305,11 @@ export const AnalysisProvider: React.FC<AnalysisProviderProps> = ({
             return propBreadcrumbItems;
         }
         if (!data) return EMPTY_BREADCRUMBS;
-        
-        const items = [
+
+        const items: BreadcrumbItem[] = [
             { label: 'Home', href: '/' },
-            {
-                label: data.configTitle || configId,
-                href: `/analysis/${configId}`,
-            },
+            // Add directory breadcrumbs (may be multiple if nested directories)
+            ...buildConfigBreadcrumbs(configId, data.configTitle),
             {
                 label: `Version ${runLabel.substring(0, 4)}`,
                 href: `/analysis/${configId}/${runLabel}`,
