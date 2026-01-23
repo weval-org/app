@@ -93,6 +93,8 @@ function SandboxClientPageInternal() {
 
     const setupInitiatedRef = useRef(false);
     const searchParams = useSearchParams();
+    // Track if YAML content came from form auto-generation (to prevent circular updates)
+    const yamlFromFormRef = useRef(false);
 
     const [isProposalWizardOpen, setIsProposalWizardOpen] = useState(false);
     const [isTourModalOpen, setIsTourModalOpen] = useState(false);
@@ -379,7 +381,15 @@ function SandboxClientPageInternal() {
         }
     }, 500); // Wait 500ms after user stops typing
 
+    // Only parse YAML when it wasn't auto-generated from form changes
+    // This prevents form → YAML → form circular updates from corrupting user input
     useEffect(() => {
+        if (yamlFromFormRef.current) {
+            // YAML was generated from form, reset flag and skip parsing
+            yamlFromFormRef.current = false;
+            return;
+        }
+        // YAML came from file load or user editing - parse it
         debouncedParseYaml(editorContent);
     }, [editorContent, debouncedParseYaml]);
 
@@ -453,6 +463,8 @@ function SandboxClientPageInternal() {
     const debouncedGenerateYaml = useDebouncedCallback((config: ComparisonConfig) => {
         try {
             const finalYaml = generateMinimalBlueprintYaml(config);
+            // Mark that this YAML came from form, so we don't parse it back
+            yamlFromFormRef.current = true;
             setEditorContent(finalYaml);
         } catch (error) {
             console.error("Failed to generate YAML from updated config", error);
@@ -468,6 +480,8 @@ function SandboxClientPageInternal() {
     }, [setParsedBlueprint, debouncedGenerateYaml, toast]);
 
     const handleYamlUpdate = (newContent: string) => {
+        // User is directly editing YAML, so allow parsing back to form
+        yamlFromFormRef.current = false;
         setEditorContent(newContent);
     };
 
