@@ -14,6 +14,7 @@ import { MethodologyNotes } from './components/MethodologyNotes';
 import { DataExplorer } from './components/DataExplorer';
 import { Footer } from './components/Footer';
 import { HumanLLMComparison } from './components/HumanLLMComparison';
+import { TableOfContents } from './components/TableOfContents';
 
 export interface CriterionAgreement {
   correlation: number;
@@ -232,12 +233,15 @@ export function V2Client({ comparativeResults, sampleComparisons, rubricSummary,
         {/* Context */}
         <ContextSection />
 
+        {/* Table of Contents */}
+        <TableOfContents />
+
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* PART 1: HEAD-TO-HEAD COMPARISONS */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
 
         {/* Section header */}
-        <div className="pt-8 sm:pt-12 pb-4">
+        <div id="head-to-head" className="pt-8 sm:pt-12 pb-4 scroll-mt-8">
           <div className="text-xs sm:text-sm uppercase tracking-wide text-muted-foreground mb-2">
             Part 1: Head-to-Head Comparisons
           </div>
@@ -267,28 +271,32 @@ export function V2Client({ comparativeResults, sampleComparisons, rubricSummary,
         {/* PART 2: RUBRIC-BASED RATINGS */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
 
-        {rubricSummary && (
-          <RubricOverview
-            opus={rubricSummary.overall.opus}
-            sonnet={rubricSummary.overall.sonnet}
-            totalRatings={rubricSummary.totalRatings}
-            byLanguage={rubricSummary.byLanguage}
-          />
-        )}
+        <div id="rubric-ratings" className="scroll-mt-8">
+          {rubricSummary && (
+            <RubricOverview
+              opus={rubricSummary.overall.opus}
+              sonnet={rubricSummary.overall.sonnet}
+              totalRatings={rubricSummary.totalRatings}
+              byLanguage={rubricSummary.byLanguage}
+            />
+          )}
+        </div>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* DEEP DIVE: OVERLAP WORKERS */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
 
-        {overlapWorkers && (
-          <OverlapWorkersAnalysis data={overlapWorkers} />
-        )}
+        <div id="the-paradox" className="scroll-mt-8">
+          {overlapWorkers && (
+            <OverlapWorkersAnalysis data={overlapWorkers} />
+          )}
+        </div>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* PART 3: THE EVALUATORS */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
 
-        <div className="py-16 sm:py-24 border-t border-border">
+        <div id="evaluators" className="py-16 sm:py-24 border-t border-border scroll-mt-8">
           <div className="text-xs sm:text-sm uppercase tracking-wide text-muted-foreground mb-2">
             Part 3: The Evaluators
           </div>
@@ -326,18 +334,24 @@ export function V2Client({ comparativeResults, sampleComparisons, rubricSummary,
         {/* PART 4: HUMAN VS LLM JUDGES */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
 
-        {humanLLMAgreement && (
-          <HumanLLMComparison data={humanLLMAgreement} />
-        )}
+        <div id="human-vs-llm" className="scroll-mt-8">
+          {humanLLMAgreement && (
+            <HumanLLMComparison data={humanLLMAgreement} />
+          )}
+        </div>
 
         {/* Methodology */}
-        <MethodologyNotes />
+        <div id="methodology" className="scroll-mt-8">
+          <MethodologyNotes />
+        </div>
 
         {/* Data explorer */}
-        <DataExplorer
-          samples={sampleComparisons}
-          languageData={languageData}
-        />
+        <div id="data-explorer" className="scroll-mt-8">
+          <DataExplorer
+            samples={sampleComparisons}
+            languageData={languageData}
+          />
+        </div>
 
         {/* Footer */}
         <Footer />
