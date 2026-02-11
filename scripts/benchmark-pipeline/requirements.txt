@@ -1,0 +1,8 @@
+# Weval Benchmark Pipeline Dependencies
+pyyaml>=6.0
+requests>=2.31.0
+python-dotenv>=1.0.0
+pydantic>=2.0
+arxiv>=2.1.0
+google-genai>=1.0.0
+rich>=13.0

@@ -1,0 +1,43 @@
+# Weval Benchmark Pipeline Configuration
+version: 1
+
+discovery:
+  default_max_results: 50
+  default_categories:
+    - "cs.CL"
+    - "cs.AI"
+    - "cs.LG"
+  min_citations: 5
+  queries:
+    - "LLM benchmark evaluation dataset"
+    - "language model evaluation methodology"
+    - "AI benchmark scoring rubric"
+    - "LLM evaluation framework prompts"
+
+gemini:
+  sufficiency_model: "gemini-2.0-flash"
+  analysis_model: "gemini-2.5-flash"
+  generation_model: "gemini-2.5-flash"
+  temperature: 0.1
+  max_output_tokens: 65536
+  retry_max_attempts: 5
+  retry_base_delay_seconds: 2
+
+paths:
+  temp_pdf_dir: "/tmp/weval-benchmark-papers"
+  tracking_file: "data/tracking.yaml"
+  analyses_dir: "data/analyses"
+  output_dir: "output/blueprints"
+  prompts_dir: "prompts"
+
+blueprint:
+  default_models:
+    - "CORE"
+  default_tags:
+    - "benchmark"
+    - "automated-extraction"
+
+github:
+  configs_repo: "weval-org/configs"
+  configs_local_path: "/Users/evan/Documents/GitHub/weval/configs"
+  branch_prefix: "benchmark-pipeline"

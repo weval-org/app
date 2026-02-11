@@ -1,0 +1,83 @@
+You are generating a Weval evaluation Blueprint YAML file from extracted benchmark methodology.
+
+## Weval Blueprint Format
+
+A Weval Blueprint is a YAML file with two sections separated by `---`:
+1. A configuration header with metadata
+2. A list of evaluation prompts with scoring criteria
+
+### Header Fields
+- `title`: Human-readable benchmark title
+- `description`: Markdown description of the benchmark methodology, what it tests, and source paper
+- `author`: Object with `name` (paper authors) and optionally `url`
+- `references`: Array of `{title, url}` objects citing the source paper
+- `tags`: Array of categorization tags
+- `models`: Array of model identifiers (use `["CORE"]` for standard evaluation)
+
+### Prompt Fields
+- `id`: Unique slug identifier
+- `prompt`: The evaluation prompt text (for single-turn)
+- `messages`: Array of `{role, content}` objects (for multi-turn, use instead of `prompt`)
+- `system`: System prompt override for this specific prompt (optional)
+- `ideal`: Gold-standard expected response (optional)
+- `should`: Array of evaluation criteria (rubric points)
+- `should_not`: Array of negative criteria (things response should avoid)
+- `weight`: Relative importance multiplier (optional, default 1.0)
+
+### Rubric (`should` / `should_not`) Item Types
+
+1. **Plain language (LLM-judged)**: A descriptive string that an AI judge evaluates
+   ```yaml
+   - "Correctly identifies the main argument"
+   ```
+
+2. **Deterministic checks**: Programmatic checks prefixed with `$`
+   ```yaml
+   - $contains: "exact text"
+   - $icontains: "case insensitive"
+   - $contains_all_of: ["term1", "term2"]
+   - $contains_any_of: ["option1", "option2"]
+   - $matches: "regex pattern"
+   - $not_contains: "forbidden text"
+   - $word_count_between: [50, 200]
+   ```
+
+3. **Point with citation**: Key-value format
+   ```yaml
+   - "Covers the prudent man rule.": "Investment Advisers Act of 1940"
+   ```
+
+## Input Data
+
+Here is the extracted methodology from the paper:
+
+```json
+{methodology_json}
+```
+
+Paper metadata:
+- Title: {paper_title}
+- Authors: {paper_authors}
+- arXiv URL: {arxiv_url}
+
+## Instructions
+
+Generate a complete, valid Weval Blueprint YAML file following these rules:
+
+1. The description should summarize the benchmark's purpose, methodology, and source in markdown
+2. Include the paper citation in the `references` field
+3. Use appropriate `should` item types:
+   - Use `$contains` / `$icontains` for answers that must include specific terms
+   - Use `$matches` for pattern-based answers (numbers, dates, specific formats)
+   - Use plain language rubric items for conceptual/qualitative criteria
+   - Use `$contains_all_of` when multiple specific terms must be present
+4. For multiple-choice questions, use `$icontains` for the correct answer letter/text
+5. Add `ideal` responses when gold-standard answers are available
+6. Keep prompt IDs short and descriptive (e.g., "reasoning-q1", "safety-scenario-3")
+7. Group related prompts logically
+8. CRITICAL: Always quote string values that contain colons (:) with double quotes. For example:
+   - title: "BenchName: A Full Title"     (CORRECT - quoted because of colon)
+   - title: Simple Benchmark              (CORRECT - no colon, no quotes needed)
+   - title: BenchName: A Full Title       (WRONG - unquoted colon breaks YAML)
+
+Return ONLY the raw YAML content, no markdown fences or explanation. The output must be valid YAML that can be parsed directly.
