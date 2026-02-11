@@ -12,6 +12,11 @@ interface NoteItem {
 
 const notes: NoteItem[] = [
   {
+    title: 'Two Separate Tasks',
+    summary: 'Workers did A/B comparisons AND rubric ratings — different tasks, different results.',
+    details: `Workers completed two distinct evaluation tasks: (1) Head-to-head comparisons where they picked between two anonymous responses, and (2) Rubric-based ratings where they scored a single response on trust, fluency, complexity, and code-switching. Interestingly, the same workers often showed different preferences across these tasks — preferring Opus in direct comparisons but rating Sonnet slightly higher on individual criteria.`,
+  },
+  {
     title: 'Position Bias',
     summary: 'Workers slightly favored whichever response was shown second.',
     details: `We randomized which model appeared as "Response A" vs "Response B" to control for this. The effect was measurable (~6.5 percentage points overall) but varied significantly by language. Malayalam showed the strongest position effect (26.5pp swing), while Telugu showed the smallest (1.6pp). The 63% Opus preference persists after controlling for position.`,
@@ -24,12 +29,17 @@ const notes: NoteItem[] = [
   {
     title: 'Single-Rater Design',
     summary: 'Each comparison was evaluated by one person.',
-    details: `For cost and logistics reasons, each question-pair was evaluated by exactly one worker. We validated consistency through worker reliability scoring: measuring variance in responses, cross-criterion consistency, and whether workers differentiated between models. 78% of workers who completed multiple comparisons independently preferred Opus overall.`,
+    details: `For cost and logistics reasons, each question-pair was evaluated by exactly one worker. We validated consistency through worker reliability scoring: measuring scale usage (do they use the full rating scale?), cross-criterion consistency (do their ratings correlate sensibly?), and sample size. 78% of workers who completed multiple comparisons independently preferred Opus overall.`,
   },
   {
     title: 'Independent Question Sets',
     summary: 'Each language had its own question set (not translations).',
     details: `The questions were created independently for each language by native speakers, reflecting locally relevant legal and agricultural concerns. This means we cannot compare performance on "the same question" across languages — the questions themselves are different. Cross-language comparisons are about overall patterns, not specific queries.`,
+  },
+  {
+    title: 'LLM Judge Comparison',
+    summary: 'We also ran the responses through Weval\'s LLM judge pipeline.',
+    details: `To compare human and AI evaluation, we ran the same 9,293 prompts through Weval with LLM judges (GPT-4o, Claude 3.5 Sonnet, Qwen, GLM). The LLM judges showed near-zero correlation with human ratings and systematic biases: overrating fluency (+24 points) and underrating code-switching (-34 points). This suggests LLM judges apply English-centric heuristics that don't match native speaker judgment.`,
   },
 ];
 
