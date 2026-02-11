@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { cn } from '@/lib/utils';
-import { ExternalLink, AlertTriangle } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 
 interface CriterionData {
   correlation: number;
@@ -54,7 +54,7 @@ const criteriaLabels: Record<string, string> = {
 };
 
 export function HumanLLMComparison({ data }: HumanLLMComparisonProps) {
-  const { perCriterion, overall, wevalRunUrl } = data;
+  const { perCriterion, overall } = data;
   const criteria = ['trust', 'fluency', 'complexity', 'code_switching'] as const;
 
   return (
@@ -175,7 +175,32 @@ export function HumanLLMComparison({ data }: HumanLLMComparisonProps) {
             <strong>{Math.round(perCriterion.fluency.llmMean * 100)}%</strong> while native speakers rate it at{' '}
             <strong>{Math.round(perCriterion.fluency.humanMean * 100)}%</strong> — a{' '}
             <strong>{Math.round((perCriterion.fluency.llmMean - perCriterion.fluency.humanMean) * 100)} point gap</strong>.
+            In fact, native speakers rated <strong>226 responses</strong> as having zero fluency (citing spelling errors,
+            grammar mistakes, and poor flow) — yet LLM judges rated those same responses near-perfect.
           </p>
+
+          {/* Example case */}
+          <div className="my-4 p-4 bg-white/50 dark:bg-black/20 rounded-lg border border-red-200 dark:border-red-900/30 text-xs">
+            <div className="font-medium text-foreground mb-2">Example: Malayalam agriculture response</div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="text-muted-foreground mb-1">Native speaker (high-reliability)</div>
+                <div className="font-mono text-red-600 text-lg">0%</div>
+                <div className="text-muted-foreground mt-1 italic">
+                  &ldquo;Nothing flows well&rdquo;<br />
+                  Errors cited: spelling mistakes, wrong word choices, grammar errors
+                </div>
+              </div>
+              <div>
+                <div className="text-muted-foreground mb-1">LLM judge</div>
+                <div className="font-mono text-blue-600 text-lg">100%</div>
+                <div className="text-muted-foreground mt-1 italic">
+                  No issues detected
+                </div>
+              </div>
+            </div>
+          </div>
+
           <p>
             <strong className="text-amber-600">Code-Switching Underestimation:</strong> LLM judges rate code-switching at{' '}
             <strong>{Math.round(perCriterion.code_switching.llmMean * 100)}%</strong> while native speakers rate it at{' '}
@@ -189,23 +214,6 @@ export function HumanLLMComparison({ data }: HumanLLMComparisonProps) {
             <strong>no predictive relationship</strong> with human judgments.
           </p>
         </div>
-      </div>
-
-      {/* Link to full Weval analysis */}
-      <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg border border-border">
-        <div>
-          <p className="font-medium">Explore the Full LLM Judge Analysis</p>
-          <p className="text-sm text-muted-foreground">View detailed coverage scores, judge reasoning, and per-prompt breakdowns</p>
-        </div>
-        <a
-          href={wevalRunUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-        >
-          View on Weval
-          <ExternalLink className="w-4 h-4" />
-        </a>
       </div>
 
       {/* Interpretation */}

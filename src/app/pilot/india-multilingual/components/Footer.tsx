@@ -28,6 +28,18 @@ export function Footer() {
         <p className="text-xs sm:text-sm text-muted-foreground">
           February 2026
         </p>
+
+        <p className="text-xs text-muted-foreground/60 pt-2">
+          <a
+            href="https://weval.org/api/comparison/karya-anthropic-india-multilingual/india-multilingual-full_e74330710b1e01ee/2026-02-10T15-48-27-773Z/core"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-muted-foreground hover:underline"
+          >
+            Raw evaluation data
+          </a>
+          {' '}(16 MB JSON)
+        </p>
       </div>
     </footer>
   );
