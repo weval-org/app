@@ -7,7 +7,6 @@ import { ComparisonGame } from './components/ComparisonGame';
 import { LanguageBreakdown } from './components/LanguageBreakdown';
 import { EqualVerdicts } from './components/EqualVerdicts';
 import { RubricOverview } from './components/RubricOverview';
-import { RawFeedbackSamples } from './components/RawFeedbackSamples';
 import { OverlapWorkersAnalysis } from './components/OverlapWorkersAnalysis';
 import { EvaluatorProfiles } from './components/EvaluatorProfiles';
 import { WorkerReliabilityChart } from './components/WorkerReliabilityChart';
@@ -229,16 +228,12 @@ export function V2Client({ comparativeResults, sampleComparisons, rubricSummary,
         {/* ═══════════════════════════════════════════════════════════════════ */}
 
         {rubricSummary && (
-          <>
-            <RubricOverview
-              opus={rubricSummary.overall.opus}
-              sonnet={rubricSummary.overall.sonnet}
-              totalRatings={rubricSummary.totalRatings}
-              byLanguage={rubricSummary.byLanguage}
-            />
-
-            <RawFeedbackSamples samples={rubricSummary.rawSamples} />
-          </>
+          <RubricOverview
+            opus={rubricSummary.overall.opus}
+            sonnet={rubricSummary.overall.sonnet}
+            totalRatings={rubricSummary.totalRatings}
+            byLanguage={rubricSummary.byLanguage}
+          />
         )}
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
