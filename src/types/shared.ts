@@ -78,6 +78,21 @@ export interface PointAssessment {
     pathId?: string; // Used for alternative paths (OR logic)
 }
 
+/**
+ * Human evaluation ratings from external sources (e.g., Karya platform).
+ * Used for comparison with LLM judge scores.
+ */
+export interface HumanRatings {
+    trust?: number;
+    fluency?: number;
+    complexity?: number;
+    code_switching?: number;
+    composite?: number;
+    workerReliabilityTier?: 'high' | 'medium' | 'low' | 'unknown';
+    workerReliabilityScore?: number | null;
+    raw?: Record<string, string>;  // Original categorical ratings
+}
+
 // A container for the results of an llm-coverage evaluation for a single
 // (prompt, model) pair.
 export type CoverageResult = {
@@ -90,6 +105,10 @@ export type CoverageResult = {
     error?: string;
     // Inter-judge agreement metrics (Krippendorff's alpha)
     judgeAgreement?: JudgeAgreementMetrics;
+    // Human evaluation ratings (for human-LLM comparison studies)
+    humanRatings?: HumanRatings;
+    // Per-criterion LLM scores mapped to human criteria
+    llmCriterionScores?: Record<string, number>;
 } | null;
 
 export type EvaluationMethod = 'embedding' | 'llm-coverage';
@@ -113,6 +132,81 @@ export interface WevalEvaluationResults {
     promptStatistics?: any;
     perModelHybridScores?: any;
     perModelSemanticScores?: any;
+}
+
+/**
+ * Per-criterion agreement metrics between human and LLM judges.
+ */
+export interface CriterionAgreement {
+    correlation: number | null;
+    meanDiff: number;
+    humanMean: number;
+    llmMean: number;
+    n: number;
+}
+
+/**
+ * A specific disagreement case between human and LLM judges.
+ */
+export interface HumanLLMDisagreement {
+    prompt_id: string;
+    model_id: string;
+    criterion: string;
+    human: number;
+    llm: number;
+    diff: number;
+    workerReliabilityTier?: 'high' | 'medium' | 'low' | 'unknown';
+    workerReliabilityScore?: number | null;
+}
+
+/**
+ * Data quality metrics for human evaluation data.
+ */
+export interface DataQuality {
+    workerReliability?: {
+        total_workers?: number;
+        high_reliability?: number;
+        medium_reliability?: number;
+        low_reliability?: number;
+        thresholds?: {
+            high?: number;
+            medium?: number;
+        };
+    };
+    methodology?: {
+        variance_weight?: number;
+        consistency_weight?: number;
+        model_diff_weight?: number;
+        domain_diff_weight?: number;
+        description?: string;
+    };
+    ratingsByTier?: {
+        high?: number;
+        all?: number;
+    };
+    keyInsights?: Array<{
+        finding: string;
+        humanMeanHighRel?: number | null;
+        llmMean?: number | null;
+        gap?: number | null;
+        zeroFluencyCount?: number;
+        disagreementRate?: number;
+    }>;
+}
+
+/**
+ * Aggregate human vs LLM agreement metrics for a run.
+ */
+export interface HumanLLMAgreement {
+    perCriterion: Record<string, CriterionAgreement>;
+    overall: {
+        correlation: number | null;
+        meanDiff: number;
+        totalComparisons: number;
+        disagreementCount: number;
+        disagreementRate: number;
+    };
+    disagreements: HumanLLMDisagreement[];
 }
 
 type AtLeastNOfArg = [number, string[]];
@@ -299,6 +393,7 @@ export interface WevalResult {
     excludedModels?: string[];
     executiveSummary?: ExecutiveSummary;
     article?: WevalArticle;
+    humanLLMAgreement?: HumanLLMAgreement;
 }
 
 // New structured executive summary types

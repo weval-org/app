@@ -10,6 +10,10 @@ import {
     WevalPromptConfig as ConfigPromptData, // Alias for local consistency
     PointDefinition,
     WevalEvaluationResults,
+    HumanRatings,
+    HumanLLMAgreement,
+    CriterionAgreement,
+    HumanLLMDisagreement,
 } from '@/types/shared';
 
 // Re-exporting aliases for local consistency
@@ -21,7 +25,11 @@ export type {
     CoverageResult,
     PointAssessment,
     IndividualJudgement,
-    JudgeAgreementMetrics
+    JudgeAgreementMetrics,
+    HumanRatings,
+    HumanLLMAgreement,
+    CriterionAgreement,
+    HumanLLMDisagreement,
 };
 
 // Analysis results per prompt
