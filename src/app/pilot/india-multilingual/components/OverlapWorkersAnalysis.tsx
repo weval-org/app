@@ -143,37 +143,41 @@ export function OverlapWorkersAnalysis({ data }: OverlapWorkersAnalysisProps) {
             <div className="text-xs uppercase tracking-wide text-muted-foreground mb-3">
               Individual Rubric Ratings
             </div>
-            <div className="bg-background/50 rounded-lg p-4 space-y-2">
+            <div className="bg-background/50 rounded-lg p-4 space-y-3">
               {criteria.map((c) => {
                 const opusScore = featuredCase.rubric.opus[c] * 100;
                 const sonnetScore = featuredCase.rubric.sonnet[c] * 100;
-                const diff = opusScore - sonnetScore;
+                const diff = sonnetScore - opusScore;
                 return (
-                  <div key={c} className="flex items-center gap-2">
-                    <span className="text-xs w-20 text-muted-foreground">{criteriaLabels[c]}</span>
-                    <div className="flex-1 flex items-center gap-2">
-                      <span className={cn(
-                        "text-xs font-mono w-10 text-right",
-                        diff > 0 ? "text-primary" : "text-muted-foreground"
-                      )}>
-                        {opusScore.toFixed(0)}%
-                      </span>
-                      <div className="flex-1 h-1.5 bg-muted/30 rounded relative">
-                        <div
-                          className="absolute left-0 top-0 h-full bg-primary/60 rounded"
-                          style={{ width: `${opusScore}%` }}
-                        />
-                        <div
-                          className="absolute left-0 top-0 h-full bg-amber-500/60 rounded"
-                          style={{ width: `${sonnetScore}%`, opacity: 0.7 }}
-                        />
+                  <div key={c}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-muted-foreground">{criteriaLabels[c]}</span>
+                      {diff !== 0 && (
+                        <span className={cn(
+                          "text-xs font-medium",
+                          diff > 0 ? "text-amber-600" : "text-primary"
+                        )}>
+                          {diff > 0 ? 'Sonnet' : 'Opus'} +{Math.abs(diff).toFixed(0)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      {/* Opus bar */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs w-12 text-primary">Opus</span>
+                        <div className="flex-1 h-2 bg-muted/30 rounded overflow-hidden">
+                          <div className="h-full bg-primary" style={{ width: `${opusScore}%` }} />
+                        </div>
+                        <span className="text-xs font-mono w-8 text-right">{opusScore.toFixed(0)}%</span>
                       </div>
-                      <span className={cn(
-                        "text-xs font-mono w-10",
-                        diff < 0 ? "text-amber-600" : "text-muted-foreground"
-                      )}>
-                        {sonnetScore.toFixed(0)}%
-                      </span>
+                      {/* Sonnet bar */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs w-12 text-amber-600">Sonnet</span>
+                        <div className="flex-1 h-2 bg-muted/30 rounded overflow-hidden">
+                          <div className="h-full bg-amber-500" style={{ width: `${sonnetScore}%` }} />
+                        </div>
+                        <span className="text-xs font-mono w-8 text-right">{sonnetScore.toFixed(0)}%</span>
+                      </div>
                     </div>
                   </div>
                 );
