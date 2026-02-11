@@ -1,63 +1,94 @@
 import { Metadata } from 'next';
-import { getCoreResult } from '@/lib/storageService';
-import { PilotClient } from './PilotClient';
 import fs from 'fs/promises';
 import path from 'path';
+import { V2Client } from './V2Client';
 
-// Hardcoded for this specific pilot - no dynamic routing needed
-const CONFIG_ID = '.._____india-multilingual__india-multilingual-full';
-const RUN_LABEL = 'india-multilingual-full_e74330710b1e01ee';
-const TIMESTAMP = '2026-02-10T15-48-27-773Z';
+export const metadata: Metadata = {
+  title: 'India Multilingual Evaluation | Opus vs Sonnet',
+  description: 'Native speakers of 7 Indian languages compared Claude Opus 4.5 and Sonnet 4.5 on legal and agricultural questions. Opus preferred 63% of the time.',
+  openGraph: {
+    title: 'India Multilingual Evaluation | Opus vs Sonnet',
+    description: 'Native speakers of 7 Indian languages compared Claude Opus 4.5 and Sonnet 4.5 on legal and agricultural questions. Opus preferred 63% of the time.',
+    type: 'article',
+    siteName: 'weval',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'India Multilingual Evaluation | Opus vs Sonnet',
+    description: 'Native speakers of 7 Indian languages compared Claude Opus 4.5 and Sonnet 4.5. Opus preferred 63% of the time.',
+  },
+};
 
-// Load comparative results from JSON
+// Load comparative results
 async function getComparativeResults() {
   try {
     const filePath = path.join(process.cwd(), '..', '___india-multilingual', 'comparative_results.json');
     const content = await fs.readFile(filePath, 'utf-8');
     return JSON.parse(content);
   } catch (error) {
-    console.error('[page.tsx] Failed to load comparative results:', error);
+    console.error('[india-multilingual/page.tsx] Failed to load comparative results:', error);
     return null;
   }
 }
 
-export const metadata: Metadata = {
-  title: 'India Multilingual Evaluation | Human vs LLM Agreement',
-  description: 'Comparing human evaluator ratings with LLM judge scores on multilingual Indian language content.',
-};
+// Load sample comparisons for the interactive game (pre-generated JSON)
+async function getSampleComparisons() {
+  try {
+    const filePath = path.join(process.cwd(), '..', '___india-multilingual', 'comparison_samples.json');
+    const content = await fs.readFile(filePath, 'utf-8');
+    return JSON.parse(content);
+  } catch (error) {
+    console.error('[india-multilingual/page.tsx] Failed to load sample comparisons:', error);
+    return [];
+  }
+}
 
-export default async function IndiaMultilingualPilotPage() {
-  // Load core data and comparative results server-side
-  const [coreData, comparativeResults] = await Promise.all([
-    getCoreResult(CONFIG_ID, RUN_LABEL, TIMESTAMP),
+// Load rubric-based rating summary
+async function getRubricSummary() {
+  try {
+    const filePath = path.join(process.cwd(), '..', '___india-multilingual', 'rubric_summary.json');
+    const content = await fs.readFile(filePath, 'utf-8');
+    return JSON.parse(content);
+  } catch (error) {
+    console.error('[india-multilingual/page.tsx] Failed to load rubric summary:', error);
+    return null;
+  }
+}
+
+// Load overlap workers analysis
+async function getOverlapWorkers() {
+  try {
+    const filePath = path.join(process.cwd(), '..', '___india-multilingual', 'overlap_workers.json');
+    const content = await fs.readFile(filePath, 'utf-8');
+    return JSON.parse(content);
+  } catch (error) {
+    console.error('[india-multilingual/page.tsx] Failed to load overlap workers:', error);
+    return null;
+  }
+}
+
+export default async function IndiaMultilingualPage() {
+  const [comparativeResults, sampleComparisons, rubricSummary, overlapWorkers] = await Promise.all([
     getComparativeResults(),
+    getSampleComparisons(),
+    getRubricSummary(),
+    getOverlapWorkers(),
   ]);
 
-  if (!coreData) {
+  if (!comparativeResults) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-muted-foreground">Pilot data not found.</p>
+        <p className="text-muted-foreground">Data not found.</p>
       </div>
     );
   }
 
-  // Extract what we need for the narrative
-  const pilotData = {
-    configId: CONFIG_ID,
-    runLabel: RUN_LABEL,
-    timestamp: TIMESTAMP,
-    title: coreData.configTitle || 'India Multilingual Evaluation',
-    description: coreData.description,
-    promptIds: coreData.promptIds || [],
-    models: coreData.effectiveModels || [],
-    humanLLMAgreement: (coreData as any).humanLLMAgreement || null,
-    humanLLMAgreementHighReliability: (coreData as any).humanLLMAgreementHighReliability || null,
-    dataQuality: (coreData as any).dataQuality || null,
-    executiveSummary: coreData.executiveSummary,
-    llmCoverageScores: coreData.evaluationResults?.llmCoverageScores || null,
-    promptContexts: coreData.promptContexts || {},
-    comparativeResults: comparativeResults || null,
-  };
-
-  return <PilotClient data={pilotData} />;
+  return (
+    <V2Client
+      comparativeResults={comparativeResults}
+      sampleComparisons={sampleComparisons}
+      rubricSummary={rubricSummary}
+      overlapWorkers={overlapWorkers}
+    />
+  );
 }

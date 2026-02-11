@@ -3,9 +3,7 @@
 Custom pilot page for the India Multilingual evaluation comparing Claude Opus 4.5 vs Sonnet 4.5 responses to legal and agriculture questions across 7 Indian languages.
 
 **Source Data**: `/Users/james/proj/anthropic-legal-agri/` (Karya evaluation exports)
-**Live Pages**:
-- `/pilot/india-multilingual` — v1: Original LLM judge calibration analysis
-- `/pilot/india-multilingual/v2` — v2: Comprehensive redesign with CIP branding
+**Live Page**: `/pilot/india-multilingual`
 
 ## Overview
 
@@ -199,49 +197,29 @@ python ___merge-human-ratings-v2.py
 
 ## Page Components
 
-### v1 (Original)
-
 ```
 src/app/pilot/india-multilingual/
-├── page.tsx                    # Server component, loads data
-├── PilotClient.tsx             # Main client component
-└── components/
-    ├── HeroSection.tsx         # Introduction
-    ├── MethodologySection.tsx  # How data was collected
-    ├── HeadToHeadResults.tsx   # Main comparative results (Opus 63%)
-    ├── ExemplarWorkers.tsx     # Worker profile deep-dives
-    ├── FindingsSection.tsx     # LLM judge vs human findings
-    ├── BreakdownTable.tsx      # Detailed criterion breakdown
-    ├── DataQualitySection.tsx  # Worker reliability stats
-    ├── DisagreementExplorer.tsx # Human-LLM disagreement cases
-    ├── PromptExplorer.tsx      # Browse all prompts
-    ├── ImplicationsSection.tsx # Conclusions
-    └── PilotFooter.tsx         # Credits
-```
-
-### v2 (Comprehensive Redesign)
-
-```
-src/app/pilot/india-multilingual/v2/
 ├── page.tsx                    # Server component, loads all data
 ├── V2Client.tsx                # Main client with section orchestration
-└── components/
-    ├── HeroStat.tsx            # CIP × weval branding, 4-column stats
-    ├── ContextSection.tsx      # Study context and methodology
-    ├── ComparisonGame.tsx      # Interactive A/B comparison game
-    ├── LanguageBreakdown.tsx   # Opus rate by language with bars
-    ├── EqualVerdicts.tsx       # "Both equally good/bad" analysis
-    ├── RubricOverview.tsx      # 4 criteria cards + "The Paradox"
-    ├── RawFeedbackSamples.tsx  # Native-script human feedback examples
-    ├── OverlapWorkersAnalysis.tsx # 20 workers who did both tasks
-    ├── EvaluatorProfiles.tsx   # Curated worker archetypes
-    ├── WorkerReliabilityChart.tsx # High/medium/low reliability bars
-    ├── MethodologyNotes.tsx    # Technical notes
-    ├── DataExplorer.tsx        # Browse 350 stratified samples
-    └── Footer.tsx              # Credits
+├── README.md                   # This file
+├── components/
+│   ├── HeroStat.tsx            # CIP × weval branding, 4-column stats
+│   ├── ContextSection.tsx      # Study context and methodology
+│   ├── ComparisonGame.tsx      # Interactive A/B comparison game
+│   ├── LanguageBreakdown.tsx   # Opus rate by language with bars
+│   ├── EqualVerdicts.tsx       # "Both equally good/bad" analysis
+│   ├── RubricOverview.tsx      # 4 criteria cards + "The Paradox"
+│   ├── RawFeedbackSamples.tsx  # Native-script human feedback examples
+│   ├── OverlapWorkersAnalysis.tsx # 20 workers who did both tasks
+│   ├── EvaluatorProfiles.tsx   # Curated worker archetypes
+│   ├── WorkerReliabilityChart.tsx # High/medium/low reliability bars
+│   ├── MethodologyNotes.tsx    # Technical notes
+│   ├── DataExplorer.tsx        # Browse 350 stratified samples
+│   └── Footer.tsx              # Credits
+└── _archive_v1/                # Archived original v1 implementation
 ```
 
-**v2 Key Features**:
+**Key Features**:
 - "The Collective Intelligence Project × weval" branding
 - Interactive comparison game (guess which model won)
 - "The Paradox" — Opus wins 63% A/B but Sonnet scores higher on rubric criteria
