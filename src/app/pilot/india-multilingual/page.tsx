@@ -1,7 +1,7 @@
 import { Metadata } from 'next';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
-import { V2Client } from './V2Client';
+import { V2Client, ComparativeResults, SampleComparison, RubricSummary, OverlapWorkersData } from './V2Client';
 
 export const metadata: Metadata = {
   title: 'India Multilingual Evaluation | Opus vs Sonnet',
@@ -62,10 +62,10 @@ async function fetchFromS3<T>(filename: string): Promise<T | null> {
 
 export default async function IndiaMultilingualPage() {
   const [comparativeResults, sampleComparisons, rubricSummary, overlapWorkers] = await Promise.all([
-    fetchFromS3('comparative_results.json'),
-    fetchFromS3('comparison_samples.json'),
-    fetchFromS3('rubric_summary.json'),
-    fetchFromS3('overlap_workers.json'),
+    fetchFromS3<ComparativeResults>('comparative_results.json'),
+    fetchFromS3<SampleComparison[]>('comparison_samples.json'),
+    fetchFromS3<RubricSummary>('rubric_summary.json'),
+    fetchFromS3<OverlapWorkersData>('overlap_workers.json'),
   ]);
 
   if (!comparativeResults) {
