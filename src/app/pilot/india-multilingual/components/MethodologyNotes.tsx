@@ -14,7 +14,7 @@ const notes: NoteItem[] = [
   {
     title: 'Two Separate Tasks',
     summary: 'Workers did A/B comparisons AND rubric ratings — different tasks, different results.',
-    details: `Workers completed two distinct evaluation tasks: (1) Head-to-head comparisons where they picked between two anonymous responses, and (2) Rubric-based ratings where they scored a single response on trust, fluency, complexity, and code-switching. Interestingly, the same workers often showed different preferences across these tasks — preferring Opus in direct comparisons but rating Sonnet slightly higher on individual criteria.`,
+    details: `Workers completed two distinct evaluation tasks: (1) Head-to-head comparisons where they picked between two anonymous responses, and (2) Rubric-based ratings where they scored a single response on trust, fluency, complexity, and code-switching. The same workers often showed different preferences across these tasks — preferring Opus in direct comparisons but rating Sonnet slightly higher on individual criteria.`,
   },
   {
     title: 'Position Bias',

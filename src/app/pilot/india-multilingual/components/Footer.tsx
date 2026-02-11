@@ -28,24 +28,6 @@ export function Footer() {
         <p className="text-xs sm:text-sm text-muted-foreground">
           February 2026
         </p>
-
-        <nav className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 text-xs sm:text-sm" aria-label="Footer links">
-          <a
-            href="/pilot/india-multilingual"
-            className="text-muted-foreground hover:text-primary transition-colors"
-          >
-            View v1 page
-          </a>
-          <span className="text-muted-foreground" aria-hidden="true">·</span>
-          <a
-            href="https://github.com/weval-org/app"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-muted-foreground hover:text-primary transition-colors"
-          >
-            Built with weval
-          </a>
-        </nav>
       </div>
     </footer>
   );

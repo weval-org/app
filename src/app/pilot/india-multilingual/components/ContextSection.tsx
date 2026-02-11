@@ -99,11 +99,6 @@ export function ContextSection() {
         </div>
       </div>
 
-      {/* Key insight */}
-      <p className="text-base sm:text-lg text-muted-foreground leading-relaxed italic border-l-4 border-primary/30 pl-4">
-        Two tasks, one paradox: Workers preferred Opus in direct comparisons, but rated
-        Sonnet slightly higher on individual criteria.
-      </p>
     </section>
   );
 }
