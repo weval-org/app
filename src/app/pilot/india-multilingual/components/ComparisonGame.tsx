@@ -125,7 +125,7 @@ export function ComparisonGame({ samples }: ComparisonGameProps) {
             {current.answer1.length > 500 && (
               <button
                 onClick={(e) => { e.stopPropagation(); setExpandedResponse(expandedResponse === 'A' ? null : 'A'); }}
-                className="text-primary text-sm mt-2 hover:underline"
+                className="text-primary text-sm mt-2 py-2 hover:underline min-h-[44px]"
                 aria-expanded={expandedResponse === 'A'}
               >
                 {expandedResponse === 'A' ? 'Show less' : 'Read more'}
@@ -136,7 +136,7 @@ export function ComparisonGame({ samples }: ComparisonGameProps) {
           {!revealed && (
             <button
               onClick={() => handleChoice('A')}
-              className="w-full p-3 border-t border-border hover:bg-muted/50 transition-colors font-medium text-sm"
+              className="w-full py-4 px-4 border-t border-border hover:bg-muted/50 transition-colors font-medium text-sm min-h-[48px]"
             >
               I prefer Response A
             </button>
@@ -176,7 +176,7 @@ export function ComparisonGame({ samples }: ComparisonGameProps) {
             {current.answer2.length > 500 && (
               <button
                 onClick={(e) => { e.stopPropagation(); setExpandedResponse(expandedResponse === 'B' ? null : 'B'); }}
-                className="text-primary text-sm mt-2 hover:underline"
+                className="text-primary text-sm mt-2 py-2 hover:underline min-h-[44px]"
                 aria-expanded={expandedResponse === 'B'}
               >
                 {expandedResponse === 'B' ? 'Show less' : 'Read more'}
@@ -187,7 +187,7 @@ export function ComparisonGame({ samples }: ComparisonGameProps) {
           {!revealed && (
             <button
               onClick={() => handleChoice('B')}
-              className="w-full p-3 border-t border-border hover:bg-muted/50 transition-colors font-medium text-sm"
+              className="w-full py-4 px-4 border-t border-border hover:bg-muted/50 transition-colors font-medium text-sm min-h-[48px]"
             >
               I prefer Response B
             </button>
@@ -200,7 +200,7 @@ export function ComparisonGame({ samples }: ComparisonGameProps) {
         <div className="flex gap-3 justify-center">
           <button
             onClick={() => handleChoice('equal')}
-            className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="px-6 py-3 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors rounded-lg min-h-[44px]"
           >
             They&apos;re equally good
           </button>
@@ -210,14 +210,14 @@ export function ComparisonGame({ samples }: ComparisonGameProps) {
       {/* Result */}
       {revealed && (
         <div className="bg-muted/30 rounded-xl p-6 text-center space-y-4">
-          <div className="text-lg">
+          <div className="text-base sm:text-lg">
             The native speaker chose:{' '}
             <span className="font-semibold text-primary">{workerChoiceLabel}</span>
           </div>
 
           <button
             onClick={handleNext}
-            className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+            className="px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors min-h-[44px]"
           >
             Try another comparison
           </button>

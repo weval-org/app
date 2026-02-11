@@ -9,7 +9,6 @@ import { EqualVerdicts } from './components/EqualVerdicts';
 import { RubricOverview } from './components/RubricOverview';
 import { OverlapWorkersAnalysis } from './components/OverlapWorkersAnalysis';
 import { EvaluatorProfiles } from './components/EvaluatorProfiles';
-import { WorkerReliabilityChart } from './components/WorkerReliabilityChart';
 import { MethodologyNotes } from './components/MethodologyNotes';
 import { DataExplorer } from './components/DataExplorer';
 import { Footer } from './components/Footer';
@@ -228,13 +227,13 @@ export function V2Client({ comparativeResults, sampleComparisons, rubricSummary,
         totalWorkers={rubricSummary?.workerReliability?.total_workers || totalWorkers}
       />
 
+      {/* Floating Table of Contents */}
+      <TableOfContents />
+
       {/* Main content */}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Context */}
         <ContextSection />
-
-        {/* Table of Contents */}
-        <TableOfContents />
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* PART 1: HEAD-TO-HEAD COMPARISONS */}
@@ -301,29 +300,22 @@ export function V2Client({ comparativeResults, sampleComparisons, rubricSummary,
             Part 3: The Evaluators
           </div>
           <h2
-            className="text-2xl sm:text-3xl font-semibold text-foreground mb-8"
+            className="text-2xl sm:text-3xl font-semibold text-foreground mb-6"
             style={{ fontFamily: '"Source Serif 4", Georgia, serif' }}
           >
             Who Did the Evaluating?
           </h2>
 
-          {/* Worker reliability chart */}
-          {rubricSummary?.workerReliability && (
-            <div className="mb-10">
-              <WorkerReliabilityChart
-                high={rubricSummary.workerReliability.high_reliability}
-                medium={rubricSummary.workerReliability.medium_reliability}
-                low={rubricSummary.workerReliability.low_reliability}
-              />
-            </div>
-          )}
+          <p className="text-base sm:text-lg text-muted-foreground mb-8">
+            {rubricSummary?.workerReliability?.total_workers || totalWorkers} native speakers from across India evaluated model responses.
+          </p>
 
-          {/* Curated profiles - render inline without section wrapper */}
+          {/* Curated profiles */}
           {curatedProfiles.length > 0 && (
             <div>
               <h3 className="font-semibold text-base sm:text-lg mb-4">Notable Evaluator Patterns</h3>
               <p className="text-sm sm:text-base text-muted-foreground mb-6">
-                Among the {rubricSummary?.workerReliability?.total_workers || totalWorkers} workers, here are some interesting patterns.
+                Among the evaluators, here are some interesting patterns.
               </p>
               <EvaluatorProfiles profiles={curatedProfiles} inline />
             </div>

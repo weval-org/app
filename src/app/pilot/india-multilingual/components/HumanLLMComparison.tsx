@@ -136,28 +136,28 @@ export function HumanLLMComparison({ data }: HumanLLMComparisonProps) {
                   </div>
                 </div>
 
-                <div className="space-y-1">
+                <div className="space-y-2">
                   {/* Human bar */}
                   <div className="flex items-center gap-2">
-                    <span className="text-xs w-16 text-muted-foreground">Human</span>
-                    <div className="flex-1 h-3 bg-muted/50 rounded overflow-hidden">
+                    <span className="text-xs sm:text-sm w-14 sm:w-16 text-muted-foreground">Human</span>
+                    <div className="flex-1 h-4 sm:h-5 bg-muted/50 rounded overflow-hidden">
                       <div
                         className="h-full bg-emerald-500 transition-all"
                         style={{ width: `${humanScore}%` }}
                       />
                     </div>
-                    <span className="text-xs font-mono w-12 text-right">{humanScore.toFixed(0)}%</span>
+                    <span className="text-xs sm:text-sm font-mono w-10 sm:w-12 text-right">{humanScore.toFixed(0)}%</span>
                   </div>
                   {/* LLM bar */}
                   <div className="flex items-center gap-2">
-                    <span className="text-xs w-16 text-muted-foreground">LLM</span>
-                    <div className="flex-1 h-3 bg-muted/50 rounded overflow-hidden">
+                    <span className="text-xs sm:text-sm w-14 sm:w-16 text-muted-foreground">LLM</span>
+                    <div className="flex-1 h-4 sm:h-5 bg-muted/50 rounded overflow-hidden">
                       <div
                         className="h-full bg-blue-500 transition-all"
                         style={{ width: `${llmScore}%` }}
                       />
                     </div>
-                    <span className="text-xs font-mono w-12 text-right">{llmScore.toFixed(0)}%</span>
+                    <span className="text-xs sm:text-sm font-mono w-10 sm:w-12 text-right">{llmScore.toFixed(0)}%</span>
                   </div>
                 </div>
               </div>

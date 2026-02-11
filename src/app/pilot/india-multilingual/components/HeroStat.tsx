@@ -1,8 +1,10 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
 import CIPLogo from '@/components/icons/CIPLogo';
+import { KaryaLogo } from './KaryaLogo';
+import { AnthropicLogo } from './AnthropicLogo';
+import { ArrowRight } from 'lucide-react';
 
 interface HeroStatProps {
   percentage: number;
@@ -27,26 +29,60 @@ export function HeroStat({ percentage, totalComparisons, totalRatings, totalWork
       {/* Header */}
       <header className="sticky top-0 z-40 w-full bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-14 sm:h-16">
-            {/* CIP + weval branding */}
-            <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center justify-center h-16 sm:h-20">
+            {/* CIP + Karya + weval ===> Anthropic */}
+            <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm">
+              {/* CIP */}
               <a
                 href="https://cip.org/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                className="flex items-center gap-1.5 sm:gap-2 hover:opacity-80 transition-opacity min-h-[44px]"
               >
-                <CIPLogo className="w-6 h-6 sm:w-7 sm:h-7 text-foreground" />
-                <span className="hidden md:inline text-sm font-medium text-foreground">The Collective Intelligence Project</span>
-                <span className="md:hidden text-sm font-medium text-foreground">CIP</span>
+                <CIPLogo className="w-6 h-6 sm:w-8 sm:h-8 text-foreground" />
+                <span className="hidden lg:inline font-medium text-foreground">The Collective Intelligence Project</span>
+                <span className="hidden sm:inline lg:hidden font-medium text-foreground">CIP</span>
               </a>
-              <span className="text-muted-foreground/40 text-sm">×</span>
-              <Link href="/" className="flex items-center hover:opacity-80 transition-opacity">
-                <span className="text-sm sm:text-base">
+
+              <span className="text-muted-foreground/40 hidden sm:inline">+</span>
+
+              {/* Karya */}
+              <a
+                href="https://karya.in/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center hover:opacity-80 transition-opacity min-h-[44px]"
+              >
+                <KaryaLogo className="h-5 sm:h-7 w-auto" />
+              </a>
+
+              <span className="text-muted-foreground/40 hidden sm:inline">×</span>
+
+              {/* weval */}
+              <a
+                href="https://weval.org/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center hover:opacity-80 transition-opacity min-h-[44px]"
+              >
+                <span className="text-base sm:text-xl">
                   <span style={{ fontWeight: 700 }}>w</span>
                   <span style={{ fontWeight: 200 }}>eval</span>
                 </span>
-              </Link>
+              </a>
+
+              {/* Arrow */}
+              <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground/50 mx-1 sm:mx-3" />
+
+              {/* Anthropic */}
+              <a
+                href="https://anthropic.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center hover:opacity-80 transition-opacity min-h-[44px]"
+              >
+                <AnthropicLogo className="h-3 sm:h-4 w-auto text-foreground" />
+              </a>
             </div>
           </div>
         </div>
@@ -57,7 +93,7 @@ export function HeroStat({ percentage, totalComparisons, totalRatings, totalWork
         <div className="max-w-4xl mx-auto">
           {/* Title */}
           <div className="text-center mb-8 sm:mb-10">
-            <p className="text-sm sm:text-base text-muted-foreground mb-2">India Multilingual Pilot</p>
+            <p className="text-sm sm:text-base text-muted-foreground mb-2">India Multilingual Benchmarks</p>
             <h1
               id="hero-title"
               className="text-2xl sm:text-3xl md:text-4xl font-semibold text-foreground"

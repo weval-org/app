@@ -152,14 +152,32 @@ export function RubricOverview({ opus, sonnet, totalRatings, byLanguage }: Rubri
 
       {/* By language breakdown */}
       <div>
-        <h3 className="font-semibold text-base sm:text-lg mb-4">Scores by Language</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <h3 className="font-semibold text-base sm:text-lg mb-3">Scores by Language</h3>
+
+        {/* Legend */}
+        <div className="flex flex-wrap items-center gap-4 sm:gap-6 mb-4 text-sm">
+          <div className="flex items-center gap-2">
+            <span className="text-primary font-medium">Opus 4.5</span>
+            <span className="text-muted-foreground">vs</span>
+            <span className="text-amber-600 font-medium">Sonnet 4.5</span>
+          </div>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-primary" /> Opus higher
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-amber-500" /> Sonnet higher
+            </span>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+          <table className="w-full text-sm min-w-[520px]">
             <thead>
               <tr className="border-b border-border">
-                <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Language</th>
+                <th className="text-left py-3 pr-4 font-medium text-muted-foreground">Language</th>
                 {criteriaInfo.map((c) => (
-                  <th key={c.key} className="text-center py-2 px-2 font-medium text-muted-foreground">
+                  <th key={c.key} className="text-center py-3 px-3 font-medium text-muted-foreground whitespace-nowrap">
                     {c.label}
                   </th>
                 ))}
@@ -172,20 +190,22 @@ export function RubricOverview({ opus, sonnet, totalRatings, byLanguage }: Rubri
                   const data = byLanguage[lang];
                   return (
                     <tr key={lang} className="border-b border-border/50">
-                      <td className="py-3 pr-4 font-medium">{lang}</td>
+                      <td className="py-4 pr-4 font-medium whitespace-nowrap">{lang}</td>
                       {criteriaInfo.map((c) => {
                         const o = data.opus[c.key];
                         const s = data.sonnet[c.key];
                         const diff = o - s;
                         return (
-                          <td key={c.key} className="py-3 px-2 text-center">
-                            <div className="flex items-center justify-center gap-1">
+                          <td key={c.key} className="py-4 px-3 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
                               <span className={cn(
-                                "inline-block w-2 h-2 rounded-full",
+                                "inline-block w-2.5 h-2.5 rounded-full flex-shrink-0",
                                 diff > 0.02 ? "bg-primary" : diff < -0.02 ? "bg-amber-500" : "bg-muted-foreground"
                               )} />
-                              <span className="text-xs text-muted-foreground">
-                                {Math.round(o * 100)}% / {Math.round(s * 100)}%
+                              <span className="whitespace-nowrap">
+                                <span className="text-xs sm:text-sm text-primary">{Math.round(o * 100)}</span>
+                                <span className="text-xs text-muted-foreground mx-0.5">/</span>
+                                <span className="text-xs sm:text-sm text-amber-600">{Math.round(s * 100)}</span>
                               </span>
                             </div>
                           </td>
@@ -197,9 +217,6 @@ export function RubricOverview({ opus, sonnet, totalRatings, byLanguage }: Rubri
             </tbody>
           </table>
         </div>
-        <p className="text-xs text-muted-foreground mt-2">
-          Format: Opus % / Sonnet %. Dot color indicates which model scored higher.
-        </p>
       </div>
     </section>
   );

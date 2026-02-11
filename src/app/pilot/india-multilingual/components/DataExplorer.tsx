@@ -113,17 +113,17 @@ export function DataExplorer({ samples, languageData }: DataExplorerProps) {
             aria-label="Search questions"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-            className="w-full pl-10 pr-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+            className="w-full pl-10 pr-4 py-3 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary min-h-[44px]"
           />
         </div>
 
         {/* Filter dropdowns */}
-        <div className="flex flex-wrap gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <select
             value={languageFilter}
             onChange={(e) => { setLanguageFilter(e.target.value); setPage(0); }}
             aria-label="Filter by language"
-            className="px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 text-sm"
+            className="w-full px-4 py-3 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm min-h-[44px]"
           >
             <option value="all">All Languages</option>
             {languages.map(l => <option key={l} value={l}>{l}</option>)}
@@ -133,7 +133,7 @@ export function DataExplorer({ samples, languageData }: DataExplorerProps) {
             value={domainFilter}
             onChange={(e) => { setDomainFilter(e.target.value); setPage(0); }}
             aria-label="Filter by domain"
-            className="px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 text-sm"
+            className="w-full px-4 py-3 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm min-h-[44px]"
           >
             <option value="all">All Domains</option>
             {domains.map(d => <option key={d} value={d}>{d}</option>)}
@@ -143,7 +143,7 @@ export function DataExplorer({ samples, languageData }: DataExplorerProps) {
             value={outcomeFilter}
             onChange={(e) => { setOutcomeFilter(e.target.value); setPage(0); }}
             aria-label="Filter by outcome"
-            className="px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 text-sm"
+            className="w-full px-4 py-3 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm min-h-[44px]"
           >
             <option value="all">All Outcomes</option>
             <option value="opus">Opus won</option>

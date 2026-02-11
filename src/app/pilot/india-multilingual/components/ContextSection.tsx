@@ -14,10 +14,6 @@ export function ContextSection() {
       </h2>
 
       <div className="prose prose-base sm:prose-lg prose-slate dark:prose-invert max-w-none">
-        <p className="text-lg sm:text-xl text-muted-foreground leading-relaxed">
-          AI models are benchmarked on English. But what about the languages spoken by
-          over a billion people?
-        </p>
 
         <p className="text-base sm:text-lg text-muted-foreground leading-relaxed">
           We partnered with{' '}
@@ -46,17 +42,17 @@ export function ContextSection() {
               <span className="text-xs uppercase tracking-wide text-primary font-medium">Task 1</span>
               <span className="text-sm font-medium">Head-to-Head Comparison</span>
             </div>
-            <ol className="space-y-2 text-sm text-muted-foreground" aria-label="A/B comparison task">
-              <li className="flex gap-2">
-                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-medium">1</span>
+            <ol className="space-y-3 text-sm sm:text-base text-muted-foreground" aria-label="A/B comparison task">
+              <li className="flex gap-3 items-start">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-medium mt-0.5">1</span>
                 <span>Worker sees a question + two AI responses (anonymous)</span>
               </li>
-              <li className="flex gap-2">
-                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-medium">2</span>
+              <li className="flex gap-3 items-start">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-medium mt-0.5">2</span>
                 <span>Picks the better response (or says equal)</span>
               </li>
-              <li className="flex gap-2">
-                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-medium">3</span>
+              <li className="flex gap-3 items-start">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-medium mt-0.5">3</span>
                 <span>Records audio explanation of their choice</span>
               </li>
             </ol>
@@ -68,17 +64,17 @@ export function ContextSection() {
               <span className="text-xs uppercase tracking-wide text-amber-600 font-medium">Task 2</span>
               <span className="text-sm font-medium">Rubric-Based Rating</span>
             </div>
-            <ol className="space-y-2 text-sm text-muted-foreground" aria-label="Rubric rating task">
-              <li className="flex gap-2">
-                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-500/10 text-amber-600 text-xs flex items-center justify-center font-medium">1</span>
+            <ol className="space-y-3 text-sm sm:text-base text-muted-foreground" aria-label="Rubric rating task">
+              <li className="flex gap-3 items-start">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-amber-500/10 text-amber-600 text-xs flex items-center justify-center font-medium mt-0.5">1</span>
                 <span>Worker sees a question + one AI response</span>
               </li>
-              <li className="flex gap-2">
-                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-500/10 text-amber-600 text-xs flex items-center justify-center font-medium">2</span>
+              <li className="flex gap-3 items-start">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-amber-500/10 text-amber-600 text-xs flex items-center justify-center font-medium mt-0.5">2</span>
                 <span>Rates it on 4 criteria: trust, fluency, complexity, code-switching</span>
               </li>
-              <li className="flex gap-2">
-                <span className="flex-shrink-0 w-5 h-5 rounded-full bg-amber-500/10 text-amber-600 text-xs flex items-center justify-center font-medium">3</span>
+              <li className="flex gap-3 items-start">
+                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-amber-500/10 text-amber-600 text-xs flex items-center justify-center font-medium mt-0.5">3</span>
                 <span>Each criterion scored independently</span>
               </li>
             </ol>

@@ -25,9 +25,21 @@ export function LanguageBreakdown({ data }: LanguageBreakdownProps) {
         By Language
       </h2>
 
-      <p className="text-base sm:text-lg text-muted-foreground mb-8 sm:mb-12">
+      <p className="text-base sm:text-lg text-muted-foreground mb-6">
         Opus was preferred across all 7 languages, but the margin varied significantly.
       </p>
+
+      {/* Legend - moved to top for clarity */}
+      <div className="flex items-center gap-6 sm:gap-8 mb-6 sm:mb-8 text-sm">
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded bg-primary/80" />
+          <span className="font-medium">Opus 4.5</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded bg-amber-500/80" />
+          <span className="font-medium">Sonnet 4.5</span>
+        </div>
+      </div>
 
       <div className="space-y-4 sm:space-y-6" role="list" aria-label="Preference by language">
         {data.map((item) => {
@@ -55,7 +67,7 @@ export function LanguageBreakdown({ data }: LanguageBreakdownProps) {
 
               {/* Bar - shows full width with Opus and Sonnet proportions */}
               <div
-                className="relative h-8 sm:h-10 bg-muted/20 rounded-lg overflow-hidden flex"
+                className="relative h-10 sm:h-12 bg-muted/20 rounded-lg overflow-hidden flex"
                 role="meter"
                 aria-label={`${item.language}: ${opusPercent}% Opus, ${sonnetPercent}% Sonnet`}
                 aria-valuenow={opusPercent}
@@ -64,10 +76,13 @@ export function LanguageBreakdown({ data }: LanguageBreakdownProps) {
               >
                 {/* Opus portion */}
                 <div
-                  className="bg-primary/80 flex items-center justify-end pr-2 sm:pr-3"
+                  className="bg-primary/80 flex items-center justify-end pr-2 sm:pr-3 gap-1.5"
                   style={{ width: `${opusPercent}%` }}
                 >
-                  {opusPercent > 25 && (
+                  {opusPercent > 35 && (
+                    <span className="text-xs font-medium text-primary-foreground/70 hidden sm:inline">Opus</span>
+                  )}
+                  {opusPercent > 18 && (
                     <span className="text-xs sm:text-sm font-medium text-primary-foreground">
                       {opusPercent}%
                     </span>
@@ -75,31 +90,22 @@ export function LanguageBreakdown({ data }: LanguageBreakdownProps) {
                 </div>
                 {/* Sonnet portion */}
                 <div
-                  className="bg-amber-500/80 flex items-center justify-start pl-2 sm:pl-3"
+                  className="bg-amber-500/80 flex items-center justify-start pl-2 sm:pl-3 gap-1.5"
                   style={{ width: `${sonnetPercent}%` }}
                 >
-                  {sonnetPercent > 25 && (
+                  {sonnetPercent > 18 && (
                     <span className="text-xs sm:text-sm font-medium text-white">
                       {sonnetPercent}%
                     </span>
+                  )}
+                  {sonnetPercent > 35 && (
+                    <span className="text-xs font-medium text-white/70 hidden sm:inline">Sonnet</span>
                   )}
                 </div>
               </div>
             </div>
           );
         })}
-      </div>
-
-      {/* Legend */}
-      <div className="flex items-center justify-center gap-8 mt-8 text-sm text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded bg-primary/80" />
-          <span>Opus preferred</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded bg-amber-500/80" />
-          <span>Sonnet preferred</span>
-        </div>
       </div>
 
       {/* Insight */}
