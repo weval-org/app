@@ -25,9 +25,10 @@ export function WorkerReliabilityChart({ high, medium, low }: WorkerReliabilityC
       <h3 className="font-semibold text-base sm:text-lg mb-4">Worker Reliability Distribution</h3>
 
       <p className="text-sm text-muted-foreground mb-4">
-        Workers were scored on two dimensions: <strong>scale usage</strong> (60%) — do they use the full rating scale
-        rather than giving all responses the same score? — and <strong>model differentiation</strong> (40%) — do they
-        rate Opus and Sonnet differently on average? Workers scoring ≥0.4 are &quot;high reliability&quot;; 0.2–0.4 are &quot;medium&quot;.
+        Workers were scored on: <strong>scale usage</strong> (50%) — do they use the full rating scale
+        rather than giving all responses the same score? — <strong>consistency</strong> (30%) — do their ratings
+        across criteria correlate sensibly? — and <strong>sample size</strong> (20%) — more evaluations increase confidence.
+        Workers scoring ≥0.4 are &quot;high reliability&quot;; 0.2–0.4 are &quot;medium&quot;.
       </p>
 
       {/* Stacked bar */}
