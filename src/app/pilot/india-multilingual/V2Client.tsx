@@ -13,6 +13,45 @@ import { WorkerReliabilityChart } from './components/WorkerReliabilityChart';
 import { MethodologyNotes } from './components/MethodologyNotes';
 import { DataExplorer } from './components/DataExplorer';
 import { Footer } from './components/Footer';
+import { HumanLLMComparison } from './components/HumanLLMComparison';
+
+export interface CriterionAgreement {
+  correlation: number;
+  meanDiff: number;
+  humanMean: number;
+  llmMean: number;
+  n: number;
+}
+
+export interface HumanLLMAgreementData {
+  perCriterion: {
+    trust: CriterionAgreement;
+    fluency: CriterionAgreement;
+    complexity: CriterionAgreement;
+    code_switching: CriterionAgreement;
+  };
+  overall: {
+    correlation: number;
+    meanDiff: number;
+    totalComparisons: number;
+    disagreementCount: number;
+    disagreementRate: number;
+  };
+  perCriterionHighReliability?: {
+    trust: CriterionAgreement;
+    fluency: CriterionAgreement;
+    complexity: CriterionAgreement;
+    code_switching: CriterionAgreement;
+  };
+  overallHighReliability?: {
+    correlation: number;
+    meanDiff: number;
+    totalComparisons: number;
+    disagreementCount: number;
+    disagreementRate: number;
+  };
+  wevalRunUrl: string;
+}
 
 export interface ComparativeResults {
   totalComparisons: number;
@@ -144,9 +183,10 @@ interface V2ClientProps {
   sampleComparisons: SampleComparison[];
   rubricSummary: RubricSummary | null;
   overlapWorkers: OverlapWorkersData | null;
+  humanLLMAgreement: HumanLLMAgreementData | null;
 }
 
-export function V2Client({ comparativeResults, sampleComparisons, rubricSummary, overlapWorkers }: V2ClientProps) {
+export function V2Client({ comparativeResults, sampleComparisons, rubricSummary, overlapWorkers, humanLLMAgreement }: V2ClientProps) {
   const { overall, byLanguage, topWorkers, opusWinRate, totalComparisons, totalWorkers } = comparativeResults;
 
   // Calculate stats
@@ -281,6 +321,14 @@ export function V2Client({ comparativeResults, sampleComparisons, rubricSummary,
             </div>
           )}
         </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* PART 4: HUMAN VS LLM JUDGES */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+
+        {humanLLMAgreement && (
+          <HumanLLMComparison data={humanLLMAgreement} />
+        )}
 
         {/* Methodology */}
         <MethodologyNotes />
