@@ -147,12 +147,27 @@ def write_blueprint(
 
 
 def blueprint_filename_for_paper(
-    analysis: PaperAnalysis, paper: Paper | TrackingEntry
+    analysis: PaperAnalysis,
+    paper: Paper | TrackingEntry,
+    existing_filenames: set[str] | None = None,
 ) -> str:
-    """Generate a filename for a Blueprint from paper/analysis."""
+    """Generate a filename for a Blueprint from paper/analysis.
+
+    If existing_filenames is provided, appends the paper_id to avoid collisions.
+    """
     name = analysis.benchmark_name or paper.title
     slug = slugify(name)
-    return f"{slug}.yml"
+    filename = f"{slug}.yml"
+
+    if existing_filenames and filename in existing_filenames:
+        paper_id = getattr(paper, "paper_id", None) or analysis.paper_id
+        if paper_id:
+            filename = f"{slug}-{paper_id.replace('.', '')}.yml"
+            logger.warning(
+                f"Filename collision for '{slug}.yml' — using '{filename}' for paper {paper_id}"
+            )
+
+    return filename
 
 
 def _build_description(

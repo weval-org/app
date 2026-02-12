@@ -327,6 +327,11 @@ def cmd_generate(args: argparse.Namespace, config: PipelineConfig) -> None:
 
     generated = 0
     failed = 0
+    # Seed with existing filenames in output dir to prevent overwrites
+    output_path = resolve_path(config, "output_dir")
+    used_filenames: set[str] = set()
+    if output_path.exists():
+        used_filenames = {f.name for f in output_path.iterdir() if f.suffix in (".yml", ".yaml")}
 
     for entry in entries:
         # Load analysis
@@ -382,8 +387,9 @@ def cmd_generate(args: argparse.Namespace, config: PipelineConfig) -> None:
                             failed += 1
                             continue
 
-            # Write Blueprint
-            filename = blueprint_filename_for_paper(analysis, entry)
+            # Write Blueprint (with collision detection)
+            filename = blueprint_filename_for_paper(analysis, entry, used_filenames)
+            used_filenames.add(filename)
             output_path = write_blueprint(
                 yaml_content, resolve_path(config, "output_dir"), filename
             )
