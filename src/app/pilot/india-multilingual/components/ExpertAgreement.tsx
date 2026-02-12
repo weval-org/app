@@ -46,6 +46,12 @@ export function ExpertAgreement({ data }: ExpertAgreementProps) {
   const legalSkepticalPct = legalTotal > 0 ? (legalStats.skeptical / legalTotal) * 100 : 0;
   const agriSkepticalPct = agriTotal > 0 ? (agriStats.skeptical / agriTotal) * 100 : 0;
 
+  // Model-specific Legal ratios for Key Insight
+  const opusLegalData = byModelDomain['opus']?.['Legal'] || { skeptical: 0, trusting: 0 };
+  const sonnetLegalData = byModelDomain['sonnet']?.['Legal'] || { skeptical: 0, trusting: 0 };
+  const opusLegalRatio = getRatio(opusLegalData.skeptical, opusLegalData.trusting);
+  const sonnetLegalRatio = getRatio(sonnetLegalData.skeptical, sonnetLegalData.trusting);
+
   return (
     <div className="mb-12">
       <h3
@@ -276,19 +282,25 @@ export function ExpertAgreement({ data }: ExpertAgreementProps) {
       </div>
 
       {/* Key insight callout */}
-      <div className="mt-6 bg-amber-500/10 border border-amber-500/20 rounded-xl p-6">
-        <h4 className="font-semibold text-amber-800 mb-2">Key Insight: Legal + Opus</h4>
-        <p className="text-sm text-muted-foreground">
-          In legal content, when experts and non-experts disagree about <strong className="text-foreground">Opus</strong>,
-          experts distrust the response <strong className="text-foreground">4.2x</strong> more often than they trust it.
-          This pattern is much weaker for Sonnet (1.5x) and reverses entirely for both models in agriculture.
-        </p>
-        <p className="text-sm text-muted-foreground mt-2">
-          This suggests Opus may produce legal responses that <em>sound</em> authoritative to non-experts
-          but have issues that domain experts catch — a potential &ldquo;deceptive fluency&rdquo; pattern
-          specific to legal content.
-        </p>
-      </div>
+      {opusLegalRatio > 1.5 && (
+        <div className="mt-6 bg-amber-500/10 border border-amber-500/20 rounded-xl p-6">
+          <h4 className="font-semibold text-amber-800 mb-2">Key Insight: Legal + Opus</h4>
+          <p className="text-sm text-muted-foreground">
+            In legal content, when experts and non-experts disagree about <strong className="text-foreground">Opus</strong>,
+            experts distrust the response <strong className="text-foreground">{opusLegalRatio.toFixed(1)}x</strong> more often than they trust it.
+            {sonnetLegalRatio > 1 ? (
+              <> This pattern is weaker for Sonnet ({sonnetLegalRatio.toFixed(1)}x).</>
+            ) : (
+              <> Sonnet shows the opposite pattern ({(1/sonnetLegalRatio).toFixed(1)}x trust).</>
+            )}
+          </p>
+          <p className="text-sm text-muted-foreground mt-2">
+            This suggests Opus may produce legal responses that <em>sound</em> authoritative to non-experts
+            but have issues that domain experts catch — a potential &ldquo;deceptive fluency&rdquo; pattern
+            specific to legal content.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

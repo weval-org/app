@@ -100,6 +100,7 @@ export interface ExpertDistrustData {
     domain: string;
     subdomain: string;
     question: string;
+    answer: string;
     fluency: string;
     content_errors: string[];
     feedback: string | null;
@@ -116,6 +117,8 @@ export interface ExpertFeedbackHighlights {
       language: string;
       domain: string;
       trust: string;
+      question: string;
+      answer: string;
       feedback: string;
     }>;
   };
@@ -127,6 +130,8 @@ export interface ExpertFeedbackHighlights {
       language: string;
       domain: string;
       trust: string;
+      question: string;
+      answer: string;
       feedback: string;
     }>;
   };
@@ -138,6 +143,8 @@ export interface ExpertFeedbackHighlights {
       language: string;
       domain: string;
       trust: string;
+      question: string;
+      answer: string;
       feedback: string;
     }>;
   };
@@ -176,8 +183,8 @@ export function ExpertLensSection({
           What Domain Experts See Differently
         </h2>
         <p className="text-base sm:text-lg text-muted-foreground">
-          In addition to {summary.totalEvaluations > 20000 ? '20,000+' : summary.totalEvaluations.toLocaleString()} non-expert
-          evaluations, we collected <strong className="text-foreground">{summary.totalEvaluations.toLocaleString()} ratings
+          In addition to 20,000+ non-expert evaluations, we collected{' '}
+          <strong className="text-foreground">{summary.totalEvaluations.toLocaleString()} expert ratings
           from {summary.uniqueWorkers} domain experts</strong> — legal professionals and agricultural specialists
           who can assess factual accuracy, not just linguistic quality.
         </p>
@@ -205,10 +212,16 @@ export function ExpertLensSection({
       <ExpertAgreement data={comparison} />
 
       {/* When Experts Distrust */}
-      <ExpertDistrust data={distrustCases} />
+      <ExpertDistrust data={distrustCases} totalEvaluations={summary.totalEvaluations} />
 
       {/* What Experts Catch */}
-      <ExpertInsights data={feedbackHighlights} />
+      <ExpertInsights
+        data={feedbackHighlights}
+        legalDistrustPct={distrustCases.total > 0
+          ? Math.round((distrustCases.byDomain['Legal'] || 0) / distrustCases.total * 100)
+          : undefined
+        }
+      />
     </section>
   );
 }

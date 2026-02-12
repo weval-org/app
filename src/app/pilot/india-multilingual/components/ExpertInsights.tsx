@@ -19,6 +19,8 @@ interface FeedbackSample {
   language: string;
   domain: string;
   trust: string;
+  question: string;
+  answer: string;
   feedback: string;
 }
 
@@ -39,40 +41,55 @@ interface ExpertFeedbackHighlights {
 
 interface ExpertInsightsProps {
   data: ExpertFeedbackHighlights;
+  legalDistrustPct?: number; // Percentage of distrusted responses from Legal domain
 }
 
-// Categorize feedback into types
+// Categorize feedback into types using keyword heuristics
+// NOTE: This is approximate categorization based on keyword matching in feedback text
 function categorizeInsights(samples: FeedbackSample[]): Record<string, FeedbackSample[]> {
   const categories: Record<string, FeedbackSample[]> = {
-    'Missing Legal Citations': [],
-    'Outdated Information': [],
+    'Missing Legal References': [],
+    'Outdated Law References': [],
     'Unwarranted Assumptions': [],
-    'Language & Grammar Issues': [],
-    'Factual Errors': [],
-    'Other Quality Issues': [],
+    'Language & Style Issues': [],
+    'Factual/Domain Errors': [],
+    'Other Issues': [],
   };
 
   for (const sample of samples) {
-    const feedback = sample.feedback.toLowerCase();
+    const fb = sample.feedback.toLowerCase();
 
-    if (feedback.includes('section') || feedback.includes('act') || feedback.includes('case law') ||
-        feedback.includes('citation') || feedback.includes('specific') && feedback.includes('law')) {
-      categories['Missing Legal Citations'].push(sample);
-    } else if (feedback.includes('outdated') || feedback.includes('replaced') || feedback.includes('old') ||
-               feedback.includes('crpc') || feedback.includes('bnss')) {
-      categories['Outdated Information'].push(sample);
-    } else if (feedback.includes('assume') || feedback.includes('gender') || feedback.includes('religion') ||
-               feedback.includes('question does not mention')) {
+    // Missing legal references: sections, acts, case law, specific legal citations
+    if ((fb.includes('section') && (fb.includes('act') || fb.includes('law') || fb.includes('mention'))) ||
+        fb.includes('case law') ||
+        (fb.includes('specific') && (fb.includes('act') || fb.includes('law') || fb.includes('section')))) {
+      categories['Missing Legal References'].push(sample);
+    }
+    // Outdated law: references to old codes (CrPC, IPC) that have been replaced (BNSS, BNS)
+    else if (fb.includes('crpc') || fb.includes('bnss') || fb.includes('ipc') || fb.includes('bns') ||
+             fb.includes('replaced') || (fb.includes('old') && fb.includes('law')) ||
+             fb.includes('new criminal law')) {
+      categories['Outdated Law References'].push(sample);
+    }
+    // Unwarranted assumptions: gender, religion, or assumptions not in the question
+    else if (fb.includes('gender') || fb.includes('religion') || fb.includes('hindu law') ||
+             fb.includes('assume') || fb.includes('question does not mention')) {
       categories['Unwarranted Assumptions'].push(sample);
-    } else if (feedback.includes('grammar') || feedback.includes('spelling') || feedback.includes('tense') ||
-               feedback.includes('sentence') || feedback.includes('word') || feedback.includes('fluent') ||
-               feedback.includes('code switch') || feedback.includes('transliterat')) {
-      categories['Language & Grammar Issues'].push(sample);
-    } else if (feedback.includes('wrong') || feedback.includes('incorrect') || feedback.includes('error') ||
-               feedback.includes('mistake')) {
-      categories['Factual Errors'].push(sample);
-    } else {
-      categories['Other Quality Issues'].push(sample);
+    }
+    // Language issues: grammar, spelling, code-switching, translation, awkward phrasing
+    else if (fb.includes('spelling') || fb.includes('grammar') || fb.includes('code switch') ||
+             fb.includes('translat') || fb.includes('english word') || fb.includes('awkward') ||
+             fb.includes('jarring') || fb.includes('formal') || fb.includes('linguistically')) {
+      categories['Language & Style Issues'].push(sample);
+    }
+    // Factual/domain errors: wrong, incorrect, error, inaccurate information
+    else if (fb.includes('incorrect') || fb.includes('wrong') || fb.includes('error') ||
+             fb.includes('mistake') || fb.includes('inaccurate') || fb.includes('agronomically')) {
+      categories['Factual/Domain Errors'].push(sample);
+    }
+    // Catch-all
+    else {
+      categories['Other Issues'].push(sample);
     }
   }
 
@@ -83,26 +100,27 @@ function categorizeInsights(samples: FeedbackSample[]): Record<string, FeedbackS
 }
 
 const categoryIcons: Record<string, React.ReactNode> = {
-  'Missing Legal Citations': <FileText className="w-4 h-4" />,
-  'Outdated Information': <Clock className="w-4 h-4" />,
+  'Missing Legal References': <FileText className="w-4 h-4" />,
+  'Outdated Law References': <Clock className="w-4 h-4" />,
   'Unwarranted Assumptions': <UserX className="w-4 h-4" />,
-  'Language & Grammar Issues': <Languages className="w-4 h-4" />,
-  'Factual Errors': <FileText className="w-4 h-4" />,
-  'Other Quality Issues': <Lightbulb className="w-4 h-4" />,
+  'Language & Style Issues': <Languages className="w-4 h-4" />,
+  'Factual/Domain Errors': <FileText className="w-4 h-4" />,
+  'Other Issues': <Lightbulb className="w-4 h-4" />,
 };
 
 const categoryColors: Record<string, string> = {
-  'Missing Legal Citations': 'bg-blue-500/10 text-blue-600 border-blue-500/20',
-  'Outdated Information': 'bg-purple-500/10 text-purple-600 border-purple-500/20',
+  'Missing Legal References': 'bg-blue-500/10 text-blue-600 border-blue-500/20',
+  'Outdated Law References': 'bg-purple-500/10 text-purple-600 border-purple-500/20',
   'Unwarranted Assumptions': 'bg-orange-500/10 text-orange-600 border-orange-500/20',
-  'Language & Grammar Issues': 'bg-red-500/10 text-red-600 border-red-500/20',
-  'Factual Errors': 'bg-rose-500/10 text-rose-600 border-rose-500/20',
-  'Other Quality Issues': 'bg-gray-500/10 text-gray-600 border-gray-500/20',
+  'Language & Style Issues': 'bg-red-500/10 text-red-600 border-red-500/20',
+  'Factual/Domain Errors': 'bg-rose-500/10 text-rose-600 border-rose-500/20',
+  'Other Issues': 'bg-gray-500/10 text-gray-600 border-gray-500/20',
 };
 
-export function ExpertInsights({ data }: ExpertInsightsProps) {
-  const [expandedCategory, setExpandedCategory] = useState<string | null>('Missing Legal Citations');
+export function ExpertInsights({ data, legalDistrustPct }: ExpertInsightsProps) {
+  const [expandedCategory, setExpandedCategory] = useState<string | null>('Missing Legal References');
   const [showCitations, setShowCitations] = useState(false);
+  const [expandedSample, setExpandedSample] = useState<string | null>(null);
 
   // Combine distrust explanations and quality insights for categorization
   const allInsights = [
@@ -123,9 +141,15 @@ export function ExpertInsights({ data }: ExpertInsightsProps) {
       </h3>
 
       <p className="text-base text-muted-foreground mb-6">
-        Expert feedback reveals specific issues that non-experts often miss. Here are the
-        patterns in what domain experts flag as problematic.
+        Expert feedback reveals specific issues that non-experts often miss. Below we show
+        patterns grouped by keyword matching in the feedback text.
       </p>
+
+      {/* Caveat about heuristic categorization */}
+      <div className="text-xs text-muted-foreground bg-muted/30 rounded-lg px-3 py-2 mb-4">
+        <strong>Note:</strong> Categories below are auto-generated by keyword matching in expert feedback.
+        Some feedback may be miscategorized. Click &ldquo;Show Q&A&rdquo; to see the full context.
+      </div>
 
       {/* Categorized insights */}
       <div className="space-y-3 mb-8">
@@ -155,32 +179,71 @@ export function ExpertInsights({ data }: ExpertInsightsProps) {
 
             {expandedCategory === category && (
               <div className="px-4 pb-4 space-y-3">
-                {samples.slice(0, 4).map((sample, i) => (
-                  <div
-                    key={`${sample.unique_id}-${i}`}
-                    className="bg-background/60 rounded-lg p-3 text-sm"
-                  >
-                    <div className="flex items-center gap-2 mb-2 flex-wrap">
-                      <span className={cn(
-                        "px-2 py-0.5 rounded text-xs font-medium",
-                        sample.model === 'opus' ? "bg-primary/20 text-primary" : "bg-amber-500/20 text-amber-600"
-                      )}>
-                        {sample.model}
-                      </span>
-                      <span className="px-2 py-0.5 rounded text-xs bg-muted/50 text-muted-foreground">
-                        {sample.language}
-                      </span>
-                      <span className="px-2 py-0.5 rounded text-xs bg-muted/50 text-muted-foreground">
-                        {sample.domain}
-                      </span>
+                {samples.slice(0, 4).map((sample, i) => {
+                  const sampleKey = `${category}-${sample.unique_id}-${i}`;
+                  const isExpanded = expandedSample === sampleKey;
+                  return (
+                    <div
+                      key={sampleKey}
+                      className="bg-background/60 rounded-lg p-3 text-sm"
+                    >
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <span className={cn(
+                          "px-2 py-0.5 rounded text-xs font-medium",
+                          sample.model === 'opus' ? "bg-primary/20 text-primary" : "bg-amber-500/20 text-amber-600"
+                        )}>
+                          {sample.model}
+                        </span>
+                        <span className="px-2 py-0.5 rounded text-xs bg-muted/50 text-muted-foreground">
+                          {sample.language}
+                        </span>
+                        <span className="px-2 py-0.5 rounded text-xs bg-muted/50 text-muted-foreground">
+                          {sample.domain}
+                        </span>
+                      </div>
+                      <p className="text-foreground/90 italic">
+                        &ldquo;{sample.feedback.length > 200
+                          ? sample.feedback.slice(0, 200) + '...'
+                          : sample.feedback}&rdquo;
+                      </p>
+
+                      {isExpanded && (
+                        <div className="mt-3 pt-3 border-t border-border/50 space-y-3">
+                          <div>
+                            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Question</div>
+                            <div className="text-sm bg-muted/30 rounded p-2">
+                              {sample.question}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Response</div>
+                            <div
+                              className="text-sm bg-muted/30 rounded p-2 prose prose-sm dark:prose-invert max-w-none overflow-auto max-h-48"
+                              dangerouslySetInnerHTML={{ __html: sample.answer }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      <button
+                        onClick={() => setExpandedSample(isExpanded ? null : sampleKey)}
+                        className="mt-2 text-xs text-primary hover:underline flex items-center gap-1"
+                      >
+                        {isExpanded ? (
+                          <>
+                            <ChevronDown className="w-3 h-3" />
+                            Hide Q&A
+                          </>
+                        ) : (
+                          <>
+                            <ChevronRight className="w-3 h-3" />
+                            Show Q&A
+                          </>
+                        )}
+                      </button>
                     </div>
-                    <p className="text-foreground/90 italic">
-                      &ldquo;{sample.feedback.length > 200
-                        ? sample.feedback.slice(0, 200) + '...'
-                        : sample.feedback}&rdquo;
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
                 {samples.length > 4 && (
                   <p className="text-xs text-muted-foreground text-center pt-2">
                     +{samples.length - 4} more cases in this category
@@ -205,29 +268,68 @@ export function ExpertInsights({ data }: ExpertInsightsProps) {
           </p>
 
           <div className="space-y-3">
-            {data.withCitations.samples.slice(0, showCitations ? 6 : 2).map((sample, i) => (
-              <div
-                key={`citation-${i}`}
-                className="bg-background/60 rounded-lg p-3"
-              >
-                <div className="flex items-center gap-2 mb-2">
-                  <span className={cn(
-                    "px-2 py-0.5 rounded text-xs font-medium",
-                    sample.trust === 'trust' ? "bg-emerald-500/20 text-emerald-600" :
-                    sample.trust === 'partial' ? "bg-amber-500/20 text-amber-600" :
-                    "bg-red-500/20 text-red-600"
-                  )}>
-                    {sample.trust === 'trust' ? 'trust' :
-                     sample.trust === 'partial' ? 'somewhat trust' :
-                     'distrust'}
-                  </span>
-                  <span className="text-xs text-muted-foreground">{sample.language} · {sample.domain}</span>
+            {data.withCitations.samples.slice(0, showCitations ? 6 : 2).map((sample, i) => {
+              const citationKey = `citation-${sample.unique_id}-${i}`;
+              const isExpanded = expandedSample === citationKey;
+              return (
+                <div
+                  key={citationKey}
+                  className="bg-background/60 rounded-lg p-3"
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={cn(
+                      "px-2 py-0.5 rounded text-xs font-medium",
+                      sample.trust === 'trust' ? "bg-emerald-500/20 text-emerald-600" :
+                      sample.trust === 'partial' ? "bg-amber-500/20 text-amber-600" :
+                      "bg-red-500/20 text-red-600"
+                    )}>
+                      {sample.trust === 'trust' ? 'trust' :
+                       sample.trust === 'partial' ? 'somewhat trust' :
+                       'distrust'}
+                    </span>
+                    <span className="text-xs text-muted-foreground">{sample.language} · {sample.domain}</span>
+                  </div>
+                  <p className="text-sm text-foreground/90">
+                    {sample.feedback}
+                  </p>
+
+                  {isExpanded && (
+                    <div className="mt-3 pt-3 border-t border-border/50 space-y-3">
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Question</div>
+                        <div className="text-sm bg-muted/30 rounded p-2">
+                          {sample.question}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Response</div>
+                        <div
+                          className="text-sm bg-muted/30 rounded p-2 prose prose-sm dark:prose-invert max-w-none overflow-auto max-h-48"
+                          dangerouslySetInnerHTML={{ __html: sample.answer }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => setExpandedSample(isExpanded ? null : citationKey)}
+                    className="mt-2 text-xs text-emerald-600 hover:underline flex items-center gap-1"
+                  >
+                    {isExpanded ? (
+                      <>
+                        <ChevronDown className="w-3 h-3" />
+                        Hide Q&A
+                      </>
+                    ) : (
+                      <>
+                        <ChevronRight className="w-3 h-3" />
+                        Show Q&A
+                      </>
+                    )}
+                  </button>
                 </div>
-                <p className="text-sm text-foreground/90">
-                  {sample.feedback}
-                </p>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {data.withCitations.samples.length > 2 && (
@@ -263,10 +365,12 @@ export function ExpertInsights({ data }: ExpertInsightsProps) {
             <strong className="text-foreground">Domain experts</strong> evaluate based on what responses
             <em> contain</em> — verifiable facts, proper citations, current law, correct assumptions.
           </p>
-          <p className="pt-2 text-foreground">
-            This explains why 97% of distrusted responses come from the <strong>Legal</strong> domain:
-            legal advice requires precise, verifiable, current information that experts can validate.
-          </p>
+          {legalDistrustPct !== undefined && legalDistrustPct > 80 && (
+            <p className="pt-2 text-foreground">
+              This explains why {legalDistrustPct}% of distrusted responses come from the <strong>Legal</strong> domain:
+              legal advice requires precise, verifiable, current information that experts can validate.
+            </p>
+          )}
         </div>
       </div>
     </div>

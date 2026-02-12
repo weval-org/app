@@ -11,6 +11,7 @@ interface DistrustCase {
   domain: string;
   subdomain: string;
   question: string;
+  answer: string;
   fluency: string;
   content_errors: string[];
   feedback: string | null;
@@ -27,9 +28,10 @@ interface ExpertDistrustData {
 
 interface ExpertDistrustProps {
   data: ExpertDistrustData;
+  totalEvaluations: number;
 }
 
-export function ExpertDistrust({ data }: ExpertDistrustProps) {
+export function ExpertDistrust({ data, totalEvaluations }: ExpertDistrustProps) {
   const [showCases, setShowCases] = useState(false);
   const [expandedCase, setExpandedCase] = useState<string | null>(null);
 
@@ -53,7 +55,7 @@ export function ExpertDistrust({ data }: ExpertDistrustProps) {
       </h3>
 
       <p className="text-base text-muted-foreground mb-6">
-        Out of {(total * 37).toLocaleString()}+ expert evaluations, experts flagged{' '}
+        Out of {totalEvaluations.toLocaleString()} expert evaluations, experts flagged{' '}
         <strong className="text-foreground">{total} responses</strong> as untrustworthy.
         The pattern reveals where AI models struggle most.
       </p>
@@ -66,7 +68,7 @@ export function ExpertDistrust({ data }: ExpertDistrustProps) {
           </div>
           <div className="text-sm text-muted-foreground mt-1">Distrusted Responses</div>
           <div className="text-xs text-muted-foreground">
-            ({(total / 2399 * 100).toFixed(1)}% of expert evaluations)
+            ({(total / totalEvaluations * 100).toFixed(1)}% of expert evaluations)
           </div>
         </div>
         <div className="bg-blue-500/10 rounded-xl p-4 sm:p-5">
@@ -207,9 +209,19 @@ export function ExpertDistrust({ data }: ExpertDistrustProps) {
               )}
 
               {expandedCase === case_.unique_id && (
-                <div className="mt-3 pt-3 border-t border-border/50">
-                  <div className="text-xs text-muted-foreground">
-                    <strong>Question:</strong> {case_.question}
+                <div className="mt-3 pt-3 border-t border-border/50 space-y-3">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Question</div>
+                    <div className="text-sm bg-muted/30 rounded p-2">
+                      {case_.question}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Response (distrusted)</div>
+                    <div
+                      className="text-sm bg-muted/30 rounded p-2 prose prose-sm dark:prose-invert max-w-none overflow-auto max-h-48"
+                      dangerouslySetInnerHTML={{ __html: case_.answer }}
+                    />
                   </div>
                 </div>
               )}
@@ -221,12 +233,12 @@ export function ExpertDistrust({ data }: ExpertDistrustProps) {
                 {expandedCase === case_.unique_id ? (
                   <>
                     <ChevronDown className="w-3 h-3" />
-                    Hide question
+                    Hide Q&A
                   </>
                 ) : (
                   <>
                     <ChevronRight className="w-3 h-3" />
-                    Show question
+                    Show Q&A
                   </>
                 )}
               </button>
