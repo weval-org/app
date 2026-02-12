@@ -15,6 +15,9 @@ from .utils import format_arxiv_pdf_url, format_arxiv_url
 logger = logging.getLogger(__name__)
 
 SEMANTIC_SCHOLAR_API = "https://api.semanticscholar.org/graph/v1"
+# Rate limit: 1 request per second, cumulative across all endpoints.
+# Authenticated key raises the limit but we enforce >=1s between requests.
+S2_MIN_REQUEST_INTERVAL = 1.0
 
 
 def search_arxiv(
@@ -67,7 +70,11 @@ def enrich_with_semantic_scholar(
     paper: Paper,
     api_key: str | None = None,
 ) -> Paper:
-    """Enrich a paper with Semantic Scholar metadata."""
+    """Enrich a paper with Semantic Scholar metadata.
+
+    Uses GET /graph/v1/paper/ARXIV:{id} with fields: citationCount,
+    influentialCitationCount, tldr. Rate limit: 1 req/s (see S2_MIN_REQUEST_INTERVAL).
+    """
     arxiv_id = re.sub(r"v\d+$", "", paper.paper_id)
     url = f"{SEMANTIC_SCHOLAR_API}/paper/ARXIV:{arxiv_id}"
     params = {"fields": "citationCount,influentialCitationCount,tldr"}
@@ -78,8 +85,9 @@ def enrich_with_semantic_scholar(
     try:
         resp = requests.get(url, params=params, headers=headers, timeout=10)
         if resp.status_code == 429:
-            logger.warning("Semantic Scholar rate limit hit, waiting 3s...")
-            time.sleep(3)
+            # Back off on rate limit — wait longer, then retry once
+            logger.warning("Semantic Scholar rate limit (429), backing off 5s...")
+            time.sleep(5)
             resp = requests.get(url, params=params, headers=headers, timeout=10)
 
         if resp.status_code == 200:
@@ -154,11 +162,11 @@ def discover_papers(
         categories=config.default_categories,
     )
 
-    # Enrich with Semantic Scholar (with rate limiting)
+    # Enrich with Semantic Scholar — enforce >=1s between requests (rate limit)
     for i, paper in enumerate(papers):
         papers[i] = enrich_with_semantic_scholar(paper, api_key=s2_api_key)
         if i < len(papers) - 1:
-            time.sleep(0.5)  # Be nice to the API
+            time.sleep(S2_MIN_REQUEST_INTERVAL)
 
     # Filter to likely benchmark papers
     papers = filter_candidates(papers, min_citations=config.min_citations)
