@@ -35,29 +35,22 @@ const FORCE_EXPERIMENTAL = true;
 type ClassificationScaleItem = { name: string; score: number; description: string };
 
 export const DEFAULT_JUDGES: Judge[] = [
-    // We're fine with two for now.
-    // { id: 'prompt-aware-openai-gpt-4-1-mini', model: 'openai:gpt-4.1-mini', approach: 'prompt-aware' },
-    // { id: 'prompt-aware-gemini-2-5-flash', model: 'openrouter:google/gemini-2.5-flash', approach: 'prompt-aware' },
-    // { id: 'holistic-openai-gpt-4-1-mini', model: 'openai:gpt-4.1-mini', approach: 'holistic' }
-
-    // Cheaper alternatives -- still very capable:
-    // Note holistic and prompt-aware are the same approach now.
-
+    // Cheap, fast, and reliable via OpenRouter:
     {
-        id: 'holistic-qwen3-30b-a3b-instruct-2507',
-        model: 'openrouter:qwen/qwen3-30b-a3b-instruct-2507',
+        id: 'holistic-gemini-2-5-flash',
+        model: 'openrouter:google/gemini-2.5-flash',
         approach: 'holistic'
     },
 
     {
-        id: 'holistic-openai-gpt-oss-120b',
-        model: 'openrouter:openai/gpt-oss-120b',
+        id: 'holistic-gpt-4-1-mini',
+        model: 'openrouter:openai/gpt-4.1-mini',
         approach: 'holistic'
     },
 
     {
-        id: 'holistic-zai-glm-4.5',
-        model: 'openrouter:z-ai/glm-4.5',
+        id: 'holistic-claude-haiku-4-5',
+        model: 'openrouter:anthropic/claude-haiku-4.5',
         approach: 'holistic'
     }
 ];
