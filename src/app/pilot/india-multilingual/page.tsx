@@ -2,6 +2,12 @@ import { Metadata } from 'next';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
 import { V2Client, ComparativeResults, SampleComparison, RubricSummary, OverlapWorkersData, HumanLLMAgreementData } from './V2Client';
+import type {
+  ExpertSummaryData,
+  ExpertVsNonExpertData,
+  ExpertDistrustData,
+  ExpertFeedbackHighlights,
+} from './components/ExpertLensSection';
 
 export const metadata: Metadata = {
   title: 'India Multilingual Evaluation | Opus vs Sonnet',
@@ -61,12 +67,28 @@ async function fetchFromS3<T>(filename: string): Promise<T | null> {
 }
 
 export default async function IndiaMultilingualPage() {
-  const [comparativeResults, sampleComparisons, rubricSummary, overlapWorkers, humanLLMAgreement] = await Promise.all([
+  const [
+    comparativeResults,
+    sampleComparisons,
+    rubricSummary,
+    overlapWorkers,
+    humanLLMAgreement,
+    // Expert data
+    expertSummary,
+    expertVsNonExpert,
+    expertDistrustCases,
+    expertFeedbackHighlights,
+  ] = await Promise.all([
     fetchFromS3<ComparativeResults>('comparative_results.json'),
     fetchFromS3<SampleComparison[]>('comparison_samples.json'),
     fetchFromS3<RubricSummary>('rubric_summary.json'),
     fetchFromS3<OverlapWorkersData>('overlap_workers.json'),
     fetchFromS3<HumanLLMAgreementData>('human_llm_agreement.json'),
+    // Expert data files
+    fetchFromS3<ExpertSummaryData>('expert_summary.json'),
+    fetchFromS3<ExpertVsNonExpertData>('expert_vs_nonexpert.json'),
+    fetchFromS3<ExpertDistrustData>('expert_distrust_cases.json'),
+    fetchFromS3<ExpertFeedbackHighlights>('expert_feedback_highlights.json'),
   ]);
 
   if (!comparativeResults) {
@@ -84,6 +106,11 @@ export default async function IndiaMultilingualPage() {
       rubricSummary={rubricSummary}
       overlapWorkers={overlapWorkers}
       humanLLMAgreement={humanLLMAgreement}
+      // Expert data
+      expertSummary={expertSummary}
+      expertVsNonExpert={expertVsNonExpert}
+      expertDistrustCases={expertDistrustCases}
+      expertFeedbackHighlights={expertFeedbackHighlights}
     />
   );
 }

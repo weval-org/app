@@ -15,6 +15,7 @@ const tocItems: TOCItem[] = [
   { id: 'the-paradox', label: 'The Paradox' },
   { id: 'evaluators', label: 'Evaluators' },
   { id: 'human-vs-llm', label: 'Human vs. LLM' },
+  { id: 'expert-lens', label: 'Expert Lens' },
   { id: 'methodology', label: 'Methodology' },
   { id: 'data-explorer', label: 'Data Explorer' },
 ];

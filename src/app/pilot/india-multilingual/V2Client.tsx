@@ -14,6 +14,13 @@ import { DataExplorer } from './components/DataExplorer';
 import { Footer } from './components/Footer';
 import { HumanLLMComparison } from './components/HumanLLMComparison';
 import { TableOfContents } from './components/TableOfContents';
+import {
+  ExpertLensSection,
+  ExpertSummaryData,
+  ExpertVsNonExpertData,
+  ExpertDistrustData,
+  ExpertFeedbackHighlights,
+} from './components/ExpertLensSection';
 
 export interface CriterionAgreement {
   correlation: number;
@@ -184,9 +191,24 @@ interface V2ClientProps {
   rubricSummary: RubricSummary | null;
   overlapWorkers: OverlapWorkersData | null;
   humanLLMAgreement: HumanLLMAgreementData | null;
+  // Expert data
+  expertSummary: ExpertSummaryData | null;
+  expertVsNonExpert: ExpertVsNonExpertData | null;
+  expertDistrustCases: ExpertDistrustData | null;
+  expertFeedbackHighlights: ExpertFeedbackHighlights | null;
 }
 
-export function V2Client({ comparativeResults, sampleComparisons, rubricSummary, overlapWorkers, humanLLMAgreement }: V2ClientProps) {
+export function V2Client({
+  comparativeResults,
+  sampleComparisons,
+  rubricSummary,
+  overlapWorkers,
+  humanLLMAgreement,
+  expertSummary,
+  expertVsNonExpert,
+  expertDistrustCases,
+  expertFeedbackHighlights,
+}: V2ClientProps) {
   const { overall, byLanguage, topWorkers, opusWinRate, totalComparisons, totalWorkers } = comparativeResults;
 
   // Calculate stats
@@ -331,6 +353,19 @@ export function V2Client({ comparativeResults, sampleComparisons, rubricSummary,
             <HumanLLMComparison data={humanLLMAgreement} />
           )}
         </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* PART 5: THE EXPERT LENS */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+
+        {expertSummary && expertVsNonExpert && expertDistrustCases && expertFeedbackHighlights && (
+          <ExpertLensSection
+            summary={expertSummary}
+            comparison={expertVsNonExpert}
+            distrustCases={expertDistrustCases}
+            feedbackHighlights={expertFeedbackHighlights}
+          />
+        )}
 
         {/* Methodology */}
         <div id="methodology" className="scroll-mt-8">
