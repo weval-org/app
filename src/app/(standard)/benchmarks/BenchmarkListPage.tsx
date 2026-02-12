@@ -56,8 +56,8 @@ export function BenchmarkListPage({ initialBlueprints, currentPage, totalPages, 
             setIsSearchActive(true);
             startTransition(async () => {
                 const response = await fetch(`/api/search?q=${encodeURIComponent(searchTerm)}&prefix=benchmarks__`);
-                const results: BlueprintSummaryInfo[] = await response.json();
-                setSearchResults(results);
+                const results = await response.json();
+                setSearchResults(Array.isArray(results) ? results : []);
             });
         } else if (searchTerm.length === 0) {
             setIsSearchActive(false);
