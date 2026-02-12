@@ -61,7 +61,7 @@ export function ExpertDistrust({ data, totalEvaluations }: ExpertDistrustProps) 
       </p>
 
       {/* Key stats */}
-      <div className="grid sm:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         <div className="bg-red-500/10 rounded-xl p-4 sm:p-5 text-center">
           <div className="text-3xl sm:text-4xl font-bold text-red-600">
             {total}
@@ -73,7 +73,7 @@ export function ExpertDistrust({ data, totalEvaluations }: ExpertDistrustProps) 
         </div>
         <div className="bg-blue-500/10 rounded-xl p-4 sm:p-5">
           <div className="flex items-center gap-2 mb-2">
-            <Scale className="w-5 h-5 text-blue-600" />
+            <Scale className="w-5 h-5 text-blue-600" aria-hidden="true" />
             <span className="font-semibold text-blue-600">{legalPct}% Legal</span>
           </div>
           <div className="text-sm text-muted-foreground">
@@ -82,7 +82,7 @@ export function ExpertDistrust({ data, totalEvaluations }: ExpertDistrustProps) 
         </div>
         <div className="bg-orange-500/10 rounded-xl p-4 sm:p-5">
           <div className="flex items-center gap-2 mb-2">
-            <Globe className="w-5 h-5 text-orange-600" />
+            <Globe className="w-5 h-5 text-orange-600" aria-hidden="true" />
             <span className="font-semibold text-orange-600">{topLanguagePct}% {topLanguage[0]}</span>
           </div>
           <div className="text-sm text-muted-foreground">
@@ -167,7 +167,7 @@ export function ExpertDistrust({ data, totalEvaluations }: ExpertDistrustProps) 
       {/* Sample cases with feedback */}
       <div className="bg-gradient-to-br from-red-500/5 to-orange-500/5 border border-red-500/20 rounded-xl p-6">
         <div className="flex items-center gap-2 mb-4">
-          <AlertTriangle className="w-5 h-5 text-red-600" />
+          <AlertTriangle className="w-5 h-5 text-red-600" aria-hidden="true" />
           <h4 className="font-semibold text-base">Expert Feedback on Distrusted Responses</h4>
         </div>
 
@@ -229,15 +229,16 @@ export function ExpertDistrust({ data, totalEvaluations }: ExpertDistrustProps) 
               <button
                 onClick={() => setExpandedCase(expandedCase === case_.unique_id ? null : case_.unique_id)}
                 className="mt-2 text-xs text-primary hover:underline flex items-center gap-1"
+                aria-expanded={expandedCase === case_.unique_id}
               >
                 {expandedCase === case_.unique_id ? (
                   <>
-                    <ChevronDown className="w-3 h-3" />
+                    <ChevronDown className="w-3 h-3" aria-hidden="true" />
                     Hide Q&A
                   </>
                 ) : (
                   <>
-                    <ChevronRight className="w-3 h-3" />
+                    <ChevronRight className="w-3 h-3" aria-hidden="true" />
                     Show Q&A
                   </>
                 )}
@@ -250,15 +251,16 @@ export function ExpertDistrust({ data, totalEvaluations }: ExpertDistrustProps) 
           <button
             onClick={() => setShowCases(!showCases)}
             className="mt-4 text-sm text-primary hover:underline flex items-center gap-1"
+            aria-expanded={showCases}
           >
             {showCases ? (
               <>
-                <ChevronDown className="w-4 h-4" />
+                <ChevronDown className="w-4 h-4" aria-hidden="true" />
                 Show fewer
               </>
             ) : (
               <>
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-4 h-4" aria-hidden="true" />
                 Show {Math.min(casesWithFeedback.length - 4, 6)} more cases
               </>
             )}

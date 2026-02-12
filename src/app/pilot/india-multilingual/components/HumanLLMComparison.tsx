@@ -80,7 +80,7 @@ export function HumanLLMComparison({ data }: HumanLLMComparisonProps) {
       {/* Section header */}
       <div className="mb-8 sm:mb-12">
         <div className="text-xs sm:text-sm uppercase tracking-wide text-purple-600 mb-2 flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4" />
+          <AlertTriangle className="w-4 h-4" aria-hidden="true" />
           Human vs. AI Judges
         </div>
         <h2
@@ -207,15 +207,16 @@ export function HumanLLMComparison({ data }: HumanLLMComparisonProps) {
                 <button
                   onClick={() => setShowFullExample(!showFullExample)}
                   className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
+                  aria-expanded={showFullExample}
                 >
                   {showFullExample ? (
                     <>
-                      <ChevronDown className="w-4 h-4" />
+                      <ChevronDown className="w-4 h-4" aria-hidden="true" />
                       <span>Hide content</span>
                     </>
                   ) : (
                     <>
-                      <ChevronRight className="w-4 h-4" />
+                      <ChevronRight className="w-4 h-4" aria-hidden="true" />
                       <span>Show actual Q&A</span>
                     </>
                   )}

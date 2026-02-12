@@ -100,12 +100,12 @@ function categorizeInsights(samples: FeedbackSample[]): Record<string, FeedbackS
 }
 
 const categoryIcons: Record<string, React.ReactNode> = {
-  'Missing Legal References': <FileText className="w-4 h-4" />,
-  'Outdated Law References': <Clock className="w-4 h-4" />,
-  'Unwarranted Assumptions': <UserX className="w-4 h-4" />,
-  'Language & Style Issues': <Languages className="w-4 h-4" />,
-  'Factual/Domain Errors': <FileText className="w-4 h-4" />,
-  'Other Issues': <Lightbulb className="w-4 h-4" />,
+  'Missing Legal References': <FileText className="w-4 h-4" aria-hidden="true" />,
+  'Outdated Law References': <Clock className="w-4 h-4" aria-hidden="true" />,
+  'Unwarranted Assumptions': <UserX className="w-4 h-4" aria-hidden="true" />,
+  'Language & Style Issues': <Languages className="w-4 h-4" aria-hidden="true" />,
+  'Factual/Domain Errors': <FileText className="w-4 h-4" aria-hidden="true" />,
+  'Other Issues': <Lightbulb className="w-4 h-4" aria-hidden="true" />,
 };
 
 const categoryColors: Record<string, string> = {
@@ -164,16 +164,17 @@ export function ExpertInsights({ data, legalDistrustPct }: ExpertInsightsProps) 
             <button
               onClick={() => setExpandedCategory(expandedCategory === category ? null : category)}
               className="w-full px-4 py-3 flex items-center justify-between text-left"
+              aria-expanded={expandedCategory === category}
             >
               <div className="flex items-center gap-3">
-                {categoryIcons[category]}
+                <span aria-hidden="true">{categoryIcons[category]}</span>
                 <span className="font-medium">{category}</span>
                 <span className="text-sm opacity-70">({samples.length} cases)</span>
               </div>
               {expandedCategory === category ? (
-                <ChevronDown className="w-4 h-4" />
+                <ChevronDown className="w-4 h-4" aria-hidden="true" />
               ) : (
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-4 h-4" aria-hidden="true" />
               )}
             </button>
 
@@ -228,15 +229,16 @@ export function ExpertInsights({ data, legalDistrustPct }: ExpertInsightsProps) 
                       <button
                         onClick={() => setExpandedSample(isExpanded ? null : sampleKey)}
                         className="mt-2 text-xs text-primary hover:underline flex items-center gap-1"
+                        aria-expanded={isExpanded}
                       >
                         {isExpanded ? (
                           <>
-                            <ChevronDown className="w-3 h-3" />
+                            <ChevronDown className="w-3 h-3" aria-hidden="true" />
                             Hide Q&A
                           </>
                         ) : (
                           <>
-                            <ChevronRight className="w-3 h-3" />
+                            <ChevronRight className="w-3 h-3" aria-hidden="true" />
                             Show Q&A
                           </>
                         )}
@@ -259,7 +261,7 @@ export function ExpertInsights({ data, legalDistrustPct }: ExpertInsightsProps) 
       {data.withCitations.count > 0 && (
         <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-6">
           <div className="flex items-center gap-2 mb-4">
-            <Link2 className="w-5 h-5 text-emerald-600" />
+            <Link2 className="w-5 h-5 text-emerald-600" aria-hidden="true" />
             <h4 className="font-semibold text-base text-emerald-700">Experts Sometimes Cite Sources</h4>
           </div>
 
@@ -314,15 +316,16 @@ export function ExpertInsights({ data, legalDistrustPct }: ExpertInsightsProps) 
                   <button
                     onClick={() => setExpandedSample(isExpanded ? null : citationKey)}
                     className="mt-2 text-xs text-emerald-600 hover:underline flex items-center gap-1"
+                    aria-expanded={isExpanded}
                   >
                     {isExpanded ? (
                       <>
-                        <ChevronDown className="w-3 h-3" />
+                        <ChevronDown className="w-3 h-3" aria-hidden="true" />
                         Hide Q&A
                       </>
                     ) : (
                       <>
-                        <ChevronRight className="w-3 h-3" />
+                        <ChevronRight className="w-3 h-3" aria-hidden="true" />
                         Show Q&A
                       </>
                     )}
@@ -336,15 +339,16 @@ export function ExpertInsights({ data, legalDistrustPct }: ExpertInsightsProps) 
             <button
               onClick={() => setShowCitations(!showCitations)}
               className="mt-3 text-sm text-emerald-600 hover:underline flex items-center gap-1"
+              aria-expanded={showCitations}
             >
               {showCitations ? (
                 <>
-                  <ChevronDown className="w-4 h-4" />
+                  <ChevronDown className="w-4 h-4" aria-hidden="true" />
                   Show fewer
                 </>
               ) : (
                 <>
-                  <ChevronRight className="w-4 h-4" />
+                  <ChevronRight className="w-4 h-4" aria-hidden="true" />
                   Show {Math.min(data.withCitations.samples.length - 2, 4)} more
                 </>
               )}

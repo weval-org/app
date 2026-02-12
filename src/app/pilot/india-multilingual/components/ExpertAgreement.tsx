@@ -99,7 +99,7 @@ export function ExpertAgreement({ data }: ExpertAgreementProps) {
           {/* Legal */}
           <div className="bg-background/60 rounded-lg p-4 border border-blue-500/20">
             <div className="flex items-center gap-2 mb-3">
-              <Scale className="w-5 h-5 text-blue-600" />
+              <Scale className="w-5 h-5 text-blue-600" aria-hidden="true" />
               <span className="font-semibold text-blue-700">Legal</span>
               <span className="text-xs text-muted-foreground">({legalTotal} disagreements)</span>
             </div>
@@ -133,7 +133,7 @@ export function ExpertAgreement({ data }: ExpertAgreementProps) {
           {/* Agriculture */}
           <div className="bg-background/60 rounded-lg p-4 border border-emerald-500/20">
             <div className="flex items-center gap-2 mb-3">
-              <Leaf className="w-5 h-5 text-emerald-600" />
+              <Leaf className="w-5 h-5 text-emerald-600" aria-hidden="true" />
               <span className="font-semibold text-emerald-700">Agriculture</span>
               <span className="text-xs text-muted-foreground">({agriTotal} disagreements)</span>
             </div>
@@ -180,13 +180,13 @@ export function ExpertAgreement({ data }: ExpertAgreementProps) {
                 <th className="text-left py-2 pr-4 font-medium text-muted-foreground"></th>
                 <th className="text-center py-2 px-3 font-medium text-muted-foreground">
                   <div className="flex items-center justify-center gap-1">
-                    <Scale className="w-3.5 h-3.5" />
+                    <Scale className="w-3.5 h-3.5" aria-hidden="true" />
                     Legal
                   </div>
                 </th>
                 <th className="text-center py-2 px-3 font-medium text-muted-foreground">
                   <div className="flex items-center justify-center gap-1">
-                    <Leaf className="w-3.5 h-3.5" />
+                    <Leaf className="w-3.5 h-3.5" aria-hidden="true" />
                     Agriculture
                   </div>
                 </th>
