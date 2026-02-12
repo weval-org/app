@@ -13,18 +13,12 @@ export const metadata: Metadata = {
     description: 'Academic benchmark evaluations derived from published research papers, tested across leading AI models.',
 };
 
-const ITEMS_PER_PAGE = 20;
-
 function isBenchmarkEvaluation(config: EnhancedComparisonConfigInfo): boolean {
     const configId = config.id || config.configId || '';
     return configId.startsWith('benchmarks__');
 }
 
-export default async function BenchmarksPage(props: {
-    searchParams: Promise<{ page?: string }>;
-}) {
-    const searchParams = await props.searchParams;
-    const page = parseInt(searchParams?.page || '1', 10);
+export default async function BenchmarksPage() {
     const rawConfigs = await getAllBlueprintSummaries();
 
     const allConfigs = rawConfigs.filter(isBenchmarkEvaluation);
@@ -35,15 +29,8 @@ export default async function BenchmarksPage(props: {
         return dateB - dateA;
     });
 
-    const totalItems = allConfigs.length;
-    const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
-    const currentPage = Math.max(1, Math.min(page, totalPages || 1));
-
-    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    const endIndex = startIndex + ITEMS_PER_PAGE;
-    const paginatedConfigs = allConfigs.slice(startIndex, endIndex);
-
-    const blueprints = processBlueprintSummaries(paginatedConfigs);
+    // Process all benchmarks — dataset is small enough for client-side search + pagination
+    const blueprints = processBlueprintSummaries(allConfigs);
 
     return (
         <div className="min-h-screen bg-background text-foreground">
@@ -60,15 +47,10 @@ export default async function BenchmarksPage(props: {
                     </Button>
                 </div>
                 <p className="text-muted-foreground mb-8 max-w-2xl">
-                    Evaluations derived from published academic papers, testing AI model capabilities across standardized benchmarks. {totalItems} benchmark{totalItems === 1 ? '' : 's'} tracked.
+                    Evaluations derived from published academic papers, testing AI model capabilities across standardized benchmarks. {blueprints.length} benchmark{blueprints.length === 1 ? '' : 's'} tracked.
                 </p>
 
-                <BenchmarkListPage
-                    initialBlueprints={blueprints}
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    totalItems={totalItems}
-                />
+                <BenchmarkListPage blueprints={blueprints} />
             </main>
         </div>
     );
