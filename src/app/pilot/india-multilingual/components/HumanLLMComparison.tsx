@@ -1,8 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
 
 interface CriterionData {
   correlation: number;
@@ -10,6 +10,22 @@ interface CriterionData {
   humanMean: number;
   llmMean: number;
   n: number;
+}
+
+interface FluencyExampleCase {
+  uniqueId: string;
+  domain: string;
+  language: string;
+  model: string;
+  question: string;
+  questionEnglish: string;
+  answer: string;
+  humanFluencyRating: string;
+  humanFluencyRatingEnglish: string;
+  humanFluencyScore: number;
+  llmFluencyScore: number;
+  contentErrorsNative: string[];
+  contentErrorsEnglish: string[];
 }
 
 interface HumanLLMAgreementData {
@@ -40,6 +56,7 @@ interface HumanLLMAgreementData {
     disagreementRate: number;
   };
   wevalRunUrl: string;
+  fluencyExampleCase?: FluencyExampleCase;
 }
 
 interface HumanLLMComparisonProps {
@@ -54,8 +71,9 @@ const criteriaLabels: Record<string, string> = {
 };
 
 export function HumanLLMComparison({ data }: HumanLLMComparisonProps) {
-  const { perCriterion, overall } = data;
+  const { perCriterion, overall, fluencyExampleCase } = data;
   const criteria = ['trust', 'fluency', 'complexity', 'code_switching'] as const;
+  const [showFullExample, setShowFullExample] = useState(false);
 
   return (
     <section className="py-16 sm:py-24 border-t border-border" aria-labelledby="human-llm-title">
@@ -180,26 +198,83 @@ export function HumanLLMComparison({ data }: HumanLLMComparisonProps) {
           </p>
 
           {/* Example case */}
-          <div className="my-4 p-4 bg-white/50 dark:bg-black/20 rounded-lg border border-red-200 dark:border-red-900/30 text-xs">
-            <div className="font-medium text-foreground mb-2">Example: Malayalam agriculture response</div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <div className="text-muted-foreground mb-1">Native speaker (high-reliability)</div>
-                <div className="font-mono text-red-600 text-lg">0%</div>
-                <div className="text-muted-foreground mt-1 italic">
-                  &ldquo;Nothing flows well&rdquo;<br />
-                  Errors cited: spelling mistakes, wrong word choices, grammar errors
+          {fluencyExampleCase && (
+            <div className="my-4 p-4 bg-white/50 dark:bg-black/20 rounded-lg border border-red-200 dark:border-red-900/30 text-xs">
+              <div className="flex items-center justify-between mb-2">
+                <div className="font-medium text-foreground">
+                  Example: {fluencyExampleCase.language} {fluencyExampleCase.domain.toLowerCase()} response ({fluencyExampleCase.model})
+                </div>
+                <button
+                  onClick={() => setShowFullExample(!showFullExample)}
+                  className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showFullExample ? (
+                    <>
+                      <ChevronDown className="w-4 h-4" />
+                      <span>Hide content</span>
+                    </>
+                  ) : (
+                    <>
+                      <ChevronRight className="w-4 h-4" />
+                      <span>Show actual Q&A</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mb-3">
+                <div>
+                  <div className="text-muted-foreground mb-1">Native speaker</div>
+                  <div className="font-mono text-red-600 text-lg">{Math.round(fluencyExampleCase.humanFluencyScore * 100)}%</div>
+                  <div className="text-muted-foreground mt-1 italic">
+                    &ldquo;{fluencyExampleCase.humanFluencyRatingEnglish}&rdquo;<br />
+                    Errors: {fluencyExampleCase.contentErrorsEnglish.join(', ').toLowerCase()}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground mb-1">LLM judge</div>
+                  <div className="font-mono text-blue-600 text-lg">{Math.round(fluencyExampleCase.llmFluencyScore * 100)}%</div>
+                  <div className="text-muted-foreground mt-1 italic">
+                    No issues detected
+                  </div>
                 </div>
               </div>
-              <div>
-                <div className="text-muted-foreground mb-1">LLM judge</div>
-                <div className="font-mono text-blue-600 text-lg">100%</div>
-                <div className="text-muted-foreground mt-1 italic">
-                  No issues detected
+
+              {showFullExample && (
+                <div className="mt-4 pt-4 border-t border-red-200 dark:border-red-900/30 space-y-4">
+                  {/* Question */}
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Question</div>
+                    <div className="bg-muted/30 rounded p-3 space-y-2">
+                      <p className="text-foreground text-sm" style={{ fontFamily: 'system-ui, sans-serif' }}>
+                        {fluencyExampleCase.question}
+                      </p>
+                      <p className="text-muted-foreground text-xs italic">
+                        ({fluencyExampleCase.questionEnglish})
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Response */}
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
+                      Model Response (rated 0% fluency by native speaker)
+                    </div>
+                    <div
+                      className="bg-muted/30 rounded p-3 text-sm prose prose-sm dark:prose-invert max-w-none overflow-auto max-h-64"
+                      dangerouslySetInnerHTML={{ __html: fluencyExampleCase.answer }}
+                    />
+                  </div>
+
+                  {/* Native language errors */}
+                  <div className="text-xs text-muted-foreground">
+                    <span className="font-medium">Errors cited (in Malayalam):</span>{' '}
+                    {fluencyExampleCase.contentErrorsNative.join(', ')}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
-          </div>
+          )}
 
           <p>
             <strong className="text-amber-600">Code-Switching Underestimation:</strong> LLM judges rate code-switching at{' '}

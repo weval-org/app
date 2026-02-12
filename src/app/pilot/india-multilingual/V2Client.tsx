@@ -30,6 +30,22 @@ export interface CriterionAgreement {
   n: number;
 }
 
+export interface FluencyExampleCase {
+  uniqueId: string;
+  domain: string;
+  language: string;
+  model: string;
+  question: string;
+  questionEnglish: string;
+  answer: string;
+  humanFluencyRating: string;
+  humanFluencyRatingEnglish: string;
+  humanFluencyScore: number;
+  llmFluencyScore: number;
+  contentErrorsNative: string[];
+  contentErrorsEnglish: string[];
+}
+
 export interface HumanLLMAgreementData {
   perCriterion: {
     trust: CriterionAgreement;
@@ -58,6 +74,7 @@ export interface HumanLLMAgreementData {
     disagreementRate: number;
   };
   wevalRunUrl: string;
+  fluencyExampleCase?: FluencyExampleCase;
 }
 
 export interface ComparativeResults {
