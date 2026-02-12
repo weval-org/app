@@ -232,6 +232,8 @@ async function actionBackfillSummary(options: { verbose?: boolean; configId?: st
                     id: configId,
                     title: latestResultDataForConfig.configTitle || latestResultDataForConfig.config.title || configId,
                     description: latestResultDataForConfig.config?.description || '',
+                    author: (latestResultDataForConfig.config as any)?.author,
+                    references: (latestResultDataForConfig.config as any)?.references,
                     runs: processedRuns,
                     latestRunTimestamp: processedRuns[0].timestamp,
                     tags: (() => {

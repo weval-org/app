@@ -1,0 +1,12 @@
+# Environment
+.env
+
+# Downloaded papers and analysis data
+data/analyses/
+data/tracking.yaml
+output/blueprints/
+
+# Python
+__pycache__/
+*.pyc
+.venv/

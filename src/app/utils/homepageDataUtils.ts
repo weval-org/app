@@ -51,6 +51,8 @@ export interface EnhancedComparisonConfigInfo {
   title?: string;
   description?: string;
   author?: string | { name: string; url?: string; image_url?: string };
+  references?: Array<{title: string; url?: string}>;
+  /** @deprecated use references */
   reference?: string | { title: string; url?: string };
   runs: EnhancedRunInfo[];
   latestRunTimestamp: string;

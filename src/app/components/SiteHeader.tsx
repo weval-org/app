@@ -32,6 +32,20 @@ export function SiteHeader({ contentMaxWidth = 'max-w-7xl' }: SiteHeaderProps) {
               </a>
             </div>
           </div>
+          <nav className="flex items-center space-x-1">
+            <Link
+              href="/all"
+              className="px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted/50"
+            >
+              All Evals
+            </Link>
+            <Link
+              href="/benchmarks"
+              className="px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted/50"
+            >
+              Benchmarks
+            </Link>
+          </nav>
         </div>
       </div>
     </header>

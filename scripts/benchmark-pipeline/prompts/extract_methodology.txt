@@ -1,0 +1,59 @@
+You are extracting evaluation methodology from an academic paper to create an AI evaluation blueprint.
+
+Extract ALL of the following information from the paper. Be thorough and precise - include exact text from the paper where possible.
+
+## What to Extract
+
+1. **benchmark_name**: The name of the benchmark or evaluation framework.
+
+2. **description**: A clear summary of what this benchmark evaluates and why. Include the key methodology. This will be displayed as markdown.
+
+3. **evaluation_type**: The type of evaluation (e.g., "multiple-choice", "open-ended", "rubric-based", "classification", "generation", "ranking", "code-execution", "factual-qa", "reasoning").
+
+4. **system_prompt**: If the paper specifies a system prompt or instruction given to models before evaluation, include it verbatim.
+
+5. **metrics**: List all evaluation metrics used (e.g., "accuracy", "F1", "BLEU", "human preference", "pass@k").
+
+6. **scoring_methodology**: How are responses scored? Describe the full scoring approach.
+
+7. **prompts**: Extract UP TO 40 evaluation prompts/questions from the paper. For each prompt include:
+   - **id**: A short slug identifier (e.g., "q1", "task-reasoning-1")
+   - **prompt_text**: The exact prompt/question text. If the paper shows templates, expand with representative examples.
+   - **system_prompt**: Any prompt-specific system instruction (null if same as global)
+   - **ideal_response**: The expected/correct answer if available (null if not)
+   - **scoring_criteria**: List of specific criteria for scoring this prompt's response. Be concrete - these will become evaluation rubric points.
+   - **category**: Category/topic within the benchmark (null if not categorized)
+   - **source_section**: Which section of the paper this comes from
+
+8. **tags**: Suggested categorization tags (e.g., ["reasoning", "factuality", "code", "math", "safety", "bias"]).
+
+## Important Notes
+
+- Extract VERBATIM prompts when the paper includes them
+- If the paper shows prompt templates with placeholders, provide 2-3 concrete instantiations
+- For multiple-choice questions, include all answer options in the prompt text
+- If the paper has hundreds of questions, select a representative sample across categories
+- Include scoring criteria even if they are qualitative (e.g., "response should be helpful and harmless")
+- If prompts are described but not listed explicitly, reconstruct representative examples based on the paper's description
+
+Respond with a JSON object matching this schema:
+{
+  "benchmark_name": string,
+  "description": string,
+  "evaluation_type": string,
+  "system_prompt": string or null,
+  "metrics": [string],
+  "scoring_methodology": string,
+  "prompts": [
+    {
+      "id": string,
+      "prompt_text": string,
+      "system_prompt": string or null,
+      "ideal_response": string or null,
+      "scoring_criteria": [string],
+      "category": string or null,
+      "source_section": string or null
+    }
+  ],
+  "tags": [string]
+}

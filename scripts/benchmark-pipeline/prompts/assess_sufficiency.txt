@@ -1,0 +1,33 @@
+You are analyzing an academic paper to determine if it contains sufficient information to create an AI evaluation blueprint.
+
+An evaluation blueprint needs EXPLICIT evaluation prompts, questions, or test cases along with scoring criteria. We are looking for papers that define benchmarks with concrete, reproducible evaluation methodology.
+
+Analyze this paper and determine:
+
+1. **has_explicit_prompts**: Does the paper contain explicit prompts, questions, or test inputs that are given to AI models? (e.g., multiple-choice questions, open-ended prompts, task instructions)
+
+2. **has_scoring_criteria**: Does the paper define how model responses are scored or evaluated? (e.g., rubrics, point systems, accuracy metrics, human evaluation criteria)
+
+3. **has_metrics**: Does the paper define specific metrics for evaluation? (e.g., accuracy, F1, BLEU, human preference scores)
+
+4. **has_gold_answers**: Does the paper provide expected/correct answers or reference outputs?
+
+5. **benchmark_name**: If this is a named benchmark, what is it called?
+
+6. **is_sufficient**: Overall, is there enough explicit information to create a reproducible evaluation blueprint? This requires at minimum: (a) extractable prompts/questions AND (b) some form of scoring criteria or expected answers.
+
+7. **confidence**: How confident are you in this assessment? (0.0 to 1.0)
+
+8. **reason**: Brief explanation of your assessment.
+
+Respond with a JSON object matching this exact schema:
+{
+  "has_explicit_prompts": boolean,
+  "has_scoring_criteria": boolean,
+  "has_metrics": boolean,
+  "has_gold_answers": boolean,
+  "benchmark_name": string or null,
+  "is_sufficient": boolean,
+  "confidence": number,
+  "reason": string
+}
