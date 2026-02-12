@@ -88,7 +88,16 @@ export async function GET(request: NextRequest) {
         }
 
         const results = fuseInstance.search(query);
-        const searchDocs = results.map((result: any) => result.item);
+        let searchDocs = results.map((result: any) => result.item);
+
+        // Optional prefix filter (e.g., prefix=benchmarks__ to scope results)
+        const prefix = searchParams.get('prefix');
+        if (prefix) {
+            searchDocs = searchDocs.filter((doc: any) => {
+                const id = doc.configId || doc.id || '';
+                return id.startsWith(prefix);
+            });
+        }
 
         return NextResponse.json(searchDocs, {
             headers: {
