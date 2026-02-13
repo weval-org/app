@@ -156,9 +156,13 @@ async function scanUnrunBlueprints(
       }
 
       if (!config.id) {
-        // Derive id from filename (e.g. "blueprints/benchmarks/foo.yml" -> "foo")
-        config.id = path.basename(blueprint.path, path.extname(blueprint.path));
-        logger?.info(`  Derived id '${config.id}' from filename for ${blueprint.path}`);
+        // Derive id from path relative to blueprints/, using __ as directory separator
+        // e.g. "blueprints/benchmarks/foo.yml" -> "benchmarks__foo"
+        //      "blueprints/bar.yml" -> "bar"
+        const relPath = blueprint.path.replace(/^blueprints\//, '');
+        const withoutExt = relPath.replace(/\.(ya?ml)$/, '');
+        config.id = withoutExt.replace(/\//g, '__');
+        logger?.info(`  Derived id '${config.id}' from path for ${blueprint.path}`);
       }
 
       // Calculate content hash
