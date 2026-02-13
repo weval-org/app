@@ -100,9 +100,7 @@ const cli = new Command();
 cli
   .name('weval-cli')
   .description('CLI tools for Weval, a platform for qualitative and semantic evaluation of language models.')
-  .version('0.8.0')
-  .option('--prod', 'Use .env.production for S3 credentials (handled by preload, must exist)')
-  .passThroughOptions();
+  .version('0.8.0');
 
 // Register commands
 cli.addCommand(runConfigCommand);
