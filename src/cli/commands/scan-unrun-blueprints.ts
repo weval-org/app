@@ -11,6 +11,7 @@ import { EvaluationMethod } from '../types/cli_types';
 import { normalizeTag } from '@/app/utils/tagUtils';
 import { CustomModelDefinition } from '@/lib/llm-clients/types';
 import { registerCustomModels } from '@/lib/llm-clients/client-dispatcher';
+import path from 'path';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
@@ -155,9 +156,9 @@ async function scanUnrunBlueprints(
       }
 
       if (!config.id) {
-        logger?.warn(`Skipping ${blueprint.path}: Missing 'id' field`);
-        processedCount++;
-        continue;
+        // Derive id from filename (e.g. "blueprints/benchmarks/foo.yml" -> "foo")
+        config.id = path.basename(blueprint.path, path.extname(blueprint.path));
+        logger?.info(`  Derived id '${config.id}' from filename for ${blueprint.path}`);
       }
 
       // Calculate content hash
