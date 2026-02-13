@@ -8,6 +8,8 @@ import { BenchmarkListPage } from './BenchmarkListPage';
 import Icon from '@/components/ui/icon';
 import type { Metadata } from 'next';
 
+export const revalidate = 3600; // Revalidate once per hour
+
 export const metadata: Metadata = {
     title: 'Benchmarks | weval',
     description: 'Academic benchmark evaluations derived from published research papers, tested across leading AI models.',
