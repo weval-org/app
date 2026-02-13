@@ -80,3 +80,4 @@ ___*
 # Sentry
 .sentryclirc
 *.sentry-build-info
+.env.production

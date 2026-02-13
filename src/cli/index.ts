@@ -1,5 +1,4 @@
-import dotenv from 'dotenv';
-dotenv.config();
+// env vars loaded by preload script (env-loader.js) before this module runs
 
 console.log('Starting CLI script...');
 
@@ -14,7 +13,6 @@ process.on('unhandledRejection', (reason, promise) => {
   process.exit(1);
 });
 
-import { program } from 'commander'
 import { configure } from './config'
 import { Command } from 'commander';
 import { runConfigCommand } from './commands/run-config';
@@ -102,7 +100,9 @@ const cli = new Command();
 cli
   .name('weval-cli')
   .description('CLI tools for Weval, a platform for qualitative and semantic evaluation of language models.')
-  .version('0.8.0');
+  .version('0.8.0')
+  .option('--prod', 'Use .env.production for S3 credentials (handled by preload, must exist)')
+  .passThroughOptions();
 
 // Register commands
 cli.addCommand(runConfigCommand);

@@ -14,13 +14,19 @@ import { registerCustomModels } from '@/lib/llm-clients/client-dispatcher';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
-const s3Client = new S3Client({
-  region: process.env.APP_S3_REGION!,
-  credentials: {
-    accessKeyId: process.env.APP_AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.APP_AWS_SECRET_ACCESS_KEY!,
-  },
-});
+let _s3Client: S3Client | null = null;
+function getS3Client(): S3Client {
+  if (!_s3Client) {
+    _s3Client = new S3Client({
+      region: process.env.APP_S3_REGION!,
+      credentials: {
+        accessKeyId: process.env.APP_AWS_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.APP_AWS_SECRET_ACCESS_KEY!,
+      },
+    });
+  }
+  return _s3Client;
+}
 
 interface BlueprintInfo {
   path: string;
@@ -97,7 +103,7 @@ async function hasBeenEvaluated(configId: string, contentHash: string): Promise<
   try {
     const resultKey = `live/blueprints/${configId}/${contentHash}_comparison.json`;
 
-    await s3Client.send(new HeadObjectCommand({
+    await getS3Client().send(new HeadObjectCommand({
       Bucket: process.env.APP_S3_BUCKET_NAME!,
       Key: resultKey,
     }));

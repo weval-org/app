@@ -23,7 +23,7 @@
     "compare:personality": "tsx src/cli/compare-personality.ts",
     "test:preference": "tsx src/cli/preference-test.ts",
     "test:self-preference": "tsx src/cli/self-preference-test.ts",
-    "cli": "tsx --no-cache -r dotenv/config src/cli/index.ts",
+    "cli": "tsx --no-cache -r ./src/cli/env-loader.js src/cli/index.ts",
     "cli:generate-pain-points": "pnpm cli generate-pain-points",
     "cli:annotate-pain-points": "pnpm cli annotate-pain-points",
     "cli:generate-regressions": "pnpm cli generate-regressions",
