@@ -11,7 +11,7 @@ import { EvaluationMethod } from '../types/cli_types';
 import { normalizeTag } from '@/app/utils/tagUtils';
 import { CustomModelDefinition } from '@/lib/llm-clients/types';
 import { registerCustomModels } from '@/lib/llm-clients/client-dispatcher';
-import path from 'path';
+import { generateBlueprintIdFromPath } from '@/app/utils/blueprintIdUtils';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
@@ -155,15 +155,9 @@ async function scanUnrunBlueprints(
         continue;
       }
 
-      if (!config.id) {
-        // Derive id from path relative to blueprints/, using __ as directory separator
-        // e.g. "blueprints/benchmarks/foo.yml" -> "benchmarks__foo"
-        //      "blueprints/bar.yml" -> "bar"
-        const relPath = blueprint.path.replace(/^blueprints\//, '');
-        const withoutExt = relPath.replace(/\.(ya?ml)$/, '');
-        config.id = withoutExt.replace(/\//g, '__');
-        logger?.info(`  Derived id '${config.id}' from path for ${blueprint.path}`);
-      }
+      // Always derive id from filepath (YAML id field is deprecated per run-config)
+      const relPath = blueprint.path.replace(/^blueprints\//, '');
+      config.id = generateBlueprintIdFromPath(relPath);
 
       // Calculate content hash
       const modelIds = config.models?.map((m: any) => typeof m === 'string' ? m : m.id) || [];
