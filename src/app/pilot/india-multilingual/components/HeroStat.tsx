@@ -4,7 +4,7 @@ import React from 'react';
 import CIPLogo from '@/components/icons/CIPLogo';
 import { KaryaLogo } from './KaryaLogo';
 import { AnthropicLogo } from './AnthropicLogo';
-import { ArrowRight } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 
 interface HeroStatProps {
   percentage: number;
@@ -19,7 +19,7 @@ export function HeroStat({ percentage, totalComparisons, totalRatings, totalWork
     { native: 'বাংলা', english: 'Bengali' },
     { native: 'తెలుగు', english: 'Telugu' },
     { native: 'ಕನ್ನಡ', english: 'Kannada' },
-    { native: 'മലയാളം', english: 'Malayalam' },
+    { native: 'മലయാളം', english: 'Malayalam' },
     { native: 'অসমীয়া', english: 'Assamese' },
     { native: 'मराठी', english: 'Marathi' },
   ];
@@ -29,61 +29,51 @@ export function HeroStat({ percentage, totalComparisons, totalRatings, totalWork
       {/* Header */}
       <header className="sticky top-0 z-40 w-full bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-center h-16 sm:h-20">
-            {/* CIP + Karya + weval ===> Anthropic */}
-            <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm">
-              {/* CIP */}
+          <div className="flex items-center justify-between h-14 sm:h-16">
+            {/* CIP - Primary brand */}
+            <a
+              href="https://cip.org/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 sm:gap-2 hover:opacity-80 transition-opacity min-h-[44px]"
+            >
+              <CIPLogo className="w-6 h-6 sm:w-7 sm:h-7 text-foreground" />
+              <span className="font-semibold text-sm sm:text-base text-foreground">
+                <span className="hidden sm:inline">The Collective Intelligence Project</span>
+                <span className="sm:hidden">CIP</span>
+              </span>
+            </a>
+
+            {/* Navigation links */}
+            <nav className="flex items-center gap-3 sm:gap-4">
+              <a
+                href="/pilot/india-multilingual/about"
+                className="text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                About
+              </a>
               <a
                 href="https://cip.org/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1.5 sm:gap-2 hover:opacity-80 transition-opacity min-h-[44px]"
+                className="hidden sm:flex items-center gap-1 text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
-                <CIPLogo className="w-6 h-6 sm:w-8 sm:h-8 text-foreground" />
-                <span className="hidden lg:inline font-medium text-foreground">The Collective Intelligence Project</span>
-                <span className="hidden sm:inline lg:hidden font-medium text-foreground">CIP</span>
+                cip.org
+                <ExternalLink className="w-3 h-3" />
               </a>
-
-              <span className="text-muted-foreground/40 hidden sm:inline">+</span>
-
-              {/* Karya */}
-              <a
-                href="https://karya.in/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center hover:opacity-80 transition-opacity min-h-[44px]"
-              >
-                <KaryaLogo className="h-5 sm:h-7 w-auto" />
-              </a>
-
-              <span className="text-muted-foreground/40 hidden sm:inline">×</span>
-
-              {/* weval */}
               <a
                 href="https://weval.org/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center hover:opacity-80 transition-opacity min-h-[44px]"
+                className="flex items-center gap-1 text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
-                <span className="text-base sm:text-xl">
+                <span>
                   <span style={{ fontWeight: 700 }}>w</span>
                   <span style={{ fontWeight: 200 }}>eval</span>
                 </span>
+                <ExternalLink className="w-3 h-3" />
               </a>
-
-              {/* Arrow */}
-              <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground/50 mx-1 sm:mx-3" />
-
-              {/* Anthropic */}
-              <a
-                href="https://anthropic.com/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center hover:opacity-80 transition-opacity min-h-[44px]"
-              >
-                <AnthropicLogo className="h-3 sm:h-4 w-auto text-foreground" />
-              </a>
-            </div>
+            </nav>
           </div>
         </div>
       </header>
@@ -91,16 +81,36 @@ export function HeroStat({ percentage, totalComparisons, totalRatings, totalWork
       {/* Hero */}
       <section className="py-10 sm:py-16 px-4 sm:px-6" aria-labelledby="hero-title">
         <div className="max-w-4xl mx-auto">
+          {/* Partnership attribution with logos */}
+          <div className="flex items-center justify-center gap-2 sm:gap-3 mb-6 sm:mb-8">
+            <span className="text-xs sm:text-sm text-muted-foreground">In partnership with</span>
+            <a href="https://karya.in/" target="_blank" rel="noopener noreferrer" className="hover:opacity-80 transition-opacity">
+              <KaryaLogo className="h-4 sm:h-5 w-auto" />
+            </a>
+            <span className="text-xs sm:text-sm text-muted-foreground">and</span>
+            <a href="https://anthropic.com/" target="_blank" rel="noopener noreferrer" className="hover:opacity-80 transition-opacity">
+              <AnthropicLogo className="h-3 sm:h-3.5 w-auto text-foreground" />
+            </a>
+          </div>
+
           {/* Title */}
           <div className="text-center mb-8 sm:mb-10">
-            <p className="text-sm sm:text-base text-muted-foreground mb-2">India Multilingual Benchmarks</p>
             <h1
               id="hero-title"
-              className="text-2xl sm:text-3xl md:text-4xl font-semibold text-foreground"
+              className="text-3xl sm:text-4xl md:text-5xl font-semibold text-foreground mb-3"
+              style={{ fontFamily: '"Source Serif 4", Georgia, serif' }}
+            >
+              India Multilingual Benchmarks
+            </h1>
+            <p className="text-sm sm:text-base md:text-lg text-muted-foreground max-w-2xl mx-auto mb-6">
+              A community-driven evaluation of AI model performance across Indian languages in legal and agricultural domains
+            </p>
+            <p
+              className="text-xl sm:text-2xl md:text-3xl font-semibold text-primary"
               style={{ fontFamily: '"Source Serif 4", Georgia, serif' }}
             >
               Native speakers preferred Opus 4.5
-            </h1>
+            </p>
           </div>
 
           {/* Stats row */}

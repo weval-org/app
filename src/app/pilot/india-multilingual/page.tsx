@@ -92,6 +92,36 @@ export default async function IndiaMultilingualPage() {
   ]);
 
   if (!comparativeResults) {
+    // In development, fall back to mock data so the page is previewable without S3
+    if (process.env.NODE_ENV === 'development') {
+      const fallback: ComparativeResults = {
+        totalComparisons: 10600, totalWorkers: 128, opusWinRate: 0.63,
+        overall: { opus: 4200, sonnet: 2500, equal_good: 3200, equal_bad: 700 },
+        byLanguage: {
+          Hindi: { opus: 800, sonnet: 500, equal_good: 600, equal_bad: 100, total: 2000 },
+          Bengali: { opus: 700, sonnet: 400, equal_good: 500, equal_bad: 80, total: 1680 },
+          Telugu: { opus: 600, sonnet: 350, equal_good: 450, equal_bad: 90, total: 1490 },
+          Kannada: { opus: 550, sonnet: 320, equal_good: 400, equal_bad: 85, total: 1355 },
+          Malayalam: { opus: 500, sonnet: 300, equal_good: 380, equal_bad: 80, total: 1260 },
+          Assamese: { opus: 520, sonnet: 310, equal_good: 420, equal_bad: 130, total: 1380 },
+          Marathi: { opus: 530, sonnet: 320, equal_good: 450, equal_bad: 135, total: 1435 },
+        },
+        topWorkers: [],
+      };
+      return (
+        <V2Client
+          comparativeResults={fallback}
+          sampleComparisons={[]}
+          rubricSummary={null}
+          overlapWorkers={null}
+          humanLLMAgreement={null}
+          expertSummary={null}
+          expertVsNonExpert={null}
+          expertDistrustCases={null}
+          expertFeedbackHighlights={null}
+        />
+      );
+    }
     return (
       <div className="min-h-screen flex items-center justify-center">
         <p className="text-muted-foreground">Data not found.</p>
