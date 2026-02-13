@@ -12,6 +12,7 @@ import { normalizeTag } from '@/app/utils/tagUtils';
 import { CustomModelDefinition } from '@/lib/llm-clients/types';
 import { registerCustomModels } from '@/lib/llm-clients/client-dispatcher';
 import { generateBlueprintIdFromPath } from '@/app/utils/blueprintIdUtils';
+import { resolveModelsInConfig } from '@/lib/blueprint-service';
 
 type Logger = ReturnType<typeof getConfig>['logger'];
 
@@ -228,6 +229,15 @@ async function runBlueprintEvaluation(
     // Add scan tag
     config.tags = config.tags || [];
     config.tags.push('_scan_unrun');
+
+    // Resolve model collections (e.g. "CORE" -> actual model IDs)
+    const githubTokenForModels = githubToken || process.env.GITHUB_TOKEN;
+    const resolvedConfig = await resolveModelsInConfig(
+      { ...config, configId: blueprintInfo.configId } as any,
+      githubTokenForModels,
+      logger as any
+    );
+    config.models = resolvedConfig.models;
 
     const modelIds = config.models?.map((m: any) => typeof m === 'string' ? m : m.id) || [];
     const runLabel = blueprintInfo.contentHash;
