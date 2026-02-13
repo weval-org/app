@@ -271,27 +271,6 @@ export function V2Client({
 
       {/* Main content */}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Weval explainer */}
-        <div className="py-6 sm:py-8 text-center space-y-3">
-          <p className="text-sm sm:text-base text-muted-foreground">
-            This analysis was conducted using
-          </p>
-          <a
-            href="https://weval.org/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-block hover:opacity-80 transition-opacity"
-          >
-            <span className="text-2xl sm:text-3xl text-foreground">
-              <span style={{ fontWeight: 700 }}>w</span>
-              <span style={{ fontWeight: 200 }}>eval</span>
-            </span>
-          </a>
-          <p className="text-sm sm:text-base text-muted-foreground max-w-lg mx-auto">
-            CIP&apos;s platform for running contextual evaluations of AI systems.
-          </p>
-        </div>
-
         {/* Context */}
         <ContextSection />
 

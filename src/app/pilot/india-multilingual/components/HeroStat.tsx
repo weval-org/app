@@ -26,25 +26,19 @@ export function HeroStat({ percentage, totalComparisons, totalRatings, totalWork
 
   return (
     <>
-      {/* Header */}
+      {/* Nav bar */}
       <header className="sticky top-0 z-40 w-full bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-14 sm:h-16">
-            {/* CIP - Primary brand */}
+          <div className="flex items-center justify-between h-12 sm:h-14">
             <a
               href="https://cip.org/"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 sm:gap-2 hover:opacity-80 transition-opacity min-h-[44px]"
+              className="flex items-center gap-1.5 hover:opacity-80 transition-opacity text-xs sm:text-sm text-muted-foreground"
             >
-              <CIPLogo className="w-6 h-6 sm:w-7 sm:h-7 text-foreground" />
-              <span className="font-semibold text-sm sm:text-base text-foreground">
-                <span className="hidden sm:inline">The Collective Intelligence Project</span>
-                <span className="sm:hidden">CIP</span>
-              </span>
+              <CIPLogo className="w-5 h-5 text-foreground" />
+              <span className="hidden sm:inline font-medium text-foreground">CIP</span>
             </a>
-
-            {/* Navigation links */}
             <nav className="flex items-center gap-3 sm:gap-4">
               <a
                 href="/pilot/india-multilingual/about"
@@ -81,8 +75,21 @@ export function HeroStat({ percentage, totalComparisons, totalRatings, totalWork
       {/* Hero */}
       <section className="py-10 sm:py-16 px-4 sm:px-6" aria-labelledby="hero-title">
         <div className="max-w-4xl mx-auto">
+          {/* CIP brand — centered, prominent */}
+          <div className="text-center mb-4 sm:mb-5">
+            <a
+              href="https://cip.org/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex flex-col items-center gap-2 hover:opacity-80 transition-opacity"
+            >
+              <CIPLogo className="w-12 h-12 sm:w-14 sm:h-14 text-foreground" />
+              <span className="text-sm sm:text-base font-medium text-foreground">The Collective Intelligence Project</span>
+            </a>
+          </div>
+
           {/* Partnership attribution with logos */}
-          <div className="flex items-center justify-center gap-2 sm:gap-3 mb-6 sm:mb-8">
+          <div className="flex items-center justify-center gap-2 sm:gap-3 mb-10 sm:mb-14">
             <span className="text-xs sm:text-sm text-muted-foreground">In partnership with</span>
             <a href="https://karya.in/" target="_blank" rel="noopener noreferrer" className="hover:opacity-80 transition-opacity">
               <KaryaLogo className="h-4 sm:h-5 w-auto" />
@@ -93,8 +100,8 @@ export function HeroStat({ percentage, totalComparisons, totalRatings, totalWork
             </a>
           </div>
 
-          {/* Title */}
-          <div className="text-center mb-8 sm:mb-10">
+          {/* Title + descriptor */}
+          <div className="text-center mb-6 sm:mb-8">
             <h1
               id="hero-title"
               className="text-3xl sm:text-4xl md:text-5xl font-semibold text-foreground mb-3"
@@ -102,9 +109,34 @@ export function HeroStat({ percentage, totalComparisons, totalRatings, totalWork
             >
               India Multilingual Benchmarks
             </h1>
-            <p className="text-sm sm:text-base md:text-lg text-muted-foreground max-w-2xl mx-auto mb-6">
+            <p className="text-sm sm:text-base md:text-lg text-muted-foreground max-w-2xl mx-auto">
               A community-driven evaluation of AI model performance across Indian languages in legal and agricultural domains
             </p>
+          </div>
+
+          {/* Weval explainer */}
+          <div className="text-center mb-10 sm:mb-14 space-y-2">
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              conducted using
+            </p>
+            <a
+              href="https://weval.org/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block hover:opacity-80 transition-opacity"
+            >
+              <span className="text-xl sm:text-2xl text-foreground">
+                <span style={{ fontWeight: 700 }}>w</span>
+                <span style={{ fontWeight: 200 }}>eval</span>
+              </span>
+            </a>
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              CIP&apos;s platform for running contextual evaluations of AI systems
+            </p>
+          </div>
+
+          {/* Key finding */}
+          <div className="text-center mb-8 sm:mb-10">
             <p
               className="text-xl sm:text-2xl md:text-3xl font-semibold text-primary"
               style={{ fontFamily: '"Source Serif 4", Georgia, serif' }}
