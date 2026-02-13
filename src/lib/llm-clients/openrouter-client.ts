@@ -45,9 +45,8 @@ class OpenRouterModuleClient {
         signal: controller.signal
       });
 
-      clearTimeout(timeoutId);
-
       if (!response.ok) {
+        clearTimeout(timeoutId);
         const errorBody = await response.text();
 
         // Detect rate limit (429) specifically
@@ -94,7 +93,16 @@ class OpenRouterModuleClient {
         return { responseText: '', error: `OpenRouter API Error: ${response.status} ${response.statusText}. Details: ${errorBody}` };
       }
 
-      const jsonResponse = await response.json() as any;
+      // Read body as text first, then parse — keeps abort timeout active during body transfer
+      const bodyText = await response.text();
+      clearTimeout(timeoutId);
+
+      let jsonResponse: any;
+      try {
+        jsonResponse = JSON.parse(bodyText);
+      } catch {
+        return { responseText: '', error: `Network or other error calling OpenRouter: Invalid JSON response (${bodyText.length} bytes)` };
+      }
       const responseText = jsonResponse.choices?.[0]?.message?.content || '';
       
       if (!responseText && jsonResponse.error) {

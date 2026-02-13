@@ -162,6 +162,9 @@ export async function getModelResponse(params: GetModelResponseParams): Promise<
             error.retryAfter = response.retryAfter;
             error.rateLimitReset = response.rateLimitReset;
             error.rateLimitRemaining = response.rateLimitRemaining;
+            // Tag network/transient errors as retryable
+            const msg = (response.error || '').toLowerCase();
+            error.isNetworkError = msg.includes('network') || msg.includes('unexpected end of json') || msg.includes('timed out');
             throw error;
         }
         return response.responseText;
@@ -170,7 +173,7 @@ export async function getModelResponse(params: GetModelResponseParams): Promise<
     try {
         const pRetry = (await import('p-retry')).default;
         const responseContent = await pRetry(apiCall, {
-            retries: (typeof retries === 'number' && retries >= 0) ? retries : 1,
+            retries: (typeof retries === 'number' && retries >= 0) ? retries : 2,
 
             // Smart retry: only retry rate limits and network errors
             shouldRetry: (error: any) => {
@@ -180,7 +183,8 @@ export async function getModelResponse(params: GetModelResponseParams): Promise<
                 }
 
                 // Retry network/connection errors
-                if (error.code === 'ECONNRESET' ||
+                if (error.isNetworkError ||
+                    error.code === 'ECONNRESET' ||
                     error.code === 'ETIMEDOUT' ||
                     error.code === 'ENOTFOUND' ||
                     error.code === 'ECONNREFUSED') {

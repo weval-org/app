@@ -32,8 +32,8 @@ export interface ProviderRateLimitProfile {
  */
 export const PROVIDER_PROFILES: Record<string, ProviderRateLimitProfile> = {
   'openrouter': {
-    initialConcurrency: 30,
-    maxConcurrency: 60,
+    initialConcurrency: 25,
+    maxConcurrency: 40,
     minConcurrency: 5,
     adaptiveEnabled: true,
     description: 'OpenRouter aggregates multiple providers. Unpublished limits, so we adapt dynamically.',
