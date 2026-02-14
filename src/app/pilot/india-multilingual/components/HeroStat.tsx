@@ -41,7 +41,7 @@ export function HeroStat({ percentage, totalComparisons, totalRatings, totalWork
             </a>
             <nav className="flex items-center gap-3 sm:gap-4">
               <a
-                href="/pilot/india-multilingual/about"
+                href="/about"
                 className="text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 About

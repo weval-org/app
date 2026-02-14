@@ -32,16 +32,8 @@ export default function AboutPage() {
             </a>
             <nav className="flex items-center gap-3 sm:gap-4">
               <a
-                href="/pilot/india-multilingual"
-                className="text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                India Pilot
-              </a>
-              <a
-                href="https://weval.org/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors"
+                href="/"
+                className="flex items-center gap-1 text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 <span style={{ fontWeight: 700 }}>w</span>
                 <span style={{ fontWeight: 200 }}>eval</span>

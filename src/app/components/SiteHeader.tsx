@@ -34,6 +34,12 @@ export function SiteHeader({ contentMaxWidth = 'max-w-7xl' }: SiteHeaderProps) {
           </div>
           <nav className="flex items-center space-x-1">
             <Link
+              href="/about"
+              className="px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted/50"
+            >
+              About
+            </Link>
+            <Link
               href="/all"
               className="px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted/50"
             >
