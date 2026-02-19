@@ -26,13 +26,12 @@ body:
       required: true
 
   - type: input
-    id: config-id
+    id: blueprint-id
     attributes:
-      label: Config ID
-      description: Find this in your dashboard URL or settings page. Required for reproduction.
-      placeholder: e.g. my-config-name
+      label: Blueprint ID
+      placeholder: e.g. my-blueprint-name
     validations:
-      required: true
+      required: false
 
   - type: input
     id: page-url

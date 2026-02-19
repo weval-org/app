@@ -4,7 +4,7 @@ Thanks for your interest in contributing! This guide covers how to report bugs a
 
 ## Reporting Bugs
 
-Before filing a bug report, locate your **Config ID** — you can find it in your dashboard URL or on the settings page. This is required for us to reproduce your issue.
+Before filing a bug report, locate your **Blueprint ID** — you can find it in your dashboard URL or on the settings page. This is required for us to reproduce your issue.
 
 File a bug report here: [**Open a new issue**](https://github.com/weval-org/app/issues/new/choose)
 
