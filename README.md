@@ -711,3 +711,7 @@ If you use Weval in your research, please cite it as follows:
   howpublished = {\\url{https://github.com/weval-org/app}}
 }
 ```
+
+## Bug Reports & Feedback
+
+Found a bug? Please [open an issue](https://github.com/weval-org/app/issues/new/choose) using our bug report template. See [CONTRIBUTING.md](CONTRIBUTING.md) for details on what to include.
