@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: General Questions & Support
+    url: mailto:team@collectiveintelligenceproject.org
+    about: For non-bug inquiries, reach out via email. Keep the issue tracker focused on actionable bugs.

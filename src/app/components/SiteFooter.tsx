@@ -41,6 +41,15 @@ export function SiteFooter({ contentMaxWidth = 'max-w-7xl' }: SiteFooterProps) {
             >
               View Eval Blueprints on GitHub
             </a>
+            <span className="text-muted-foreground/60">|</span>
+            <a
+              href={`${APP_REPO_URL}/issues/new/choose`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-primary dark:hover:text-sky-400 transition-colors"
+            >
+              Report a Bug
+            </a>
           </div>
         </footer>
       </div>

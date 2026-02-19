@@ -1,0 +1,87 @@
+name: Bug Report
+description: Report a bug on Weval
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened?
+      placeholder: |
+        Describe what happened and what you expected to happen instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this issue?
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. Scroll down to '...'
+        4. See error
+    validations:
+      required: true
+
+  - type: input
+    id: config-id
+    attributes:
+      label: Config ID
+      description: Find this in your dashboard URL or settings page. Required for reproduction.
+      placeholder: e.g. my-config-name
+    validations:
+      required: true
+
+  - type: input
+    id: page-url
+    attributes:
+      label: Page / URL where issue occurred
+      placeholder: e.g. https://weval.org/benchmarks/...
+    validations:
+      required: false
+
+  - type: dropdown
+    id: browser
+    attributes:
+      label: Browser
+      options:
+        - Chrome
+        - Firefox
+        - Safari
+        - Edge
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - macOS
+        - Windows
+        - Linux
+        - iOS
+        - Android
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Browser Console Logs / Stack Traces
+      description: Paste any error output here.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: Drag and drop screenshots if helpful.
+    validations:
+      required: false
