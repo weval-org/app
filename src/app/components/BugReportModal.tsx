@@ -150,7 +150,7 @@ export function BugReportModal({ open, onOpenChange, pathname }: BugReportModalP
               <Label htmlFor="bug-steps">Steps to reproduce</Label>
               <Textarea
                 id="bug-steps"
-                placeholder="1. Go to...\n2. Click on...\n3. See error..."
+                placeholder="1. Go to...  2. Click on...  3. See error..."
                 value={steps}
                 onChange={(e) => setSteps(e.target.value)}
                 rows={3}
