@@ -46,14 +46,14 @@ function getDeviceInfo() {
 export function BugReportModal({ open, onOpenChange, pathname }: BugReportModalProps) {
   const [description, setDescription] = useState('');
   const [steps, setSteps] = useState('');
-  const [blueprintId, setBlueprintId] = useState('');
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
 
+  const blueprintId = extractBlueprintId(pathname);
+
   useEffect(() => {
     if (open) {
-      setBlueprintId(extractBlueprintId(pathname));
       setStatus('idle');
       setErrorMessage('');
     }
@@ -62,7 +62,6 @@ export function BugReportModal({ open, onOpenChange, pathname }: BugReportModalP
   function resetForm() {
     setDescription('');
     setSteps('');
-    setBlueprintId('');
     setEmail('');
     setStatus('idle');
     setErrorMessage('');
@@ -87,7 +86,7 @@ export function BugReportModal({ open, onOpenChange, pathname }: BugReportModalP
         body: JSON.stringify({
           description: description.trim(),
           steps: steps.trim(),
-          blueprintId: blueprintId.trim(),
+          blueprintId,
           email: email.trim(),
           pageUrl,
           browser,
@@ -155,16 +154,6 @@ export function BugReportModal({ open, onOpenChange, pathname }: BugReportModalP
                 value={steps}
                 onChange={(e) => setSteps(e.target.value)}
                 rows={3}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="bug-blueprint">Blueprint ID</Label>
-              <Input
-                id="bug-blueprint"
-                placeholder="e.g. my-blueprint"
-                value={blueprintId}
-                onChange={(e) => setBlueprintId(e.target.value)}
               />
             </div>
 
