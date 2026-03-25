@@ -34,29 +34,27 @@ export async function GET(req: NextRequest) {
   const clientId = process.env.GITHUB_CLIENT_ID;
   const clientSecret = process.env.GITHUB_CLIENT_SECRET;
   const sessionSecret = process.env.SESSION_SECRET;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
 
   console.log("[Auth Callback] Verifying environment variable presence and content:");
   console.table({
     GITHUB_CLIENT_ID: clientId ? `Present (Value: ${clientId})` : 'Missing',
     GITHUB_CLIENT_SECRET: clientSecret ? `Present (Ends with: ...${clientSecret.slice(-4)})` : 'Missing',
     SESSION_SECRET: sessionSecret ? `Present (Length: ${sessionSecret.length})` : 'Missing',
-    NEXT_PUBLIC_APP_URL: appUrl ? `Present (Value: ${appUrl})` : 'Missing',
   });
 
-  if (!clientId || !clientSecret || !sessionSecret || !appUrl) {
+  if (!clientId || !clientSecret || !sessionSecret) {
     const missingVars = [
       !clientId && 'GITHUB_CLIENT_ID',
       !clientSecret && 'GITHUB_CLIENT_SECRET',
       !sessionSecret && 'SESSION_SECRET',
-      !appUrl && 'NEXT_PUBLIC_APP_URL',
     ].filter(Boolean);
 
     console.error(`[Auth Callback] Server Configuration Error: Aborting because the following environment variables are missing: ${missingVars.join(', ')}`);
     return NextResponse.redirect(new URL('/sandbox?error=' + encodeURIComponent('Server configuration error.'), req.nextUrl.origin));
   }
 
-  const redirect_uri = `${appUrl}/api/github/auth/callback`;
+  const origin = req.nextUrl.origin;
+  const redirect_uri = `${origin}/api/github/auth/callback`;
   console.log(`[Auth Callback] Using redirect_uri for token exchange: ${redirect_uri}`);
 
   try {
@@ -88,9 +86,7 @@ export async function GET(req: NextRequest) {
     // Encrypt the token before storing it in the cookie
     const encryptedToken = await encryptToken(accessToken, sessionSecret);
 
-    // Always redirect to production URL (weval.org) after successful login
-    // This ensures users end up on the canonical domain regardless of where they started
-    const nextResponse = NextResponse.redirect(new URL('/sandbox', appUrl));
+    const nextResponse = NextResponse.redirect(new URL('/sandbox', origin));
 
     nextResponse.cookies.set('github_session', encryptedToken, {
         httpOnly: true,
@@ -99,12 +95,11 @@ export async function GET(req: NextRequest) {
         path: '/',
     });
 
-    console.log(`[Auth Callback] GitHub authentication successful. Redirecting to ${appUrl}/sandbox`);
+    console.log(`[Auth Callback] GitHub authentication successful. Redirecting to ${origin}/sandbox`);
     return nextResponse;
 
   } catch (err: any) {
     console.error('[Auth Callback] Final exception caught:', err);
-    // Use appUrl for error redirect too (we're past validation at this point)
-    return NextResponse.redirect(new URL('/sandbox?error=' + encodeURIComponent(err.message), appUrl));
+    return NextResponse.redirect(new URL('/sandbox?error=' + encodeURIComponent(err.message), origin));
   }
 } 

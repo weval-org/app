@@ -4,15 +4,10 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   const clientId = process.env.GITHUB_CLIENT_ID;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
 
-  if (!clientId || !appUrl) {
-    const missingVars = [
-      !clientId && 'GITHUB_CLIENT_ID',
-      !appUrl && 'NEXT_PUBLIC_APP_URL',
-    ].filter(Boolean);
-    console.error(`[Auth Request] Server Configuration Error: Aborting because the following environment variables are missing: ${missingVars.join(', ')}`);
-    return NextResponse.json({ error: 'GitHub Client ID or App URL not configured in environment.' }, { status: 500 });
+  if (!clientId) {
+    console.error(`[Auth Request] Server Configuration Error: Aborting because GITHUB_CLIENT_ID is missing.`);
+    return NextResponse.json({ error: 'GitHub Client ID not configured in environment.' }, { status: 500 });
   }
 
   // The 'public_repo' scope allows creating forks and PRs for public repositories.
@@ -21,7 +16,8 @@ export async function GET(request: Request) {
   const scopes = ['public_repo', 'read:org'];
   const scopeString = scopes.join(' ');
 
-  const redirect_uri = `${appUrl}/api/github/auth/callback`;
+  const origin = new URL(request.url).origin;
+  const redirect_uri = `${origin}/api/github/auth/callback`;
 
   const params = new URLSearchParams({
     client_id: clientId,
