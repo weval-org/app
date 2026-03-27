@@ -78,6 +78,7 @@ For more advanced users, you can still contribute by directly [submitting a pull
 # Clone the main application repository
 git clone https://github.com/weval-org/app.git
 cd app
+nvm use
 
 # Install dependencies
 pnpm install
