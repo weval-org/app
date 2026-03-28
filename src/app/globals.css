@@ -22,7 +22,7 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
+    --background: 44 27% 97%; /* #FAF9F6 — gradient endpoint, also used as fallback */
     --foreground: 330 3% 19%;
     --muted: 240 10% 93%; /* #ececf0 — matches Figma */
     --muted-foreground: 330 3% 49%; /* Derived from foreground */

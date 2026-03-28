@@ -8,7 +8,7 @@ interface SiteHeaderProps {
 
 export function SiteHeader({ contentMaxWidth = 'max-w-7xl' }: SiteHeaderProps) {
   return (
-    <header className="w-full bg-header py-4 shadow-sm border-b border-border/50">
+    <header className="w-full sticky top-0 z-50 py-4 border-b border-border/50 bg-[#faf9f6]/90 backdrop-blur-md">
       <div className={cn("mx-auto px-4 sm:px-6 lg:px-8", contentMaxWidth)}>
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">

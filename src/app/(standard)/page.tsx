@@ -130,7 +130,7 @@ export default async function HomePage() {
     .sort((a, b) => b.count - a.count); // Sort by count descending
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen text-foreground">
       <div className="max-w-7xl mx-auto">
         <HomePageBanner />
         

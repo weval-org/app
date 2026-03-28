@@ -28,7 +28,7 @@ export default function HomePageBanner() {
   };
 
   return (
-    <div className="w-full bg-background pt-2 pb-2 text-foreground">
+    <div className="w-full pt-2 pb-2 text-foreground">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center my-10 py-2">
             <h1 className="text-4xl font-bold mb-4">An open platform for building evaluations that test what matters</h1>
