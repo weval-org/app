@@ -25,11 +25,7 @@ export async function GET(
       );
     }
 
-    // Pass explicit credentials to ensure consistent blob store access
-    const blobOptions = {
-      siteId: process.env.NETLIFY_SITE_ID,
-      context: undefined
-    };
+    const blobOptions = {};
 
     // Check if tasks exist for this config
     console.log(`[check-status] Counting tasks for configId: ${configId}`);

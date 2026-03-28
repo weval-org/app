@@ -1,4 +1,4 @@
-import type { BackgroundHandler } from '@netlify/functions';
+import { NextRequest, NextResponse } from 'next/server';
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
 import * as yaml from 'js-yaml';
@@ -14,10 +14,9 @@ import { normalizeTag } from '@/app/utils/tagUtils';
 import { configure } from '@/cli/config';
 import { CustomModelDefinition } from '@/lib/llm-clients/types';
 import { registerCustomModels } from '@/lib/llm-clients/client-dispatcher';
-import { cleanupTmpCache } from '@/lib/cache-service';
 import { getLogger, Logger } from '@/utils/logger';
 import { initSentry, captureError, setContext, flushSentry } from '@/utils/sentry';
-import { checkBackgroundFunctionAuth } from '@/lib/background-function-auth';
+import { checkBackgroundAuth } from '@/lib/background-function-auth';
 
 const s3Client = new S3Client({
   region: process.env.APP_S3_REGION!,
@@ -38,9 +37,6 @@ const streamToString = (stream: Readable): Promise<string> =>
 type SandboxLogger = Logger;
 
 const getStatusUpdater = (blueprintKey: string, runId: string, logger: Logger) => {
-  // Derive base path from blueprint location
-  // e.g., "live/sandbox/runs/123/blueprint.yml" → "live/sandbox/runs/123"
-  // or "live/workshop/runs/foo/bar/blueprint.yml" → "live/workshop/runs/foo/bar"
   const basePath = blueprintKey.replace(/\/blueprint\.yml$/, '');
 
   return async (status: string, message: string, extraData: object = {}) => {
@@ -55,19 +51,7 @@ const getStatusUpdater = (blueprintKey: string, runId: string, logger: Logger) =
   };
 };
 
-export const handler: BackgroundHandler = async (event) => {
-  // Initialize Sentry for this function
-  initSentry('execute-sandbox-pipeline-background');
-
-  // Check authentication
-  const authError = checkBackgroundFunctionAuth(event);
-  if (authError) {
-    console.error('[execute-sandbox-pipeline-background] Authentication failed:', authError);
-    await flushSentry();
-    return; // Background handlers return void, not responses
-  }
-
-  const body = event.body ? JSON.parse(event.body) : {};
+async function runPipeline(body: any) {
   const { runId, blueprintKey, sandboxVersion } = body;
 
   // Set Sentry context for this invocation
@@ -75,7 +59,6 @@ export const handler: BackgroundHandler = async (event) => {
     runId,
     blueprintKey,
     sandboxVersion,
-    netlifyContext: event.headers?.['x-nf-request-id'],
   });
 
   const logger = await getLogger(`sandbox:pipeline:bg:${runId}`);
@@ -106,9 +89,6 @@ export const handler: BackgroundHandler = async (event) => {
     return;
   }
 
-  // Clean up /tmp cache at start to prevent disk space issues
-  cleanupTmpCache(100); // Keep cache under 100MB
-
   // Derive base path from blueprint location (path-agnostic approach)
   const basePath = blueprintKey.replace(/\/blueprint\.yml$/, '');
   const updateStatus = getStatusUpdater(blueprintKey, runId, logger);
@@ -132,8 +112,7 @@ export const handler: BackgroundHandler = async (event) => {
     }
     // --- End Custom Model Registration ---
 
-    // --- Sanitize System Prompts (mirroring run-config logic) ---
-    // If 'system' is an array, treat it as the 'systems' permutation array.
+    // --- Sanitize System Prompts ---
     if (Array.isArray(config.system)) {
         if (config.systems && config.systems.length > 0) {
             logger.warn(`Both 'system' (as an array) and 'systems' are defined. Using 'systems' and ignoring the array in 'system'.`);
@@ -141,7 +120,6 @@ export const handler: BackgroundHandler = async (event) => {
             logger.info(`Found 'system' field is an array. Treating it as the 'systems' array for permutation.`);
             config.systems = config.system;
         }
-        // Unset 'system' to avoid conflicts.
         config.system = undefined;
     }
     // --- End Sanitize System Prompts ---
@@ -169,7 +147,7 @@ export const handler: BackgroundHandler = async (event) => {
     logger.info(`generateAllResponses completed, got ${allResponsesMap.size} prompt responses`);
 
     await updateStatus('evaluating', 'Running evaluations...');
-    
+
     const embeddingEval = new EmbeddingEvaluator(logger);
     const coverageEval = new LLMCoverageEvaluator(logger, false);
 
@@ -199,10 +177,9 @@ export const handler: BackgroundHandler = async (event) => {
             effectiveModelIds: modelIdsForThisPrompt
         });
     }
-    
+
     let totalEvalTasks = 0;
     if (evalMethods.includes('embedding')) {
-        // Total embeddings to generate
         totalEvalTasks += evaluationInputs.reduce((sum, input) => {
             let count = Object.keys(input.promptData.modelResponses).length;
             if (input.promptData.idealResponseText) count++;
@@ -210,15 +187,11 @@ export const handler: BackgroundHandler = async (event) => {
         }, 0);
     }
      if (evalMethods.includes('llm-coverage')) {
-        // Total model responses to judge
         totalEvalTasks += evaluationInputs.reduce((sum, input) => sum + Object.keys(input.promptData.modelResponses).length, 0);
     }
     let completedEvalTasks = 0;
 
     const evaluationProgressCallback = async (completedInStep: number, totalInStep: number) => {
-        // Note: This callback will be called by each evaluator separately.
-        // We need a way to track overall progress if they run sequentially.
-        // For now, we just pass the progress from the current step.
          await updateStatus('evaluating', 'Running evaluations...', {
             progress: { completed: completedInStep, total: totalInStep },
         });
@@ -235,7 +208,7 @@ export const handler: BackgroundHandler = async (event) => {
         evaluationResults.llmCoverageScores = result.llmCoverageScores;
         evaluationResults.extractedKeyPoints = result.extractedKeyPoints;
     }
-    
+
     await updateStatus('saving', 'Aggregating and saving results...');
 
     const { data: finalOutput } = await aggregateSandboxResult(
@@ -249,7 +222,7 @@ export const handler: BackgroundHandler = async (event) => {
 
     const comparisonJson = JSON.stringify(finalOutput, null, 2);
 
-    // Save results to the derived base path (works for sandbox, workshop, etc.)
+    // Save results to the derived base path
     const resultKey = `${basePath}/_comparison.json`;
     await s3Client.send(new PutObjectCommand({
         Bucket: process.env.APP_S3_BUCKET_NAME!,
@@ -264,7 +237,7 @@ export const handler: BackgroundHandler = async (event) => {
       try {
           const legacyConfigId = `sandbox-${runId}`;
           const legacyRunLabel = 'sandbox-run';
-          const legacyTimestamp = finalOutput.timestamp; // already safe format
+          const legacyTimestamp = finalOutput.timestamp;
           const legacyKey = `live/blueprints/${legacyConfigId}/${legacyRunLabel}_${legacyTimestamp}_comparison.json`;
           await s3Client.send(new PutObjectCommand({
               Bucket: process.env.APP_S3_BUCKET_NAME!,
@@ -302,10 +275,29 @@ export const handler: BackgroundHandler = async (event) => {
       errorType: error.name,
     });
 
-    // Ensure Sentry events are sent before function exits
     await flushSentry();
   }
-};
+}
+
+export async function POST(req: NextRequest) {
+  // Initialize Sentry for this function
+  initSentry('execute-sandbox-pipeline-background');
+
+  // Check authentication
+  const authError = checkBackgroundAuth(req);
+  if (authError) {
+    console.error('[execute-sandbox-pipeline-background] Authentication failed');
+    await flushSentry();
+    return authError;
+  }
+
+  const body = await req.json();
+
+  // Fire-and-forget the async work
+  runPipeline(body);
+
+  return NextResponse.json({ accepted: true }, { status: 202 });
+}
 
 async function aggregateSandboxResult(
     config: ComparisonConfig,
@@ -322,7 +314,6 @@ async function aggregateSandboxResult(
     const promptContexts: Record<string, string | ConversationMessage[]> = {};
     const hasAnyIdeal = config.prompts.some(p => p.idealResponse);
 
-    // This is a fully-formed default object.
     const defaultOutput: FinalComparisonOutputV2 = {
         configId: config.id!,
         configTitle: config.title!,
@@ -363,13 +354,12 @@ async function aggregateSandboxResult(
     }
     const effectiveModels = Array.from(effectiveModelsSet).sort();
 
-    // We merge the real data into the default object structure.
     const finalOutput: FinalComparisonOutputV2 = {
         ...defaultOutput,
         evalMethodsUsed,
         effectiveModels,
         promptIds: promptIds.sort(),
-        promptContexts, 
+        promptContexts,
         allFinalAssistantResponses,
         fullConversationHistories,
         evaluationResults: {
@@ -379,8 +369,8 @@ async function aggregateSandboxResult(
         },
         extractedKeyPoints: evaluationResults.extractedKeyPoints,
     };
-    
-    // For any run processed by this pipeline (sandbox/sandbox), skip the summary.
+
+    // For any run processed by this pipeline (sandbox), skip the summary.
     const isSandboxTestRun = true;
     if (!isSandboxTestRun) {
         const summaryResult = await generateExecutiveSummary(finalOutput, logger);

@@ -4,7 +4,7 @@ import { listRunsForConfig, getResultByFileName } from '../../lib/storageService
 import { populatePairwiseQueue } from '../services/pairwise-task-queue-service';
 import { ComparisonDataV2 as FetchedComparisonData } from '../../app/utils/types';
 
-async function actionAddToPairs(options: { configId: string, siteId?: string, verbose?: boolean }) {
+async function actionAddToPairs(options: { configId: string, verbose?: boolean }) {
     const { logger } = getConfig();
     logger.info(`Starting to add pairs for config ID: ${options.configId}`);
 
@@ -25,7 +25,7 @@ async function actionAddToPairs(options: { configId: string, siteId?: string, ve
         }
 
         logger.info(`Populating pairwise queue for latest run of config: ${options.configId}`);
-        await populatePairwiseQueue(resultData, {logger, siteId: options.siteId});
+        await populatePairwiseQueue(resultData, {logger});
         logger.info(`Successfully finished populating queue for ${options.configId}.`);
 
     } catch (error: any) {
@@ -40,6 +40,5 @@ async function actionAddToPairs(options: { configId: string, siteId?: string, ve
 export const addToPairsCommand = new Command('add-to-pairs')
     .description("Manually populates the pairwise task queue from a config's latest run.")
     .requiredOption('-c, --config-id <id>', 'The configuration ID to process.')
-    .option('-s, --site-id <siteId>', 'Optional Netlify site ID to use for blob storage.')
     .option('-v, --verbose', 'Enable verbose logging for detailed processing steps.')
-    .action(actionAddToPairs); 
+    .action(actionAddToPairs);

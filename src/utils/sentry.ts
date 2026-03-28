@@ -45,7 +45,7 @@ export function initSentry(functionName: string) {
     initialScope: {
       tags: {
         function: functionName,
-        runtime: 'netlify-functions',
+        runtime: 'railway',
       },
     },
 

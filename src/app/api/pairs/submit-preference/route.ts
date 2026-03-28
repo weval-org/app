@@ -1,13 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getStore } from '@netlify/blobs';
-
-// This is a placeholder implementation.
-// In the future, this will:
-// 1. Validate the incoming request body.
-// 2. Connect to Netlify Blobs.
-// 3. Generate a canonical key from the taskId or its components.
-// 4. Append the new preference record to the value array for that key.
-// 5. Implement user fingerprinting/identification for data quality.
+import { getStore } from '@/lib/blob-store';
 
 interface PreferenceRecord {
   preference: 'A' | 'B' | 'Indifferent' | 'Unknown';
@@ -40,8 +32,6 @@ export async function POST(request: Request) {
     // Fetch the task to get metadata
     const taskStore = getStore({
       name: TASK_QUEUE_BLOB_STORE_NAME,
-      siteID: process.env.NETLIFY_SITE_ID,
-      token: process.env.NETLIFY_AUTH_TOKEN,
     });
     const task = await taskStore.get(taskId, { type: 'json' }) as any;
 
@@ -71,8 +61,6 @@ export async function POST(request: Request) {
 
     const store = getStore({
       name: PREFERENCES_BLOB_STORE_NAME,
-      siteID: process.env.NETLIFY_SITE_ID,
-      token: process.env.NETLIFY_AUTH_TOKEN,
     });
     
     // Get existing records for this task, or start a new array

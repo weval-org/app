@@ -4,12 +4,12 @@
 import { GET } from '../[configId]/get-task/route';
 import { NextRequest } from 'next/server';
 
-// Mock @netlify/blobs
-jest.mock('@netlify/blobs', () => ({
+// Mock @/lib/blob-store
+jest.mock('@/lib/blob-store', () => ({
   getStore: jest.fn(),
 }));
 
-const { getStore } = require('@netlify/blobs');
+const { getStore } = require('@/lib/blob-store');
 
 describe('GET /api/pairs/config/[configId]/get-task', () => {
   let mockStore: any;

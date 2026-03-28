@@ -1,0 +1,25 @@
+name: Weekly Evaluation Check
+on:
+  schedule:
+    - cron: '0 0 * * 0'  # Every Sunday at midnight UTC
+  workflow_dispatch:
+    inputs:
+      batch:
+        description: 'Batch size (number of evals to schedule)'
+        required: false
+        default: '100'
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Schedule evaluation batch
+        run: |
+          BATCH="${{ github.event.inputs.batch || '100' }}"
+          echo "Scheduling batch of $BATCH evaluations..."
+          RESPONSE=$(curl -sf -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-Background-Function-Auth-Token: ${{ secrets.BACKGROUND_FUNCTION_AUTH_TOKEN }}" \
+            -d "{\"limit\": $BATCH}" \
+            "${{ secrets.RAILWAY_APP_URL }}/api/internal/fetch-and-schedule-evals")
+          echo "$RESPONSE" | python3 -m json.tool 2>/dev/null || echo "$RESPONSE"

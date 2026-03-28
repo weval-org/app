@@ -1,4 +1,6 @@
-### Netlify Background Functions – Implementation & Run Guide
+> **ARCHIVED**: Weval no longer uses Netlify. Background functions have been migrated to Next.js API routes under `src/app/api/internal/` and the app is deployed on Railway. This document is preserved for historical reference only.
+
+### Netlify Background Functions – Implementation & Run Guide (ARCHIVED)
 
 This guide captures the proven patterns for implementing and running Netlify background functions, distilled from our current project. It’s written to be copy-pastable into new services (e.g., TreeTalk) with minimal adjustments.
 

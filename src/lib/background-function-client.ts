@@ -1,13 +1,13 @@
 /**
- * Unified client for calling Netlify background functions with authentication.
+ * Unified client for calling internal background API routes with authentication.
  *
- * This module provides a simple abstraction for invoking background functions
+ * This module provides a simple abstraction for invoking background routes
  * with automatic URL construction and authentication header injection.
  */
 
 export interface BackgroundFunctionCallOptions {
     /**
-     * The name of the background function (without the .netlify/functions/ prefix)
+     * The name of the background function (maps to /api/internal/{functionName})
      * e.g., 'factcheck', 'execute-evaluation-background'
      */
     functionName: string;
@@ -23,7 +23,7 @@ export interface BackgroundFunctionCallOptions {
     timeout?: number;
 
     /**
-     * Optional base URL override (defaults to process.env.URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:8888')
+     * Optional base URL override (defaults to process.env.URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3172')
      */
     baseUrl?: string;
 }
@@ -36,7 +36,7 @@ export interface BackgroundFunctionResponse {
 }
 
 /**
- * Calls a Netlify background function with automatic authentication.
+ * Calls an internal background API route with automatic authentication.
  *
  * @param options - Configuration for the background function call
  * @returns Promise resolving to the response data
@@ -64,8 +64,8 @@ export async function callBackgroundFunction(
     }
 
     // Construct URL
-    const base = baseUrl || process.env.URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:8888';
-    const url = new URL(`/.netlify/functions/${functionName}`, base);
+    const base = baseUrl || process.env.URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3172';
+    const url = new URL(`/api/internal/${functionName}`, base);
 
     // Create abort controller for timeout
     const controller = new AbortController();
@@ -132,6 +132,6 @@ export async function callBackgroundFunction(
  * @returns The full URL to the background function
  */
 export function getBackgroundFunctionUrl(functionName: string, baseUrl?: string): string {
-    const base = baseUrl || process.env.URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:8888';
-    return new URL(`/.netlify/functions/${functionName}`, base).toString();
+    const base = baseUrl || process.env.URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3172';
+    return new URL(`/api/internal/${functionName}`, base).toString();
 }

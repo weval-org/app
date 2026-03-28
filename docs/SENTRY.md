@@ -1,6 +1,6 @@
 # Sentry Error Tracking Setup
 
-This project uses [Sentry](https://sentry.io) for comprehensive error tracking and observability across **all serverless infrastructure** - both Netlify Functions and Next.js API routes.
+This project uses [Sentry](https://sentry.io) for comprehensive error tracking and observability across **all serverless infrastructure** - both background functions and Next.js API routes.
 
 ## Overview
 
@@ -23,7 +23,7 @@ Sentry integration provides:
 
 ### 2. Configure Environment Variables
 
-Add to your `.env` file (or Netlify environment variables):
+Add to your `.env` file (or Railway environment variables):
 
 ```bash
 # Required - for server-side error tracking
@@ -41,14 +41,14 @@ SENTRY_AUTH_TOKEN=your-auth-token
 SENTRY_RELEASE=git-commit-sha
 ```
 
-To add to Netlify:
+To add to Railway:
 ```bash
-# Using Netlify CLI
-netlify env:set SENTRY_DSN "https://your-sentry-dsn@sentry.io/project-id"
-netlify env:set NEXT_PUBLIC_SENTRY_DSN "https://your-sentry-dsn@sentry.io/project-id"
+# Using Railway CLI
+railway variables set SENTRY_DSN="https://your-sentry-dsn@sentry.io/project-id"
+railway variables set NEXT_PUBLIC_SENTRY_DSN="https://your-sentry-dsn@sentry.io/project-id"
 ```
 
-Or via the Netlify UI: **Site Settings → Environment Variables**
+Or set them in the **Railway dashboard → Variables** tab.
 
 ### 3. Deploy
 
@@ -68,9 +68,8 @@ environment: process.env.CONTEXT || process.env.NODE_ENV || 'development'
 ```
 
 **With one DSN, all errors go to the same Sentry project, tagged with:**
-- `production` - Your live Netlify site
-- `deploy-preview` - Netlify preview deploys
-- `branch-deploy` - Netlify branch deploys
+- `production` - Your live Railway deployment
+- `staging` - Railway staging environment
 - `development` - Local development
 
 You can filter by environment in Sentry:
@@ -124,9 +123,9 @@ These are **informational messages only** - your app works perfectly.
 # Local .env - DON'T include SENTRY_DSN
 # (Just omit these lines locally)
 
-# Netlify environment - DO include:
-netlify env:set SENTRY_DSN "https://your-dsn@sentry.io/project-id"
-netlify env:set NEXT_PUBLIC_SENTRY_DSN "https://your-dsn@sentry.io/project-id"
+# Railway environment - DO include:
+# Set via Railway dashboard or: railway variables set SENTRY_DSN="https://your-dsn@sentry.io/project-id"
+# Set via Railway dashboard or: railway variables set NEXT_PUBLIC_SENTRY_DSN="https://your-dsn@sentry.io/project-id"
 ```
 
 ### When Would You Want Separate DSNs?
@@ -158,9 +157,9 @@ All **80+ Next.js API routes** are automatically instrumented with zero code cha
 - Session replay for debugging user issues
 - Source maps for readable stack traces
 
-#### 2. **@sentry/node** - Netlify Functions (Manual Integration)
+#### 2. **@sentry/node** - Background Functions (Manual Integration)
 
-All Netlify background functions have custom Sentry integration:
+All background functions have custom Sentry integration:
 
 **Background Functions:**
 - `execute-story-quick-run-background.ts`
@@ -205,7 +204,7 @@ Every error captured includes:
 {
   // Function identification
   function: 'execute-story-quick-run-background',
-  runtime: 'netlify-functions',
+  runtime: 'railway',
 
   // Request context
   runId: 'abc123',
@@ -328,7 +327,7 @@ Source maps are **automatically uploaded** when you build the project with the p
    - Permissions: `Release` (Admin), `Organization` (Read)
    - Copy the auth token
 
-2. Add to your environment (Netlify or local `.env`):
+2. Add to your environment (Railway or local `.env`):
    ```bash
    SENTRY_ORG=your-org-slug
    SENTRY_PROJECT=your-project-slug
@@ -418,7 +417,7 @@ is:unresolved message:"Pipeline failed" age:-24h
 console.log('SENTRY_DSN configured:', !!process.env.SENTRY_DSN);
 ```
 
-**Check 2:** Check Netlify function logs
+**Check 2:** Check Railway function logs
 Look for: `[Sentry] No SENTRY_DSN configured for {functionName} - error tracking disabled`
 
 **Check 3:** Verify DSN is correct
@@ -489,10 +488,10 @@ beforeSend(event, hint) {
 Sentry works the same in all environments. To distinguish between them:
 
 ```bash
-# Set in Netlify production environment
+# Set in Railway production environment
 SENTRY_ENVIRONMENT=production
 
-# Set in Netlify preview/branch deploys
+# Set in Railway staging environment
 SENTRY_ENVIRONMENT=staging
 
 # Local development
@@ -501,7 +500,7 @@ SENTRY_ENVIRONMENT=development
 
 Errors will be tagged with the environment in Sentry.
 
-**Note:** The code already uses `process.env.CONTEXT` from Netlify, which sets `production`, `deploy-preview`, or `branch-deploy` automatically.
+**Note:** The code uses `process.env.RAILWAY_ENVIRONMENT` or `process.env.NODE_ENV` to determine the environment automatically.
 
 ## Further Reading
 

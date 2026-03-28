@@ -19,7 +19,7 @@ module.exports = {
     '<rootDir>/src/lib/**/*.test.ts',
   ],
   transformIgnorePatterns: [
-    '/node_modules/(?!(@netlify/blobs|@netlify/runtime-utils)/)',
+    '/node_modules/',
   ],
   collectCoverage: true,
   coverageDirectory: 'coverage/cli',

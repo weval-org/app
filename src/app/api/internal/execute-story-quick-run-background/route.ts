@@ -1,4 +1,4 @@
-import type { BackgroundHandler } from '@netlify/functions';
+import { NextRequest, NextResponse } from 'next/server';
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
 import { configure } from '@/cli/config';
@@ -6,9 +6,8 @@ import { getLogger } from '@/utils/logger';
 import { executeComparisonPipeline } from '@/cli/services/comparison-pipeline-service';
 import { ComparisonConfig, EvaluationMethod, FinalComparisonOutputV2 } from '@/cli/types/cli_types';
 import { toSafeTimestamp } from '@/lib/timestampUtils';
-import { cleanupTmpCache } from '@/lib/cache-service';
 import { initSentry, captureError, setContext, flushSentry } from '@/utils/sentry';
-import { checkBackgroundFunctionAuth } from '@/lib/background-function-auth';
+import { checkBackgroundAuth } from '@/lib/background-function-auth';
 
 const s3Client = new S3Client({
   region: process.env.APP_S3_REGION!,
@@ -52,7 +51,7 @@ function compactify(run: FinalComparisonOutputV2) {
   for (const p of run.config.prompts || []) {
     const modelResponses: any = {};
     const scores: any = {};
-    const assessments: any = {}; // NEW: Store point assessments per model
+    const assessments: any = {};
     const allFinal = run.allFinalAssistantResponses || {};
     const ideal = allFinal[p.id]?.['ideal'];
 
@@ -60,12 +59,10 @@ function compactify(run: FinalComparisonOutputV2) {
       if (modelId === 'ideal') continue;
       modelResponses[modelId] = allFinal[p.id]?.[modelId] || null;
       const coverage = run.evaluationResults.llmCoverageScores?.[p.id]?.[modelId] || null;
-      // Use avgCoverageExtent when available; default to 0
       scores[modelId] = (coverage && typeof coverage === 'object' && 'avgCoverageExtent' in coverage
         ? (coverage as any).avgCoverageExtent
         : 0) || 0;
-      
-      // NEW: Include point assessments with judge reasoning
+
       if (coverage && typeof coverage === 'object' && 'pointAssessments' in coverage) {
         assessments[modelId] = (coverage as any).pointAssessments || [];
       }
@@ -77,33 +74,19 @@ function compactify(run: FinalComparisonOutputV2) {
       ideal,
       modelResponses,
       scores,
-      assessments, // NEW: Include detailed assessments
+      assessments,
     });
   }
   return { prompts, models: run.effectiveModels.filter(m => m !== 'ideal') };
 }
 
-
-export const handler: BackgroundHandler = async (event) => {
-  // Initialize Sentry for this function
-  initSentry('execute-story-quick-run-background');
-
-  // Check authentication
-  const authError = checkBackgroundFunctionAuth(event);
-  if (authError) {
-    console.error('[execute-story-quick-run-background] Authentication failed:', authError);
-    await flushSentry();
-    return; // Background handlers return void, not responses
-  }
-
-  const body = event.body ? JSON.parse(event.body) : {};
+async function runPipeline(body: any) {
   const { runId, blueprintKey } = body;
 
   // Set Sentry context for this invocation
   setContext('quickRun', {
     runId,
     blueprintKey,
-    netlifyContext: event.headers?.['x-nf-request-id'],
   });
 
   const logger = await getLogger(`story:quick-run:bg:${runId}`);
@@ -132,9 +115,6 @@ export const handler: BackgroundHandler = async (event) => {
     return;
   }
 
-  // Clean up /tmp cache at start to prevent disk space issues
-  cleanupTmpCache(100); // Keep cache under 100MB
-
   try {
     await updateStatus('pending', 'Fetching test plan...');
 
@@ -160,8 +140,6 @@ export const handler: BackgroundHandler = async (event) => {
       id: outline.id || `story-quickrun-${runId}`,
       title: outline.title || 'Story Quick Test',
       description: outline.description || undefined,
-      // Intentionally ignore any models specified in the outline for quick runs.
-      // We want a consistent default cohort here.
       models: DEFAULT_MODELS,
       prompts: limitedPrompts,
       evaluationConfig: {
@@ -174,28 +152,25 @@ export const handler: BackgroundHandler = async (event) => {
 
     await updateStatus('generating_responses', 'Generating model responses...');
 
-    // NOTE: The streaming callback from the pipeline is not yet implemented for background functions.
-    // We will update status before and after major steps.
-
     const { data: finalOutput } = await executeComparisonPipeline(
       config,
       'story-quickrun',
       ['llm-coverage'],
       logger as any,
-      undefined, // existingResponsesMap
-      undefined, // forcePointwiseKeyEval
-      true,      // useCache
-      undefined, // commitSha
-      undefined, // blueprintFileName
-      undefined, // requireExecutiveSummary
-      true,      // skipExecutiveSummary
-      { genTimeoutMs: 25000, genRetries: 0 }, // genOptions
-      undefined, // prefilledCoverage
-      undefined, // fixturesCtx
-      true,      // noSave
+      undefined,
+      undefined,
+      true,
+      undefined,
+      undefined,
+      undefined,
+      true,
+      { genTimeoutMs: 25000, genRetries: 0 },
+      undefined,
+      undefined,
+      true,
     );
 
-    await updateStatus('evaluating', 'Scoring responses...'); // Simplified status for now
+    await updateStatus('evaluating', 'Scoring responses...');
 
     const compactResult = compactify(finalOutput);
 
@@ -229,7 +204,26 @@ export const handler: BackgroundHandler = async (event) => {
       errorType: error.name,
     });
 
-    // Ensure Sentry events are sent before function exits
     await flushSentry();
   }
-};
+}
+
+export async function POST(req: NextRequest) {
+  // Initialize Sentry for this function
+  initSentry('execute-story-quick-run-background');
+
+  // Check authentication
+  const authError = checkBackgroundAuth(req);
+  if (authError) {
+    console.error('[execute-story-quick-run-background] Authentication failed');
+    await flushSentry();
+    return authError;
+  }
+
+  const body = await req.json();
+
+  // Fire-and-forget the async work
+  runPipeline(body);
+
+  return NextResponse.json({ accepted: true }, { status: 202 });
+}

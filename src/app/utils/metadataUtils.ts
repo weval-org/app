@@ -50,7 +50,7 @@ export async function generateAnalysisPageMetadata(
   const description = `Detailed analysis for Blueprint '${inferredTitle}' (Version: ${runLabel.substring(0,12)}...), executed on ${new Date(fromSafeTimestamp(timestamp)).toLocaleDateString()}`;
   
   // Consistent appUrl definition
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:8888' : 'https://weval.org');
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:3172' : 'https://weval.org');
   console.log('[metadataUtils] appUrl for analysis page:', appUrl);
 
   // Construct image URL carefully, pointing to the opengraph-image route for the specific analysis page.

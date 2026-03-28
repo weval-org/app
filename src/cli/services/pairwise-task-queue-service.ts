@@ -1,12 +1,10 @@
-import fs from 'fs/promises';
-import path from 'path';
-import os from 'os';
 import { createHash } from 'crypto';
 import { SimpleLogger } from '@/lib/blueprint-service';
 import { ComparisonDataV2 as FetchedComparisonData } from '../../app/utils/types';
 import { ConversationMessage } from '@/types/shared';
 import { parseModelIdForApiCall } from '@/app/utils/modelIdUtils';
 import pLimit from '@/lib/pLimit';
+import { getStore, BlobStore } from '@/lib/blob-store';
 
 const TASK_QUEUE_BLOB_STORE_NAME = 'pairwise-tasks-v2';
 const GENERATION_STATUS_BLOB_STORE_NAME = 'pairwise-generation-status';
@@ -19,116 +17,15 @@ function getConfigIndexKey(configId: string): string {
     return `_index_${configId}`;
 }
 
-let netlifyToken: string | null = null;
-
 // Helper function to generate SHA256 hash
 function sha256(input: string): string {
   return createHash('sha256').update(input).digest('hex');
 }
 
-// Manually construct blob store credentials for local CLI execution
-// This allows the CLI to run outside of the `netlify dev` environment.
-async function getBlobStore(options?: { storeName?: string, siteId?: string, context?: any }) {
-    console.log('[getBlobStore] Starting, options:', options);
-    const { getStore, getDeployStore } = await import('@netlify/blobs');
+// Get an S3-backed blob store instance
+function getBlobStore(options?: { storeName?: string }): BlobStore {
     const storeName = options?.storeName || TASK_QUEUE_BLOB_STORE_NAME;
-    const siteIdOverride = options?.siteId;
-    const netlifyContext = options?.context;
-
-    if (siteIdOverride) {
-        console.log('[getBlobStore] Using siteId override:', siteIdOverride);
-        if (!netlifyToken) {
-            try {
-                const globalConfigPath = path.join(os.homedir(), '.netlify', 'config.json');
-                const configData = await fs.readFile(globalConfigPath, 'utf-8');
-                const config = JSON.parse(configData);
-                netlifyToken = config['access-token'];
-                if (!netlifyToken) {
-                    throw new Error('Netlify access token not found in global config.');
-                }
-            } catch (error: any) {
-                throw new Error(`Failed to get Netlify token for siteId override: ${error.message}`);
-            }
-        }
-        console.warn(`[PairwiseQueueService] Overriding site ID with provided: ${siteIdOverride}`);
-        return getStore({ name: storeName,
-            siteID: siteIdOverride,
-            token: netlifyToken,
-        });
-    }
-
-    if (process.env.NETLIFY_SITE_ID && process.env.NETLIFY_AUTH_TOKEN) {
-        console.log('[getBlobStore] Using env vars - SITE_ID:', process.env.NETLIFY_SITE_ID, 'TOKEN:', process.env.NETLIFY_AUTH_TOKEN?.substring(0, 10) + '...');
-        return getStore({ name: storeName,
-            siteID: process.env.NETLIFY_SITE_ID,
-            token: process.env.NETLIFY_AUTH_TOKEN,
-        });
-    }
-
-    console.log('[getBlobStore] Env vars not found, trying filesystem...');
-    // Fallback for local CLI execution without override
-    try {
-        const stateConfigPath = path.join(process.cwd(), '.netlify', 'state.json');
-        const stateData = await fs.readFile(stateConfigPath, 'utf-8');
-        const siteId = JSON.parse(stateData).siteId;
-
-        if (!netlifyToken) {
-            const globalConfigPath = path.join(os.homedir(), '.netlify', 'config.json');
-            const configData = await fs.readFile(globalConfigPath, 'utf-8');
-            const config = JSON.parse(configData);
-            netlifyToken = config['access-token'];
-        }
-
-        if (siteId && netlifyToken) {
-            console.log('[getBlobStore] Using filesystem credentials - siteId:', siteId);
-            return getStore({ name: storeName,
-                siteID: siteId,
-                token: netlifyToken,
-            });
-        }
-    } catch (error: any) {
-        console.log('[getBlobStore] Filesystem fallback failed:', error.message);
-    }
-
-    // Final fallback: use Netlify context if available
-    if (netlifyContext) {
-        console.log('[getBlobStore] Using provided Netlify context');
-
-        // Extract credentials from decoded blobs data (in background functions)
-        if (netlifyContext.blobs && netlifyContext.blobs.token) {
-            console.log('[getBlobStore] Found blobs credentials in context');
-
-            // When manually configuring, both token AND siteID are required
-            const { token, siteId } = netlifyContext.blobs;
-            const edgeURL = netlifyContext.blobs.url;
-
-            if (!siteId) {
-                console.error('[getBlobStore] Missing siteId in blobs context - this is required for manual configuration');
-                throw new Error('Missing siteId in Netlify blobs context');
-            }
-
-            console.log('[getBlobStore] Using manual config with siteId:', siteId);
-            return getStore({
-                name: storeName,
-                siteID: siteId,
-                token: token,
-                edgeURL: edgeURL
-            });
-        }
-
-        console.log('[getBlobStore] Context provided but missing credentials, falling through');
-    }
-
-    // Try Netlify Deploy Store (automatic in some production contexts)
-    console.log('[getBlobStore] Trying Netlify Deploy Store (getDeployStore)');
-    try {
-        return getDeployStore(storeName);
-    } catch (deployStoreError: any) {
-        console.log('[getBlobStore] getDeployStore failed:', deployStoreError.message);
-        console.log('[getBlobStore] Trying getStore with just name (auto-credentials)');
-        // Last resort: try getStore with just name (auto-discovers credentials in Netlify functions)
-        return getStore(storeName);
-    }
+    return getStore({ name: storeName });
 }
 
 export interface PairwiseTask {
@@ -156,12 +53,12 @@ export interface GenerationStatus {
 
 export async function populatePairwiseQueue(
     resultData: FetchedComparisonData,
-    options: { logger: SimpleLogger, siteId?: string, context?: any }
+    options: { logger: SimpleLogger }
 ): Promise<{ tasksAdded: number; totalTasksInQueue: number; anchorModelMissing?: boolean }> {
-    const { logger, siteId, context } = options;
+    const { logger } = options;
     logger.info('[PairwiseQueueService] Populating pairwise comparison task queue...');
 
-    const store = await getBlobStore({ siteId, context });
+    const store = getBlobStore();
     const existingGlobalIndex = await store.get(TASK_INDEX_KEY, { type: 'json' }) as string[] | undefined || [];
 
     const configId = resultData.configId;
@@ -299,8 +196,8 @@ export async function populatePairwiseQueue(
     return { tasksAdded: uniqueNewTasks.length, totalTasksInQueue: existingGlobalIndex.length };
 }
 
-export async function deletePairwiseTasks(options: { configId?: string, logger: SimpleLogger, siteId?: string }): Promise<{ deletedCount: number }> {
-    const { configId, logger, siteId } = options;
+export async function deletePairwiseTasks(options: { configId?: string, logger: SimpleLogger }): Promise<{ deletedCount: number }> {
+    const { configId, logger } = options;
 
     let totalDeletedCount = 0;
     const storesToProcess = ['pairwise-tasks-v2', 'pairwise-tasks'];
@@ -313,7 +210,7 @@ export async function deletePairwiseTasks(options: { configId?: string, logger: 
             logger.warn(`[PairwiseQueueService] --config-id is ignored for legacy 'pairwise-tasks' store. All tasks in this store will be deleted.`);
         }
 
-        const store = await getBlobStore({ storeName, siteId });
+        const store = getBlobStore({ storeName });
 
         // Handle legacy store
         if (storeName === 'pairwise-tasks') {
@@ -359,7 +256,7 @@ export async function deletePairwiseTasks(options: { configId?: string, logger: 
             await store.delete(configIndexKey);
 
             // Delete generation status for this config
-            const statusStore = await getBlobStore({ storeName: GENERATION_STATUS_BLOB_STORE_NAME, siteId });
+            const statusStore = getBlobStore({ storeName: GENERATION_STATUS_BLOB_STORE_NAME });
             await statusStore.delete(effectiveConfigId);
             logger.info(`[PairwiseQueueService] Deleted generation status for config: ${effectiveConfigId}`);
 
@@ -390,7 +287,7 @@ export async function deletePairwiseTasks(options: { configId?: string, logger: 
             }
 
             // Delete all generation statuses
-            const statusStore = await getBlobStore({ storeName: GENERATION_STATUS_BLOB_STORE_NAME, siteId });
+            const statusStore = getBlobStore({ storeName: GENERATION_STATUS_BLOB_STORE_NAME });
             const { blobs: statusBlobs } = await statusStore.list();
             if (statusBlobs.length > 0) {
                 logger.info(`[PairwiseQueueService] Deleting ${statusBlobs.length} generation status records...`);
@@ -410,27 +307,23 @@ export async function deletePairwiseTasks(options: { configId?: string, logger: 
 export async function updateGenerationStatus(
     configId: string,
     status: GenerationStatus,
-    options?: { siteId?: string, context?: any }
+    options?: {}
 ): Promise<void> {
-    const store = await getBlobStore({
+    const store = getBlobStore({
         storeName: GENERATION_STATUS_BLOB_STORE_NAME,
-        siteId: options?.siteId,
-        context: options?.context
     });
     await store.setJSON(configId, status);
 }
 
 export async function getGenerationStatus(
     configId: string,
-    options?: { siteId?: string, context?: any }
+    options?: {}
 ): Promise<GenerationStatus | null> {
     console.log('[getGenerationStatus] Starting for configId:', configId);
     try {
         console.log('[getGenerationStatus] Getting blob store...');
-        const store = await getBlobStore({
+        const store = getBlobStore({
             storeName: GENERATION_STATUS_BLOB_STORE_NAME,
-            siteId: options?.siteId,
-            context: options?.context
         });
         console.log('[getGenerationStatus] Got store, fetching status...');
         const status = await store.get(configId, { type: 'json' }) as GenerationStatus | undefined;
@@ -445,12 +338,12 @@ export async function getGenerationStatus(
 
 export async function getConfigTaskCount(
     configId: string,
-    options?: { siteId?: string, context?: any }
+    options?: {}
 ): Promise<number> {
     console.log('[getConfigTaskCount] Starting for configId:', configId);
     try {
         console.log('[getConfigTaskCount] Getting blob store...');
-        const store = await getBlobStore({ siteId: options?.siteId, context: options?.context });
+        const store = getBlobStore();
 
         const configIndexKey = getConfigIndexKey(configId);
         console.log('[getConfigTaskCount] Fetching config index:', configIndexKey);

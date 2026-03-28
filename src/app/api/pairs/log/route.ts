@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getStore } from '@netlify/blobs';
+import { getStore } from '@/lib/blob-store';
 
 export const revalidate = 0;
 
@@ -21,8 +21,6 @@ export async function GET() {
   try {
     const store = getStore({
       name: PREFERENCES_STORE_NAME,
-      siteID: process.env.NETLIFY_SITE_ID,
-      token: process.env.NETLIFY_AUTH_TOKEN,
     });
     const { blobs } = await store.list();
     

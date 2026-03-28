@@ -3,7 +3,7 @@
 # Test script for fact-check endpoint
 # Usage: ./examples/test-factcheck.sh [endpoint-url]
 
-ENDPOINT="${1:-http://localhost:8888/.netlify/functions/factcheck}"
+ENDPOINT="${1:-http://localhost:3172/api/internal/factcheck}"
 
 echo "Testing fact-check endpoint: $ENDPOINT"
 echo ""

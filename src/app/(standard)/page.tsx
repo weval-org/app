@@ -23,7 +23,7 @@ import { processBlueprintSummaries } from '@/app/utils/blueprintSummaryUtils';
 import Link from 'next/link';
 import Icon from '@/components/ui/icon';
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:8888' : 'https://weval.org');
+const appUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:3172' : 'https://weval.org');
 
 export const metadata: Metadata = {
   title: 'Weval - The Open Platform for AI Evaluation',

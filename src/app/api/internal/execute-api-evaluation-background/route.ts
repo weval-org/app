@@ -1,45 +1,41 @@
-import type { Handler, HandlerEvent, HandlerContext } from "@netlify/functions";
+import { NextRequest, NextResponse } from 'next/server';
 import path from 'path';
-import { executeComparisonPipeline } from "../../src/cli/services/comparison-pipeline-service";
-import { generateConfigContentHash } from "../../src/lib/hash-utils";
-import { CustomModelDefinition } from '../../src/lib/llm-clients/types';
-import { registerCustomModels } from '../../src/lib/llm-clients/client-dispatcher';
-import { trackStatus } from '../../src/lib/status-tracker';
-import { configure } from '../../src/cli/config';
-import { ComparisonConfig, EvaluationMethod } from '../../src/cli/types/cli_types';
-import { cleanupTmpCache } from '../../src/lib/cache-service';
-import { getLogger } from "../../src/utils/logger";
-import { initSentry, captureError, setContext, flushSentry } from "../../src/utils/sentry";
-import { checkBackgroundFunctionAuth } from "../../src/lib/background-function-auth";
+import { executeComparisonPipeline } from "@/cli/services/comparison-pipeline-service";
+import { generateConfigContentHash } from "@/lib/hash-utils";
+import { CustomModelDefinition } from '@/lib/llm-clients/types';
+import { registerCustomModels } from '@/lib/llm-clients/client-dispatcher';
+import { trackStatus } from '@/lib/status-tracker';
+import { configure } from '@/cli/config';
+import { ComparisonConfig, EvaluationMethod } from '@/cli/types/cli_types';
+import { getLogger } from "@/utils/logger";
+import { initSentry, captureError, setContext, flushSentry } from "@/utils/sentry";
+import { checkBackgroundAuth } from "@/lib/background-function-auth";
 
 const STORAGE_PREFIX = 'api-runs';
 
-export const handler: Handler = async (event: HandlerEvent, context: HandlerContext) => {
+export async function POST(req: NextRequest) {
   // Initialize Sentry for this function
   initSentry('execute-api-evaluation-background');
 
   // Check authentication
-  const authError = checkBackgroundFunctionAuth(event);
+  const authError = checkBackgroundAuth(req);
   if (authError) {
     await flushSentry();
     return authError;
   }
 
-  // Clean up /tmp cache at start to prevent disk space issues
-  cleanupTmpCache(100); // Keep cache under 100MB
-
   let requestPayload: { runId: string; config: ComparisonConfig } | null = null;
 
   try {
-    requestPayload = JSON.parse(event.body || '{}');
+    requestPayload = await req.json();
   } catch (e: any) {
     const error = e instanceof Error ? e : new Error(String(e));
     captureError(error, { parseError: e.message });
     await flushSentry();
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ error: "Invalid JSON in request body.", details: e.message }),
-    };
+    return NextResponse.json(
+      { error: "Invalid JSON in request body.", details: e.message },
+      { status: 400 }
+    );
   }
 
   const { runId, config } = requestPayload as { runId: string; config: ComparisonConfig };
@@ -48,7 +44,6 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
   setContext('apiEval', {
     runId,
     configId: config?.id,
-    netlifyContext: event.headers?.['x-nf-request-id'],
   });
 
   const logger = await getLogger(`api-eval:bg:${runId}`);
@@ -57,10 +52,10 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
     logger.error("Invalid or missing 'runId' or 'config' in payload.", { payloadReceived: requestPayload });
     captureError(new Error("Invalid or missing 'runId' or 'config' in payload"), { payloadReceived: requestPayload });
     await flushSentry();
-    return {
-        statusCode: 400,
-        body: JSON.stringify({ error: "Invalid or missing 'runId' or 'config' in payload." }),
-    };
+    return NextResponse.json(
+      { error: "Invalid or missing 'runId' or 'config' in payload." },
+      { status: 400 }
+    );
   }
 
   const statusTracker = trackStatus(STORAGE_PREFIX, runId, logger as any);
@@ -88,20 +83,14 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
     await statusTracker.running();
     await statusTracker.saveBlueprint(config);
 
-    // The sandbox flow has a explicit 'id' field in the payload that it uses for the configId.
-    // For the API, the blueprint might not have one, so we derive it or use a placeholder.
-    // For now, let's use a portion of the runId as the configId for storage path purposes.
-    // This detail is important because storage paths are like `live/blueprints/{configId}/{runFile}`
-    // A stable but unique-per-run configId is acceptable here as these are isolated runs.
     const configIdForStorage = `api-run-${runId.split('-')[0]}`;
-    config.id = configIdForStorage; // Assign it to the config for the pipeline
+    config.id = configIdForStorage;
 
     // Normalize prompts: synthesize messages[] when only prompt/promptText is provided
     try {
       if (Array.isArray(config?.prompts)) {
         config.prompts = config.prompts.map((p: any) => {
           if (!p) return p;
-          // Prefer existing messages
           if (!Array.isArray(p.messages) || p.messages.length === 0) {
             const text = typeof p.prompt === 'string' ? p.prompt : (typeof p.promptText === 'string' ? p.promptText : undefined);
             if (typeof text === 'string' && text.trim().length > 0) {
@@ -155,15 +144,12 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
 
     if (fileName) {
         logger.success(`Pipeline for runId: ${runId} completed. Output file: ${fileName}`);
-        
-        // The full analysis path needs the timestamp, which is part of the filename.
-        // Filename format: {timestamp}_{contentHash}_comparison.json
+
         const timestamp = path.basename(fileName).split('_')[1];
         const resultUrl = `${process.env.NEXT_PUBLIC_APP_URL}/analysis/${configIdForStorage}/${runLabel}/${timestamp}`;
-        
+
         await statusTracker.completed({
             message: "Evaluation completed successfully.",
-            // Save the real persisted key so result readers can fetch directly
             output: `live/blueprints/${configIdForStorage}/${fileName}`,
             resultUrl: resultUrl,
         });
@@ -171,10 +157,12 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
         logger.info('API evaluation completed successfully');
         await flushSentry();
 
-        return {
-            statusCode: 200,
-            body: JSON.stringify({ message: "API evaluation pipeline finished.", runId, output: fileName, resultUrl }),
-        };
+        return NextResponse.json({
+          message: "API evaluation pipeline finished.",
+          runId,
+          output: fileName,
+          resultUrl,
+        });
     } else {
         throw new Error("Pipeline execution did not return a valid output key.");
     }
@@ -195,16 +183,15 @@ export const handler: Handler = async (event: HandlerEvent, context: HandlerCont
         details: error.message,
     });
 
-    // Ensure Sentry events are sent before function exits
     await flushSentry();
 
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
+    return NextResponse.json(
+      {
         error: "Unhandled error during pipeline execution.",
         details: error.message,
-        runId: runId
-      }),
-    };
+        runId: runId,
+      },
+      { status: 500 }
+    );
   }
-};
+}

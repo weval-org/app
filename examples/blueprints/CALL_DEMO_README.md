@@ -13,11 +13,11 @@ The `$call` point function allows you to integrate external services into your e
 ## Files
 
 - `call-demo.yml` - Blueprint demonstrating various `$call` use cases
-- `../netlify/functions/demo-external-evaluator.ts` - Mock external service endpoint
+- `../src/app/api/internal/demo-external-evaluator/route.ts` - Mock external service endpoint
 
 ## Demo External Evaluator
 
-The demo includes a simple Netlify function (`demo-external-evaluator`) that performs quality checks:
+The demo includes a simple API route (`demo-external-evaluator`) that performs quality checks:
 
 **Evaluation Types:**
 - `length` - Checks if response meets length constraints
@@ -50,15 +50,15 @@ The demo includes a simple Netlify function (`demo-external-evaluator`) that per
 
 ### Option 1: Local Testing (Recommended)
 
-1. **Start Netlify Dev** (in one terminal):
+1. **Start the dev server** (in one terminal):
    ```bash
-   netlify dev
+   pnpm dev
    ```
-   This starts the local Netlify functions server at `http://localhost:8888`
+   This starts the local Next.js server at `http://localhost:3172`
 
 2. **Set environment variable** (in another terminal):
    ```bash
-   export DEMO_EVALUATOR_URL="http://localhost:8888/.netlify/functions/demo-external-evaluator"
+   export DEMO_EVALUATOR_URL="http://localhost:3172/api/internal/demo-external-evaluator"
    ```
 
 3. **Run the blueprint**:
@@ -68,10 +68,10 @@ The demo includes a simple Netlify function (`demo-external-evaluator`) that per
 
 ### Option 2: Using Deployed Endpoint
 
-If you have a deployed Netlify site:
+If you have a deployed site:
 
 ```bash
-export DEMO_EVALUATOR_URL="https://your-site.netlify.app/.netlify/functions/demo-external-evaluator"
+export DEMO_EVALUATOR_URL="https://weval.org/api/internal/demo-external-evaluator"
 pnpm cli run-config examples/blueprints/call-demo.yml
 ```
 
@@ -80,11 +80,11 @@ pnpm cli run-config examples/blueprints/call-demo.yml
 Test the endpoint directly:
 
 ```bash
-# Start netlify dev first
-netlify dev
+# Start the dev server first
+pnpm dev
 
 # In another terminal:
-curl -X POST http://localhost:8888/.netlify/functions/demo-external-evaluator \
+curl -X POST http://localhost:3172/api/internal/demo-external-evaluator \
   -H "Content-Type: application/json" \
   -d '{
     "response": "Photosynthesis is the process by which plants convert sunlight into energy.",
@@ -247,12 +247,12 @@ Or for errors:
 - Make sure you've exported the environment variable before running the CLI
 
 **Error: fetch failed**
-- Ensure `netlify dev` is running
-- Check that the URL is correct (localhost:8888 by default)
+- Ensure `pnpm dev` is running
+- Check that the URL is correct (localhost:3172 by default)
 
 **Error: HTTP 404**
 - Verify the function name is correct: `demo-external-evaluator`
-- Check that the function file exists in `netlify/functions/`
+- Check that the route file exists in `src/app/api/internal/demo-external-evaluator/`
 
 **Slow responses**
 - Adjust `timeout_ms` if your service needs more time
@@ -260,7 +260,7 @@ Or for errors:
 
 ## Next Steps
 
-- Modify `demo-external-evaluator.ts` to add custom evaluation logic
+- Modify the `demo-external-evaluator` route to add custom evaluation logic
 - Create your own external service for domain-specific validation
 - Integrate with real fact-checking APIs, code execution sandboxes, etc.
 - Combine `$call` with other point functions for comprehensive evaluation

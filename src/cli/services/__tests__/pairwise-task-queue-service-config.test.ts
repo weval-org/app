@@ -7,16 +7,13 @@ import {
   GenerationStatus,
 } from '../pairwise-task-queue-service';
 
-// Mock @netlify/blobs
-jest.mock('@netlify/blobs', () => ({
+// Mock @/lib/blob-store
+jest.mock('@/lib/blob-store', () => ({
   getStore: jest.fn(),
 }));
 
-// Mock fs/promises for credential reading
-jest.mock('fs/promises');
-jest.mock('fs');
 
-const { getStore } = require('@netlify/blobs');
+const { getStore } = require('@/lib/blob-store');
 
 describe('pairwise-task-queue-service - config-specific functions', () => {
   let mockStore: any;
@@ -79,24 +76,6 @@ describe('pairwise-task-queue-service - config-specific functions', () => {
       expect(mockStore.get).toHaveBeenCalledWith('_index_config-beta', { type: 'json' });
     });
 
-    it('should respect siteId option', async () => {
-      // Mock fs to provide credentials for siteId override path
-      const fs = require('fs/promises');
-      (fs.readFile as any).mockResolvedValue(JSON.stringify({ 'access-token': 'test-token' }));
-
-      mockStore.get.mockResolvedValue([]);
-
-      await getConfigTaskCount('config-a', { siteId: 'custom-site-id' });
-
-      // When siteId is provided, getBlobStore will call getStore with credentials
-      expect(getStore).toHaveBeenCalledWith(
-        expect.objectContaining({
-          name: 'pairwise-tasks-v2',
-          siteID: 'custom-site-id',
-          token: 'test-token',
-        })
-      );
-    });
   });
 
   describe('updateGenerationStatus', () => {
@@ -141,28 +120,6 @@ describe('pairwise-task-queue-service - config-specific functions', () => {
       expect(mockStore.setJSON).toHaveBeenCalledWith('config-a', status);
     });
 
-    it('should respect siteId option', async () => {
-      // Mock fs to provide credentials for siteId override path
-      const fs = require('fs/promises');
-      (fs.readFile as any).mockResolvedValue(JSON.stringify({ 'access-token': 'test-token' }));
-
-      const status: GenerationStatus = {
-        status: 'pending',
-        message: 'Queued...',
-        timestamp: '2024-01-01T00:00:00.000Z',
-      };
-
-      await updateGenerationStatus('config-a', status, { siteId: 'custom-site-id' });
-
-      // When siteId is provided, getBlobStore will call getStore with credentials
-      expect(getStore).toHaveBeenCalledWith(
-        expect.objectContaining({
-          name: 'pairwise-generation-status',
-          siteID: 'custom-site-id',
-          token: 'test-token',
-        })
-      );
-    });
   });
 
   describe('getGenerationStatus', () => {
@@ -188,25 +145,6 @@ describe('pairwise-task-queue-service - config-specific functions', () => {
       const result = await getGenerationStatus('config-a');
 
       expect(result).toBeNull();
-    });
-
-    it('should respect siteId option', async () => {
-      // Mock fs to provide credentials for siteId override path
-      const fs = require('fs/promises');
-      (fs.readFile as any).mockResolvedValue(JSON.stringify({ 'access-token': 'test-token' }));
-
-      mockStore.get.mockResolvedValue(undefined);
-
-      await getGenerationStatus('config-a', { siteId: 'custom-site-id' });
-
-      // When siteId is provided, getBlobStore will call getStore with credentials
-      expect(getStore).toHaveBeenCalledWith(
-        expect.objectContaining({
-          name: 'pairwise-generation-status',
-          siteID: 'custom-site-id',
-          token: 'test-token',
-        })
-      );
     });
 
     it('should handle all status states', async () => {
