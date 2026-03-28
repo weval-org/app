@@ -12,7 +12,8 @@ global.fetch = jest.fn();
 
 const MOCK_API_KEY = 'test-api-key';
 process.env.PUBLIC_API_KEY = MOCK_API_KEY;
-process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000';
+process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3172';
+process.env.BACKGROUND_FUNCTION_AUTH_TOKEN = 'test-token';
 
 const mockBlueprint = `
 title: "API Test Blueprint"

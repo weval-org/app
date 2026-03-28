@@ -4,14 +4,10 @@
  * IMPORTANT: These tests verify critical cache behavior including:
  * - Concurrent access safety
  * - TTL expiration
- * - Cleanup function behavior
  * - Error handling
  */
 
-import { generateCacheKey, cleanupTmpCache } from '../cache-service';
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
+import { generateCacheKey } from '../cache-service';
 
 describe('generateCacheKey', () => {
   it('should generate consistent keys for identical payloads', () => {
@@ -61,60 +57,6 @@ describe('generateCacheKey', () => {
     // These will be different! This is expected behavior.
     // LLM service constructs payloads consistently, so this is OK.
     expect(key1).not.toBe(key2);
-  });
-});
-
-describe('cleanupTmpCache', () => {
-  const testCacheDir = path.join(os.tmpdir(), '.cache-test-' + Date.now());
-
-  beforeAll(() => {
-    // Set up test environment
-    process.env.AWS_LAMBDA_FUNCTION_NAME = 'test-function';
-  });
-
-  afterAll(() => {
-    // Clean up test environment
-    delete process.env.AWS_LAMBDA_FUNCTION_NAME;
-    if (fs.existsSync(testCacheDir)) {
-      fs.rmSync(testCacheDir, { recursive: true });
-    }
-  });
-
-  beforeEach(() => {
-    // Create fresh test directory
-    if (fs.existsSync(testCacheDir)) {
-      fs.rmSync(testCacheDir, { recursive: true });
-    }
-    fs.mkdirSync(testCacheDir, { recursive: true });
-  });
-
-  it('should do nothing if cache directory does not exist', () => {
-    const nonExistentDir = path.join(os.tmpdir(), 'non-existent-' + Date.now());
-    expect(() => cleanupTmpCache(100)).not.toThrow();
-  });
-
-  // Note: Testing cleanupTmpCache is difficult because it operates on /tmp/.cache
-  // which is shared across tests and relies on isNetlifyFunction detection.
-  // In a real Netlify environment, these tests would need to be integration tests.
-
-  it.skip('should not delete files if under size limit (integration test)', () => {
-    // Skipped: Requires Netlify environment or complex mocking
-  });
-
-  it.skip('should delete oldest files first when over limit (integration test)', () => {
-    // Skipped: Requires Netlify environment or complex mocking
-  });
-
-  it('should handle errors gracefully without crashing', () => {
-    // Mock fs.readdirSync to throw
-    jest.spyOn(fs, 'readdirSync').mockImplementation(() => {
-      throw new Error('Permission denied');
-    });
-
-    // Should not throw
-    expect(() => cleanupTmpCache(100)).not.toThrow();
-
-    jest.restoreAllMocks();
   });
 });
 

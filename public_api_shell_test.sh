@@ -19,7 +19,7 @@ if [ -f .env ]; then
 fi
 
 # 2) Require env vars
-: "${BASE_URL:?set BASE_URL in .env (e.g., http://localhost:3000 or http://localhost:8888)}"
+: "${BASE_URL:?set BASE_URL in .env (e.g., http://localhost:3172)}"
 : "${PUBLIC_API_KEY:?set PUBLIC_API_KEY in .env}"
 
 # 3) Minimal inline JSON blueprint

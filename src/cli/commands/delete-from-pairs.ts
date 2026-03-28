@@ -3,9 +3,9 @@ import { getConfig } from '../config';
 import { deletePairwiseTasks } from '../services/pairwise-task-queue-service';
 import { confirmAction } from '../utils/confirm';
 
-async function actionDeleteFromPairs(options: { configId?: string, siteId?: string }) {
+async function actionDeleteFromPairs(options: { configId?: string }) {
     const { logger } = getConfig();
-    const { configId, siteId } = options;
+    const { configId } = options;
 
     const isConfirmed = await confirmAction({
         title: 'Confirm Deletion',
@@ -22,7 +22,7 @@ async function actionDeleteFromPairs(options: { configId?: string, siteId?: stri
 
     try {
         logger.info('Proceeding with deletion...');
-        const { deletedCount } = await deletePairwiseTasks({ configId, logger, siteId });
+        const { deletedCount } = await deletePairwiseTasks({ configId, logger });
         logger.info(`Operation complete. Deleted ${deletedCount} tasks.`);
     } catch (error: any) {
         logger.error(`An error occurred during deletion: ${error.message}`);
@@ -36,5 +36,4 @@ async function actionDeleteFromPairs(options: { configId?: string, siteId?: stri
 export const deleteFromPairsCommand = new Command('delete-from-pairs')
     .description('Deletes tasks from the pairwise comparison queue.')
     .option('-c, --config-id <id>', 'The configuration ID to delete tasks for. If omitted, ALL tasks will be deleted.')
-    .option('-s, --site-id <siteId>', 'Optional Netlify site ID to use for blob storage.')
-    .action(actionDeleteFromPairs); 
+    .action(actionDeleteFromPairs);

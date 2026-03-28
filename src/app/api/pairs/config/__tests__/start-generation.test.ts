@@ -25,10 +25,12 @@ describe('POST /api/pairs/config/[configId]/start-generation', () => {
     jest.clearAllMocks();
     (global.fetch as jest.Mock).mockResolvedValue({ ok: true });
     process.env.URL = 'http://localhost:3172';
+    process.env.BACKGROUND_FUNCTION_AUTH_TOKEN = 'test-token';
   });
 
   afterEach(() => {
     delete process.env.URL;
+    delete process.env.BACKGROUND_FUNCTION_AUTH_TOKEN;
   });
 
   it('should start generation when no existing job', async () => {
