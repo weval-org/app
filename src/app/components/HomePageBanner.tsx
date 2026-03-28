@@ -1,153 +1,124 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
-import { APP_REPO_URL } from '@/lib/configConstants';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { useRouter } from 'next/navigation';
 import Icon from '@/components/ui/icon';
 
+function AnthropicLogo() {
+  return (
+    <svg fill="none" viewBox="0 0 110 12" className="h-[12px] w-[110px]">
+      <g clipPath="url(#anthropic-clip)">
+        <path d="M4.75961 0.198897L0 11.8011H2.66129L3.6347 9.36464H8.61421L9.58746 11.8011H12.2487L7.48914 0.198897H4.75961ZM4.49553 7.20994L6.12437 3.13259L7.75327 7.20994H4.49553Z" fill="currentColor" />
+        <path d="M22.3992 8.32045L17.0254 0.198897H14.1253V11.8011H16.5989V3.67955L21.9727 11.8011H24.8728V0.198897H22.3992V8.32045Z" fill="currentColor" />
+        <path d="M47.7326 4.82321H42.103V0.198897H39.544V11.8011H42.103V7.06077H47.7326V11.8011H50.2915V0.198897H47.7326V4.82321Z" fill="currentColor" />
+        <path d="M26.9199 2.43646H30.929V11.8011H33.4878V2.43646H37.4969V0.198897H26.9199V2.43646Z" fill="currentColor" />
+        <path d="M71.4966 0C68.0505 0 65.611 2.48619 65.611 6.01657C65.611 9.51381 68.0505 12 71.4966 12C74.9255 12 77.348 9.51381 77.348 6.01657C77.348 2.48619 74.9255 0 71.4966 0ZM71.4966 9.67955C69.4834 9.67955 68.2552 8.28729 68.2552 6.01657C68.2552 3.71271 69.4834 2.32045 71.4966 2.32045C73.4925 2.32045 74.7037 3.71271 74.7037 6.01657C74.7037 8.2873 73.4925 9.67955 71.4966 9.67955Z" fill="currentColor" />
+        <path d="M107.27 7.90608C106.827 9.03315 105.94 9.67955 104.728 9.67955C102.715 9.67955 101.487 8.28729 101.487 6.01657C101.487 3.71271 102.715 2.32045 104.728 2.32045C105.94 2.32045 106.827 2.96685 107.27 4.09392H109.983C109.318 1.60774 107.322 0 104.728 0C101.282 0 98.843 2.48619 98.843 6.01657C98.843 9.51381 101.282 12 104.728 12C107.339 12 109.334 10.3757 110 7.90608H107.27Z" fill="currentColor" />
+        <path d="M90.9615 0.198897L95.7211 11.8011H98.3311L93.5715 0.198897H90.9615Z" fill="currentColor" />
+        <path d="M63.6491 3.72928C63.6491 1.54144 61.9944 0.198897 59.2819 0.198897H53.4475V11.8011H56.0065V7.25967H58.8553L61.4143 11.8011H64.2463L61.4126 6.91375C62.8349 6.38254 63.6491 5.26392 63.6491 3.72928ZM56.0065 2.43641H59.1624C60.4248 2.43641 61.0902 2.88392 61.0902 3.72928C61.0902 4.57463 60.4248 5.02215 59.1624 5.02215H56.0065V2.43641Z" fill="currentColor" />
+        <path d="M85.5706 0.198897H79.7363V11.8011H82.2952V7.59116H85.5706C88.2831 7.59116 89.9378 6.1989 89.9378 3.89502C89.9378 1.59115 88.2831 0.198897 85.5706 0.198897ZM85.4512 5.35359H82.2952V2.43646H85.4512C86.7137 2.43646 87.3789 2.9337 87.3789 3.89502C87.3789 4.85635 86.7137 5.35359 85.4512 5.35359Z" fill="currentColor" />
+      </g>
+      <defs>
+        <clipPath id="anthropic-clip">
+          <rect width="110" height="12" fill="white" />
+        </clipPath>
+      </defs>
+    </svg>
+  );
+}
+
+function MicrosoftLogo() {
+  return (
+    <svg fill="none" viewBox="0 0 71 16" className="h-[16px] w-[71px]">
+      <g clipPath="url(#microsoft-clip)">
+        <path d="M7.19254 0H0V7.6H7.19254V0Z" fill="#F25022" />
+        <path d="M15.1422 0H7.94964V7.6H15.1422V0Z" fill="#7FBA00" />
+        <path d="M7.19254 8.4H0V16H7.19254V8.4Z" fill="#00A4EF" />
+        <path d="M15.1422 8.4H7.94964V16H15.1422V8.4Z" fill="#FFB900" />
+        <path d="M29.5272 3.2V12.8H27.9499V5.26667H27.9289L25.1108 12.8H24.0592L21.178 5.26667H21.157V12.8H19.7059V3.2H21.9772L24.585 10.3111H24.6271L27.3821 3.2H29.5272ZM30.8312 3.93333C30.8312 3.66667 30.9153 3.44444 31.1046 3.26667C31.2938 3.08889 31.5041 3 31.7565 3C32.0299 3 32.2613 3.08889 32.4295 3.26667C32.5977 3.44444 32.7029 3.66667 32.7029 3.93333C32.7029 4.2 32.6188 4.42222 32.4295 4.6C32.2402 4.77778 32.0299 4.86667 31.7565 4.86667C31.4831 4.86667 31.2728 4.77778 31.1046 4.6C30.9363 4.4 30.8312 4.17778 30.8312 3.93333ZM32.5347 5.91111V12.8H30.9994V5.91111H32.5347ZM37.1825 11.6222C37.4138 11.6222 37.6662 11.5778 37.9396 11.4444C38.213 11.3333 38.4653 11.1778 38.6967 11V12.5111C38.4443 12.6667 38.1709 12.7778 37.8554 12.8444C37.54 12.9111 37.2035 12.9556 36.8249 12.9556C35.8575 12.9556 35.0794 12.6444 34.4905 12C33.8806 11.3556 33.5862 10.5333 33.5862 9.55555C33.5862 8.44444 33.9017 7.53333 34.5116 6.82222C35.1214 6.11111 35.9837 5.75556 37.1194 5.75556C37.4138 5.75556 37.7082 5.8 37.9816 5.86667C38.2761 5.93333 38.5074 6.04444 38.6756 6.13333V7.68889C38.4443 7.51111 38.1919 7.35556 37.9606 7.26667C37.7082 7.17778 37.4559 7.11111 37.2035 7.11111C36.5936 7.11111 36.1099 7.31111 35.7313 7.73333C35.3528 8.15555 35.1845 8.71111 35.1845 9.42222C35.1845 10.1111 35.3738 10.6667 35.7313 11.0444C36.0889 11.4222 36.5726 11.6222 37.1825 11.6222ZM43.0501 5.8C43.1762 5.8 43.2814 5.8 43.3866 5.82222C43.4917 5.84444 43.5758 5.86667 43.6389 5.88889V7.53333C43.5548 7.46667 43.4496 7.4 43.2814 7.35555C43.1132 7.31111 42.9449 7.26667 42.7136 7.26667C42.335 7.26667 42.0195 7.44444 41.7672 7.77778C41.5148 8.11111 41.3676 8.62222 41.3676 9.33333V12.8H39.8323V5.91111H41.3676V7H41.3886C41.5358 6.62222 41.7461 6.33333 42.0195 6.11111C42.314 5.91111 42.6505 5.8 43.0501 5.8ZM43.723 9.46667C43.723 8.33333 44.0385 7.42222 44.6274 6.75556C45.2373 6.08889 46.0785 5.75556 47.1511 5.75556C48.1605 5.75556 48.9597 6.06667 49.5275 6.71111C50.0954 7.35556 50.3898 8.22222 50.3898 9.31111C50.3898 10.4222 50.0743 11.3111 49.4855 11.9778C48.8756 12.6444 48.0554 12.9778 47.0038 12.9778C45.9944 12.9778 45.1952 12.6667 44.6063 12.0444C44.0175 11.4 43.723 10.5333 43.723 9.46667ZM45.3214 9.4C45.3214 10.1111 45.4686 10.6667 45.7841 11.0444C46.0995 11.4222 46.5412 11.6222 47.109 11.6222C47.6558 11.6222 48.0975 11.4444 48.3919 11.0444C48.6863 10.6667 48.8335 10.1111 48.8335 9.35555C48.8335 8.62222 48.6863 8.06667 48.3919 7.66667C48.0975 7.28889 47.6558 7.08889 47.13 7.08889C46.5622 7.08889 46.1416 7.28889 45.8261 7.68889C45.4686 8.11111 45.3214 8.66667 45.3214 9.4ZM52.6822 7.73333C52.6822 7.95555 52.7453 8.15555 52.8925 8.28889C53.0397 8.42222 53.3341 8.57778 53.8178 8.77778C54.4277 9.04444 54.8694 9.33333 55.1007 9.64444C55.3531 9.97778 55.4793 10.3556 55.4793 10.8222C55.4793 11.4667 55.2479 11.9778 54.7642 12.3778C54.3015 12.7778 53.6496 12.9556 52.8504 12.9556C52.577 12.9556 52.2826 12.9111 51.9461 12.8444C51.6096 12.7778 51.3362 12.6889 51.1049 12.5778V10.9778C51.3783 11.1778 51.6937 11.3556 52.0092 11.4667C52.3246 11.5778 52.6191 11.6444 52.8925 11.6444C53.229 11.6444 53.5024 11.6 53.6496 11.4889C53.8178 11.3778 53.902 11.2222 53.902 10.9778C53.902 10.7556 53.8178 10.5778 53.6496 10.4C53.4813 10.2444 53.1448 10.0667 52.6822 9.86667C52.1143 9.62222 51.7148 9.33333 51.4834 9.02222C51.2521 8.71111 51.1259 8.31111 51.1259 7.82222C51.1259 7.2 51.3572 6.68889 51.8199 6.28889C52.2826 5.88889 52.8925 5.68889 53.6286 5.68889C53.8599 5.68889 54.1123 5.71111 54.3857 5.77778C54.6591 5.84444 54.9114 5.91111 55.1007 5.97778V7.55555C54.8904 7.42222 54.6591 7.28889 54.3857 7.17778C54.1123 7.06667 53.8389 7.02222 53.5865 7.02222C53.2921 7.02222 53.0607 7.08889 52.9135 7.2C52.7663 7.35556 52.6822 7.51111 52.6822 7.73333ZM56.1312 9.46667C56.1312 8.33333 56.4467 7.42222 57.0355 6.75556C57.6454 6.08889 58.4867 5.75556 59.5592 5.75556C60.5687 5.75556 61.3679 6.06667 61.9357 6.71111C62.5036 7.35556 62.798 8.22222 62.798 9.31111C62.798 10.4222 62.4825 11.3111 61.8937 11.9778C61.2838 12.6444 60.4636 12.9778 59.412 12.9778C58.4025 12.9778 57.6034 12.6667 57.0145 12.0444C56.4467 11.4 56.1312 10.5333 56.1312 9.46667ZM57.7296 9.4C57.7296 10.1111 57.8768 10.6667 58.1922 11.0444C58.5077 11.4222 58.9493 11.6222 59.5172 11.6222C60.064 11.6222 60.5056 11.4444 60.8001 11.0444C61.0945 10.6667 61.2417 10.1111 61.2417 9.35555C61.2417 8.62222 61.0945 8.06667 60.8001 7.66667C60.5056 7.28889 60.064 7.08889 59.5382 7.08889C58.9704 7.08889 58.5498 7.28889 58.2343 7.68889C57.8978 8.11111 57.7296 8.66667 57.7296 9.4ZM67.9085 7.24444H65.6161V12.8H64.0598V7.24444H62.9662V5.91111H64.0598V4.95556C64.0598 4.24444 64.2912 3.64444 64.7328 3.17778C65.1745 2.71111 65.7423 2.48889 66.4363 2.48889C66.6256 2.48889 66.7938 2.51111 66.9411 2.51111C67.0883 2.51111 67.2145 2.55556 67.3196 2.6V4C67.2775 3.97778 67.1724 3.93333 67.0462 3.88889C66.92 3.84444 66.7728 3.82222 66.6046 3.82222C66.2891 3.82222 66.0367 3.93333 65.8685 4.13333C65.7002 4.33333 65.6161 4.66667 65.6161 5.06667V5.88889H67.9085V4.33333L69.4437 3.84444V5.88889H71V7.22222H69.4437V10.4444C69.4437 10.8667 69.5278 11.1556 69.654 11.3333C69.8012 11.5111 70.0326 11.6 70.348 11.6C70.4322 11.6 70.5373 11.5778 70.6635 11.5333C70.7897 11.4889 70.8948 11.4444 70.979 11.3778V12.7111C70.8738 12.7778 70.7266 12.8222 70.4953 12.8667C70.2639 12.9111 70.0536 12.9333 69.8223 12.9333C69.1703 12.9333 68.6866 12.7556 68.3711 12.4C68.0557 12.0444 67.8874 11.4889 67.8874 10.7556L67.9085 7.24444Z" fill="#737373" />
+      </g>
+      <defs>
+        <clipPath id="microsoft-clip">
+          <rect width="71" height="16" fill="white" />
+        </clipPath>
+      </defs>
+    </svg>
+  );
+}
+
+function StanfordLogo() {
+  return (
+    <svg fill="none" viewBox="0 0 31.4885 47.7963" className="h-[32px] w-[21px]">
+      {/* Red base */}
+      <path d="M6.80099 0.000229256L0 6.57298V24.2341L5.91205 30.1915H8.62315C8.55715 30.3708 8.4706 30.6471 8.65881 30.9176C8.8635 31.2175 9.21674 31.2175 9.3521 31.2175C9.51056 31.2175 9.73174 31.1979 10.0718 31.1523H10.0758C10.0758 31.1523 10.2178 31.2768 9.78529 31.4169C9.42874 31.5407 9.11776 31.7454 9.01541 32.0974C9.00864 32.1234 9.00615 32.1502 8.99956 32.173H0.00268238L3.87564e-05 41.2L6.80103 47.7963H24.6875L31.4885 41.2093V24.2923L25.5753 18.344H20.5612C20.3321 18.211 20.105 18.0735 19.897 17.9399L19.8204 17.8916L19.8072 17.8838C19.695 17.8154 19.5768 17.7313 19.448 17.6205C19.3358 17.5325 19.2427 17.4445 19.1734 17.3663L19.1535 17.3467C19.0215 17.2099 18.9059 17.0789 18.8168 16.9648C19.5992 17.1864 20.4516 17.2425 20.861 17.2555H20.9098C20.9362 17.2555 20.9633 17.2594 20.9864 17.2594L21.0221 17.262C21.1211 17.2687 21.197 17.2848 21.2465 17.3011C21.2994 17.3207 21.3462 17.3442 21.3892 17.3637L21.6004 17.4419C21.65 17.4549 21.7028 17.4576 21.7589 17.4576C22.0659 17.4576 22.3531 17.2751 22.4852 16.9883C22.5281 16.8905 22.5941 16.6956 22.5446 16.4382L31.4876 16.4447V6.58324L24.6879 0H6.80145L6.80099 0.000229256Z" fill="#8C1515" />
+      {/* White cutout */}
+      <path d="M30.6763 6.93209L24.359 0.814914H7.12925L0.810422 6.92218V23.8984L6.24759 29.3735L9.75357 29.3769C9.3607 29.7256 9.23857 30.0873 9.17583 30.2633C9.04048 30.6511 8.89852 30.7619 10.1299 30.5925C10.5195 30.5371 11.2293 30.2894 11.5626 30.0678C11.8895 29.8462 12.5365 30.0254 12.4804 30.5045C12.1767 31.2377 11.3976 31.6973 10.6547 31.7885C8.94467 32.0004 9.68416 32.6294 9.68416 32.6294C9.87234 32.7565 10.0077 32.8803 10.1034 32.9911H9.27151V32.9878H0.813473L0.810092 40.8517L7.12558 46.9786H24.3587L30.674 40.8614V24.6318L25.2368 19.1633H20.8429C20.493 18.9319 20.0209 18.6744 19.5917 18.3974C19.5917 18.3941 19.5917 18.3941 19.5883 18.3941C19.4232 18.2996 19.2615 18.1823 19.1063 18.0486C18.9776 17.9476 18.862 17.8401 18.763 17.7325C18.3833 17.3414 18.0994 16.9341 18.0235 16.745C17.8815 16.3996 17.9145 15.9629 18.2348 16.1421C19.0469 16.6049 20.3807 16.6929 20.8758 16.7092C20.9319 16.7092 21.3314 16.7548 21.4271 16.7841C21.5262 16.8232 21.678 16.8949 21.678 16.8949C21.8794 16.9796 22.2425 16.7059 21.8233 16.2007C21.7143 16.028 21.5493 15.8292 21.3545 15.6272H30.6737V6.93213" fill="white" />
+      {/* Red detail layer */}
+      <path d="M7.45402 1.62974L1.62081 7.27112V23.5579L6.58604 28.5578H11.2474C12.043 28.2128 12.2114 28.2423 12.4325 27.8025C12.4655 27.7326 12.4983 27.5305 12.5018 27.3331C12.5117 27.2772 12.6109 26.6834 12.3202 26.828C11.8218 27.0751 10.8148 26.4223 10.062 26.8109C9.30931 27.1948 9.86067 26.3027 9.96631 26.1488C9.96631 26.1488 10.369 25.625 10.9765 25.2784C10.9996 25.266 11.0194 25.2536 11.0358 25.2396C11.0953 25.2069 11.1548 25.179 11.2177 25.1494C11.6797 24.9365 12.9967 24.0708 13.2345 23.8004C13.3765 23.6434 13.6275 23.2843 13.6374 23.0854C13.6802 22.9129 13.7134 22.6393 13.5451 22.5321C13.2942 22.3689 13.0926 22.6875 12.6998 22.8616C12.3068 23.0341 12.0097 23.1056 11.6598 23.118C11.3231 23.1289 10.9996 23.0015 10.7982 23.031C10.5967 23.0636 10.4778 22.9129 10.8477 22.5445C11.016 22.3782 11.0889 22.3036 11.1681 22.2477C12.0463 21.6913 12.8352 21.685 13.2776 20.6966C13.2776 20.6966 13.621 19.8106 12.9574 20.1883C12.5943 20.3966 12.3963 20.6966 11.3562 20.6966C10.3196 20.6966 9.91341 21.183 9.73849 21.3944C9.73849 21.3944 9.03221 22.3689 9.20713 21.0027C9.38551 19.6412 9.65269 18.9465 10.3031 18.4149C10.8642 17.9596 12.2572 17.3472 12.7592 16.6727C13.0166 16.4209 13.6638 15.6904 13.2874 15.072C13.1288 14.8112 12.7428 15.4868 12.3434 15.5738C11.8877 15.6919 11.3101 15.838 10.8677 15.7494C10.3196 15.6422 9.96962 15.8474 9.76494 15.9391C9.56027 16.0308 9.17391 15.7401 9.64592 15.2089C10.2798 14.4952 11.8118 13.5633 12.8418 13.0059C12.9838 12.9472 13.3302 12.7973 13.6471 12.5986C13.6537 12.5951 13.6604 12.5919 13.6638 12.5919C13.743 12.556 13.8586 12.4874 13.9245 12.3995C14.1491 12.2136 14.3043 12.0053 14.2514 11.7935C14.2053 11.6012 14.1092 11.5359 13.8055 11.5033C13.5646 11.4804 13.1654 11.7576 12.8286 11.7316C12.3136 11.6892 11.5574 11.8064 11.8084 11.4447C12.0426 11.109 12.4222 10.8937 12.5312 10.8351C12.7425 10.7406 13.0265 10.6169 13.4458 10.431C14.1028 10.1377 14.0102 9.40135 13.7561 9.37539C13.3598 9.33296 12.2903 9.67163 13.0429 8.82442C13.0429 8.82442 13.3996 8.46928 13.7594 8.23785C14.0433 8.07497 14.2777 8.01296 14.5582 7.91178C14.7333 7.84992 15.1924 7.44908 14.1029 7.40665C14.1029 7.40665 13.4954 7.42297 13.6109 7.14601C13.7066 6.96354 14.2416 6.63109 14.2416 6.63109C14.2416 6.63109 14.6705 6.34092 14.8456 6.16824C15.0139 6.00847 15.1328 5.88149 15.1228 5.73803C15.1162 5.57515 14.687 5.3731 14.5053 5.14494C14.3767 4.9819 14.4857 4.92346 14.5582 4.90388C14.5979 4.89751 14.6442 4.89082 14.7004 4.89082C15.1427 4.89409 15.2682 4.45735 15.5264 3.32323C15.6019 2.98425 15.6082 2.91275 15.72 2.90949C15.731 2.90949 15.7373 2.91275 15.7436 2.91275C15.7436 2.91275 15.8523 3.48626 16.0113 4.12832C16.1467 4.48346 16.2947 4.63344 16.556 4.63002C16.608 4.63002 16.6552 4.63639 16.6946 4.64308C16.767 4.66266 16.8788 4.72157 16.7465 4.88445C16.6473 5.01159 16.3513 5.2169 16.3277 5.34077C16.2427 5.69265 16.5828 5.81978 16.9292 5.8459C17.4204 5.87838 17.2157 6.18145 16.6851 6.56923C16.1734 6.94396 17.4834 7.74579 17.4834 7.74579C18.2296 8.31619 17.6975 8.4626 17.5463 8.54419C17.3936 8.62237 16.9748 8.87664 17.3936 9.03953C17.8171 9.1993 18.3981 9.77607 18.3981 9.77607C19.1475 10.6233 18.0801 10.2879 17.6849 10.327C17.4298 10.353 17.3385 11.0927 17.995 11.3828C18.9948 11.8292 19.2168 11.9043 19.5695 12.1651C20.2291 12.6474 19.8796 13.058 19.0546 12.9145C19.0546 12.9145 18.5272 12.7843 18.1572 12.8559C17.9258 12.8984 17.7667 12.9504 17.6581 13.0059C17.6014 13.0906 17.4708 13.4262 18.6185 13.7748C19.1664 13.9442 19.8465 14.3519 20.4511 14.8178L29.8677 14.8082L29.8661 7.27687L24.0329 1.62912H7.45433L7.45402 1.62974ZM21.6729 19.9774C21.9437 20.4204 22.1011 21.0001 22.2176 21.8518C22.2208 22.3632 21.5375 22.1145 21.3155 21.9808C21.1612 21.8767 20.9565 21.7803 20.692 21.7182C20.1929 21.6 19.0058 21.0856 18.6815 20.9706C18.3509 20.8509 18.11 21.0918 18.0706 21.1835H18.0738C17.9887 21.3389 18.1635 21.6529 18.1635 21.6529C18.6295 22.6958 19.4876 22.6398 20.4307 23.3081C21.728 24.2205 21.0352 24.4132 20.7676 24.2764C20.5047 24.1365 20.0685 24.2236 20.0685 24.2236C19.0216 24.508 18.7082 24.0775 18.0942 23.9174C17.4834 23.7542 17.9856 24.5049 18.206 24.7551C18.4406 25.0256 19.7615 25.8928 20.2197 26.1042C21.221 26.5642 21.7421 27.3103 22.0523 28.2583C22.3467 29.1551 22.0255 28.9593 21.7878 28.849C21.5501 28.7371 21.4808 28.4961 20.8904 28.5101C20.2968 28.5226 19.9631 28.4806 19.5395 28.1511C19.4278 28.0656 19.338 27.9677 19.2624 27.8869C19.2561 27.8838 19.253 27.8807 19.2498 27.8776C18.8436 27.5714 18.9224 28.5878 19.0058 28.7541C19.2987 29.337 19.497 29.0992 21.1879 29.9898C21.9893 30.4125 22.1783 30.9798 22.2633 31.2176C22.3987 31.6031 22.5372 31.7134 21.3092 31.544C20.9172 31.4911 20.2102 31.244 19.8733 31.0187C19.5506 30.798 18.9003 30.9767 18.9586 31.4554C19.2624 32.189 20.0418 32.649 20.7849 32.7392C21.4351 32.8216 21.7295 32.9614 21.8476 33.1044C22.2034 33.5054 21.5438 34.0929 21.5438 34.0929C21.2131 34.4706 21.5705 34.9136 21.8146 35.0441C22.2113 35.2431 22.9796 35.6984 23.2347 36.3512C24.5682 39.7394 23.2772 38.768 22.6459 38.381C22.0129 37.9925 20.8069 36.9962 19.708 37.0833C18.6091 37.1687 18.2422 37.2278 17.5888 36.7149C16.9386 36.2036 17.0016 37.032 17.0016 37.032V41.118C17.0409 42.0335 17.2126 42.907 17.9494 43.6468C18.5524 44.2576 19.0121 44.1426 19.8639 45.1699C20.2559 45.6424 21.5375 46.1506 22.3924 46.16L24.0329 46.1631L29.8661 40.515V24.9665L24.9051 19.9774H21.6729ZM1.62428 33.8054L1.62097 40.5026L7.45418 46.1537H9.3293C11.0923 46.0683 11.7525 44.7192 12.2873 43.8892C12.69 43.2598 13.4033 42.7251 13.8556 42.2682C14.3342 41.7895 14.4202 40.6937 14.4332 39.5079V37.032L14.4367 37.0568V36.4647H14.44V36.0699H14.4403V35.9782V34.9104C14.4403 34.6618 14.1498 34.6431 13.516 35.3208C12.8788 35.9953 11.8126 35.9393 11.1953 35.9953C10.578 36.0497 8.80188 36.9636 8.29334 37.6179C7.97972 38.0251 7.534 37.6894 7.71553 36.8874H7.70892C7.79472 36.5268 7.95311 36.0404 8.20738 35.3985C8.55721 34.5032 9.87122 33.9779 9.87122 33.9779C9.87122 33.9779 10.0066 33.9189 10.1255 33.8054H1.62428Z" fill="#8C1515" />
+    </svg>
+  );
+}
 
 export default function HomePageBanner() {
-  const [isLearnMoreOpen, setLearnMoreOpen] = React.useState(false);
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const router = useRouter();
+
+  const handleSearch = () => {
+    const q = searchQuery.trim();
+    if (q) {
+      router.push(`/all?q=${encodeURIComponent(q)}`);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSearch();
+    }
+  };
 
   return (
-    <div className="w-full bg-background pt-2 pb-2 text-foreground">
+    <div className="w-full pt-2 pb-2 text-foreground">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center my-10 py-2">
-            <h1 className="text-4xl font-bold mb-4">A Platform to Build and Share AI Evaluations</h1>
-            {/* <p className="max-w-4xl mx-auto text-base sm:text-xl text-foreground/80 dark:text-muted-foreground leading-relaxed">
-            Weval is a collaborative platform to build and share context-specific, nuanced AI evaluations. 
-            </p> */}
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
-          {/* Card 1: Why Weval? */}
-          <div className="bg-card/40 dark:bg-card/40 backdrop-blur-sm p-6 rounded-lg shadow-lg ring-1 ring-border/50 dark:ring-border/50 flex flex-col h-full">
-            <div className="flex items-center mb-4">
-              <Icon name="scale" className="w-8 h-8 mr-4 text-primary" />
-              <h2 className="text-2xl font-semibold text-foreground dark:text-slate-100">Evaluate What Matters</h2>
-            </div>
-            <p className="text-sm text-foreground/80 dark:text-muted-foreground leading-relaxed flex-grow mb-4">
-              Most AI benchmarks test what's easy, not what's important. Weval lets you build deep, qualitative evaluations for everything from niche professional domains to the everyday traits we all care about—like safety, honesty, and helpfulness.
+        <div className="flex items-center gap-12 mt-8 mb-8">
+          {/* Left: heading + subtext + trusted by */}
+          <div className="flex-1 flex flex-col gap-4">
+            <h1 className="text-[24px] font-medium leading-[32px]">
+              An open platform for building evaluations that test what matters
+            </h1>
+            <p className="text-sm text-foreground/70 leading-relaxed">
+              Transparent, reproducible qualitative benchmarks developed by a community of 1,000+ contributors.
             </p>
-            <div className="mt-auto pt-4 border-t border-border/30 dark:border-border/30">
-              <a
-                href={`${APP_REPO_URL}/blob/main/docs/METHODOLOGY.md`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full inline-flex items-center justify-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-md text-primary-foreground bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary dark:ring-offset-background transition-colors shadow-sm hover:shadow-md"
-              >
-                Our Methodology
-              </a>
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-foreground/50">Trusted by</span>
+              <AnthropicLogo />
+              <MicrosoftLogo />
+              <StanfordLogo />
             </div>
           </div>
 
-          {/* Card 2: For Consumers */}
-          <div className="bg-card/40 dark:bg-card/40 backdrop-blur-sm p-6 rounded-lg shadow-lg ring-1 ring-border/50 dark:ring-border/50 flex flex-col h-full">
-            <div className="flex items-center mb-4">
-              <Icon name="book-open" className="w-8 h-8 mr-4 text-primary" />
-              <h2 className="text-2xl font-semibold text-foreground dark:text-slate-100">Explore the Results</h2>
-            </div>
-            <p className="text-sm text-foreground/80 dark:text-muted-foreground leading-relaxed flex-grow mb-4">
-              Browse a public library of community-contributed benchmarks on domains like clinical advice, regional knowledge, legal reasoning, behavioural traits, and AI safety. Track model performance over time as tests re-run automatically.
-            </p>
-            <div className="mt-auto pt-4 border-t border-border/30 dark:border-border/30">
-              <Link
-                href="#featured-blueprints"
-                className="w-full inline-flex items-center justify-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-md text-primary-foreground bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary dark:ring-offset-background transition-colors shadow-sm hover:shadow-md"
+          {/* Right: search */}
+          <div className="w-[420px] shrink-0">
+            <div className="flex items-center gap-2 rounded-xl border border-input bg-white px-4 py-3">
+              <input
+                type="search"
+                placeholder="Search for an evaluation"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className="flex-1 text-sm text-foreground placeholder:text-muted-foreground bg-transparent focus:outline-none"
+              />
+              <button
+                onClick={handleSearch}
+                className="flex items-center justify-center w-9 h-9 rounded-lg bg-foreground text-background hover:bg-foreground/80 transition-colors shrink-0"
+                aria-label="Search"
               >
-                Explore Featured Results
-              </Link>
+                <Icon name="arrow-right" className="w-4 h-4" />
+              </button>
             </div>
           </div>
-
-          {/* Card 3: For Contributors */}
-          <div className="bg-card/40 dark:bg-card/40 backdrop-blur-sm p-6 rounded-lg shadow-lg ring-1 ring-border/50 dark:ring-border/50 flex flex-col h-full">
-            <div className="flex items-center mb-4">
-              <Icon name="edit-3" className="w-8 h-8 mr-4 text-highlight-success" />
-              <h2 className="text-2xl font-semibold text-foreground dark:text-slate-100">Contribute an Eval</h2>
-            </div>
-            <p className="text-sm text-foreground/80 dark:text-muted-foreground leading-relaxed flex-grow mb-4">
-              Are you a domain expert? Do you have strong insights and opinions about how AI should behave? Codify your knowledge into an <span title="An evaluation, testing whether AI/LLMs provide outputs suited to your domain">eval</span>. You can view results, share them privately, or propose them to be featured publicly on weval.org itself.
-            </p>
-            <div className="mt-auto pt-4 border-t border-border/30 dark:border-border/30">
-              <Link
-                href="/sandbox"
-                className="w-full inline-flex items-center justify-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-md text-primary-foreground bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary dark:ring-offset-background transition-colors shadow-sm hover:shadow-md"
-              >
-                Open Sandbox Studio
-              </Link>
-            </div>
-          </div>
-        </div>
-        
-        <div className="mt-10 md:mt-12 text-center">
-            <Collapsible open={isLearnMoreOpen} onOpenChange={setLearnMoreOpen}>
-                <CollapsibleTrigger asChild>
-                    <button className="inline-flex items-center text-sm font-medium text-primary hover:text-primary/90">
-                        Learn more about why we've built Weval.
-                        <Icon name="chevron-down" className={`ml-1.5 h-4 w-4 transition-transform duration-200 ${isLearnMoreOpen ? 'rotate-180' : ''}`} />
-                    </button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mt-6 max-w-5xl mx-auto text-left text-md text-foreground/80 dark:text-muted-foreground space-y-4 prose prose-sm dark:prose-invert">
-                    <p>
-                        <strong>Current AI evaluations measure what's easy, not what's important.</strong> Benchmarks that rely on multiple-choice questions or simple
-                        pass/fail tests can't capture the nuance of real-world tasks. They
-                        can tell you if code runs, but not if it's well-written. They can
-                        test for textbook knowledge, but not for applied wisdom or regional
-                        accuracy.
-                    </p>
-                    <p>
-                        <strong>That's why we built Weval:</strong> an open, collaborative platform to build
-                        evaluations that test what matters to you. We empower a global
-                        community to create qualitative benchmarks for any domain—from
-                        medical chatbots to legal assistance. Just as Wikipedia democratized
-                        knowledge, Weval aims to democratize evaluation, ensuring that AI
-                        works for, and represents, everyone.
-                    </p>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 pt-2">
-                        <div>
-                            <h4 className="font-semibold text-foreground dark:text-slate-200 mt-2 mb-2">What you can do on Weval:</h4>
-                            <ul className="list-disc list-outside pl-5 space-y-2">
-                                <li>
-                                <strong>Publish a benchmark.</strong> Provide a blueprint that describes the task,
-                                the rubric, and the models to test. Weval runs the evaluation and
-                                returns reproducible scores.
-                                </li>
-                                <li>
-                                <strong>Consult the library.</strong> Browse a public leaderboard of community
-                                benchmarks on domains such as clinical advice, legal reasoning,
-                                regional knowledge, and AI safety. Each benchmark re‑runs
-                                automatically to detect performance drift.
-                                </li>
-                            </ul>
-                        </div>
-                        <div>
-                            <h4 className="font-semibold text-foreground dark:text-slate-200 mt-2 mb-2">How the platform works:</h4>
-                            <ul className="list-disc list-outside pl-5 space-y-2">
-                                <li>
-                                <strong>Prompt & rubric.</strong> You develop a prompt for the model, and then
-                                describe what a good answer should (and should not) contain.
-                                </li>
-                                <li>
-                                <strong>Scoring.</strong> Weval combines rubric‑based judgments from "judge"
-                                language models with semantic‑similarity metrics to produce
-                                transparent 0‑1 scores.
-                                </li>
-                                <li>
-                                <strong>Continuous runs.</strong> Benchmarks are re‑executed on schedule or when
-                                models update, and results stay visible in an interactive
-                                dashboard.
-                                </li>
-                            </ul>
-                        </div>
-                    </div>
-                </CollapsibleContent>
-            </Collapsible>
         </div>
       </div>
     </div>
   );
 };
-

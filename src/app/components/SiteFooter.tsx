@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { usePathname } from 'next/navigation';
-import CIPLogo from '@/components/icons/CIPLogo';
+import Link from 'next/link';
 import {
   APP_REPO_URL,
   BLUEPRINT_CONFIG_REPO_URL,
@@ -19,53 +19,57 @@ export function SiteFooter({ contentMaxWidth = 'max-w-7xl' }: SiteFooterProps) {
   const [bugModalOpen, setBugModalOpen] = useState(false);
 
   return (
-    <div className="w-full bg-header py-6 border-t border-border/50">
-      <div className={cn("mx-auto px-4 sm:px-6 lg:px-8", contentMaxWidth)}>
-        <footer className="flex flex-col md:flex-row items-center justify-between gap-6">
-          <a
-            href="https://cip.org"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center space-x-3 group"
-          >
-            <CIPLogo className="w-8 h-8 text-muted-foreground group-hover:text-foreground transition-colors duration-200" />
-            <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors duration-200">
-              A Collective Intelligence Project
-            </span>
-          </a>
-          <div className="flex items-center space-x-4 text-sm">
-            <a
-              href={APP_REPO_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-muted-foreground hover:text-primary dark:hover:text-sky-400 transition-colors"
-            >
-              View App on GitHub
-            </a>
-            <span className="text-muted-foreground/60">|</span>
-            <a
-              href={BLUEPRINT_CONFIG_REPO_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-muted-foreground hover:text-primary dark:hover:text-sky-400 transition-colors"
-            >
-              View Eval Blueprints on GitHub
-            </a>
-            <span className="text-muted-foreground/60">|</span>
-            <button
-              onClick={() => setBugModalOpen(true)}
-              className="text-muted-foreground hover:text-primary dark:hover:text-sky-400 transition-colors"
-            >
-              Report a Bug
-            </button>
+    <footer className="w-full border-t border-[#f2eaea] mt-16 py-12 bg-transparent">
+      <div className={cn('mx-auto px-4 sm:px-6 lg:px-8', contentMaxWidth)}>
+        <div className="flex flex-col md:flex-row justify-between items-start gap-12">
+
+          {/* Left: brand */}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <div className="h-[30px] w-[27px] bg-[#009cff] rounded-sm flex items-center justify-center text-white font-bold text-base shrink-0">
+                W
+              </div>
+              <p className="font-semibold text-sm text-foreground tracking-[0.02em]">
+                Weval{' '}
+                <span className="font-normal tracking-[0.01em]">a Collective Intelligence Project</span>
+              </p>
+            </div>
+            <p className="text-sm text-muted-foreground tracking-[0.01em] ml-[35px]">
+              Transparent, reproducible AI evaluations
+            </p>
           </div>
-        </footer>
+
+          {/* Right: columns */}
+          <div className="flex gap-16">
+            {/* Partners */}
+            <div>
+              <h4 className="font-semibold text-sm text-foreground tracking-[0.01em] mb-3">Partners</h4>
+              <ul className="space-y-2">
+                <li><a href="https://anthropic.com" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground transition-colors tracking-[0.01em]">Anthropic</a></li>
+                <li><a href="https://microsoft.com" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground transition-colors tracking-[0.01em]">Microsoft</a></li>
+                <li><a href="https://stanford.edu" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground transition-colors tracking-[0.01em]">Stanford University</a></li>
+              </ul>
+            </div>
+
+            {/* Contact */}
+            <div>
+              <h4 className="font-semibold text-sm text-foreground tracking-[0.01em] mb-3">Contact</h4>
+              <ul className="space-y-2">
+                <li><a href="mailto:hello@weval.org" className="text-sm text-muted-foreground hover:text-foreground transition-colors tracking-[0.01em]">hello@weval.org</a></li>
+                <li><Link href="/sandbox" className="text-sm text-muted-foreground hover:text-foreground transition-colors tracking-[0.01em]">Submit an evaluation</Link></li>
+                <li><a href={`${APP_REPO_URL}/blob/main/docs/METHODOLOGY.md`} target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground transition-colors tracking-[0.01em]">Documentation</a></li>
+                <li>
+                  <button onClick={() => setBugModalOpen(true)} className="text-sm text-muted-foreground hover:text-foreground transition-colors tracking-[0.01em]">
+                    Report a Bug
+                  </button>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+        </div>
       </div>
-      <BugReportModal
-        open={bugModalOpen}
-        onOpenChange={setBugModalOpen}
-        pathname={pathname}
-      />
-    </div>
+      <BugReportModal open={bugModalOpen} onOpenChange={setBugModalOpen} pathname={pathname} />
+    </footer>
   );
 }
