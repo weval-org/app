@@ -11,6 +11,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import DevModeCapabilitySliders from './DevModeCapabilitySliders';
+import { APP_REPO_URL } from '@/lib/configConstants';
 
 const CapabilityLeaderboardDisplay: React.FC<{ 
   leaderboards: CapabilityLeaderboard[] | null;
@@ -77,15 +78,13 @@ const CapabilityLeaderboardDisplay: React.FC<{
           return (
             <div key={bucket.id} className="border rounded-lg p-4 bg-card">
               <div className="mb-4">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Leaderboard</p>
                 <div className="flex items-start justify-between mb-3">
                   <h4 className="text-lg font-bold text-foreground leading-tight pr-2">{bucket.label}</h4>
                   <Icon name={bucket.icon as any} className="w-6 h-6 flex-shrink-0 text-primary" />
                 </div>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  {bucket.description}
-                </p>
               </div>
-              
+
               <ul className="space-y-2">
                 {displayedModels.map((model: any, index: number) => {
                   // Try to find a matching card with flexible matching using modelIdUtils
@@ -158,7 +157,19 @@ const CapabilityLeaderboardDisplay: React.FC<{
                   );
                 })}
               </ul>
-              
+
+              <p className="text-sm text-muted-foreground leading-relaxed mt-4">
+                {bucket.description}
+              </p>
+              <a
+                href={`${APP_REPO_URL}/blob/main/docs/METHODOLOGY.md`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block mt-2 text-xs text-primary hover:underline"
+              >
+                View methodology
+              </a>
+
               {hasMoreModels && (
                 <div className="mt-3">
                   <hr className="border-dotted border-muted-foreground/30 mb-2" />
