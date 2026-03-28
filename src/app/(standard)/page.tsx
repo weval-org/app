@@ -131,7 +131,6 @@ export default async function HomePage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="fixed inset-0 -z-10 dark:bg-gradient-to-br dark:from-slate-900 dark:to-slate-800 bg-gradient-to-br from-slate-50 to-slate-100" />
       <div className="max-w-7xl mx-auto">
         <HomePageBanner />
         
