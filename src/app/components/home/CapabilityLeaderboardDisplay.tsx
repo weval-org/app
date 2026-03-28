@@ -76,81 +76,64 @@ const CapabilityLeaderboardDisplay: React.FC<{
           const hasMoreModels = bucket.leaderboard.length > 5;
           
           return (
-            <div key={bucket.id} className="border rounded-lg p-4 bg-card">
-              <div className="mb-4">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Leaderboard</p>
-                <div className="flex items-start justify-between mb-3">
-                  <h4 className="text-lg font-bold text-foreground leading-tight pr-2">{bucket.label}</h4>
-                  <Icon name={bucket.icon as any} className="w-6 h-6 flex-shrink-0 text-primary" />
+            <div key={bucket.id} className="border border-[#f2eaea] rounded-[10px] p-6 bg-white dark:bg-card dark:border-border">
+              {/* Header */}
+              <div className="mb-5">
+                <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Leaderboard</p>
+                <div className="flex items-start justify-between">
+                  <h4 className="text-xl font-bold text-foreground leading-tight pr-2">{bucket.label}</h4>
+                  <Icon name={bucket.icon as any} className="w-6 h-6 flex-shrink-0 text-foreground/70 mt-0.5" />
                 </div>
               </div>
 
-              <ul className="space-y-2">
+              {/* Model list */}
+              <ul className="space-y-3">
                 {displayedModels.map((model: any, index: number) => {
-                  // Try to find a matching card with flexible matching using modelIdUtils
                   const findMatchingCard = (modelId: string, mappings?: Record<string, string>) => {
                     if (!mappings) return null;
-                    
-                    // First try exact match
                     if (mappings[modelId]) return mappings[modelId];
-                    
-                    // Parse the target model ID to get its core components
                     const targetParsed = parseModelIdForDisplay(modelId);
                     const targetDisplayName = getModelDisplayLabel(targetParsed, {
-                      hideProvider: true,
-                      hideModelMaker: true,
-                      prettifyModelName: false,
+                      hideProvider: true, hideModelMaker: true, prettifyModelName: false,
                     }).toLowerCase();
-                    
-                    // Look for mappings where the display names match closely
                     for (const [mappedId, cardPattern] of Object.entries(mappings)) {
                       const mappedParsed = parseModelIdForDisplay(mappedId);
                       const mappedDisplayName = getModelDisplayLabel(mappedParsed, {
-                        hideProvider: true,
-                        hideModelMaker: true,
-                        prettifyModelName: false,
+                        hideProvider: true, hideModelMaker: true, prettifyModelName: false,
                       }).toLowerCase();
-                      
-                      // Check if display names match closely (bidirectional substring matching)
-                      if (mappedDisplayName === targetDisplayName || 
+                      if (mappedDisplayName === targetDisplayName ||
                           mappedDisplayName.includes(targetDisplayName) ||
                           targetDisplayName.includes(mappedDisplayName)) {
                         return cardPattern;
                       }
                     }
-                    
                     return null;
                   };
-                  
+
                   const cardPattern = findMatchingCard(model.modelId, modelCardMappings);
                   const hasCard = !!cardPattern;
-                  
                   const modelDisplayName = getModelDisplayLabel(model.modelId, {
-                    hideProvider: true,
-                    hideModelMaker: true,
-                    prettifyModelName: true,
+                    hideProvider: true, hideModelMaker: true, prettifyModelName: true,
                   });
 
                   return (
-                    <li key={model.modelId} className="flex justify-between items-center text-sm">
-                      <div className="flex items-center min-w-0 flex-1">
-                        <span className="font-mono text-sm text-muted-foreground mr-2 w-4 flex-shrink-0">
+                    <li key={model.modelId} className="flex justify-between items-center">
+                      <div className="flex items-center min-w-0 flex-1 gap-2">
+                        <span className="text-sm text-muted-foreground w-5 flex-shrink-0 text-right">
                           {index + 1}.
                         </span>
                         {hasCard ? (
-                          <Link 
+                          <Link
                             href={`/cards/${encodeURIComponent(cardPattern)}`}
-                            className="font-medium truncate text-primary hover:text-primary/80 hover:underline transition-colors"
+                            className="font-semibold text-sm truncate hover:underline transition-colors"
                           >
                             {modelDisplayName}
                           </Link>
                         ) : (
-                          <span className="font-medium truncate">
-                            {modelDisplayName}
-                          </span>
+                          <span className="font-semibold text-sm truncate">{modelDisplayName}</span>
                         )}
                       </div>
-                      <span className="font-semibold text-sm flex-shrink-0">
+                      <span className="font-bold text-sm flex-shrink-0 ml-2">
                         {(model.averageScore * 100).toFixed(0)}%
                       </span>
                     </li>
@@ -158,18 +141,7 @@ const CapabilityLeaderboardDisplay: React.FC<{
                 })}
               </ul>
 
-              <p className="text-sm text-muted-foreground leading-relaxed mt-4">
-                {bucket.description}
-              </p>
-              <a
-                href={`${APP_REPO_URL}/blob/main/docs/METHODOLOGY.md`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-block mt-2 text-xs text-primary hover:underline"
-              >
-                View methodology
-              </a>
-
+              {/* Show more/less — immediately after list */}
               {hasMoreModels && (
                 <div className="mt-3">
                   <hr className="border-dotted border-muted-foreground/30 mb-2" />
@@ -178,19 +150,26 @@ const CapabilityLeaderboardDisplay: React.FC<{
                     className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors duration-200 flex items-center justify-center gap-1"
                   >
                     {isExpanded ? (
-                      <>
-                        <Icon name="chevron-up" className="w-3 h-3" />
-                        Show less
-                      </>
+                      <><Icon name="chevron-up" className="w-3 h-3" />Show less</>
                     ) : (
-                      <>
-                        <Icon name="chevron-down" className="w-3 h-3" />
-                        Show {bucket.leaderboard.length - 5} more
-                      </>
+                      <><Icon name="chevron-down" className="w-3 h-3" />Show {bucket.leaderboard.length - 5} more</>
                     )}
                   </button>
                 </div>
               )}
+
+              {/* Description + methodology */}
+              <p className="text-sm text-muted-foreground leading-relaxed mt-5">
+                {bucket.description}
+              </p>
+              <a
+                href={`${APP_REPO_URL}/blob/main/docs/METHODOLOGY.md`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block mt-2 text-sm text-foreground hover:underline font-medium"
+              >
+                View methodology
+              </a>
             </div>
           );
         })}
