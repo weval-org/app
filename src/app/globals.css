@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -25,7 +27,7 @@
     --background: 44 27% 97%; /* #FAF9F6 — gradient endpoint, also used as fallback */
     --foreground: 330 3% 19%;
     --muted: 240 10% 93%; /* #ececf0 — matches Figma */
-    --muted-foreground: 330 3% 49%; /* Derived from foreground */
+    --muted-foreground: 240 7% 48%; /* #717182 — matches Figma */
     --popover: 0 0% 100%; /* Same as surface */
     --popover-foreground: 330 3% 19%; /* Same as foreground */
     --card: 0 0% 100%; /* Same as surface */
@@ -40,7 +42,7 @@
     --accent-foreground: 330 3% 19%; /* Same as foreground */
     --exciting: 320 80% 58%;
     --exciting-foreground: 0 0% 100%;
-    --destructive: 8 86% 60%;
+    --destructive: 347 80% 46%; /* #d4183d — matches Figma */
     --destructive-foreground: 0 0% 100%;
     --ring:  167 59% 22%; /* Same as primary */
     --radius: 0.5rem;
@@ -209,7 +211,11 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: 'Geist', sans-serif;
+    font-family: 'IBM Plex Sans', 'Geist', sans-serif;
+    letter-spacing: 0.01em;
+  }
+  h1, h2, h3, h4 {
+    letter-spacing: 0.02em;
   }
 }
 

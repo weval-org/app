@@ -8,7 +8,7 @@ interface SiteHeaderProps {
 
 export function SiteHeader({ contentMaxWidth = 'max-w-7xl' }: SiteHeaderProps) {
   return (
-    <header className="w-full sticky top-0 z-50 py-4 border-b border-border/50 bg-[#faf9f6]/90 backdrop-blur-md">
+    <header className="w-full sticky top-0 z-50 py-4 border-b border-[#f2eaea] bg-[#faf9f6]/90 backdrop-blur-md">
       <div className={cn("mx-auto px-4 sm:px-6 lg:px-8", contentMaxWidth)}>
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
@@ -32,24 +32,18 @@ export function SiteHeader({ contentMaxWidth = 'max-w-7xl' }: SiteHeaderProps) {
               </a>
             </div>
           </div>
-          <nav className="flex items-center space-x-1">
-            <Link
-              href="/about"
-              className="px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted/50"
-            >
+          <nav className="flex items-center space-x-6">
+            <Link href="/about" className="relative group text-sm font-medium text-foreground hover:text-foreground/70 transition-colors py-1">
               About
+              <span className="absolute bottom-0 left-0 w-0 h-[1px] bg-foreground transition-all duration-300 ease-out group-hover:w-full" />
             </Link>
-            <Link
-              href="/all"
-              className="px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted/50"
-            >
+            <Link href="/all" className="relative group text-sm font-medium text-foreground hover:text-foreground/70 transition-colors py-1">
               All Evals
+              <span className="absolute bottom-0 left-0 w-0 h-[1px] bg-foreground transition-all duration-300 ease-out group-hover:w-full" />
             </Link>
-            <Link
-              href="/benchmarks"
-              className="px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted/50"
-            >
+            <Link href="/benchmarks" className="relative group text-sm font-medium text-foreground hover:text-foreground/70 transition-colors py-1">
               Benchmarks
+              <span className="absolute bottom-0 left-0 w-0 h-[1px] bg-foreground transition-all duration-300 ease-out group-hover:w-full" />
             </Link>
           </nav>
         </div>

@@ -60,7 +60,7 @@ export default function HomePageBanner() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
           {/* Card 1: Why Weval? */}
-          <div className="bg-card/40 dark:bg-card/40 backdrop-blur-sm p-6 rounded-lg shadow-lg ring-1 ring-border/50 dark:ring-border/50 flex flex-col h-full">
+          <div className="bg-white dark:bg-card p-6 rounded-[10px] shadow-sm hover:shadow-md transition-shadow border border-[#f2eaea] dark:border-border flex flex-col h-full">
             <div className="flex items-center mb-4">
               <Icon name="scale" className="w-8 h-8 mr-4 text-primary" />
               <h2 className="text-2xl font-semibold text-foreground dark:text-slate-100">Evaluate What Matters</h2>
@@ -81,7 +81,7 @@ export default function HomePageBanner() {
           </div>
 
           {/* Card 2: For Consumers */}
-          <div className="bg-card/40 dark:bg-card/40 backdrop-blur-sm p-6 rounded-lg shadow-lg ring-1 ring-border/50 dark:ring-border/50 flex flex-col h-full">
+          <div className="bg-white dark:bg-card p-6 rounded-[10px] shadow-sm hover:shadow-md transition-shadow border border-[#f2eaea] dark:border-border flex flex-col h-full">
             <div className="flex items-center mb-4">
               <Icon name="book-open" className="w-8 h-8 mr-4 text-primary" />
               <h2 className="text-2xl font-semibold text-foreground dark:text-slate-100">Explore the Results</h2>
@@ -100,7 +100,7 @@ export default function HomePageBanner() {
           </div>
 
           {/* Card 3: For Contributors */}
-          <div className="bg-card/40 dark:bg-card/40 backdrop-blur-sm p-6 rounded-lg shadow-lg ring-1 ring-border/50 dark:ring-border/50 flex flex-col h-full">
+          <div className="bg-white dark:bg-card p-6 rounded-[10px] shadow-sm hover:shadow-md transition-shadow border border-[#f2eaea] dark:border-border flex flex-col h-full">
             <div className="flex items-center mb-4">
               <Icon name="edit-3" className="w-8 h-8 mr-4 text-highlight-success" />
               <h2 className="text-2xl font-semibold text-foreground dark:text-slate-100">Contribute an Eval</h2>
