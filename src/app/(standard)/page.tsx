@@ -13,7 +13,6 @@ import { HomepageSummaryFileContent } from '@/lib/storageService';
 import { fromSafeTimestamp } from '@/lib/timestampUtils';
 import React from 'react';
 import type { Metadata } from 'next';
-import TopTagsSection from '@/app/components/home/TopTagsSection';
 import EvaluationFilterSection from '@/app/components/home/EvaluationFilterSection';
 import LatestEvaluationRunsSection, { DisplayableRunInstanceInfo } from '@/app/components/home/LatestEvaluationRunsSection';
 import { BLUEPRINT_CONFIG_REPO_URL, APP_REPO_URL } from '@/lib/configConstants';
@@ -180,8 +179,6 @@ export default async function HomePage() {
                 leaderboardRawData={homepageStats?.capabilityRawData}
                 modelCardMappings={homepageStats?.modelCardMappings}
               />
-              <hr className="my-8 md:my-12 border-border/70 dark:border-slate-700/50 w-3/4 mx-auto" />
-              <TopTagsSection tags={tagsData} />
             </>
           ) : (
            <div className="bg-card/80 dark:bg-slate-800/50 backdrop-blur-md p-8 sm:p-12 rounded-xl shadow-xl ring-1 ring-border dark:ring-slate-700/80 text-center flex flex-col items-center mt-10">
