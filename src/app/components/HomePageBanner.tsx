@@ -99,7 +99,7 @@ export default function HomePageBanner() {
 
           {/* Right: search */}
           <div className="w-[420px] shrink-0">
-            <div className="flex items-center gap-2 rounded-xl border border-input bg-background px-4 py-3">
+            <div className="flex items-center gap-2 rounded-xl border border-input bg-white px-4 py-3">
               <input
                 type="search"
                 placeholder="Search for an evaluation"
