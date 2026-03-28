@@ -126,7 +126,7 @@ export default async function HomePage() {
       <div className="max-w-7xl mx-auto">
         <HomePageBanner />
         
-        <div className="px-4 sm:px-6 lg:px-8 sm:pb-2 md:pb-4 pt-8 md:pt-10 space-y-8 md:space-y-10">
+        <div className="px-4 sm:px-6 lg:px-8 sm:pb-2 md:pb-4 pt-2 space-y-4 md:space-y-6">
           {/* Dev Mode Info */}
           {process.env.NODE_ENV === 'development' && homepageStats && (
             <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
@@ -157,7 +157,6 @@ export default async function HomePage() {
 
           {featuredConfigs.length > 0 ? (
             <>
-              <hr className="my-8 md:my-12 border-border/70 dark:border-slate-700/50 w-3/4 mx-auto" />
               <EvaluationFilterSection
                 blueprints={blueprintSummaries}
                 featuredConfigIds={featuredConfigIds}

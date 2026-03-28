@@ -26,7 +26,7 @@ export default function HomePageBanner() {
   return (
     <div className="w-full pt-2 pb-2 text-foreground">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center my-10 py-2">
+        <div className="text-center mt-8 mb-2">
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-4 leading-tight">An open platform for building evaluations that test what matters</h1>
             <p className="max-w-4xl mx-auto text-base sm:text-xl text-foreground/80 dark:text-muted-foreground leading-relaxed">
             Transparent, reproducible qualitative benchmarks developed by a community of 1,000+ contributors.
