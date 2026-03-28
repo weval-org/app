@@ -60,8 +60,8 @@ export function SearchEvaluations({ initialBlueprints, currentPage, totalPages, 
             setIsSearchActive(true);
             startTransition(async () => {
                 const response = await fetch(`/api/search?q=${searchTerm}`);
-                const results: BlueprintSummaryInfo[] = await response.json();
-                setSearchResults(results);
+                const data = await response.json();
+                setSearchResults(Array.isArray(data) ? data : []);
             });
         } else if (searchTerm.length === 0) {
             setIsSearchActive(false);
