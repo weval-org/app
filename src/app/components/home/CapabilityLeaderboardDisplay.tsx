@@ -16,18 +16,20 @@ import { APP_REPO_URL } from '@/lib/configConstants';
 function ModelLogo({ modelId }: { modelId: string }) {
   const name = modelId.toLowerCase();
   if (name.includes('claude'))
-    return <div className="w-5 h-5 rounded-md bg-[#D97757] flex items-center justify-center shrink-0"><span className="text-white text-[9px] font-bold">C</span></div>;
-  if (name.includes('gpt') || name.includes('o1') || name.includes('o3') || name.includes('o4'))
-    return <div className="w-5 h-5 rounded-full bg-[#10A37F] flex items-center justify-center shrink-0"><span className="text-white text-[9px] font-bold">O</span></div>;
+    return <div className="w-5 h-5 rounded-sm bg-[#D97757] flex items-center justify-center shrink-0"><span className="text-white text-[9px] font-bold">C</span></div>;
   if (name.includes('gemini'))
-    return <div className="w-5 h-5 rounded-md bg-[#8E75FF] flex items-center justify-center shrink-0"><span className="text-white text-[9px] font-bold">G</span></div>;
+    return <div className="w-5 h-5 rounded-sm bg-gradient-to-br from-[#4285F4] to-[#EA4335] flex items-center justify-center shrink-0"><span className="text-white text-[9px] font-bold">G</span></div>;
+  if (name.includes('gpt') || name.includes('o1') || name.includes('o3') || name.includes('o4'))
+    return <div className="w-5 h-5 rounded-sm bg-[#10A37F] flex items-center justify-center shrink-0"><span className="text-white text-[9px] font-bold">O</span></div>;
   if (name.includes('grok'))
-    return <div className="w-5 h-5 rounded-md bg-black flex items-center justify-center shrink-0"><span className="text-white text-[9px] font-bold">X</span></div>;
+    return <div className="w-5 h-5 rounded-sm bg-black flex items-center justify-center shrink-0"><span className="text-white text-[9px] font-bold">X</span></div>;
   if (name.includes('deepseek'))
-    return <div className="w-5 h-5 rounded-md bg-[#0066CC] flex items-center justify-center shrink-0"><span className="text-white text-[9px] font-bold">D</span></div>;
+    return <div className="w-5 h-5 rounded-sm bg-[#0FA4EA] flex items-center justify-center shrink-0"><span className="text-white text-[9px] font-bold">D</span></div>;
+  if (name.includes('glm'))
+    return <div className="w-5 h-5 rounded-sm bg-[#6366F1] flex items-center justify-center shrink-0"><span className="text-white text-[9px] font-bold">G</span></div>;
   if (name.includes('llama') || name.includes('meta'))
-    return <div className="w-5 h-5 rounded-md bg-[#0064E0] flex items-center justify-center shrink-0"><span className="text-white text-[9px] font-bold">L</span></div>;
-  return <div className="w-5 h-5 rounded-md bg-gray-400 flex items-center justify-center shrink-0"><span className="text-white text-[9px] font-bold">M</span></div>;
+    return <div className="w-5 h-5 rounded-sm bg-[#0064E0] flex items-center justify-center shrink-0"><span className="text-white text-[9px] font-bold">L</span></div>;
+  return <div className="w-5 h-5 rounded-sm bg-gray-400 flex items-center justify-center shrink-0"><span className="text-white text-[9px] font-bold">M</span></div>;
 }
 
 const CapabilityLeaderboardDisplay: React.FC<{ 
