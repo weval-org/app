@@ -22,21 +22,21 @@
 
 @layer base {
   :root {
-    --background: 42 63% 94%;
+    --background: 0 0% 100%;
     --foreground: 330 3% 19%;
-    --muted: 0 0% 100%; /* Derived from surface */
+    --muted: 240 10% 93%; /* #ececf0 — matches Figma */
     --muted-foreground: 330 3% 49%; /* Derived from foreground */
     --popover: 0 0% 100%; /* Same as surface */
     --popover-foreground: 330 3% 19%; /* Same as foreground */
     --card: 0 0% 100%; /* Same as surface */
     --card-foreground: 330 3% 19%; /* Same as foreground */
-    --border: 0 0% 85%; /* Derived from surface */
-    --input: 0 0% 85%; /* Derived from surface */
+    --border: 0 0% 90%; /* Subtle, matches Figma rgba(0,0,0,0.1) approx */
+    --input: 0 0% 90%; /* Derived from border */
     --primary: 167 59% 22%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 0 0% 95%; /* Same as muted */
+    --secondary: 240 10% 93%; /* Same as muted */
     --secondary-foreground: 330 3% 19%; /* Same as foreground */
-    --accent: 52 69.2% 87.3%;
+    --accent: 220 15% 93%; /* #e9ebef — matches Figma */
     --accent-foreground: 330 3% 19%; /* Same as foreground */
     --exciting: 320 80% 58%;
     --exciting-foreground: 0 0% 100%;
@@ -46,7 +46,7 @@
     --radius: 0.5rem;
     
     /* Custom variables */
-    --header: 47 60% 97%;
+    --header: 0 0% 100%; /* White — matches Figma nav */
     --surface: 0 0% 100%;
     --highlight-warning: 46 100% 63.1%;
     --highlight-warning-foreground: 330 3% 19%;
