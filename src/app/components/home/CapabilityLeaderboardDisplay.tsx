@@ -13,6 +13,23 @@ import {
 import DevModeCapabilitySliders from './DevModeCapabilitySliders';
 import { APP_REPO_URL } from '@/lib/configConstants';
 
+function ModelLogo({ modelId }: { modelId: string }) {
+  const name = modelId.toLowerCase();
+  if (name.includes('claude'))
+    return <div className="w-5 h-5 rounded-md bg-[#D97757] flex items-center justify-center shrink-0"><span className="text-white text-[9px] font-bold">C</span></div>;
+  if (name.includes('gpt') || name.includes('o1') || name.includes('o3') || name.includes('o4'))
+    return <div className="w-5 h-5 rounded-full bg-[#10A37F] flex items-center justify-center shrink-0"><span className="text-white text-[9px] font-bold">O</span></div>;
+  if (name.includes('gemini'))
+    return <div className="w-5 h-5 rounded-md bg-[#8E75FF] flex items-center justify-center shrink-0"><span className="text-white text-[9px] font-bold">G</span></div>;
+  if (name.includes('grok'))
+    return <div className="w-5 h-5 rounded-md bg-black flex items-center justify-center shrink-0"><span className="text-white text-[9px] font-bold">X</span></div>;
+  if (name.includes('deepseek'))
+    return <div className="w-5 h-5 rounded-md bg-[#0066CC] flex items-center justify-center shrink-0"><span className="text-white text-[9px] font-bold">D</span></div>;
+  if (name.includes('llama') || name.includes('meta'))
+    return <div className="w-5 h-5 rounded-md bg-[#0064E0] flex items-center justify-center shrink-0"><span className="text-white text-[9px] font-bold">L</span></div>;
+  return <div className="w-5 h-5 rounded-md bg-gray-400 flex items-center justify-center shrink-0"><span className="text-white text-[9px] font-bold">M</span></div>;
+}
+
 const CapabilityLeaderboardDisplay: React.FC<{ 
   leaderboards: CapabilityLeaderboard[] | null;
   rawData?: CapabilityRawData | null;
@@ -78,16 +95,13 @@ const CapabilityLeaderboardDisplay: React.FC<{
           return (
             <div key={bucket.id} className="border border-[#f2eaea] rounded-[10px] p-6 bg-white dark:bg-card dark:border-border">
               {/* Header */}
-              <div className="mb-5">
+              <div className="mb-4">
                 <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Leaderboard</p>
-                <div className="flex items-start justify-between">
-                  <h4 className="text-xl font-bold text-foreground leading-tight pr-2">{bucket.label}</h4>
-                  <Icon name={bucket.icon as any} className="w-6 h-6 flex-shrink-0 text-foreground/70 mt-0.5" />
-                </div>
+                <h4 className="text-xl font-bold text-foreground leading-tight">{bucket.label}</h4>
               </div>
 
               {/* Model list */}
-              <ul className="space-y-3">
+              <ul>
                 {displayedModels.map((model: any, index: number) => {
                   const findMatchingCard = (modelId: string, mappings?: Record<string, string>) => {
                     if (!mappings) return null;
@@ -117,16 +131,12 @@ const CapabilityLeaderboardDisplay: React.FC<{
                   });
 
                   return (
-                    <li key={model.modelId} className="flex justify-between items-center">
-                      <div className="flex items-center min-w-0 flex-1 gap-2">
-                        <span className="text-sm text-muted-foreground w-5 flex-shrink-0 text-right">
-                          {index + 1}.
-                        </span>
+                    <li key={model.modelId} className="flex justify-between items-center py-3 px-2 -mx-2 rounded-md hover:bg-[#f9f9f9] dark:hover:bg-muted/30 transition-colors">
+                      <div className="flex items-center min-w-0 flex-1 gap-2.5">
+                        <span className="text-sm text-muted-foreground w-4 flex-shrink-0 text-right">{index + 1}.</span>
+                        <ModelLogo modelId={model.modelId} />
                         {hasCard ? (
-                          <Link
-                            href={`/cards/${encodeURIComponent(cardPattern)}`}
-                            className="font-semibold text-sm truncate hover:underline transition-colors"
-                          >
+                          <Link href={`/cards/${encodeURIComponent(cardPattern)}`} className="font-semibold text-sm truncate hover:underline transition-colors">
                             {modelDisplayName}
                           </Link>
                         ) : (
@@ -141,35 +151,32 @@ const CapabilityLeaderboardDisplay: React.FC<{
                 })}
               </ul>
 
-              {/* Show more/less — immediately after list */}
+              {/* View more — plain blue link */}
               {hasMoreModels && (
-                <div className="mt-3">
-                  <hr className="border-dotted border-muted-foreground/30 mb-2" />
-                  <button
-                    onClick={() => toggleCardExpansion(bucket.id)}
-                    className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors duration-200 flex items-center justify-center gap-1"
-                  >
-                    {isExpanded ? (
-                      <><Icon name="chevron-up" className="w-3 h-3" />Show less</>
-                    ) : (
-                      <><Icon name="chevron-down" className="w-3 h-3" />Show {bucket.leaderboard.length - 5} more</>
-                    )}
-                  </button>
-                </div>
+                <button
+                  onClick={() => toggleCardExpansion(bucket.id)}
+                  className="mt-2 text-sm text-blue-500 hover:text-blue-600 transition-colors"
+                >
+                  {isExpanded ? 'Show less' : `View ${bucket.leaderboard.length - 5} more`}
+                </button>
               )}
 
-              {/* Description + methodology */}
-              <p className="text-sm text-muted-foreground leading-relaxed mt-5">
+              {/* Description */}
+              <p className="text-sm text-foreground leading-relaxed mt-5">
                 {bucket.description}
               </p>
-              <a
-                href={`${APP_REPO_URL}/blob/main/docs/METHODOLOGY.md`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-block mt-2 text-sm text-foreground hover:underline font-medium"
-              >
-                View methodology
-              </a>
+
+              {/* Footer */}
+              <div className="mt-4 pt-4 border-t border-[#f2eaea] dark:border-border">
+                <a
+                  href={`${APP_REPO_URL}/blob/main/docs/METHODOLOGY.md`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-blue-500 hover:text-blue-600 transition-colors font-medium"
+                >
+                  View methodology
+                </a>
+              </div>
             </div>
           );
         })}
