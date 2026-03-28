@@ -127,19 +127,6 @@ export default async function HomePage() {
         <HomePageBanner />
         
         <div className="px-4 sm:px-6 lg:px-8 sm:pb-2 md:pb-4 pt-8 md:pt-10 space-y-8 md:space-y-10">
-          {/* {featuredConfigs.length > 0 && headlineStats && (
-            <section 
-              aria-labelledby="platform-summary-heading"
-              className="bg-card/50 dark:bg-slate-800/50 backdrop-blur-md p-6 rounded-2xl shadow-lg ring-1 ring-border/60 dark:ring-slate-700/60"
-            >
-              <div className="space-y-8 md:space-y-10">
-                  <AggregateStatsDisplay stats={headlineStats ? { ...headlineStats, topicChampions: homepageStats?.topicChampions } : null} />
-              </div>
-            </section>
-          )} */}
-          
-          <hr className="my-4 border-border/70 dark:border-slate-700/50 w-3/4 mx-auto" />
-
           {/* Dev Mode Info */}
           {process.env.NODE_ENV === 'development' && homepageStats && (
             <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
