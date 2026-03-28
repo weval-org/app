@@ -26,36 +26,39 @@ export default function HomePageBanner() {
   return (
     <div className="w-full pt-2 pb-2 text-foreground">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mt-8 mb-2">
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-4 leading-tight">An open platform for building evaluations that test what matters</h1>
-            <p className="max-w-4xl mx-auto text-base sm:text-xl text-foreground/80 dark:text-muted-foreground leading-relaxed">
-            Transparent, reproducible qualitative benchmarks developed by a community of 1,000+ contributors.
+        <div className="flex items-center gap-12 mt-8 mb-4">
+          {/* Left: heading + subtext */}
+          <div className="flex-1">
+            <h1 className="text-3xl sm:text-4xl font-bold leading-tight mb-3">
+              An open platform for building evaluations that test what matters
+            </h1>
+            <p className="text-sm sm:text-base text-foreground/70 leading-relaxed">
+              Transparent, reproducible qualitative benchmarks developed by a community of 1,000+ contributors.
             </p>
-            <div className="mt-8 max-w-xl mx-auto flex gap-2">
-              <div className="relative flex-1">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Icon name="search" className="h-4 w-4 text-muted-foreground" />
-                </div>
-                <input
-                  type="search"
-                  placeholder="Search for an evaluation..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  className="w-full rounded-md border border-input bg-background px-4 py-2 pl-10 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-              </div>
+          </div>
+
+          {/* Right: search */}
+          <div className="w-[420px] shrink-0">
+            <div className="flex items-center gap-2 rounded-xl border border-input bg-background px-4 py-3">
+              <input
+                type="search"
+                placeholder="Search for an evaluation"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className="flex-1 text-sm text-foreground placeholder:text-muted-foreground bg-transparent focus:outline-none"
+              />
               <button
                 onClick={handleSearch}
-                className="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+                className="flex items-center justify-center w-9 h-9 rounded-lg bg-foreground text-background hover:bg-foreground/80 transition-colors shrink-0"
+                aria-label="Search"
               >
-                Search
+                <Icon name="arrow-right" className="w-4 h-4" />
               </button>
             </div>
+          </div>
         </div>
-
       </div>
     </div>
   );
 };
-
