@@ -37,12 +37,12 @@ Out of the box, Plausible collects:
 
 ## Environment behavior
 
-The Plausible script **only loads in production** on Vercel. It is excluded from:
+The Plausible script **only loads in production** (`NODE_ENV=production`). It is excluded from:
 
 - `localhost` / local development
-- Vercel preview deployments (branch deploys, PR previews)
+- Any non-production environment
 
-This is controlled by checking `process.env.VERCEL_ENV === 'production'` in `src/app/layout.tsx`.
+This is controlled by checking `process.env.NODE_ENV === 'production'` in `src/app/layout.tsx`.
 
 ## Adding custom event tracking (future)
 
