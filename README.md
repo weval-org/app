@@ -84,7 +84,7 @@ nvm use
 pnpm install
 
 # Set up environment variables
-cp .env.example .env
+cp .env.template .env
 # Edit .env with your API keys (see "Model Configuration" below)
 ```
 
