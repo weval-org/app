@@ -5,6 +5,7 @@ import TopProgressBar from './components/TopProgressBar';
 import { Suspense } from 'react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { NavigationEvents } from '@/app/components/NavigationEvents';
+import Script from 'next/script';
 
 export const metadata = {
   title: 'Weval',
@@ -29,6 +30,24 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {process.env.VERCEL_ENV === 'production' && (
+          <>
+            <Script
+              async
+              src="https://plausible.io/js/pa-4LTDiHHBraJDt0XS1mNO1.js"
+              strategy="afterInteractive"
+            />
+            <Script
+              id="plausible-init"
+              strategy="afterInteractive"
+              dangerouslySetInnerHTML={{
+                __html: `window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};plausible.init()`,
+              }}
+            />
+          </>
+        )}
+      </head>
       <body>
         <ThemeProvider
           attribute="class"

@@ -713,6 +713,10 @@ If you use Weval in your research, please cite it as follows:
 }
 ```
 
+## Analytics
+
+Weval uses [Plausible Analytics](https://plausible.io) for privacy-first, cookie-free website analytics. The tracking script loads only in production. See [docs/ANALYTICS.md](docs/ANALYTICS.md) for details on what's tracked, how to access the dashboard, and how to add custom events.
+
 ## Bug Reports & Feedback
 
 Found a bug? Please [open an issue](https://github.com/weval-org/app/issues/new/choose) using our bug report template. See [CONTRIBUTING.md](CONTRIBUTING.md) for details on what to include.
