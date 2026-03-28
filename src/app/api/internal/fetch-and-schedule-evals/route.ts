@@ -1,4 +1,4 @@
-import type { Handler, HandlerEvent, HandlerContext } from "@netlify/functions";
+import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import { ComparisonConfig } from "@/cli/types/cli_types";
 import { generateConfigContentHash } from "@/lib/hash-utils";
@@ -16,19 +16,18 @@ const MODEL_COLLECTIONS_REPO_API_URL_BASE = "https://api.github.com/repos/weval/
 const REPO_COMMITS_API_URL = "https://api.github.com/repos/weval/configs/commits/main";
 const ONE_WEEK_IN_MS = 7 * 24 * 60 * 60 * 1000;
 
-const handler: Handler = async (event: HandlerEvent, context: HandlerContext) => {
+export async function POST(req: NextRequest) {
   // Initialize Sentry for this function
   initSentry('fetch-and-schedule-evals');
 
   // Set Sentry context for this invocation
   setContext('scheduleEvals', {
-    eventSource: event.headers?.['x-netlify-event'] || 'unknown',
-    netlifyContext: event.headers?.['x-nf-request-id'],
+    eventSource: 'api',
   });
 
   const logger = await getLogger('schedule-evals:cron');
 
-  logger.info(`Function triggered (${new Date().toISOString()}) - event source: ${event.headers?.['x-netlify-event'] || 'unknown'}`);
+  logger.info(`Function triggered (${new Date().toISOString()})`);
 
   const githubToken = process.env.GITHUB_TOKEN;
   const githubHeaders: Record<string, string> = {
@@ -74,7 +73,7 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
       logger.error("Failed to fetch or filter file list from GitHub repo tree.", { treeData: treeResponse.data });
       captureError(new Error('Failed to process file list from GitHub repo'), { treeData: treeResponse.data });
       await flushSentry();
-      return { statusCode: 500, body: "Failed to process file list from GitHub repo." };
+      return NextResponse.json({ error: "Failed to process file list from GitHub repo." }, { status: 500 });
     }
 
     logger.info(`Found ${filesInBlueprintDir.length} blueprint files in the repo tree.`);
@@ -85,13 +84,13 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
           : file.path;
 
       logger.info(`Processing config file: ${file.path} (path for ID: ${blueprintPath})`);
-      
+
       try {
         const configFileResponse = await axios.get(file.url, { headers: rawContentHeaders });
-        
+
         const fileType = (file.path.endsWith(".yaml") || file.path.endsWith(".yml")) ? 'yaml' : 'json';
         const configContent = typeof configFileResponse.data === 'string' ? configFileResponse.data : JSON.stringify(configFileResponse.data);
-        
+
         let config: ComparisonConfig = parseAndNormalizeBlueprint(configContent, fileType);
 
         // --- NORMALIZE TAGS ---
@@ -105,28 +104,23 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
         }
         // --- END NORMALIZE TAGS ---
 
-        // The file path is now the single source of truth for the blueprint's ID.
-        // Warn if a blueprint file still contains the deprecated 'id' field.
         if (config.id) {
             logger.warn(`Blueprint source '${file.path}' contains a deprecated 'id' field ('${config.id}'). This will be ignored.`);
         }
 
-        // Always derive the ID from the file path.
         const id = generateBlueprintIdFromPath(blueprintPath);
         logger.info(`Derived ID from path '${blueprintPath}': '${id}'`);
 
-        // Validate that the ID doesn't use reserved prefixes or patterns
         try {
           validateReservedPrefixes(id);
           validateBlueprintId(id);
         } catch (error: any) {
           logger.warn(`Skipping blueprint '${file.path}': ${error.message}`);
-          continue; // Skip this blueprint
+          continue;
         }
 
         config.id = id;
 
-        // If title is missing, derive it from the ID.
         if (!config.title) {
           logger.info(`'title' not found in blueprint '${file.path}'. Using derived ID as title: '${config.id}'`);
           config.title = config.id;
@@ -134,7 +128,7 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
 
         if (!config.tags || !config.tags.includes('_periodic')) {
           logger.info(`Blueprint ${config.id || blueprintPath} does not have the '_periodic' tag. Skipping scheduled run check.`);
-          continue; // Move to the next file
+          continue;
         }
 
         if (!config.id || !config.prompts) {
@@ -152,17 +146,15 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
 
         logger.info(`Attempting to resolve model collections for ${currentId} from blueprint ${file.path}`);
         config = await resolveModelsInConfig(config, githubToken, logger as any);
-        // Log after resolution attempt
         logger.info(`Models for ${currentId} after resolution attempt: [${config.models.join(', ')}] (Count: ${config.models.length})`);
 
-        // Critical check: if after resolution, models array is empty, skip this config.
         if (config.models.length === 0) {
           logger.warn(`Blueprint file ${file.path} (id: ${currentId}) has no models after resolution or resolution failed. Skipping evaluation for this blueprint.`);
           continue;
         }
 
-        const contentHash = generateConfigContentHash(config); // Hash is now based on FULLY resolved models
-        const baseRunLabelForCheck = contentHash; 
+        const contentHash = generateConfigContentHash(config);
+        const baseRunLabelForCheck = contentHash;
 
         const existingRuns = await listRunsForConfig(currentId);
         let needsRun = true;
@@ -170,7 +162,7 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
         if (existingRuns && existingRuns.length > 0) {
           const matchingExistingRuns = existingRuns.filter(run => run.runLabel === baseRunLabelForCheck);
           if (matchingExistingRuns.length > 0) {
-            const latestMatchingRun = matchingExistingRuns[0]; // Assuming sorted by timestamp desc by listRunsForConfig
+            const latestMatchingRun = matchingExistingRuns[0];
             if (latestMatchingRun.timestamp) {
               const runAge = Date.now() - new Date(latestMatchingRun.timestamp).getTime();
               if (runAge < ONE_WEEK_IN_MS) {
@@ -190,7 +182,6 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
         }
 
         if (needsRun) {
-          // This check is now redundant due to the one after resolveModelsInConfig, but kept for safety, can be removed.
           if (config.models.length === 0) {
               logger.warn(`Blueprint ${currentId} (file: ${file.path}) still has no models before triggering. THIS SHOULD NOT HAPPEN. Skipping.`);
               continue;
@@ -201,7 +192,6 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
           if (!siteUrl) {
               logger.error("URL environment variable is not set. Cannot invoke background function.");
               captureError(new Error('URL environment variable not set'), { currentId, file: file.path });
-              // Potentially return an error or stop processing further files if this is a critical config error for all
               continue;
           }
 
@@ -209,7 +199,7 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
               const response = await callBackgroundFunction({
                   functionName: 'execute-evaluation-background',
                   body: {
-                      config: { ...config, id: currentId }, // Explicitly set the canonical ID
+                      config: { ...config, id: currentId },
                       commitSha: latestCommitSha
                   }
               });
@@ -233,13 +223,11 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
 
     logger.info('Scheduled eval check completed successfully');
     await flushSentry();
-    return { statusCode: 200, body: "Scheduled eval check completed." };
+    return NextResponse.json({ message: "Scheduled eval check completed." });
   } catch (error: any) {
     logger.error("Error in handler", error);
     captureError(error, { handler: 'fetch-and-schedule-evals' });
     await flushSentry();
-    return { statusCode: 500, body: "Error processing scheduled eval check." };
+    return NextResponse.json({ error: "Error processing scheduled eval check." }, { status: 500 });
   }
-};
-
-export { handler }; 
+}

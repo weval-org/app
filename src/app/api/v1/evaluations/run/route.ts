@@ -10,7 +10,6 @@ import type { CustomModelDefinition } from '@/lib/llm-clients/types';
 import { callBackgroundFunction } from '@/lib/background-function-client';
 
 const PUBLIC_API_KEY = process.env.PUBLIC_API_KEY;
-const NETLIFY_FUNCTION_URL = `${process.env.NEXT_PUBLIC_APP_URL}/.netlify/functions/execute-api-evaluation-background`;
 
 // Helper to parse blueprint content which could be YAML or JSON
 function parseBlueprint(content: string): ComparisonConfig | null {
@@ -186,7 +185,6 @@ export async function POST(req: NextRequest) {
 
     // --- DEFAULT MODE (async + persisted) ---
     console.log(`[API RUN] Triggering background evaluation for runId: ${runId}`);
-    console.log(`[API RUN] Target function URL: ${NETLIFY_FUNCTION_URL}`);
 
     // Fire-and-forget invocation of the background function
     callBackgroundFunction({

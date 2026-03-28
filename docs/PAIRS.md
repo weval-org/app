@@ -14,7 +14,7 @@ To handle a potentially massive number of unique comparison pairs without sacrif
 
 ### Data Stores
 
-The system relies on three distinct Netlify Blob stores:
+The system relies on three distinct blob stores (backed by S3):
 
 -   **`pairwise-tasks-v2`**: This store holds the individual comparison tasks and indexes.
     -   Each unique task is stored as a separate JSON object.
@@ -175,7 +175,7 @@ The anchor model matching uses `parseModelIdForApiCall()` from `src/app/utils/mo
 -   **`POST /api/pairs/config/[configId]/start-generation`** (`src/app/api/pairs/config/[configId]/start-generation/route.ts`): Initiates background pair generation.
     1.  Checks if generation is already in progress.
     2.  Sets initial status to `pending`.
-    3.  Triggers the `generate-pairs-background` Netlify function.
+    3.  Triggers the `generate-pairs-background` background function.
     4.  Returns immediately without blocking.
 
 -   **`GET /api/pairs/log`** (`src/app/api/pairs/log/route.ts`): Retrieves recent preference submissions for analysis.
@@ -295,16 +295,16 @@ Three alternative buttons are always visible below the main responses:
 
 ## 4. Queue Management (CLI)
 
-While the queue is populated automatically from runs of blueprints tagged with `_get_human_prefs`, manual control is often needed. Two CLI commands are provided for this purpose. Both commands support an optional `--site-id <netlify-site-id>` flag to target a blob store environment other than the one specified in local configuration.
+While the queue is populated automatically from runs of blueprints tagged with `_get_human_prefs`, manual control is often needed. Two CLI commands are provided for this purpose.
 
 ### Adding Tasks to the Queue
 
--   **Command**: `pnpm cli add-to-pairs --config-id <id> [--site-id <netlify-site-id>]`
+-   **Command**: `pnpm cli add-to-pairs --config-id <id>`
 -   **Action**: This command retrieves the **single latest run** for the specified `<id>` and adds all of its comparison pairs to the task queue. This is useful for adding pairs from a blueprint that doesn't have the `_get_human_prefs` tag or for re-adding pairs from a specific blueprint.
 
 ### Deleting Tasks from the Queue
 
--   **Command**: `pnpm cli delete-from-pairs [--config-id <id> | --all] [--site-id <netlify-site-id>]`
+-   **Command**: `pnpm cli delete-from-pairs [--config-id <id> | --all]`
 -   **Action**: This command provides two modes for removing tasks from the queue:
     -   `--config-id <id>`: Deletes all tasks that originated from the specified blueprint ID.
     -   `--all`: Wipes the **entire** `pairwise-tasks-v2` store, including the index. It will prompt for confirmation before executing.
@@ -312,11 +312,11 @@ While the queue is populated automatically from runs of blueprints tagged with `
 
 ## 5. Background Pair Generation
 
-For config-specific pairs, generation is handled asynchronously via a Netlify background function to avoid blocking the user interface.
+For config-specific pairs, generation is handled asynchronously via a background function to avoid blocking the user interface.
 
 ### Background Function
 
--   **Location**: `netlify/functions/generate-pairs-background.ts`
+-   **Location**: `src/app/api/internal/generate-pairs-background/route.ts`
 -   **Trigger**: Invoked by `POST /api/pairs/config/[configId]/start-generation`
 -   **Process**:
     1.  Updates generation status to `generating`
@@ -327,44 +327,15 @@ For config-specific pairs, generation is handled asynchronously via a Netlify ba
 
 ### Local Development Setup
 
-To enable both **API routes** and **background functions** to work with remote Netlify Blobs in local development, you need to configure environment variables.
+Both API routes and background functions use the S3-backed blob store via `@/lib/blob-store`. Ensure your `.env` file has the required S3 credentials:
 
-#### Setup Instructions
-
-1. **Extract your Netlify credentials** (already authenticated via `netlify login`):
-   ```bash
-   # On macOS, credentials are stored at:
-   cat ~/Library/Preferences/netlify/config.json | jq -r '.users | to_entries | .[0].value.auth.token'
-   ```
-
-2. **Add to your `.env` file**:
-   ```bash
-   NETLIFY_SITE_ID=your-site-id-from-.netlify/state.json
-   NETLIFY_AUTH_TOKEN=your-token-from-above
-   ```
-
-3. **Restart `netlify dev`** to pick up the new environment variables.
-
-#### How It Works
-
-Both background functions and Next.js API routes need explicit credentials in local development:
-
-**Background Functions**: Run in an isolated Netlify context. The `getBlobStore()` function in `pairwise-task-queue-service.ts` uses these fallback strategies:
-1.  **Environment variables** (preferred): Check for `NETLIFY_SITE_ID` + `NETLIFY_AUTH_TOKEN` from `.env`
-2.  **Filesystem credentials**: Read from `.netlify/state.json` + `~/.netlify/config.json`
-3.  **Netlify context** (production): Extract `siteId` from `event.headers['x-nf-site-id']` and blob credentials from `event.blobs`
-4.  **Anonymous store**: Falls back (throws error)
-
-**API Routes**: All pairs API routes (`get-task`, `submit-preference`, `log`) explicitly pass credentials to `getStore()`:
-```typescript
-const store = getStore({
-  name: STORE_NAME,
-  siteID: process.env.NETLIFY_SITE_ID,
-  token: process.env.NETLIFY_AUTH_TOKEN,
-});
+```bash
+STORAGE_PROVIDER=s3
+APP_S3_BUCKET_NAME=your-bucket-name
+APP_S3_REGION=us-east-1
+APP_AWS_ACCESS_KEY_ID=your-aws-key
+APP_AWS_SECRET_ACCESS_KEY=your-aws-secret
 ```
-
-Without these environment variables, API routes would fall back to "sandbox mode" (in-memory/local storage), causing a mismatch where background functions write to remote blobs but API routes read from local storage.
 
 #### Alternative: Use CLI Directly
 
@@ -390,7 +361,7 @@ The most effective way to process this pairwise data is to calculate an **ELO ra
         2.  Iterate through every preference record for every task.
         3.  For each matchup (e.g., Model A vs. Model B), update the ELO scores of both models based on the outcome (A wins, B wins, or draw) using the standard ELO formula.
     -   **Output**: The command will save its results to a new file in the blob store, e.g., `multi/elo_ratings.json`. This file will contain a simple mapping of `modelId` to its calculated ELO score.
--   **Automation**: This command should be run on a schedule (e.g., as a daily Netlify function) to keep the ELO ratings fresh as new preferences are submitted.
+-   **Automation**: This command should be run on a schedule (e.g., as a daily cron job) to keep the ELO ratings fresh as new preferences are submitted.
 
 ### 2. Integrating ELO Scores into Analysis Pages
 

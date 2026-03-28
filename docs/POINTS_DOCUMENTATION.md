@@ -159,7 +159,7 @@ When you run an evaluation, here is the step-by-step journey your `should` defin
 
 The process starts in one of two places:
 *   **Local CLI**: `src/cli/commands/run-config.ts` reads the specified blueprint file (e.g., `my-blueprint.yml`).
-*   **Deployed System**: `netlify/functions/fetch-and-schedule-evals.ts` fetches the raw content of blueprint files from the `weval/configs` GitHub repository.
+*   **Deployed System**: `src/app/api/internal/fetch-and-schedule-evals/route.ts` fetches the raw content of blueprint files from the `weval/configs` GitHub repository.
 
 #### Step 2: Parsing and Normalization (`blueprint-parser.ts`)
 

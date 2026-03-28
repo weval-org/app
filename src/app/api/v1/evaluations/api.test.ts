@@ -74,7 +74,7 @@ describe('Public Evaluation API v1', () => {
             const fetchUrl = fetchCall[0];
             const fetchOptions = fetchCall[1];
 
-            expect(fetchUrl).toContain('/.netlify/functions/execute-api-evaluation-background');
+            expect(fetchUrl).toContain('/api/internal/execute-api-evaluation-background');
             const invokedBody = JSON.parse(fetchOptions.body);
             expect(invokedBody.runId).toEqual(body.runId);
             expect(invokedBody.config.tags).toContain('_public_api');

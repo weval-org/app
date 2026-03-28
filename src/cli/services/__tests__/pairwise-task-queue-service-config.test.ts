@@ -7,8 +7,8 @@ import {
   GenerationStatus,
 } from '../pairwise-task-queue-service';
 
-// Mock @netlify/blobs
-jest.mock('@netlify/blobs', () => ({
+// Mock @/lib/blob-store
+jest.mock('@/lib/blob-store', () => ({
   getStore: jest.fn(),
 }));
 
@@ -16,7 +16,7 @@ jest.mock('@netlify/blobs', () => ({
 jest.mock('fs/promises');
 jest.mock('fs');
 
-const { getStore } = require('@netlify/blobs');
+const { getStore } = require('@/lib/blob-store');
 
 describe('pairwise-task-queue-service - config-specific functions', () => {
   let mockStore: any;

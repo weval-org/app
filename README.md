@@ -120,8 +120,8 @@ This is the recommended method for creating and testing new blueprints.
 This is the main operational mode for the public Weval platform.
 
 1.  **Contribute Blueprints**: Users submit blueprints via pull request to the `weval/configs` GitHub repository.
-2.  **Automated Scheduling**: A scheduled Netlify function periodically checks for new or outdated blueprints and triggers evaluations.
-3.  **Cloud Execution**: A Netlify background function runs the evaluation pipeline, saving the results to a cloud storage bucket (AWS S3).
+2.  **Automated Scheduling**: A GitHub Actions cron workflow periodically checks for new or outdated blueprints and triggers evaluations via internal API routes.
+3.  **Cloud Execution**: Internal Next.js API routes (`/api/internal/*`) run the evaluation pipeline on Railway, saving the results to a cloud storage bucket (AWS S3).
 4.  **Public Visualization**: The public web dashboard reads data from the cloud, providing an always-up-to-date view of model performance.
 
 ## CLI Commands Reference
@@ -647,15 +647,15 @@ Beyond local execution, Weval is designed to operate as an automated, deployed s
 graph LR;
     %% Define styles for better visual appeal
     classDef github fill:#24292e,stroke:#58a6ff,stroke-width:1px,color:#fff;
-    classDef netlify fill:#00c7b7,stroke:#008a7e,stroke-width:1px,color:#000;
+    classDef railway fill:#0B0D0E,stroke:#C049FF,stroke-width:2px,color:#fff;
     classDef aws fill:#232f3e,stroke:#ff9900,stroke-width:2px,color:#fff;
-    classDef webapp fill:#333,stroke:#00c7b7,stroke-width:1px,color:#fff;
+    classDef webapp fill:#333,stroke:#C049FF,stroke-width:1px,color:#fff;
 
     A["fa:fa-github GitHub Repo<br/>(Blueprints)"]:::github;
-    
-    subgraph Netlify Platform
-        B["fa:fa-clock Scheduled Function"]:::netlify;
-        C["fa:fa-cogs Background Function"]:::netlify;
+
+    subgraph Railway Platform
+        B["fa:fa-clock GitHub Actions Cron"]:::railway;
+        C["fa:fa-cogs Internal API Routes"]:::railway;
         B -- Triggers --> C;
     end
 
@@ -685,7 +685,7 @@ Update your `.env` file for local development.
 
 To enable user authentication and the full functionality of the Sandbox Studio for local development, you must create a GitHub OAuth App and configure the following variables:
 
--   `NEXT_PUBLIC_APP_URL`: The canonical URL for your application. For local development, this will probably be `http://localhost:3000` or `http://localhost:8888` if you are using `netlify dev`.
+-   `NEXT_PUBLIC_APP_URL`: The canonical URL for your application. For local development, this will be `http://localhost:3172`.
 -   `GITHUB_CLIENT_ID`: The Client ID of your GitHub OAuth App.
 -   `GITHUB_CLIENT_SECRET`: The Client Secret of your GitHub OAuth App.
 -   `SESSION_SECRET`: A secret key used to encrypt user sessions. It should be a random string of at least 32 characters. You can generate one with `openssl rand -hex 32`.

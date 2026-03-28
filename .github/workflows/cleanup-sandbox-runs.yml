@@ -1,0 +1,18 @@
+name: Daily Sandbox Cleanup
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM UTC
+  workflow_dispatch: {}
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger sandbox cleanup
+        run: |
+          echo "Triggering sandbox cleanup..."
+          RESPONSE=$(curl -sf -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-Background-Function-Auth-Token: ${{ secrets.BACKGROUND_FUNCTION_AUTH_TOKEN }}" \
+            "${{ secrets.RAILWAY_APP_URL }}/api/internal/cleanup-sandbox-runs")
+          echo "$RESPONSE" | python3 -m json.tool 2>/dev/null || echo "$RESPONSE"

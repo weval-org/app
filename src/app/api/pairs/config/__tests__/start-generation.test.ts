@@ -24,7 +24,7 @@ describe('POST /api/pairs/config/[configId]/start-generation', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (global.fetch as jest.Mock).mockResolvedValue({ ok: true });
-    process.env.URL = 'http://localhost:8888';
+    process.env.URL = 'http://localhost:3172';
   });
 
   afterEach(() => {
@@ -58,7 +58,7 @@ describe('POST /api/pairs/config/[configId]/start-generation', () => {
 
     // Should trigger background function
     expect(global.fetch).toHaveBeenCalledWith(
-      'http://localhost:8888/.netlify/functions/generate-pairs-background',
+      'http://localhost:3172/api/internal/generate-pairs-background',
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({ configId: 'test-config' }),
@@ -231,7 +231,7 @@ describe('POST /api/pairs/config/[configId]/start-generation', () => {
     await POST(req, { params: Promise.resolve({ configId: 'test-config' }) });
 
     expect(global.fetch).toHaveBeenCalledWith(
-      'https://weval.org/.netlify/functions/generate-pairs-background',
+      'https://weval.org/api/internal/generate-pairs-background',
       expect.any(Object)
     );
   });
@@ -249,7 +249,7 @@ describe('POST /api/pairs/config/[configId]/start-generation', () => {
     await POST(req, { params: Promise.resolve({ configId: 'test-config' }) });
 
     expect(global.fetch).toHaveBeenCalledWith(
-      'http://localhost:8888/.netlify/functions/generate-pairs-background',
+      'http://localhost:3172/api/internal/generate-pairs-background',
       expect.any(Object)
     );
   });

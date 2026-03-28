@@ -9,8 +9,8 @@ import {
 import { ComparisonDataV2 } from '@/app/utils/types';
 import { SimpleLogger } from '@/lib/blueprint-service';
 
-// Mock @netlify/blobs
-jest.mock('@netlify/blobs', () => ({
+// Mock @/lib/blob-store
+jest.mock('@/lib/blob-store', () => ({
   getStore: jest.fn(),
 }));
 
@@ -25,7 +25,7 @@ jest.mock('@/lib/pLimit', () => {
   });
 });
 
-const { getStore } = require('@netlify/blobs');
+const { getStore } = require('@/lib/blob-store');
 
 describe('populatePairwiseQueue', () => {
   let mockStore: any;

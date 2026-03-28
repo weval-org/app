@@ -6,9 +6,9 @@ tags: ["demo", "external-services", "$call"]
 # Configure external services that can be called during evaluation
 # These can be real HTTP endpoints or mock services for testing
 externalServices:
-  # Demo quality checker - hosted as a Netlify function
-  # Local: http://localhost:8888/.netlify/functions/demo-external-evaluator
-  # Deployed: https://weval-demo.netlify.app/.netlify/functions/demo-external-evaluator
+  # Demo quality checker - hosted as an API route
+  # Local: http://localhost:3172/api/internal/demo-external-evaluator
+  # Deployed: https://weval.org/api/internal/demo-external-evaluator
   quality-checker:
     url: "${DEMO_EVALUATOR_URL}"
     method: POST

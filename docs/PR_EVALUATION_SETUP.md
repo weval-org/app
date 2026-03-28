@@ -121,7 +121,7 @@ pnpm cli scan-unrun-blueprints [--run] [--limit N]
 openssl rand -hex 32
 ```
 
-Add to your `.env` or Netlify environment variables:
+Add to your `.env` or Railway environment variables:
 ```
 GITHUB_WEBHOOK_SECRET=your_generated_secret_here
 ```
@@ -176,7 +176,7 @@ You need **two webhooks** for the full workflow:
 
 #### Store Private Key in AWS Secrets Manager (Recommended for Production)
 
-⚠️ **Important**: GitHub App private keys are ~1.6-3KB and will cause Netlify Functions to exceed AWS Lambda's 4KB environment variable limit. Store the key in **AWS Secrets Manager** instead.
+⚠️ **Important**: GitHub App private keys are ~1.6-3KB. For production, store the key in **AWS Secrets Manager** instead of environment variables.
 
 **Step 1: Create Secret in AWS**
 ```bash
@@ -188,7 +188,7 @@ aws secretsmanager create-secret \
   --region us-east-1
 ```
 
-**Step 2: Set Netlify Environment Variable**
+**Step 2: Set Environment Variable**
 ```bash
 # Instead of storing the full key, just store the secret name
 GITHUB_APP_PRIVATE_KEY_SECRET_NAME=weval/github-app-private-key
@@ -207,7 +207,7 @@ awk 'NF {sub(/\r/, ""); printf "%s\\n",$0;}' your-private-key.pem
 GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\nMIIE...your-key...\n-----END RSA PRIVATE KEY-----"
 ```
 
-⚠️ **Don't use this in Netlify** - it will exceed the 4KB limit.
+⚠️ **For production**, prefer AWS Secrets Manager over inline private keys in environment variables.
 
 #### Alternative: Personal Access Token (Fallback)
 
@@ -222,13 +222,13 @@ Create at: https://github.com/settings/tokens with scopes:
 
 ### 4. Verify Environment Variables
 
-Ensure these are set in Netlify (or `.env` for local testing):
+Ensure these are set in Railway (or `.env` for local testing):
 
 ```bash
 # GitHub Authentication (GitHub App - Production)
 GITHUB_APP_ID=1234567
 GITHUB_APP_INSTALLATION_ID=12345678
-GITHUB_APP_PRIVATE_KEY_SECRET_NAME=weval/github-app-private-key  # ✅ Recommended for Netlify
+GITHUB_APP_PRIVATE_KEY_SECRET_NAME=weval/github-app-private-key  # ✅ Recommended for production
 
 # GitHub Authentication (GitHub App - Local Dev)
 # GITHUB_APP_PRIVATE_KEY="-----BEGIN RSA..."  # Only for local .env
@@ -256,7 +256,7 @@ NEXT_PUBLIC_APP_URL=https://weval.org
 ```
 
 **Important Notes:**
-- **Production (Netlify)**: Use `GITHUB_APP_PRIVATE_KEY_SECRET_NAME` to avoid the 4KB Lambda limit
+- **Production (Railway)**: Use `GITHUB_APP_PRIVATE_KEY_SECRET_NAME` to fetch the key from AWS Secrets Manager at runtime
 - **Local Development**: Use `GITHUB_APP_PRIVATE_KEY` inline in your `.env` file (wrap in quotes)
 - The AWS credentials (`APP_AWS_ACCESS_KEY_ID`, `APP_AWS_SECRET_ACCESS_KEY`) are used for both S3 storage and Secrets Manager access
 
@@ -444,8 +444,8 @@ live/pr-evals/123/alice-medical-qa-eval/
 
 ### Logs
 
-Check Netlify function logs:
-1. Netlify Dashboard → Functions → `execute-pr-evaluation-background`
+Check Railway deployment logs:
+1. Railway Dashboard → Deployments → Logs
 2. Filter by PR number or username
 
 ### Status Tracking
@@ -503,7 +503,7 @@ Common errors and solutions:
 
 ### Evaluation stuck
 
-1. Check Netlify function logs
+1. Check Railway deployment logs
 2. Background functions timeout after 10 minutes
 3. Status should show error state if timeout occurs
 
@@ -577,7 +577,7 @@ Rate limits help control costs:
 
 1. Use ngrok to expose local server:
    ```bash
-   ngrok http 8888
+   ngrok http 3172
    ```
 
 2. Update webhook URL to ngrok URL temporarily
@@ -720,17 +720,12 @@ Total blueprints: 150
 
 ### ❌ OLD: Scheduled (Disabled)
 
-```toml
-# netlify.toml (COMMENTED OUT)
-[functions."fetch-and-schedule-evals"]
-  schedule = "0 0 * * 0"  # Weekly
-```
+The old scheduled approach (e.g., a weekly cron function) has been replaced by event-driven webhooks.
 
 **Problems:**
 - Runs even when nothing changed
 - Can be expensive
 - Doesn't catch new blueprints immediately
-- Requires `_periodic` tag
 
 ### ✅ NEW: Event-Driven
 

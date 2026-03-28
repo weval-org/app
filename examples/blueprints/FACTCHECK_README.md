@@ -4,7 +4,7 @@ This feature enables automated fact-checking of model responses against online s
 
 ## Overview
 
-The fact-check endpoint (`/api/factcheck` or `/.netlify/functions/factcheck`) uses web-search-capable models to verify claims by:
+The fact-check endpoint (`/api/internal/factcheck`) uses web-search-capable models to verify claims by:
 
 1. **Searching authoritative sources** - Academic journals, government data, research institutions
 2. **Applying trust tiers** - Very High (peer-reviewed) → High (preprints) → Medium (mainstream) → Low (unverified)
@@ -57,7 +57,7 @@ The `$factcheck` point function automatically:
 ### Method 2: Direct API Call with Instruction
 
 ```bash
-curl -X POST http://localhost:8888/.netlify/functions/factcheck \
+curl -X POST http://localhost:3172/api/internal/factcheck \
   -H "Content-Type: application/json" \
   -H "X-Background-Function-Auth-Token: $BACKGROUND_FUNCTION_AUTH_TOKEN" \
   -d '{
@@ -124,7 +124,7 @@ In multi-turn prompts, use `assistant: null` to indicate where the AI should gen
 When calling the endpoint directly with conversation history:
 
 ```bash
-curl -X POST http://localhost:8888/.netlify/functions/factcheck \
+curl -X POST http://localhost:3172/api/internal/factcheck \
   -H "Content-Type: application/json" \
   -H "X-Background-Function-Auth-Token: $BACKGROUND_FUNCTION_AUTH_TOKEN" \
   -d '{
@@ -232,14 +232,14 @@ The endpoint uses `openrouter:google/gemini-2.5-flash:online` by default, which 
 **Required:**
 
 - `FACTCHECK_ENDPOINT_URL` - URL of the fact-check endpoint (only needed if calling directly, not needed when using `$factcheck`)
-  - Local: `http://localhost:8888/.netlify/functions/factcheck`
-  - Deployed: `https://your-domain.netlify.app/.netlify/functions/factcheck`
+  - Local: `http://localhost:3172/api/internal/factcheck`
+  - Deployed: `https://weval.org/api/internal/factcheck`
 
 - `BACKGROUND_FUNCTION_AUTH_TOKEN` - Shared secret for authenticating all background function calls
   - Generate a random secret: `openssl rand -hex 32`
   - Must be set in both:
     - **Caller environment** (CLI, local .env file)
-    - **Netlify function environment** (Netlify dashboard or local .env)
+    - **Server environment** (Railway dashboard or local .env)
   - This token is used for all background functions, not just factcheck
 
 ## Example Blueprint
@@ -268,9 +268,9 @@ See `examples/blueprints/factcheck-demo.yml` for 10 comprehensive examples inclu
    BACKGROUND_FUNCTION_AUTH_TOKEN="your-generated-token-here"
    ```
 
-2. **Start Netlify Dev:**
+2. **Start the dev server:**
    ```bash
-   netlify dev
+   pnpm dev
    ```
 
 3. **Run the blueprint:**
@@ -282,7 +282,7 @@ See `examples/blueprints/factcheck-demo.yml` for 10 comprehensive examples inclu
 
 ```bash
 # True claim - should score high
-curl -X POST http://localhost:8888/.netlify/functions/factcheck \
+curl -X POST http://localhost:3172/api/internal/factcheck \
   -H "Content-Type: application/json" \
   -H "X-Background-Function-Auth-Token: $BACKGROUND_FUNCTION_AUTH_TOKEN" \
   -d '{
@@ -291,7 +291,7 @@ curl -X POST http://localhost:8888/.netlify/functions/factcheck \
   }' | jq .
 
 # False claim - should score low
-curl -X POST http://localhost:8888/.netlify/functions/factcheck \
+curl -X POST http://localhost:3172/api/internal/factcheck \
   -H "Content-Type: application/json" \
   -H "X-Background-Function-Auth-Token: $BACKGROUND_FUNCTION_AUTH_TOKEN" \
   -d '{
@@ -299,7 +299,7 @@ curl -X POST http://localhost:8888/.netlify/functions/factcheck \
   }' | jq .
 
 # Partially true claim - should score medium
-curl -X POST http://localhost:8888/.netlify/functions/factcheck \
+curl -X POST http://localhost:3172/api/internal/factcheck \
   -H "Content-Type: application/json" \
   -H "X-Background-Function-Auth-Token: $BACKGROUND_FUNCTION_AUTH_TOKEN" \
   -d '{

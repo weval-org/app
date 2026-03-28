@@ -6,7 +6,7 @@ tags: ["demo", "fact-checking", "external-services", "web-enabled"]
 # Configure the fact-check service
 externalServices:
   factchecker:
-    url: "${FACTCHECK_ENDPOINT_URL}"  # e.g., http://localhost:8888/.netlify/functions/factcheck
+    url: "${FACTCHECK_ENDPOINT_URL}"  # e.g., http://localhost:3172/api/internal/factcheck
     method: POST
     timeout_ms: 65000  # Web searches can take time
     max_retries: 1

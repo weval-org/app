@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { PairwiseTask } from '@/cli/services/pairwise-task-queue-service';
+import { getStore } from '@/lib/blob-store';
 
 export const revalidate = 0;
 
@@ -7,23 +8,6 @@ const TASK_QUEUE_BLOB_STORE_NAME = 'pairwise-tasks-v2';
 
 function getConfigIndexKey(configId: string): string {
   return `_index_${configId}`;
-}
-
-// Import getBlobStore for consistent blob store access
-async function getBlobStore(storeName: string = TASK_QUEUE_BLOB_STORE_NAME) {
-  const { getStore } = await import('@netlify/blobs');
-
-  // Use env vars if available (prod), otherwise rely on Netlify auto-discovery
-  if (process.env.NETLIFY_SITE_ID && process.env.NETLIFY_AUTH_TOKEN) {
-    return getStore({
-      name: storeName,
-      siteID: process.env.NETLIFY_SITE_ID,
-      token: process.env.NETLIFY_AUTH_TOKEN,
-    });
-  }
-
-  // Fallback to auto-discovery (for Netlify functions environment)
-  return getStore(storeName);
 }
 
 export async function GET(
@@ -45,7 +29,7 @@ export async function GET(
     }
 
     console.log('[get-task] Getting blob store...');
-    const store = await getBlobStore();
+    const store = getStore({ name: TASK_QUEUE_BLOB_STORE_NAME });
     const configIndexKey = getConfigIndexKey(configId);
     console.log('[get-task] Fetching config index:', configIndexKey);
     const configIndex = await store.get(configIndexKey, { type: 'json' }) as string[] | undefined;

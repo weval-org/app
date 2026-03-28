@@ -1,39 +1,20 @@
-import { Handler, HandlerEvent, HandlerResponse } from '@netlify/functions';
-import { getModelResponse } from '../../src/cli/services/llm-service';
-import { initSentry, captureError, flushSentry } from '../../src/utils/sentry';
-import { configure } from '../../src/cli/config';
-import { checkBackgroundFunctionAuth } from '../../src/lib/background-function-auth';
+import { NextRequest, NextResponse } from 'next/server';
+import { getModelResponse } from '@/cli/services/llm-service';
+import { initSentry, captureError, flushSentry } from '@/utils/sentry';
+import { configure } from '@/cli/config';
+import { checkBackgroundAuth } from '@/lib/background-function-auth';
 
 /**
  * Fact-Checking API Endpoint
  *
  * Uses web-enabled LLMs to verify claims against online sources.
  * Returns structured response with score and analysis.
- *
- * Request format:
- * {
- *   claim: string;           // The claim to fact-check
- *   modelId?: string;        // Optional: override default model
- *   maxTokens?: number;      // Optional: max response tokens
- * }
- *
- * Response format:
- * {
- *   score: number;           // 0.0 to 1.0 (derived from 0-100 scale)
- *   explain: string;         // Combined analysis with confidence
- *   raw?: {                  // Optional: full parsed response
- *     resourceAnalysis: string;
- *     truthAnalysis: string;
- *     confidence: number;
- *     score: number;
- *   }
- * }
  */
 
 interface FactCheckRequest {
   claim: string;
-  instruction?: string;  // Optional: additional focus/guidance for the fact-checker
-  messages?: Array<{role: string; content: string; generated?: boolean}>;  // Optional: full conversation context
+  instruction?: string;
+  messages?: Array<{role: string; content: string; generated?: boolean}>;
   modelId?: string;
   maxTokens?: number;
   includeRaw?: boolean;
@@ -83,9 +64,9 @@ const FACTCHECK_CONFIG = {
     }
   ],
   retries: {
-    perModel: 2,           // Parse/format failures per model
-    network: 1,            // Network/API failures (in getModelResponse)
-    backoffMs: 1000       // Initial backoff, doubles each retry
+    perModel: 2,
+    network: 1,
+    backoffMs: 1000
   },
   logging: {
     maxPromptLogLength: 500,
@@ -93,7 +74,6 @@ const FACTCHECK_CONFIG = {
   }
 };
 
-// System prompt with trust tiers and structured output format
 const SYSTEM_PROMPT = `You are a rigorous fact-checker analyzing AI-generated responses. Use the following heuristics to judge trustworthy online material:
 
 **VERY HIGH TRUST:**
@@ -195,12 +175,12 @@ This score should integrate both accuracy AND confidence. A highly accurate clai
 <RESOURCE_ANALYSIS>
 1. "Climate Change 2021" (IPCC, ipcc.ch) - VERY HIGH TRUST
    - Comprehensive assessment of global warming
-   - Key finding: 1.1°C warming since pre-industrial
+   - Key finding: 1.1C warming since pre-industrial
    - Limitation: Data up to 2020
 </RESOURCE_ANALYSIS>
 
 <TRUTH_ANALYSIS>
-The claim that global temperatures have risen 1.1°C is strongly supported by IPCC data...
+The claim that global temperatures have risen 1.1C is strongly supported by IPCC data...
 </TRUTH_ANALYSIS>
 
 <CONFIDENCE>
@@ -219,10 +199,8 @@ The claim that global temperatures have risen 1.1°C is strongly supported by IP
 
 /**
  * Sanitize user input for XML embedding
- * Wraps content in CDATA to prevent XML parsing issues with special characters
  */
 function sanitizeForXML(text: string): string {
-  // Escape any existing "]]>" sequences that would break CDATA
   const escaped = text.replace(/]]>/g, ']]]]><![CDATA[>');
   return `<![CDATA[${escaped}]]>`;
 }
@@ -243,13 +221,11 @@ function parseFactCheckResponse(llmResponse: string, modelId: string): {
   confidence: number;
   score: number;
 } {
-  // Extract XML tags
   const resourceMatch = llmResponse.match(/<RESOURCE_ANALYSIS>([\s\S]*?)<\/RESOURCE_ANALYSIS>/i);
   const truthMatch = llmResponse.match(/<TRUTH_ANALYSIS>([\s\S]*?)<\/TRUTH_ANALYSIS>/i);
   const confidenceMatch = llmResponse.match(/<CONFIDENCE>\s*(\d+)\s*<\/CONFIDENCE>/i);
   const scoreMatch = llmResponse.match(/<SCORE>\s*(\d+)\s*<\/SCORE>/i);
 
-  // Check which tags are missing for better error messages
   const missing: string[] = [];
   if (!resourceMatch) missing.push('RESOURCE_ANALYSIS');
   if (!truthMatch) missing.push('TRUTH_ANALYSIS');
@@ -269,7 +245,6 @@ function parseFactCheckResponse(llmResponse: string, modelId: string): {
   const confidence = parseInt(confidenceMatch![1], 10);
   const score = parseInt(scoreMatch![1], 10);
 
-  // Validate ranges
   if (isNaN(confidence) || confidence < 0 || confidence > 100) {
     throw new Error(`Invalid confidence score: ${confidenceMatch![1]}`);
   }
@@ -278,12 +253,7 @@ function parseFactCheckResponse(llmResponse: string, modelId: string): {
     throw new Error(`Invalid accuracy score: ${scoreMatch![1]}`);
   }
 
-  return {
-    resourceAnalysis,
-    truthAnalysis,
-    confidence,
-    score
-  };
+  return { resourceAnalysis, truthAnalysis, confidence, score };
 }
 
 /**
@@ -304,14 +274,11 @@ function formatExplanation(parsed: {
 function buildUserPrompt(request: FactCheckRequest): string {
   let userPrompt = '';
 
-  // Add instruction if provided
   if (request.instruction) {
     userPrompt += `<INSTRUCTION>\n${sanitizeForXML(request.instruction)}\n</INSTRUCTION>\n\n`;
   }
 
-  // Build the claim - either simple text or conversation format
   if (request.messages && request.messages.length > 0) {
-    // Multi-turn conversation format
     userPrompt += `<CLAIM>\n  <CONVERSATION>\n`;
 
     for (const msg of request.messages) {
@@ -330,7 +297,6 @@ function buildUserPrompt(request: FactCheckRequest): string {
 
     userPrompt += `  </CONVERSATION>\n</CLAIM>`;
   } else {
-    // Simple claim format
     userPrompt += `<CLAIM>\n${sanitizeForXML(request.claim)}\n</CLAIM>`;
   }
 
@@ -378,13 +344,10 @@ async function factCheckWithRetries(
   const attempts: FactCheckAttempt[] = [];
   const userPrompt = buildUserPrompt(request);
 
-  // Select models to try
   let modelsToTry = FACTCHECK_CONFIG.models;
   if (request.modelId) {
-    // User specified a model, only try that one
     modelsToTry = FACTCHECK_CONFIG.models.filter(m => m.modelId === request.modelId);
     if (modelsToTry.length === 0) {
-      // Custom model not in our config, use it anyway
       modelsToTry = [{
         modelId: request.modelId,
         maxTokens: request.maxTokens || 2000,
@@ -393,9 +356,7 @@ async function factCheckWithRetries(
     }
   }
 
-  // Try each model in sequence
   for (const config of modelsToTry) {
-    // Try this model with retries
     for (let attempt = 1; attempt <= FACTCHECK_CONFIG.retries.perModel; attempt++) {
       const attemptNumber = attempts.length + 1;
 
@@ -404,7 +365,6 @@ async function factCheckWithRetries(
 
         const result = await attemptFactCheck(config, request, userPrompt);
 
-        // Success! Log and return
         attempts.push({
           attemptNumber,
           modelId: config.modelId,
@@ -421,7 +381,6 @@ async function factCheckWithRetries(
           `Score: ${result.parsed.score}, Confidence: ${result.parsed.confidence}`
         );
 
-        // Build and return response
         const response: FactCheckResponse = {
           score: result.parsed.score / 100,
           explain: formatExplanation(result.parsed)
@@ -434,7 +393,6 @@ async function factCheckWithRetries(
         return response;
 
       } catch (error: any) {
-        // Log failed attempt with details
         const errorMessage = error.message || 'Unknown error';
 
         attempts.push({
@@ -452,13 +410,11 @@ async function factCheckWithRetries(
           errorMessage
         );
 
-        // If this was the last retry for this model, log more details
         if (attempt === FACTCHECK_CONFIG.retries.perModel) {
           console.error(`[Factcheck] All retries exhausted for ${config.modelId}, trying next model if available`);
           break;
         }
 
-        // Wait before retrying (exponential backoff)
         const backoffMs = FACTCHECK_CONFIG.retries.backoffMs * attempt;
         console.log(`[Factcheck] Waiting ${backoffMs}ms before retry...`);
         await sleep(backoffMs);
@@ -466,7 +422,6 @@ async function factCheckWithRetries(
     }
   }
 
-  // All models and retries failed - prepare comprehensive error
   const uniqueModels = [...new Set(attempts.map(a => a.modelId))];
   const allErrors = attempts.map(a => a.error).filter(Boolean);
 
@@ -476,7 +431,6 @@ async function factCheckWithRetries(
     errors: allErrors
   });
 
-  // Log detailed information about each attempt for debugging
   console.error('[Factcheck] Detailed attempt log:');
   attempts.forEach(attempt => {
     console.error(`  - Attempt ${attempt.attemptNumber} (${attempt.modelId}):`, {
@@ -492,7 +446,6 @@ async function factCheckWithRetries(
     `Fact-check failed after ${attempts.length} attempts across ${uniqueModels.length} model(s): ${uniqueModels.join(', ')}`
   );
 
-  // Send comprehensive error to Sentry
   captureError(finalError, {
     endpoint: 'factcheck',
     claim: request.claim.substring(0, 200),
@@ -515,7 +468,7 @@ async function factCheckWithRetries(
   throw finalError;
 }
 
-const handler: Handler = async (event: HandlerEvent): Promise<HandlerResponse> => {
+export async function POST(req: NextRequest) {
   // Initialize Sentry
   initSentry('factcheck');
 
@@ -533,59 +486,28 @@ const handler: Handler = async (event: HandlerEvent): Promise<HandlerResponse> =
   });
 
   // Check authentication
-  const authError = checkBackgroundFunctionAuth(event);
+  const authError = checkBackgroundAuth(req);
   if (authError) {
     await flushSentry();
     return authError;
   }
 
-  // Only accept POST requests
-  if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      body: JSON.stringify({
-        error: 'Method not allowed. This endpoint only accepts POST requests.'
-      }),
-      headers: {
-        'Content-Type': 'application/json',
-        'Allow': 'POST'
-      }
-    };
-  }
-
   try {
-    // Parse request body
-    if (!event.body) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({
-          error: 'Request body is required'
-        }),
-        headers: { 'Content-Type': 'application/json' }
-      };
-    }
-
-    const request: FactCheckRequest = JSON.parse(event.body);
+    const request: FactCheckRequest = await req.json();
 
     // Validate required fields
     if (!request.claim || typeof request.claim !== 'string') {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({
-          error: 'Invalid request: "claim" field is required and must be a string'
-        }),
-        headers: { 'Content-Type': 'application/json' }
-      };
+      return NextResponse.json(
+        { error: 'Invalid request: "claim" field is required and must be a string' },
+        { status: 400 }
+      );
     }
 
     if (request.claim.length > 5000) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({
-          error: 'Claim is too long. Maximum length is 5000 characters.'
-        }),
-        headers: { 'Content-Type': 'application/json' }
-      };
+      return NextResponse.json(
+        { error: 'Claim is too long. Maximum length is 5000 characters.' },
+        { status: 400 }
+      );
     }
 
     console.log('[Factcheck] Processing claim:', request.claim.substring(0, 100) + '...');
@@ -596,40 +518,29 @@ const handler: Handler = async (event: HandlerEvent): Promise<HandlerResponse> =
       console.log('[Factcheck] Using conversation format with', request.messages.length, 'messages');
     }
 
-    // Perform fact-check with retries and model fallback
     const response = await factCheckWithRetries(request);
 
     await flushSentry();
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify(response),
-      headers: { 'Content-Type': 'application/json' }
-    };
+    return NextResponse.json(response);
 
   } catch (error: any) {
     console.error('[Factcheck] Handler error:', error.message);
 
-    // factCheckWithRetries already logged details to Sentry if it was a retry failure
-    // For other errors (validation, etc), log them here
     if (!error.message?.includes('attempts across')) {
       captureError(error, {
         endpoint: 'factcheck',
-        claim: event.body ? JSON.parse(event.body).claim?.substring(0, 100) : undefined
       });
     }
 
     await flushSentry();
 
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
+    return NextResponse.json(
+      {
         error: 'Fact-check failed: ' + (error.message || 'Unknown error'),
         details: process.env.NODE_ENV === 'development' ? error.stack : undefined
-      }),
-      headers: { 'Content-Type': 'application/json' }
-    };
+      },
+      { status: 500 }
+    );
   }
-};
-
-export { handler };
+}

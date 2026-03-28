@@ -435,7 +435,7 @@ Both Sandbox and Workshops use the **same background execution function** but wi
 
 ### Path-Agnostic Pipeline
 
-**Function**: `netlify/functions/execute-sandbox-pipeline-background.ts`
+**Function**: `src/app/api/internal/execute-sandbox-pipeline-background/route.ts`
 
 **Key Innovation**: Derives all output paths from the input `blueprintKey` parameter, rather than hardcoding directory names.
 
