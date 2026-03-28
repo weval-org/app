@@ -56,37 +56,6 @@ const CapabilityLeaderboardDisplay: React.FC<{
 
   return (
           <div>
-        <div className="text-center mb-8">
-        <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground dark:text-foreground mb-2">
-          The Leaderboards
-        </h2>
-        <div className="text-muted-foreground dark:text-muted-foreground text-sm">
-          <Collapsible open={showDetails} onOpenChange={setShowDetails}>
-            <p className="inline">
-              Broad capability areas that combine qualitative grading and topic performance{' '}
-              <CollapsibleTrigger asChild>
-                <button className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors duration-200 ml-1">
-                  <Icon name="info" className="w-3 h-3" />
-                </button>
-              </CollapsibleTrigger>
-            </p>
-            <CollapsibleContent className="mt-4">
-              <div className="text-xs text-muted-foreground bg-muted/30 rounded-md border p-3 max-w-3xl mx-auto">
-                <p className="mb-2">
-                  <strong>Global Qualification:</strong> Models must have ≥10 total evaluation runs across ≥5 different configs platform-wide to be eligible for any capability leaderboard.
-                </p>
-                <p className="mb-2">
-                  <strong>Capability Scoring:</strong> Each capability combines relevant dimensions (1-10 grading), topics (hybrid scores), and specific configs using weighted averages. Only evaluations relevant to that capability contribute to the score.
-                </p>
-                <p>
-                  <strong>Example:</strong> A model needs 10+ global runs to qualify, but their "Safety" score only includes safety-related dimensions, topics, and configs.
-                </p>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-        </div>
-      </div>
-      
       {/* Responsive grid optimized for 3 capabilities */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
         {leaderboards.map((bucket: any) => {

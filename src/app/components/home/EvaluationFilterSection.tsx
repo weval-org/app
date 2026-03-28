@@ -4,17 +4,25 @@ import { useState } from 'react';
 import Link from 'next/link';
 import type { BlueprintSummaryInfo } from '@/app/utils/blueprintSummaryUtils';
 import EvaluationCard from './EvaluationCard';
+import CapabilityLeaderboardDisplay from './CapabilityLeaderboardDisplay';
+import type { CapabilityLeaderboard, CapabilityRawData } from './types';
 
 interface EvaluationFilterSectionProps {
   blueprints: BlueprintSummaryInfo[];
   featuredConfigIds: string[];
   topTags: { name: string; count: number }[];
+  leaderboards?: CapabilityLeaderboard[] | null;
+  leaderboardRawData?: CapabilityRawData | null;
+  modelCardMappings?: Record<string, string>;
 }
 
 export default function EvaluationFilterSection({
   blueprints,
   featuredConfigIds,
   topTags,
+  leaderboards,
+  leaderboardRawData,
+  modelCardMappings,
 }: EvaluationFilterSectionProps) {
   const [activeFilter, setActiveFilter] = useState<string>('all');
 
@@ -39,27 +47,33 @@ export default function EvaluationFilterSection({
 
   return (
     <section id="evaluations" className="scroll-mt-20">
-      <div className="mb-6">
-        <h2 className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground mb-4">
-          Evaluations
-        </h2>
-        {/* Filter pill bar */}
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          {pills.map(pill => (
-            <button
-              key={pill.key}
-              onClick={() => setActiveFilter(pill.key)}
-              className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-colors border ${
-                activeFilter === pill.key
-                  ? 'bg-foreground text-background border-foreground'
-                  : 'bg-transparent text-foreground/70 border-border hover:border-foreground/50 hover:text-foreground'
-              }`}
-            >
-              {pill.label}
-            </button>
-          ))}
-        </div>
+      {/* Filter pill bar */}
+      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide mb-8">
+        {pills.map(pill => (
+          <button
+            key={pill.key}
+            onClick={() => setActiveFilter(pill.key)}
+            className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+              activeFilter === pill.key
+                ? 'bg-foreground text-background border-foreground'
+                : 'bg-transparent text-foreground/70 border-border hover:border-foreground/50 hover:text-foreground'
+            }`}
+          >
+            {pill.label}
+          </button>
+        ))}
       </div>
+
+      {activeFilter === 'all' && leaderboards && leaderboards.length > 0 && (
+        <>
+          <CapabilityLeaderboardDisplay
+            leaderboards={leaderboards}
+            rawData={leaderboardRawData}
+            modelCardMappings={modelCardMappings}
+          />
+          <hr className="my-8 md:my-12 border-border/70 dark:border-slate-700/50 w-3/4 mx-auto" />
+        </>
+      )}
 
       {filteredBlueprints.length === 0 ? (
         <p className="text-muted-foreground text-sm">No evaluations found for this filter.</p>

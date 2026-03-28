@@ -3,7 +3,6 @@ import AggregateStatsDisplay from '@/app/components/AggregateStatsDisplay';
 import { AggregateStatsData } from '@/app/components/home/types';
 import ModelDriftIndicator, { PotentialDriftInfo } from '@/app/components/ModelDriftIndicator';
 import HomePageBanner from "@/app/components/HomePageBanner";
-import CapabilityLeaderboardDisplay from '@/app/components/home/CapabilityLeaderboardDisplay';
 import {
   getComparisonRunInfo,
   EnhancedComparisonConfigInfo,
@@ -170,17 +169,6 @@ export default async function HomePage() {
             </div>
           )}
 
-          {/* The Leaderboards - Standalone First-Class Section */}
-          {featuredConfigs.length > 0 && homepageStats?.capabilityLeaderboards && (
-            <section aria-labelledby="the-leaderboards-heading">
-              <CapabilityLeaderboardDisplay 
-                leaderboards={homepageStats.capabilityLeaderboards} 
-                rawData={homepageStats.capabilityRawData}
-                modelCardMappings={homepageStats.modelCardMappings}
-              />
-            </section>
-          )}
-
           {featuredConfigs.length > 0 ? (
             <>
               <hr className="my-8 md:my-12 border-border/70 dark:border-slate-700/50 w-3/4 mx-auto" />
@@ -188,6 +176,9 @@ export default async function HomePage() {
                 blueprints={blueprintSummaries}
                 featuredConfigIds={featuredConfigIds}
                 topTags={topTags}
+                leaderboards={homepageStats?.capabilityLeaderboards}
+                leaderboardRawData={homepageStats?.capabilityRawData}
+                modelCardMappings={homepageStats?.modelCardMappings}
               />
               <hr className="my-8 md:my-12 border-border/70 dark:border-slate-700/50 w-3/4 mx-auto" />
               <TopTagsSection tags={tagsData} />
