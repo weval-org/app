@@ -31,7 +31,7 @@ export default function EvaluationCard({ blueprint: bp }: EvaluationCardProps) {
 
       {/* Description */}
       {bp.description && (
-        <p className="text-sm text-foreground/80 dark:text-muted-foreground leading-relaxed flex-grow mb-4 line-clamp-5">
+        <p className="text-sm text-foreground/80 dark:text-muted-foreground leading-relaxed mb-4 line-clamp-5">
           {bp.description}
         </p>
       )}
