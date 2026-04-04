@@ -71,8 +71,9 @@ export function ConstitutionComparison() {
         Bottom-Up vs. Top-Down
       </h2>
       <p className="text-muted-foreground mb-8 max-w-2xl">
-        How do crowdsourced principles from 2,200+ participants compare to Claude&rsquo;s
-        existing Constitution? 30 Constitution principles were extracted, reformulated, and
+        How do crowdsourced principles from 2,200+ participants compare to principles
+        from Claude&rsquo;s published Constitution — a well-known reference point for AI
+        value alignment? 30 Constitution principles were extracted, reformulated, and
         tested in a blinded validation survey.
       </p>
 
@@ -148,7 +149,7 @@ export function ConstitutionComparison() {
 
       <div className="mt-8 bg-primary/5 rounded-xl p-5 border border-primary/20">
         <p className="text-sm leading-relaxed">
-          <strong>Key insight:</strong> The crowdsourced framework and Claude&rsquo;s Constitution
+          <strong>Key insight:</strong> The crowdsourced framework and the Claude Constitution
           largely converge on information access, honesty, and balanced perspectives. They diverge
           on <em>how much safety apparatus is appropriate</em> — the public wants more warnings and
           disclaimers than the Constitution prescribes — and on <em>charitable interpretation</em>,

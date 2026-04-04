@@ -19,16 +19,6 @@ export function Footer() {
           >
             The Collective Intelligence Project
           </a>
-          {' · '}
-          Commissioned by{' '}
-          <a
-            href="https://anthropic.com/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary hover:underline"
-          >
-            Anthropic
-          </a>
         </p>
         <p className="text-xs sm:text-sm text-muted-foreground">
           Grounded in Article 19 of the Universal Declaration of Human Rights

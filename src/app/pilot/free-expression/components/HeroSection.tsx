@@ -2,7 +2,6 @@
 
 import React from 'react';
 import CIPLogo from '@/components/icons/CIPLogo';
-import { AnthropicLogo } from '../../india-multilingual/components/AnthropicLogo';
 import { ExternalLink } from 'lucide-react';
 
 export function HeroSection() {
@@ -72,18 +71,7 @@ export function HeroSection() {
             </a>
           </div>
 
-          {/* Partnership */}
-          <div className="flex items-center justify-center gap-2 sm:gap-3 mb-10 sm:mb-14">
-            <span className="text-xs sm:text-sm text-muted-foreground">Commissioned by</span>
-            <a
-              href="https://anthropic.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:opacity-80 transition-opacity"
-            >
-              <AnthropicLogo className="h-3 sm:h-3.5 w-auto text-foreground" />
-            </a>
-          </div>
+          <div className="mb-10 sm:mb-14" />
 
           {/* Title */}
           <div className="text-center mb-6 sm:mb-8">
