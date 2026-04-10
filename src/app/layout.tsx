@@ -32,8 +32,8 @@ export default function RootLayout({
       <body>
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
-          enableSystem
+          defaultTheme="light"
+          forcedTheme="light"
           disableTransitionOnChange
         >
           <Suspense fallback={null}>
@@ -42,7 +42,7 @@ export default function RootLayout({
           </Suspense>
           {children}
           <Toaster />
-          <ThemeToggle />
+          {/* <ThemeToggle /> — temporarily hidden while dark mode is incomplete */}
         </ThemeProvider>
       </body>
     </html>
