@@ -2,6 +2,7 @@
   "name": "llm-sim-suite",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@9.6.0",
   "pnpm": {
     "onlyBuiltDependencies": [
       "@sentry-internal/node-cpu-profiler",
