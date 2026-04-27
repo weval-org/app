@@ -5,7 +5,7 @@ import { BLUEPRINT_CONFIG_REPO_URL } from '@/lib/configConstants';
 import { Button } from '@/components/ui/button';
 import { BlueprintSummaryInfo } from '@/app/utils/blueprintSummaryUtils';
 import DetailedBlueprintCard from './DetailedBlueprintCard';
-import SimplifiedBlueprintCard from './SimplifiedBlueprintCard';
+import EvaluationCard from './EvaluationCard';
 import Icon from '@/components/ui/icon';
 
 interface BrowseAllBlueprintsSectionProps {
@@ -51,15 +51,30 @@ const BrowseAllBlueprintsSection = ({
           <p className="text-lg text-muted-foreground dark:text-muted-foreground">No evaluation blueprints found.</p>
           <p className="text-sm text-muted-foreground dark:text-muted-foreground mt-1">Contribute blueprints to the <a href={`${BLUEPRINT_CONFIG_REPO_URL}/tree/main/blueprints`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Weval Blueprints repository</a>.</p>
         </div>
-      ) : (
+      ) : detailed ? (
         <div className="space-y-5 md:space-y-6">
-          {filteredBlueprints.map(bp => 
-            detailed ? (
-              <DetailedBlueprintCard key={bp.id || bp.configId} blueprint={bp} />
-            ) : (
-              <SimplifiedBlueprintCard key={bp.id || bp.configId} blueprint={bp} />
-            )
-          )}
+          {filteredBlueprints.map(bp => (
+            <DetailedBlueprintCard key={bp.id || bp.configId} blueprint={bp} />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
+          {filteredBlueprints.map(bp => {
+            const key = bp.id || bp.configId;
+            if (bp.latestRunActualLabel && bp.latestRunSafeTimestamp) {
+              const latestRunUrl = `/analysis/${key}/${encodeURIComponent(bp.latestRunActualLabel)}/${bp.latestRunSafeTimestamp}`;
+              return (
+                <Link href={latestRunUrl} key={key} className="block">
+                  <EvaluationCard blueprint={bp} />
+                </Link>
+              );
+            }
+            return (
+              <div key={key}>
+                <EvaluationCard blueprint={bp} />
+              </div>
+            );
+          })}
         </div>
       )}
     </section>

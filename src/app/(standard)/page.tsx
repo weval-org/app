@@ -3,7 +3,6 @@ import AggregateStatsDisplay from '@/app/components/AggregateStatsDisplay';
 import { AggregateStatsData } from '@/app/components/home/types';
 import ModelDriftIndicator, { PotentialDriftInfo } from '@/app/components/ModelDriftIndicator';
 import HomePageBanner from "@/app/components/HomePageBanner";
-import CapabilityLeaderboardDisplay from '@/app/components/home/CapabilityLeaderboardDisplay';
 import {
   getComparisonRunInfo,
   EnhancedComparisonConfigInfo,
@@ -14,9 +13,7 @@ import { HomepageSummaryFileContent } from '@/lib/storageService';
 import { fromSafeTimestamp } from '@/lib/timestampUtils';
 import React from 'react';
 import type { Metadata } from 'next';
-import BrowseAllBlueprintsSection from '@/app/components/home/BrowseAllBlueprintsSection';
-import FeaturedBlueprintsSection from '@/app/components/home/FeaturedBlueprintsSection';
-import TopTagsSection from '@/app/components/home/TopTagsSection';
+import EvaluationFilterSection from '@/app/components/home/EvaluationFilterSection';
 import LatestEvaluationRunsSection, { DisplayableRunInstanceInfo } from '@/app/components/home/LatestEvaluationRunsSection';
 import { BLUEPRINT_CONFIG_REPO_URL, APP_REPO_URL } from '@/lib/configConstants';
 import { processBlueprintSummaries } from '@/app/utils/blueprintSummaryUtils';
@@ -98,19 +95,12 @@ export default async function HomePage() {
 
   const blueprintSummaries = processBlueprintSummaries(featuredConfigs);
   
-  // Featured config IDs for the top 3 showcase
-  const FEATURED_CONFIG_IDS: string[] = [
+  // Featured config IDs for the curated showcase
+  const featuredConfigIds: string[] = [
     'evidence-based-ai-tutoring',
     'sri-lanka-citizen-compendium-factum',
     'sycophancy-probe'
   ];
-  
-  // Split blueprints into featured (top 3) and remaining
-  const featuredBlueprints = FEATURED_CONFIG_IDS.length > 0 
-    ? blueprintSummaries.filter(bp => FEATURED_CONFIG_IDS.includes(bp.id || bp.configId)).slice(0, 3)
-    : blueprintSummaries.slice(0, 3); // Fallback to first 3 if no specific IDs provided
-  
-  const featuredConfigIds = featuredBlueprints.map(bp => bp.id || bp.configId);
 
   // Extract and count tags from all configs (similar to getTags but using existing data)
   const tagCounts: Record<string, number> = {};
@@ -129,26 +119,14 @@ export default async function HomePage() {
     .map(([name, count]) => ({ name, count }))
     .sort((a, b) => b.count - a.count); // Sort by count descending
 
+  const topTags = tagsData.slice(0, 6);
+
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="fixed inset-0 -z-10 dark:bg-gradient-to-br dark:from-slate-900 dark:to-slate-800 bg-gradient-to-br from-slate-50 to-slate-100" />
+    <div className="min-h-screen text-foreground">
       <div className="max-w-7xl mx-auto">
         <HomePageBanner />
         
         <div className="px-4 sm:px-6 lg:px-8 sm:pb-2 md:pb-4 pt-8 md:pt-10 space-y-8 md:space-y-10">
-          {/* {featuredConfigs.length > 0 && headlineStats && (
-            <section 
-              aria-labelledby="platform-summary-heading"
-              className="bg-card/50 dark:bg-slate-800/50 backdrop-blur-md p-6 rounded-2xl shadow-lg ring-1 ring-border/60 dark:ring-slate-700/60"
-            >
-              <div className="space-y-8 md:space-y-10">
-                  <AggregateStatsDisplay stats={headlineStats ? { ...headlineStats, topicChampions: homepageStats?.topicChampions } : null} />
-              </div>
-            </section>
-          )} */}
-          
-          <hr className="my-4 border-border/70 dark:border-slate-700/50 w-3/4 mx-auto" />
-
           {/* Dev Mode Info */}
           {process.env.NODE_ENV === 'development' && homepageStats && (
             <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
@@ -177,35 +155,17 @@ export default async function HomePage() {
             </div>
           )}
 
-          {/* The Leaderboards - Standalone First-Class Section */}
-          {featuredConfigs.length > 0 && homepageStats?.capabilityLeaderboards && (
-            <section aria-labelledby="the-leaderboards-heading">
-              <CapabilityLeaderboardDisplay 
-                leaderboards={homepageStats.capabilityLeaderboards} 
-                rawData={homepageStats.capabilityRawData}
-                modelCardMappings={homepageStats.modelCardMappings}
-              />
-            </section>
-          )}
-
           {featuredConfigs.length > 0 ? (
             <>
               <hr className="my-8 md:my-12 border-border/70 dark:border-slate-700/50 w-3/4 mx-auto" />
-              <FeaturedBlueprintsSection featuredBlueprints={featuredBlueprints} />
-              <hr className="my-8 md:my-12 border-border/70 dark:border-slate-700/50 w-3/4 mx-auto" />
-              <section id="more-blueprints" className="scroll-mt-20">
-                <BrowseAllBlueprintsSection 
-                  blueprints={blueprintSummaries} 
-                  title="Other Evaluations" 
-                  detailed={false}
-                  excludeConfigIds={featuredConfigIds}
-                  actionLink={{ href: '/all', text: 'View All Evaluations »' }} 
-                />
-              </section>
-              <hr className="my-8 md:my-12 border-border/70 dark:border-slate-700/50 w-3/4 mx-auto" />
-              <TopTagsSection tags={tagsData} />
-              {/* <hr className="my-8 md:my-12 border-border/70 dark:border-slate-700/50 w-3/4 mx-auto" />
-              <LatestEvaluationRunsSection latestRuns={top20LatestRuns} /> */}
+              <EvaluationFilterSection
+                blueprints={blueprintSummaries}
+                featuredConfigIds={featuredConfigIds}
+                topTags={topTags}
+                leaderboards={homepageStats?.capabilityLeaderboards}
+                leaderboardRawData={homepageStats?.capabilityRawData}
+                modelCardMappings={homepageStats?.modelCardMappings}
+              />
             </>
           ) : (
            <div className="bg-card/80 dark:bg-slate-800/50 backdrop-blur-md p-8 sm:p-12 rounded-xl shadow-xl ring-1 ring-border dark:ring-slate-700/80 text-center flex flex-col items-center mt-10">

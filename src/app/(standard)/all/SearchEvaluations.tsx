@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useTransition } from 'react';
+import React, { useState, useTransition, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { BlueprintSummaryInfo } from '@/app/utils/blueprintSummaryUtils';
@@ -33,14 +33,22 @@ interface SearchEvaluationsProps {
     currentPage: number;
     totalPages: number;
     totalItems: number;
+    initialQuery?: string;
 }
 
-export function SearchEvaluations({ initialBlueprints, currentPage, totalPages, totalItems: propTotalItems }: SearchEvaluationsProps) {
-    const [query, setQuery] = useState('');
-    const [searchQuery, setSearchQuery] = useState(''); // The actual query used for search
+export function SearchEvaluations({ initialBlueprints, currentPage, totalPages, totalItems: propTotalItems, initialQuery = '' }: SearchEvaluationsProps) {
+    const [query, setQuery] = useState(initialQuery);
+    const [searchQuery, setSearchQuery] = useState(initialQuery); // The actual query used for search
     const [searchResults, setSearchResults] = useState<BlueprintSummaryInfo[]>([]);
     const [isSearchActive, setIsSearchActive] = useState(false);
     const [isPending, startTransition] = useTransition();
+
+    useEffect(() => {
+        if (initialQuery.length > 2) {
+            performSearch(initialQuery);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // When not searching: server already paginated, use initialBlueprints directly
     // When searching: do client-side pagination on search results

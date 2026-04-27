@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -22,31 +24,31 @@
 
 @layer base {
   :root {
-    --background: 42 63% 94%;
+    --background: 44 27% 97%; /* #FAF9F6 — gradient endpoint, also used as fallback */
     --foreground: 330 3% 19%;
-    --muted: 0 0% 100%; /* Derived from surface */
-    --muted-foreground: 330 3% 49%; /* Derived from foreground */
+    --muted: 240 10% 93%; /* #ececf0 — matches Figma */
+    --muted-foreground: 240 7% 48%; /* #717182 — matches Figma */
     --popover: 0 0% 100%; /* Same as surface */
     --popover-foreground: 330 3% 19%; /* Same as foreground */
     --card: 0 0% 100%; /* Same as surface */
     --card-foreground: 330 3% 19%; /* Same as foreground */
-    --border: 0 0% 85%; /* Derived from surface */
-    --input: 0 0% 85%; /* Derived from surface */
-    --primary: 167 59% 22%;
+    --border: 0 0% 90%; /* Subtle, matches Figma rgba(0,0,0,0.1) approx */
+    --input: 0 0% 90%; /* Derived from border */
+    --primary: 248 73% 4%; /* #030213 — near-black, matches Figma */
     --primary-foreground: 0 0% 100%;
-    --secondary: 0 0% 95%; /* Same as muted */
+    --secondary: 240 10% 93%; /* Same as muted */
     --secondary-foreground: 330 3% 19%; /* Same as foreground */
-    --accent: 52 69.2% 87.3%;
+    --accent: 220 15% 93%; /* #e9ebef — matches Figma */
     --accent-foreground: 330 3% 19%; /* Same as foreground */
     --exciting: 320 80% 58%;
     --exciting-foreground: 0 0% 100%;
-    --destructive: 8 86% 60%;
+    --destructive: 347 80% 46%; /* #d4183d — matches Figma */
     --destructive-foreground: 0 0% 100%;
-    --ring:  167 59% 22%; /* Same as primary */
+    --ring: 248 73% 4%; /* Same as primary */
     --radius: 0.5rem;
     
     /* Custom variables */
-    --header: 47 60% 97%;
+    --header: 0 0% 100%; /* White — matches Figma nav */
     --surface: 0 0% 100%;
     --highlight-warning: 46 100% 63.1%;
     --highlight-warning-foreground: 330 3% 19%;
@@ -123,8 +125,8 @@
     --card-foreground: 45 61% 94%; /* Same as dark foreground */
     --border: 330 3% 29%; /* Derived from dark background */
     --input: 330 3% 29%; /* Derived from dark background */
-    --primary: 166 75% 73%;
-    --primary-foreground: 340 100% 11.4%;
+    --primary: 0 0% 97%; /* near-white — inverted from light mode #030213, matches Figma dark */
+    --primary-foreground: 248 73% 4%; /* near-black text on light button */
     --secondary: 330 3% 24%; /* Same as dark muted */
     --secondary-foreground: 45 61% 94%; /* Same as dark foreground */
     --accent: 52 69.2% 87.3%; /* Same as light accent */
@@ -209,7 +211,11 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: 'Geist', sans-serif;
+    font-family: 'IBM Plex Sans', 'Geist', sans-serif;
+    letter-spacing: 0.01em;
+  }
+  h1, h2, h3, h4 {
+    letter-spacing: 0.02em;
   }
 }
 

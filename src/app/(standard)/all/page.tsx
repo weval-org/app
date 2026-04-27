@@ -29,10 +29,11 @@ function isPublicEvaluation(config: EnhancedComparisonConfigInfo): boolean {
 }
 
 export default async function AllBlueprintsPage(props: {
-    searchParams: Promise<{ page?: string }>;
+    searchParams: Promise<{ page?: string; q?: string }>;
 }) {
     const searchParams = await props.searchParams;
     const page = parseInt(searchParams?.page || '1', 10);
+    const initialQuery = searchParams?.q || '';
     const rawConfigs = await getAllBlueprintSummaries();
 
     // Filter out internal/sandbox configs
@@ -95,6 +96,7 @@ export default async function AllBlueprintsPage(props: {
                     currentPage={currentPage}
                     totalPages={totalPages}
                     totalItems={totalItems}
+                    initialQuery={initialQuery}
                 />
             </main>
         </div>
