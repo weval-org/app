@@ -13,7 +13,7 @@
     "dev": "next dev -p 3172",
     "build": "NODE_OPTIONS=--max-old-space-size=6144 next build",
     "build:debug": "NODE_OPTIONS=--max-old-space-size=6144 next build --profile --experimental-debug-memory-usage",
-    "start": "NODE_OPTIONS=--max-old-space-size=6144 next start -p 3172",
+    "start": "NODE_OPTIONS=--max-old-space-size=6144 next start -p ${PORT:-3172}",
     "lint": "next lint",
     "lint:fix": "next lint --fix",
     "analyze": "ANALYZE=true pnpm run build",
