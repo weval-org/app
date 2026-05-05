@@ -53,7 +53,7 @@ export default function EvaluationFilterSection({
           <button
             key={pill.key}
             onClick={() => setActiveFilter(pill.key)}
-            className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+            className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-colors border capitalize ${
               activeFilter === pill.key
                 ? 'bg-foreground text-background border-foreground'
                 : 'bg-transparent text-foreground/70 border-border hover:border-foreground/50 hover:text-foreground'
