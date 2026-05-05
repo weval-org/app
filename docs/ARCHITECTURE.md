@@ -2,11 +2,10 @@
 
 This document provides a comprehensive overview of the Weval architecture, detailing the distinct workflows that power the platform and the core components that drive evaluation.
 
-Weval runs evaluations through two main paths: scheduled public evaluations and interactive developer/sandbox runs. Both paths use the same core evaluation pipeline, but differ in how runs are triggered, stored, and surfaced in the UI.
-
-
-1. **The Automated "Public Commons" Workflow**: A continuous integration pipeline that automatically evaluates community-contributed blueprints and updates the public `weval.org` website.
-2. **The Interactive "Developer & Sandbox" Workflow**: A set of tools for developers and prompt engineers to create, test, and iterate on blueprints either locally or in a web-based environment.
+Weval runs evaluations through two main paths:
+                                              
+1. **The Automated "Public Commons" Workflow:** A continuous integration pipeline that automatically evaluates community-contributed blueprints and updates the public weval.org website.
+2. **The Interactive "Developer & Sandbox"** Workflow: A set of tools for developers and prompt engineers to create, test, and iterate on blueprints either locally or in a web-based environment.   
 
 ## 1. High-Level Workflows
 
