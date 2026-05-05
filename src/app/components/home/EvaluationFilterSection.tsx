@@ -42,7 +42,7 @@ export default function EvaluationFilterSection({
   const pills = [
     { key: 'all', label: 'All' },
     { key: 'featured', label: 'Featured' },
-    ...topTags.slice(0, 6).map(t => ({ key: t.name, label: t.name })),
+    ...topTags.slice(0, 6).map(t => ({ key: t.name, label: t.name.charAt(0).toUpperCase() + t.name.slice(1) })),
   ];
 
   return (
