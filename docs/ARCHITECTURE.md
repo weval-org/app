@@ -89,7 +89,7 @@ These are the foundational services used across all workflows, ensuring evaluati
 - **`comparison-pipeline-service.ts`**: The central orchestrator that manages a single evaluation run. It takes a configuration, generates model responses, and calls the necessary evaluators.
 - **`llm-coverage-evaluator.ts`**: Implements the rubric-based scoring logic. It uses "judge" LLMs to assess responses against the `should` and `should_not` criteria defined in a blueprint. It supports complex rubrics including alternative paths (OR logic), where the best-performing path is selected.
 - **`storageService.ts`**: A critical abstraction layer that handles all file I/O, allowing the system to seamlessly read and write from either the local filesystem or a cloud provider like AWS S3.
-- **`summaryCalculationUtils.ts`**: Contains the post-processing logic for calculating aggregate metrics like the **Hybrid Score**, model performance drift, and leaderboard rankings. This service operates on completed raw result files.
+- **`summaryCalculationUtils.ts`**: Orchestrates post-processing after a run completes — computing model performance drift and leaderboard rankings, and calling `calculateHybridScore` (defined in `calculationUtils.ts`) to produce the **Hybrid Score**. Operates on completed raw result files.
 
 ### Storage Architecture (The `live/` Directory)
 
@@ -112,7 +112,7 @@ graph TD;
 
     B --> B1["homepage_summary.json"];
     B --> B2["latest_runs_summary.json"];
-    B --> B3["search_index.json"];
+    B --> B3["search-index.json"];
 
     C --> C1["[config-id]/"];
     C1 --> C2["[run-file].json"];
@@ -141,7 +141,7 @@ graph TD;
 - **`live/aggregates/`**: Contains all global, cross-cutting summary files.
   - `homepage_summary.json`: The main manifest for the website's homepage.
   - `latest_runs_summary.json`: A list of the 50 most recent evaluation runs.
-  - `search_index.json`: The pre-compiled index for the website's search functionality.
+  - `search-index.json`: The pre-compiled index for the website's search functionality.
 - **`live/blueprints/`**: Contains the core evaluation data, organized by each blueprint's unique ID. Each subdirectory contains the raw JSON outputs for every run of that blueprint, plus a `summary.json` of its historical performance.
 - **`live/models/`**: Contains data aggregated on a per-model basis.
   - `summaries/`: Detailed performance breakdowns for each model across all blueprints.
@@ -290,7 +290,7 @@ graph TD;
 
 ## 4. Key Architectural Concepts
 
-- **Separation of Raw Data and Summaries**: The core pipeline still produces a monolithic `*_comparison.json` for complete fidelity, *but* the UI now relies on the artefact bundle (`core.json` + `responses/` + `coverage/`) for 95 % of use-cases.  High-level metrics like the **Hybrid Score** are *not* in either raw form; they are computed afterward by `summaryCalculationUtils.ts` and saved into summary files (e.g. `homepage_summary.json`).
+- **Separation of Raw Data and Summaries**: The core pipeline still produces a monolithic `*_comparison.json` for complete fidelity, *but* the UI now relies on the artefact bundle (`core.json` + `responses/` + `coverage/`) for 95 % of use-cases.  High-level metrics like the **Hybrid Score** are *not* in either raw form; they are computed afterward by `calculateHybridScore` in `calculationUtils.ts` (called via `summaryCalculationUtils.ts`) and saved into summary files (e.g. `homepage_summary.json`).
 - **Consistency via Shared Services**: By using the same core services (`comparison-pipeline-service`, `storageService`, etc.) for both the automated cron-driven workflow (GitHub Actions → Railway) and the manual CLI/Sandbox workflow, the platform ensures that an evaluation produces the same results regardless of how it was triggered.
 - **Idempotent, Content-Hashed Runs**: The automated workflow uses a hash of a blueprint's content (including its fully resolved model list) as its `runLabel`. This ensures that identical blueprints are not re-run unnecessarily, saving significant computational resources.
 - **Graceful Fallback & Progressive Enhancement**: The Sandbox is a prime example of this design principle. It is fully functional for anonymous users, with all work saved to local storage. Authenticating with GitHub progressively enhances the experience by enabling cloud-based file management and the ability to contribute back to the public commons.
