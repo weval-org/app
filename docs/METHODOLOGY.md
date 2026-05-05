@@ -54,35 +54,53 @@ evaluationConfig:
       - { model: 'openrouter:google/gemini-pro-1.5', approach: 'prompt-aware' }
 ```
 
-If no `judges` are specified, the system uses a default set designed to provide a balanced evaluation:
-1.  **`prompt-aware` approach (default):** A judge sees the response, the criterion, and the original user prompt. This allows the judge to consider the criterion in the context of the user's request.
-2.  **`holistic` approach (default):** A judge sees the response, the criterion, the user prompt, and *all other criteria* in the rubric. This provides the richest context, allowing the judge to assess the point as part of a whole, which can be useful for identifying redundancy or assessing trade-offs.
+If no `judges` are specified, the system uses `DEFAULT_JUDGES` (defined in `src/cli/evaluators/llm-coverage-evaluator.ts`) — a fixed set of **three holistic judges across three model families**, chosen for cross-family diversity to mitigate single-vendor bias:
 
-The **`standard`** approach (criterion-only) remains supported and can be configured explicitly if desired, but it is not part of the current default set. A backup judge is also used to improve robustness when primary judges fail.
+1.  `holistic-gemini-2-5-flash` → `openrouter:google/gemini-2.5-flash`
+2.  `holistic-gpt-4-1-mini` → `openrouter:openai/gpt-4.1-mini`
+3.  `holistic-claude-haiku-4-5` → `openrouter:anthropic/claude-haiku-4.5`
+
+All three default judges use the **`holistic`** approach (sees the response, the criterion, the user prompt, and *all other criteria* in the rubric). The platform's three approaches — **`standard`** (criterion-only), **`prompt-aware`** (response + criterion + prompt), and **`holistic`** (response + criterion + prompt + full rubric) — all remain supported and can be mixed in custom blueprint judge configs. They are simply not part of the current default set, which prioritizes cross-family consensus over approach diversity. A backup judge (Claude Haiku 4.5, holistic) is also used to improve robustness when primary judges fail.
 
 #### Judge Prompting and Classification
 
 A specific, structured prompt is used to elicit a judgment for each individual point in the rubric, tailored to the judge's `approach`.
 
 *   **System Prompt Persona**: The judge is instructed to act as an "expert evaluator and examiner" and to adhere strictly to the task and output format.
-*   **Task Definition**: The judge is presented with the model's response (`<TEXT>`) and a single criterion (`<CRITERION>`) and is asked to classify the degree to which the criterion is present in the text according to a 5-point scale. Depending on the `approach`, the original `<PROMPT>` and the full `<CRITERIA_LIST>` may also be included for context.
-*   **The 5-Point Scale**: The judge must choose one of the following five classes:
-    *   `CLASS_UNMET`: The criterion is not met.
-    *   `CLASS_PARTIALLY_MET`: The criterion is partially met.
-    *   `CLASS_MODERATELY_MET`: The criterion is moderately met.
-    *   `CLASS_MAJORLY_MET`: The criterion is mostly met.
-    *   `CLASS_EXACTLY_MET`: The criterion is fully met.
+*   **Task Definition**: The judge is presented with the model's response (`<TEXT>`) and a single criterion (`<CRITERION>`) and is asked to classify the degree to which the criterion is present in the text according to an ordinal scale. Depending on the `approach`, the original `<PROMPT>` and the full `<CRITERIA_LIST>` may also be included for context.
+*   **The Classification Scales**: Two scales are defined in the codebase. The platform currently forces use of the **experimental 10-class scale** via a global override (`FORCE_EXPERIMENTAL = true` at the top of `src/cli/evaluators/llm-coverage-evaluator.ts`), which can be flipped to opt blueprints into the older 5-class scale on a per-blueprint basis (`evaluationConfig['llm-coverage'].useExperimentalScale`).
+
+    **Production today (10-class experimental, `EXPERIMENTAL_CLASSIFICATION_SCALE`):**
+    *   `CLASS_UTTERLY_UNMET` — The criterion is so completely absent that the content in fact contradicts or contravenes it.
+    *   `CLASS_UNMET` — The criterion is not met.
+    *   `CLASS_TRACE` — Only a trace or hint of the criterion appears.
+    *   `CLASS_SLIGHT` — A slight presence of the criterion is detectable.
+    *   `CLASS_PARTIAL` — Partial fulfillment; important elements are missing.
+    *   `CLASS_MODERATE` — Moderate fulfillment; balanced presence with notable gaps.
+    *   `CLASS_SUBSTANTIAL` — Substantial fulfillment; most key aspects are present.
+    *   `CLASS_MAJOR` — Major fulfillment; minor omissions remain.
+    *   `CLASS_VERY_NEARLY` — Very nearly fully met; only negligible details missing.
+    *   `CLASS_EXACT` — Exactly and fully meets the criterion.
+
+    **Legacy 5-class scale (`CLASSIFICATION_SCALE`, available via opt-out):**
+    *   `CLASS_UNMET` / `CLASS_PARTIALLY_MET` / `CLASS_MODERATELY_MET` / `CLASS_MAJORLY_MET` / `CLASS_EXACTLY_MET`.
 
 #### Mathematical Scoring of Rubric Points
 
 The judge's categorical classification is mapped to a quantitative score.
 
-*   **Numerical Mapping**: The classification is mapped to a linear, equidistant numerical scale:
-    *   `CLASS_UNMET` -> **0.0**
-    *   `CLASS_PARTIALLY_MET` -> **0.25**
-    *   `CLASS_MODERATELY_MET` -> **0.50**
-    *   `CLASS_MAJORLY_MET` -> **0.75**
-    *   `CLASS_EXACTLY_MET` -> **1.0**
+*   **Numerical Mapping (10-class experimental scale, current default):** The mapping is **deliberately non-linear at the unmet end**, with a tiny gap separating contradictory content from merely-absent content:
+    *   `CLASS_UTTERLY_UNMET` → **0.000**
+    *   `CLASS_UNMET` → **0.001**
+    *   `CLASS_TRACE` → **0.125**
+    *   `CLASS_SLIGHT` → **0.250**
+    *   `CLASS_PARTIAL` → **0.375**
+    *   `CLASS_MODERATE` → **0.500**
+    *   `CLASS_SUBSTANTIAL` → **0.625**
+    *   `CLASS_MAJOR` → **0.750**
+    *   `CLASS_VERY_NEARLY` → **0.875**
+    *   `CLASS_EXACT` → **1.000**
+*   **Numerical Mapping (5-class legacy scale, opt-in):** Linear / equidistant: `CLASS_UNMET` → 0.0, `CLASS_PARTIALLY_MET` → 0.25, `CLASS_MODERATELY_MET` → 0.5, `CLASS_MAJORLY_MET` → 0.75, `CLASS_EXACTLY_MET` → 1.0.
 *   **Score Inversion (`should_not`)**: For criteria that penalize undesirable content, the score is inverted. For an original score $S_{\text{orig}}$, the final score is $S_{\text{final}} = 1 - S_{\text{orig}}$.
 *   **Weighted Aggregation**: A blueprint can assign a `multiplier` (weight) to each point. The final rubric score for a model on a prompt (`avgCoverageExtent`) is the weighted average of all point scores. For $N$ points with score $S_i$ and weight $w_i$:
     ```math
@@ -112,7 +130,7 @@ When multiple judges evaluate the same response, the platform quantifies the deg
 ##### Krippendorff's Alpha Calculation
 
 *   **Purpose**: Krippendorff's α measures the consistency of judgments across all judges evaluating a model's response. Values range from 0 (no agreement beyond chance) to 1 (perfect agreement).
-*   **Formula**: For ordinal data (our 0.0, 0.25, 0.50, 0.75, 1.0 scale), α is calculated as:
+*   **Formula**: For ordinal data (whichever scale is active — the 10-class experimental mapping today, see "Mathematical Scoring of Rubric Points" above), α is calculated as:
     ```math
     \alpha = 1 - \frac{D_o}{D_e}
     ```
@@ -191,7 +209,7 @@ While the platform aims for complete judge coverage on all criteria, individual 
 
 **The Backup Judge Mechanism:**
 
-To improve robustness, the system employs a backup judge (Claude 3.5 Haiku) that activates when primary judges fail:
+To improve robustness, the system employs a backup judge (Claude Haiku 4.5, `openrouter:anthropic/claude-haiku-4.5`, holistic approach — defined as `DEFAULT_BACKUP_JUDGE` in `src/cli/evaluators/llm-coverage-evaluator.ts`) that activates when primary judges fail:
 
 *   **Trigger Condition**: Backup judge only runs when `successfulJudgements < totalPrimaryJudges` (i.e., at least one primary judge failed)
 *   **Not Used with Custom Judges**: To preserve user-configured judge sets, backup judge is disabled when custom `judges` are specified in the blueprint
@@ -528,7 +546,7 @@ Weval's methodology is designed to be robust, but like any quantitative system, 
 The validity of Weval's metrics rests on these core assumptions:
 
 *   **Assumption of Appropriate Weighting in Hybrid Score**: The Hybrid Score currently uses 0% similarity and 100% coverage (coverage-only). This assumes that rubric adherence is the dominant signal of model quality and that semantic similarity to an ideal response (when available) adds no additional information. While this explicit choice is more transparent than an implicit weighting, it may not be optimal for all evaluation contexts, and future versions may offer configurable weights.
-*   **Assumption of Linearity in Score Mapping**: The 5-point categorical scale from the LLM judge is mapped to a linear, equidistant numerical scale. This assumes the qualitative gap between "Absent" and "Slightly Present" is the same as between "Majorly Present" and "Fully Present," which may not be perceptually true.
+*   **Assumption of (mostly) Linearity in Score Mapping**: The categorical scale from the LLM judge is mapped to a numerical scale that is **partially non-linear** in the current 10-class experimental default. The platform deliberately separates `CLASS_UTTERLY_UNMET` (0.000) from `CLASS_UNMET` (0.001) by an explicitly tiny gap to distinguish contradiction from mere absence, and uses 0.125-step increments above that. This addresses but does not fully solve the perceptual-gap problem: the middle of the scale still has uniform 0.125 steps that may not match how judges actually perceive distance between, say, "Moderate" and "Substantial". The legacy 5-class scale (still available via `useExperimentalScale: false`) is fully linear and even more susceptible to this concern. A complete fix would require either empirical calibration of the mapping against human ratings or moving to continuous 0–1 judge outputs.
 *   **Assumption of Criterion Independence**: The rubric score (`avgCoverageExtent`) is a weighted average that treats each criterion as an independent variable. It does not account for potential correlations between criteria (e.g., "clarity" and "conciseness").
 *   **Assumption of Effective Bias Reduction via Anonymization**: The model anonymization system assumes that removing real model names and providers significantly reduces analyst LLM bias, while preserving maker-level information provides meaningful comparative insights. This assumes that brand bias is primarily driven by explicit name recognition rather than subtle patterns in response style that might persist even when anonymized.
 
