@@ -13,8 +13,6 @@ The following diagrams illustrate the two main operational flows of the platform
 
 ### The Automated "Public Commons" Workflow
 
-This workflow describes how community contributions are automatically evaluated and published.
-
 ```mermaid
 graph TD
     subgraph "Contribution"
@@ -44,8 +42,6 @@ graph TD
 ```
 
 ### The Interactive "Developer & Sandbox" Workflow
-
-This workflow shows the parallel paths for local CLI development and web-based Sandbox use. Both are powered by the same core evaluation engine.
 
 ```mermaid
 graph LR
@@ -80,11 +76,7 @@ graph LR
 
 ## 2. Component Deep Dive
 
-Each component in the diagrams above has a specific role in the ecosystem.
-
 ### Core Services (Shared Logic)
-
-These are the foundational services used across all workflows, ensuring evaluation consistency.
 
 - **`comparison-pipeline-service.ts`**: The central orchestrator that manages a single evaluation run. It takes a configuration, generates model responses, and calls the necessary evaluators.
 - **`llm-coverage-evaluator.ts`**: Implements the rubric-based scoring logic. It uses "judge" LLMs to assess responses against the `should` and `should_not` criteria defined in a blueprint. It supports complex rubrics including alternative paths (OR logic), where the best-performing path is selected.
@@ -162,8 +154,6 @@ graph TD;
   - `histories/`     → per-prompt × model full conversation histories (`histories/[promptId]/[modelId].json`).
   - *(Legacy)* `[runLabel]_[timestamp]_comparison.json` – the original monolithic file is still generated for backward compatibility but will be phased out.
 
-  The application fetches `core.json` via `/api/comparison/.../core` to render the page instantly.  Detailed data is lazy-loaded on demand from `responses/` and `coverage/` paths, with automatic fallback to the legacy monolithic file when artefacts are missing.
-
 #### Fixtures (Optional deterministic responses)
 
 - When the CLI is invoked with `--fixtures`, the generation stage consults a fixtures file (YAML/JSON) to select deterministic candidate responses for specific prompt×model pairs.
@@ -175,8 +165,6 @@ graph TD;
 - **`live/pr-evals/`**: Per-PR preview evaluations, written by `execute-pr-evaluation-background`. Layout: `live/pr-evals/[prNumber]/[sanitized-blueprint-id]/...`, otherwise mirroring the `live/blueprints/` artefact layout.
 
 ### Automated Workflow Components
-
-These components power the public `weval.org` platform.
 
 - **GitHub Actions cron — Weekly evaluation** (`weekly-eval-check.yml`): The actual scheduler. Runs every Sunday at 00:00 UTC and POSTs an authenticated request to `${RAILWAY_APP_URL}/api/internal/fetch-and-schedule-evals` with a configurable batch size.
 - **GitHub Actions cron — Daily sandbox cleanup** (`cleanup-sandbox-runs.yml`): Runs every day at 02:00 UTC and POSTs an authenticated request to `${RAILWAY_APP_URL}/api/internal/cleanup-sandbox-runs`, which deletes objects under `live/sandbox/runs/` older than 7 days (`CLEANUP_AGE_DAYS = 7`).
@@ -197,8 +185,6 @@ Beyond the two canonical public-commons routes above, the codebase ships several
 - **`demo-external-evaluator`**, **`debug-env`**: Diagnostic / demo endpoints; not part of the production data path.
 
 ### Interactive Workflow Components
-
-These components support the developer and sandbox environments.
 
 - **`cli: run-config`**: The main command-line tool for developers. By default, it runs the evaluation pipeline for a local or GitHub-based blueprint and saves the results to the local `/.results/` directory, updating only the per-config summary. When used with the `--update-summaries` flag, it additionally rebuilds platform-wide summaries (homepage leaderboards, model summaries, etc.) using the same logic as the backfill process.
 - **Sandbox UI & Backend API**: A full-stack feature within the Next.js app that provides an interactive, browser-based IDE for blueprint creation. It has its own set of API endpoints (`/api/sandbox`, `/api/github`) and a dedicated background route handler (`/api/internal/execute-sandbox-pipeline-background`) for running evaluations.
