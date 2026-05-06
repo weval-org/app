@@ -54,7 +54,7 @@ graph LR
     subgraph "Path B: Web Sandbox"
         C[("fa:fa-user Prompt Engineer")] --> D["fa:fa-flask Sandbox UI"]
         D -- Start Run --> G["Backend API<br>(/api/sandbox/run)"]
-        G -- Fire-and-forget HTTP --> H["fa:fa-cogs route: execute-sandbox-pipeline-background<br>(same Railway service)"]
+        G -- Authenticated HTTP --> H["fa:fa-cogs route: execute-sandbox-pipeline-background<br>(same Railway service)"]
         H -- Runs Core Pipeline --> E
         H -- Writes to --> I[("fa:fa-aws S3 Bucket<br>live/sandbox/runs/")]
         D -- Polls Status --> G2["Status API<br>(/api/sandbox/status/[sandboxId])"]
@@ -169,11 +169,11 @@ graph TD;
 - **GitHub Actions cron — Weekly evaluation** (`weekly-eval-check.yml`): The actual scheduler. Runs every Sunday at 00:00 UTC and POSTs an authenticated request to `${RAILWAY_APP_URL}/api/internal/fetch-and-schedule-evals` with a configurable batch size.
 - **GitHub Actions cron — Daily sandbox cleanup** (`cleanup-sandbox-runs.yml`): Runs every day at 02:00 UTC and POSTs an authenticated request to `${RAILWAY_APP_URL}/api/internal/cleanup-sandbox-runs`, which deletes objects under `live/sandbox/runs/` older than 7 days (`CLEANUP_AGE_DAYS = 7`).
 - **`/api/internal/fetch-and-schedule-evals`** (`fetch-and-schedule-evals`): A Next.js API route hosted on Railway. It scans the `weval/configs` repository for new or updated blueprints with the `_periodic` tag and triggers evaluation runs for them by calling `/api/internal/execute-evaluation-background` over authenticated HTTP (via `callBackgroundFunction`).
-- **`/api/internal/execute-evaluation-background`** (`execute-evaluation-background`): A long-running Next.js API route handler — also on Railway — that performs the actual evaluation for the public site. It calls the core services and is responsible for creating both the raw result file and updating the aggregate summary files in S3. Throughout this document, "background function" refers to these fire-and-forget HTTP-triggered routes; they are **not** Netlify Functions, but the team's term for long-running internal route handlers.
+- **`/api/internal/execute-evaluation-background`** (`execute-evaluation-background`): A long-running Next.js API route handler — also on Railway — that performs the actual evaluation for the public site. It calls the core services and is responsible for creating both the raw result file and updating the aggregate summary files in S3. The caller (`callBackgroundFunction`) awaits a response up to a 30-second timeout; for evaluations that exceed that, the caller's connection is dropped but Railway continues running the handler to completion. Throughout this document, "background route" refers to this pattern: a long-running internal HTTP handler, **not** a Netlify Function.
 
 #### Other internal background routes
 
-Beyond the two canonical public-commons routes above, the codebase ships several additional internal background routes under `api/internal/`. They follow the same auth/fan-out pattern (`callBackgroundFunction` → authenticated `POST` → long-running Next.js handler on Railway) and exist to support adjacent surfaces:
+Beyond the two canonical public-commons routes above, the codebase ships several additional internal background routes under `api/internal/`. They follow the same pattern (`callBackgroundFunction` → authenticated `POST` → long-running Next.js handler on Railway) and exist to support adjacent surfaces:
 
 - **`execute-pr-evaluation-background`**: Runs evaluations for blueprints proposed in a PR; output lands under `live/pr-evals/[prNumber]/...`.
 - **`execute-api-evaluation-background`**: Runs evaluations triggered by the public HTTP API.
