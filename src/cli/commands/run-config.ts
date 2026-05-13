@@ -68,6 +68,9 @@ export async function resolveModelCollections(configModels: any[], collectionsRe
                 logger.warn(`Malformed model entry string '${modelEntry}' contains unexpected whitespace. Correcting to '${correctedEntry}'. Please fix this in your blueprint file.`);
             }
             normalizedConfigModels.push(correctedEntry);
+        } else if (typeof modelEntry === 'object' && modelEntry !== null && !Array.isArray(modelEntry) && modelEntry.id) {
+            // This is a custom model definition (has id, url, modelName, inherit). Add it directly.
+            normalizedConfigModels.push(modelEntry);
         } else if (typeof modelEntry === 'object' && modelEntry !== null && !Array.isArray(modelEntry)) {
             const keys = Object.keys(modelEntry);
             if (keys.length === 1) {
@@ -85,9 +88,6 @@ export async function resolveModelCollections(configModels: any[], collectionsRe
             } else {
                 logger.warn(`Invalid object entry in models array: Must have exactly one key (the provider). Found ${keys.length} keys. Skipping: ${JSON.stringify(modelEntry)}.`);
             }
-        } else if (typeof modelEntry === 'object' && modelEntry !== null && !Array.isArray(modelEntry) && modelEntry.id) {
-            // This is a custom model definition. Add it directly.
-            normalizedConfigModels.push(modelEntry);
         } else {
              logger.warn(`Invalid entry in models array found: ${JSON.stringify(modelEntry)}. It is not a string or a single key-value object. Skipping this entry.`);
         }
