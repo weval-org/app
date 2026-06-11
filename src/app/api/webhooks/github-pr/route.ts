@@ -125,7 +125,7 @@ function parseBlueprintFiles(files: any[], prAuthor: string): {
 /**
  * Fetch blueprint content from GitHub
  */
-async function fetchBlueprintContent(octokit: Octokit, owner: string, repo: string, ref: string, path: string): Promise<string | null> {
+async function fetchBlueprintContent(octokit: Octokit, owner: string, repo: string, ref: string, path: string): Promise<{ content: string | null; error?: string }> {
   try {
     const response = await octokit.repos.getContent({
       owner,
@@ -135,20 +135,23 @@ async function fetchBlueprintContent(octokit: Octokit, owner: string, repo: stri
     });
 
     if ('content' in response.data && response.data.type === 'file') {
-      const content = Buffer.from(response.data.content, 'base64').toString('utf-8');
-
-      // Check size limit
-      const sizeKB = Buffer.byteLength(content, 'utf-8') / 1024;
+      // Check size limit using the API-reported size. For files over 1MB the
+      // Contents API returns `encoding: "none"` with empty content, so the
+      // reported size is the only reliable measure.
+      const sizeKB = response.data.size / 1024;
       if (sizeKB > MAX_BLUEPRINT_SIZE_KB) {
-        throw new Error(`Blueprint exceeds size limit (${sizeKB.toFixed(1)}KB > ${MAX_BLUEPRINT_SIZE_KB}KB)`);
+        return {
+          content: null,
+          error: `Blueprint is ${sizeKB.toFixed(1)}KB, which exceeds the ${MAX_BLUEPRINT_SIZE_KB}KB limit. Please split it into smaller files.`,
+        };
       }
 
-      return content;
+      return { content: Buffer.from(response.data.content, 'base64').toString('utf-8') };
     }
-    return null;
+    return { content: null, error: 'Path did not resolve to a file' };
   } catch (error: any) {
     console.error(`[GitHub Webhook] Failed to fetch content for ${path}:`, error.message);
-    return null;
+    return { content: null, error: 'Failed to fetch blueprint content' };
   }
 }
 
@@ -407,7 +410,7 @@ export async function POST(req: NextRequest) {
 
     for (const file of valid) {
       // Fetch content from PR head
-      const content = await fetchBlueprintContent(
+      const { content, error: fetchError } = await fetchBlueprintContent(
         octokit,
         pr.head.repo.owner.login,
         pr.head.repo.name,
@@ -416,7 +419,7 @@ export async function POST(req: NextRequest) {
       );
 
       if (!content) {
-        validationErrors.push({ filename: file.filename, error: 'Failed to fetch blueprint content' });
+        validationErrors.push({ filename: file.filename, error: fetchError || 'Failed to fetch blueprint content' });
         continue;
       }
 

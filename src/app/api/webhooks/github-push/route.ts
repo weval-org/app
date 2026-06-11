@@ -11,6 +11,7 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const UPSTREAM_OWNER = 'weval-org';
 const UPSTREAM_REPO = 'configs';
 const MAIN_BRANCH = 'main';
+const MAX_BLUEPRINT_SIZE_KB = 500; // 500KB max, matches the PR webhook limit
 
 const s3Client = new S3Client({
   region: process.env.APP_S3_REGION!,
@@ -101,7 +102,7 @@ async function fetchBlueprintContent(
   repo: string,
   ref: string,
   path: string
-): Promise<string | null> {
+): Promise<{ content: string | null; error?: string }> {
   try {
     const response = await octokit.repos.getContent({
       owner,
@@ -111,12 +112,23 @@ async function fetchBlueprintContent(
     });
 
     if ('content' in response.data && response.data.type === 'file') {
-      return Buffer.from(response.data.content, 'base64').toString('utf-8');
+      // Check size limit using the API-reported size. For files over 1MB the
+      // Contents API returns `encoding: "none"` with empty content, so the
+      // reported size is the only reliable measure.
+      const sizeKB = response.data.size / 1024;
+      if (sizeKB > MAX_BLUEPRINT_SIZE_KB) {
+        return {
+          content: null,
+          error: `Blueprint is ${sizeKB.toFixed(1)}KB, which exceeds the ${MAX_BLUEPRINT_SIZE_KB}KB limit`,
+        };
+      }
+
+      return { content: Buffer.from(response.data.content, 'base64').toString('utf-8') };
     }
-    return null;
+    return { content: null, error: 'Path did not resolve to a file' };
   } catch (error: any) {
     console.error(`[GitHub Push Webhook] Failed to fetch ${path}:`, error.message);
-    return null;
+    return { content: null, error: 'Failed to fetch blueprint content' };
   }
 }
 
@@ -308,7 +320,7 @@ export async function POST(req: NextRequest) {
       console.log(`[GitHub Push Webhook] Processing ${file.filename}...`);
 
       // Fetch content
-      const content = await fetchBlueprintContent(
+      const { content, error: fetchError } = await fetchBlueprintContent(
         octokit,
         UPSTREAM_OWNER,
         UPSTREAM_REPO,
@@ -317,8 +329,8 @@ export async function POST(req: NextRequest) {
       );
 
       if (!content) {
-        console.error(`[GitHub Push Webhook] Failed to fetch content for ${file.filename}`);
-        results.errors.push(`${file.filename}: Failed to fetch content`);
+        console.error(`[GitHub Push Webhook] Failed to fetch content for ${file.filename}: ${fetchError}`);
+        results.errors.push(`${file.filename}: ${fetchError || 'Failed to fetch content'}`);
         continue;
       }
 
