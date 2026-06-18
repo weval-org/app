@@ -14,7 +14,7 @@ export function SiteHeader({ contentMaxWidth = 'max-w-7xl' }: SiteHeaderProps) {
       <div className={cn("mx-auto px-4 sm:px-6 lg:px-8", contentMaxWidth)}>
         <div className="flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 group">
-            <CIPLogo className="w-5 h-5 text-foreground" />
+            <CIPLogo className="w-6 h-6 sm:w-7 sm:h-7 text-foreground" />
             <span className="font-bold text-foreground group-hover:underline">Weval</span>
             <span className="font-normal text-muted-foreground group-hover:underline">a Collective Intelligence Project</span>
           </Link>
