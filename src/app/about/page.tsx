@@ -19,26 +19,13 @@ export default function AboutPage() {
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 sm:h-16">
             <a
-              href="https://cip.org/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 sm:gap-2 hover:opacity-80 transition-opacity min-h-[44px]"
+              href="/"
+              className="flex items-center gap-1.5 sm:gap-2 hover:opacity-80 transition-opacity min-h-[44px] group"
             >
               <CIPLogo className="w-6 h-6 sm:w-7 sm:h-7 text-foreground" />
-              <span className="font-semibold text-sm sm:text-base text-foreground">
-                <span className="hidden sm:inline">The Collective Intelligence Project</span>
-                <span className="sm:hidden">CIP</span>
-              </span>
+              <span className="font-bold text-sm sm:text-base text-foreground group-hover:underline">Weval</span>
+              <span className="font-normal text-sm sm:text-base text-muted-foreground group-hover:underline">a Collective Intelligence Project</span>
             </a>
-            <nav className="flex items-center gap-3 sm:gap-4">
-              <a
-                href="/"
-                className="flex items-center gap-1 text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <span style={{ fontWeight: 700 }}>w</span>
-                <span style={{ fontWeight: 200 }}>eval</span>
-              </a>
-            </nav>
           </div>
         </div>
       </header>
