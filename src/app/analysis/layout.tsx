@@ -32,7 +32,7 @@ export default function FullWidthLayout({
         <NavigationEvents />
       </Suspense>
       {!isFullWidth && (
-        <SiteHeader contentMaxWidth={'max-w-[1800px]'} />
+        <SiteHeader />
       )}
       <main className="flex-grow w-full bg-background text-foreground">
         <div className={isFullWidth ? 'w-full' : 'max-w-[1800px] mx-auto'}>

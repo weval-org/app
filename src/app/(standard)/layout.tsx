@@ -15,7 +15,7 @@ export default function StandardWidthLayout({
         <TopProgressBar />
         <NavigationEvents />
       </Suspense>
-      <SiteHeader contentMaxWidth="max-w-7xl" />
+      <SiteHeader />
       <main className="flex-grow w-full text-foreground">
         <div className="max-w-7xl mx-auto">
             {children}
