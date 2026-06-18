@@ -11,7 +11,7 @@ export function SiteHeader() {
           <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
             <CIPLogo className="w-5 h-5 text-foreground" />
             <span className="font-bold text-foreground">Weval</span>
-            <span className="font-normal text-muted-foreground">a Collective Intelligence Project</span>
+            <span className="hidden sm:inline font-normal text-muted-foreground">a Collective Intelligence Project</span>
           </Link>
           <div className="flex items-center space-x-6">
             <nav className="flex items-center space-x-6">
@@ -25,7 +25,7 @@ export function SiteHeader() {
                 rel="noopener noreferrer"
                 className="relative group text-sm font-medium text-foreground hover:text-foreground/70 transition-colors py-1 flex items-center gap-1"
               >
-                Our Methodology
+                Methodology
                 <Icon name="external-link" className="w-3 h-3" />
                 <span className="absolute bottom-0 left-0 w-0 h-[1px] bg-foreground transition-all duration-300 ease-out group-hover:w-full" />
               </a>
