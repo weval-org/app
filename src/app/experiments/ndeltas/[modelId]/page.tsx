@@ -29,7 +29,7 @@ export default async function NDeltasPage({ params }: { params: Promise<{ modelI
 
   return (
     <div className="flex flex-col min-h-screen">
-      <SiteHeader contentMaxWidth="max-w-[1600px]" />
+      <SiteHeader />
       <main className="flex-grow w-full bg-background text-foreground">
         <div className="mx-auto max-w-[1600px] px-4 py-6">
           <div className="mb-6">

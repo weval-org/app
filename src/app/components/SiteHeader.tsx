@@ -1,17 +1,12 @@
 import Link from 'next/link';
 import CIPLogo from '@/components/icons/CIPLogo';
 import Icon from '@/components/ui/icon';
-import { cn } from '@/lib/utils';
 import { APP_REPO_URL } from '@/lib/configConstants';
 
-interface SiteHeaderProps {
-  contentMaxWidth?: string;
-}
-
-export function SiteHeader({ contentMaxWidth = 'max-w-7xl' }: SiteHeaderProps) {
+export function SiteHeader() {
   return (
     <header className="w-full sticky top-0 z-50 py-4 border-b border-[#f2eaea] bg-[#faf9f6]/90 backdrop-blur-md">
-      <div className={cn("mx-auto px-4 sm:px-6 lg:px-8", contentMaxWidth)}>
+      <div className="px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 group">
             <CIPLogo className="w-5 h-5 text-foreground" />
