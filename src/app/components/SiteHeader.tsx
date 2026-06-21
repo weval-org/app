@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import CIPLogo from '@/components/icons/CIPLogo';
 import Icon from '@/components/ui/icon';
 import { cn } from '@/lib/utils';
@@ -9,15 +12,26 @@ interface SiteHeaderProps {
 }
 
 export function SiteHeader({ contentMaxWidth = 'max-w-7xl' }: SiteHeaderProps) {
+  const pathname = usePathname();
+  const isHome = pathname === '/';
+
+  const brand = (
+    <>
+      <CIPLogo className="w-5 h-5 text-foreground" />
+      <span className="font-bold text-foreground group-hover:underline">Weval</span>
+      <span className="font-normal text-muted-foreground group-hover:underline">a Collective Intelligence Project</span>
+    </>
+  );
+
   return (
     <header className="w-full sticky top-0 z-50 py-4 border-b border-[#f2eaea] bg-[#faf9f6]/90 backdrop-blur-md">
       <div className={cn("mx-auto px-4 sm:px-6 lg:px-8", contentMaxWidth)}>
         <div className="flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 group">
-            <CIPLogo className="w-5 h-5 text-foreground" />
-            <span className="font-bold text-foreground group-hover:underline">Weval</span>
-            <span className="font-normal text-muted-foreground group-hover:underline">a Collective Intelligence Project</span>
-          </Link>
+          {isHome ? (
+            <div className="flex items-center gap-2">{brand}</div>
+          ) : (
+            <Link href="/" className="flex items-center gap-2 group">{brand}</Link>
+          )}
           <nav className="flex items-center space-x-6">
             <Link href="/about" className="relative group text-sm font-medium text-foreground hover:text-foreground/70 transition-colors py-1">
               About
