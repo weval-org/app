@@ -16,15 +16,15 @@ export default function AboutPage() {
 
       {/* Header */}
       <header className="sticky top-0 z-40 w-full bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14 sm:h-16">
             <a
               href="/"
-              className="flex items-center gap-1.5 sm:gap-2 hover:opacity-80 transition-opacity min-h-[44px] group"
+              className="flex items-center gap-1.5 sm:gap-2 hover:opacity-80 transition-opacity min-h-[44px]"
             >
               <CIPLogo className="w-6 h-6 sm:w-7 sm:h-7 text-foreground" />
-              <span className="font-bold text-sm sm:text-base text-foreground group-hover:underline">Weval</span>
-              <span className="font-normal text-sm sm:text-base text-muted-foreground group-hover:underline">a Collective Intelligence Project</span>
+              <span className="font-bold text-sm sm:text-base text-foreground">Weval</span>
+              <span className="font-normal text-sm sm:text-base text-muted-foreground">a Collective Intelligence Project</span>
             </a>
           </div>
         </div>
