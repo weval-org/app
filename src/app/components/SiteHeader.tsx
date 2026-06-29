@@ -9,7 +9,7 @@ export function SiteHeader() {
       <div className="px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <CIPLogo className="w-5 h-5 text-foreground" />
+            <CIPLogo className="w-6 h-6 sm:w-7 sm:h-7 text-foreground" />
             <span className="font-bold text-foreground">Weval</span>
             <span className="hidden sm:inline font-normal text-muted-foreground">a Collective Intelligence Project</span>
           </Link>
