@@ -60,6 +60,39 @@ Draft the description with these sections:
   makes rollback non-trivial). If the change is low-risk and self-contained, say
   so in one line rather than padding.
 - **Screenshots** — filled in by Phase 4 if applicable, else omitted.
+- **Related Issues** — link tickets and related work. Use `Closes #123` for
+  issues this PR resolves (auto-closes them on merge), `Refs #456` for related
+  PRs/issues, plus any relevant docs. Omit the section entirely if there's
+  nothing to link — don't invent issue numbers.
+
+### Worked example
+
+```md
+## Summary
+Tightens the site header on mobile so the nav no longer wraps under 380px.
+
+## Motivation / context
+The logo + nav links overflowed on small screens, pushing the theme toggle
+off-canvas. Reported in #41.
+
+## Changes
+- **UI:** right-align nav links and shrink logo on `sm` breakpoint (`Header.tsx`)
+- **UI:** swap hover underline for opacity to avoid layout shift
+- **Tests:** add an e2e assertion that the header is visible at 360px width
+
+## Test plan
+- `pnpm typecheck` ✅  ·  `pnpm lint` ✅  ·  `pnpm test:e2e` ✅ (3 passed)
+- Manually checked /about at 320 / 375 / 768px.
+
+## Risks / rollback
+Low-risk, CSS-only and self-contained. Revert this PR to undo.
+
+## Screenshots
+(before/after table inserted by Phase 4)
+
+## Related Issues
+Closes #41
+```
 
 ## Phase 2 — Does the screenshot step apply?
 
