@@ -53,6 +53,12 @@ Draft the description with these sections:
 - **Changes** — bulleted, grouped by area (UI, API, CLI, tests, docs…).
 - **Test plan** — what you ran (`pnpm typecheck`, `pnpm lint`, `pnpm test:web`,
   `pnpm test:e2e`) and the result, plus manual steps if any.
+- **Risks / rollback** — the blast radius and how to undo. Call out anything
+  reviewers should scrutinize (data migrations, auth/permissions, external API
+  or cost impact, breaking changes, shared components touched). State how to
+  revert (usually "revert this PR" — but note it if a migration or deploy step
+  makes rollback non-trivial). If the change is low-risk and self-contained, say
+  so in one line rather than padding.
 - **Screenshots** — filled in by Phase 4 if applicable, else omitted.
 
 ## Phase 2 — Does the screenshot step apply?
