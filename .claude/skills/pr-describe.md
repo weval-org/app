@@ -1,9 +1,10 @@
 # pr-describe
 
-Generate a high-quality PR description from the branch diff. When the change is
-**visual** (touches UI routes/components/styles), TRY to attach before/after
-screenshots — but the attempt is strictly time-boxed and **fails soft**: if
-anything goes wrong, produce a clean text-only description and move on.
+Generate a high-quality PR description from the branch diff. The description
+itself is the core deliverable and always runs. Before/after screenshots are a
+**bonus that only activates on static, visual PRs** — they're strictly
+time-boxed, **fail soft** (any problem → clean text-only description), and are
+**off by default for data-driven routes** (see "Default screenshot scope").
 
 ## Output contract
 
@@ -62,7 +63,26 @@ Visual-change heuristic — TRUE if any changed file matches:
 - `**/*.css`
 
 If FALSE → skip to Phase 5 (text-only). If TRUE → continue, subject to the
-give-up policy below.
+default scope and give-up policy below.
+
+### Default screenshot scope (practicality gate)
+
+Screenshots only pay off on **static, secret-free routes**. Data-driven routes
+(homepage, `/analysis/*`, `/pairs`, `/latest`, `/model/*`, etc.) render
+empty/mock against the secret-free dev env — an uninformative shot — and cost a
+slow capture. So **by default, only capture known-static routes**:
+
+- **Default static allowlist:** `/about`, `/what-is-an-eval`. (Extend this list
+  as more static pages are confirmed safe + stable.)
+- Any mapped route **not** on the allowlist is **skipped by default** with a note:
+  _"skipped: data-driven route (pass `--routes` to force)"_.
+- The user can **override** with `--routes /foo,/bar` to force specific routes
+  (e.g. against a preview deploy with real data, where they accept the tradeoff).
+- The **security denylist always wins** over any override — `/admin*`, `/api*`,
+  and auth routes are never captured even if explicitly passed.
+
+If, after this gate, there are **no routes left to shoot** → skip to Phase 5
+(text-only) with a one-line note. Don't boot servers for nothing.
 
 ## Phase 3 — Capture screenshots (time-boxed, fail-soft)
 
@@ -74,16 +94,20 @@ give-up policy below.
 > - The screenshot script captures nothing (`scripts/pr-screenshots.mjs` exits non-zero).
 > - Any unexpected error. Never let screenshots block the description.
 
-**3a. Determine routes** (cap at the 3 most relevant; note any you dropped):
-- Map changed `src/app/**/page.tsx` to URLs (see `e2e-pr` for the mapping rules).
-- **Apply the route denylist (see Security guardrails):** drop any `/admin*`,
-  `/api*`, or authenticated route and note it as "omitted for safety". This
-  filter runs before anything is captured.
-- Shared-component-only change → ask the user for 1-2 representative routes, OR
-  skip with a note. Don't guess across the whole app.
-- Skip dynamic (`[id]`) routes unless the user supplies a concrete URL.
+**3a. Determine routes** (cap at the 3 most relevant; note any you dropped).
+Apply these filters **in order**:
+1. Map changed `src/app/**/page.tsx` to URLs (see `e2e-pr` for the mapping rules).
+2. **Security denylist (always, non-overridable):** drop any `/admin*`, `/api*`,
+   or authenticated route; note as "omitted for safety".
+3. **Default static gate (see Phase 2):** unless the user passed `--routes`, drop
+   anything not on the static allowlist; note as "skipped: data-driven route".
+   If `--routes` was passed, use exactly those (still subject to step 2).
+4. Skip dynamic (`[id]`) routes unless the user supplies a concrete URL.
+5. Shared-component-only change with nothing left → ask the user for 1-2
+   representative static routes, or skip with a note. Don't guess across the app.
 - Confirm the dev server has **no real storage/API secrets** in its env before
   capturing (guardrail #2). If you can't confirm that, skip screenshots.
+- If no routes survive the filters → skip to Phase 5 (text-only).
 
 Let `SLUG` = sanitized branch name, `ROUTES` = comma-separated list, e.g. `/about,/what-is-an-eval`.
 
@@ -166,7 +190,11 @@ run/artifact from the PR body rather than embedding a public raw URL.
 ## Args
 
 - Base branch to diff against (default `origin/main`).
-- Optional route list to screenshot, e.g. `--routes /about,/pairs` (overrides
-  auto-detection — useful for shared-component changes).
+- `--routes /foo,/bar` — **override the default static-only gate** and capture
+  exactly these routes (still subject to the security denylist). Use this for
+  shared-component changes or when shooting a preview deploy with real data.
 
-Example: `/pr-describe` · `/pr-describe staging` · `/pr-describe --routes /about,/pairs`
+By default (no `--routes`), only known-static routes (`/about`,
+`/what-is-an-eval`) are captured; data-driven routes are skipped with a note.
+
+Example: `/pr-describe` · `/pr-describe staging` · `/pr-describe --routes /pairs,/latest`
