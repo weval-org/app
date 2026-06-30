@@ -12,6 +12,28 @@ anything goes wrong, produce a clean text-only description and move on.
 - If no PR exists → print the finished markdown for the user to use. Do **NOT**
   open a PR unless the user explicitly asked for one.
 
+## Security guardrails (NON-NEGOTIABLE — this repo is public)
+
+Screenshots publish whatever they render. On a **public** repo, anything you
+commit is world-readable via raw URLs **permanently** (git history, forks, CDN
+cache) — deleting the branch does NOT undo it. So:
+
+1. **Route denylist — never screenshot these, no exceptions:**
+   `/admin*`, `/api*`, and any authenticated/session/account route. If a changed
+   route matches, skip it and note "omitted for safety", do not capture it.
+2. **Capture only against a secret-free environment.** Use the local `pnpm dev`
+   with NO real storage/API secrets wired up, so data-driven pages render
+   empty/mock and there is nothing sensitive in frame. Do **not** screenshot a
+   preview deploy that is backed by real data/secrets and then commit it here.
+3. **Treat committed images as permanent and public.** Never tell the user they
+   can "delete before merge" to undo exposure — that is false.
+4. **If a capture could contain anything sensitive, do NOT commit it to the
+   branch.** Prefer CI-artifact hosting (collaborator-only, auto-expiring) or a
+   PR comment. Committing to the public branch is only for plainly non-sensitive,
+   static UI.
+5. **Surface images for human review before pushing.** Show the user what was
+   captured and let them confirm; never push blind.
+
 ---
 
 ## Phase 1 — Analyze the diff (always runs)
@@ -54,9 +76,14 @@ give-up policy below.
 
 **3a. Determine routes** (cap at the 3 most relevant; note any you dropped):
 - Map changed `src/app/**/page.tsx` to URLs (see `e2e-pr` for the mapping rules).
+- **Apply the route denylist (see Security guardrails):** drop any `/admin*`,
+  `/api*`, or authenticated route and note it as "omitted for safety". This
+  filter runs before anything is captured.
 - Shared-component-only change → ask the user for 1-2 representative routes, OR
   skip with a note. Don't guess across the whole app.
 - Skip dynamic (`[id]`) routes unless the user supplies a concrete URL.
+- Confirm the dev server has **no real storage/API secrets** in its env before
+  capturing (guardrail #2). If you can't confirm that, skip screenshots.
 
 Let `SLUG` = sanitized branch name, `ROUTES` = comma-separated list, e.g. `/about,/what-is-an-eval`.
 
@@ -87,8 +114,15 @@ If BEFORE fails but AFTER succeeded, proceed with after-only + a note.
 
 ## Phase 4 — Host & embed
 
+> **Before any commit: re-confirm the captures are non-sensitive (guardrails
+> #1–#4) and show them to the user for a quick look (guardrail #5).** Committing
+> to a public branch is permanent and irreversible. If there is any doubt about
+> the contents, use CI-artifact hosting instead (see "Sensitive captures" below)
+> or skip embedding entirely.
+
 GitHub renders images only from URLs, so the PNGs must be committed and pushed
-before they resolve. Commit them to the PR branch and reference raw URLs:
+before they resolve. For plainly non-sensitive, static UI, commit them to the PR
+branch and reference raw URLs:
 
 ```
 git add .github/pr-media/$SLUG
@@ -110,10 +144,16 @@ Derive `OWNER/REPO` from `git remote get-url origin` and `BRANCH` from
 
 (Omit the "Before" cell for routes where only the after shot exists — new pages.)
 
-> **Tradeoff:** this commits PNGs into the PR branch (they show in the diff). They
-> can be deleted before merge, or — if you'd rather keep them out of the diff —
-> commit them to a dedicated orphan `pr-media` branch and point the raw URLs at
-> that branch instead. Default is the PR branch for simplicity.
+> **Tradeoff:** this commits PNGs into the PR branch and they show in the diff.
+> On a public repo this is **permanent and world-readable** — do NOT claim they
+> can be "deleted before merge" to undo exposure. To keep them out of the PR's
+> own diff you can use a dedicated orphan `pr-media` branch, but that is still
+> public; it changes visibility-in-diff, not exposure.
+
+**Sensitive captures → don't commit; use CI artifacts instead.** If a shot could
+contain anything non-public, skip the commit and have the e2e workflow upload the
+images via `actions/upload-artifact` (collaborator-only, auto-expiring). Link the
+run/artifact from the PR body rather than embedding a public raw URL.
 
 ## Phase 5 — Finalize
 
