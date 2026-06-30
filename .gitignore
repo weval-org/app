@@ -25,6 +25,12 @@ catechism_dump.txt
 .swc
 .auth
 
+# playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
 # next.js
 /.next/
 /out/
