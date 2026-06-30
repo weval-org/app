@@ -1,3 +1,8 @@
+---
+name: e2e-pr
+description: Run the Playwright end-to-end suite against the routes a PR changes and report results. Use when verifying UI behavior for a branch or PR, or checking that a change didn't break key pages.
+---
+
 # e2e-pr
 
 Run the Playwright end-to-end suite against the routes a PR touches, and report results.

@@ -1,3 +1,8 @@
+---
+name: pr-check
+description: Run the full quality gate on the current branch — TypeScript typecheck, ESLint, web/CLI Jest tests, and blueprint validation — then summarize pass/fail. Use before opening a PR, or to check whether a branch is CI-ready.
+---
+
 # pr-check
 
 Run a full quality gate on the current branch before or after a PR is created. Orchestrates type checking, linting, and tests, then produces a structured summary.

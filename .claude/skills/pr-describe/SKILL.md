@@ -1,3 +1,8 @@
+---
+name: pr-describe
+description: Generate a structured PR description from the branch diff (Summary, Changes, Test plan, Risks, Related Issues), with optional static-gated before/after screenshots for visual changes. Use when writing or updating a pull request description.
+---
+
 # pr-describe
 
 Generate a high-quality PR description from the branch diff. The description
