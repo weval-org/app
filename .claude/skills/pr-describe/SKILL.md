@@ -13,10 +13,32 @@ time-boxed, **fail soft** (any problem → clean text-only description), and are
 
 ## Output contract
 
-- If a PR already exists for the current branch → update its body
-  (GitHub MCP `update_pull_request`).
-- If no PR exists → print the finished markdown for the user to use. Do **NOT**
-  open a PR unless the user explicitly asked for one.
+- If a PR already exists for the current branch → update its **title and body**
+  (GitHub MCP `update_pull_request`). Only change the title if it doesn't already
+  follow the convention below.
+- If no PR exists → print the finished **title + markdown body** for the user.
+  Do **NOT** open a PR unless the user explicitly asked for one.
+
+## PR title convention
+
+Produce a properly tagged title in **Conventional Commits** form:
+
+```
+type(scope): imperative summary
+```
+
+- **type** — infer from the dominant change: `feat` (new capability), `fix`
+  (bug fix), `docs`, `test` (tests/test infra), `ci` (CI/workflows), `refactor`,
+  `perf`, `chore`, `build`, `style`.
+- **scope** — optional, a short area derived from the diff (e.g. `e2e`, `auth`,
+  `header`, `cli`, `pr-eval`). Omit if it spans many areas.
+- **summary** — imperative mood, lower-case start, **no trailing period**, aim
+  for ≤ ~70 chars total.
+- If the change mixes types, pick the one that best describes the user-facing
+  intent (a feature with its tests is still `feat`).
+
+Examples: `feat(header): collapse nav into a menu under 380px` ·
+`test(e2e): add Playwright smoke suite` · `fix(cli): handle empty blueprint id`.
 
 ## Security guardrails (NON-NEGOTIABLE — this repo is public)
 
