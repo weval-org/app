@@ -16,13 +16,20 @@
 catechism_dump.txt
 
 **/node_modules/**
-.claude
+.claude/*
+!.claude/skills
 
 # testing
 /coverage
 .husky
 .swc
 .auth
+
+# playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
 
 # next.js
 /.next/

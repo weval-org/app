@@ -20,6 +20,10 @@
     "test": "pnpm test:web && pnpm test:cli",
     "test:web": "jest --config jest.config.js",
     "test:cli": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config jest.config.cli.js",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report",
+    "pr:screenshots": "node scripts/pr-screenshots.mjs",
     "test:personality": "tsx src/cli/personality-test.ts",
     "compare:personality": "tsx src/cli/compare-personality.ts",
     "test:preference": "tsx src/cli/preference-test.ts",
@@ -129,6 +133,7 @@
   "devDependencies": {
     "@jest/globals": "^30.0.5",
     "@next/bundle-analyzer": "^15.4.4",
+    "@playwright/test": "1.55.0",
     "@sentry/cli": "^2.57.0",
     "@tailwindcss/postcss": "^4.1.11",
     "@tailwindcss/typography": "^0.5.16",
