@@ -1,4 +1,4 @@
-import { jest } from '@jest/globals';
+import {  } from 'vitest';
 import { ComparisonConfig } from '@/cli/types/cli_types';
 import { parseAndNormalizeBlueprint } from '@/lib/blueprint-parser';
 

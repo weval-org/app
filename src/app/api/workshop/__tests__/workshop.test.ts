@@ -2,7 +2,7 @@
  * Workshop API Tests
  */
 
-import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { generateWorkshopId, isValidWorkshopId, createWorkshopSession } from '@/lib/workshop-utils';
 
 describe('Workshop Utilities', () => {

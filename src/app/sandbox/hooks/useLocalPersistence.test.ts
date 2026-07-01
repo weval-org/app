@@ -1,10 +1,11 @@
+import { vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useLocalPersistence, DEFAULT_BLUEPRINT_CONTENT } from './useLocalPersistence';
 import { ActiveBlueprint, BlueprintFile } from './useWorkspace';
 
 // Mocking useToast
-const mockToast = jest.fn();
-jest.mock('@/components/ui/use-toast', () => ({
+const mockToast = vi.fn();
+vi.mock('@/components/ui/use-toast', () => ({
   useToast: () => ({
     toast: mockToast,
   }),
@@ -18,17 +19,17 @@ describe('useLocalPersistence', () => {
     mockToast.mockClear();
 
     // Mock localStorage
-    jest.spyOn(window.localStorage.__proto__, 'getItem').mockImplementation(((key: string) => localStorageMock[key]) as any);
-    jest.spyOn(window.localStorage.__proto__, 'setItem').mockImplementation(((key: string, value: string) => {
+    vi.spyOn(window.localStorage.__proto__, 'getItem').mockImplementation(((key: string) => localStorageMock[key]) as any);
+    vi.spyOn(window.localStorage.__proto__, 'setItem').mockImplementation(((key: string, value: string) => {
       localStorageMock[key] = value;
     }) as any);
-    jest.spyOn(window.localStorage.__proto__, 'removeItem').mockImplementation(((key: string) => {
+    vi.spyOn(window.localStorage.__proto__, 'removeItem').mockImplementation(((key: string) => {
       delete localStorageMock[key];
     }) as any);
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   test('loadFilesFromLocalStorage should return files from storage', () => {
@@ -68,7 +69,7 @@ describe('useLocalPersistence', () => {
   });
 
   test('saveToLocalStorage should save a blueprint and return the updated file list', () => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     const { result } = renderHook(() => useLocalPersistence());
 
     const initialFile: BlueprintFile = { path: 'local/initial.yml', name: 'initial.yml', sha: '1', isLocal: true, lastModified: '2023-01-01T00:00:00.000Z' };
@@ -99,7 +100,7 @@ describe('useLocalPersistence', () => {
 
     // Advance timers to trigger the debounced file index update
     act(() => {
-      jest.advanceTimersByTime(300);
+      vi.advanceTimersByTime(300);
     });
 
     // Check localStorage after debounce completes
@@ -111,7 +112,7 @@ describe('useLocalPersistence', () => {
       description: "Your changes have been saved locally.",
     });
 
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   test('deleteFromLocalStorage should remove a blueprint and return the updated list', () => {

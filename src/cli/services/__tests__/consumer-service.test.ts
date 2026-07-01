@@ -1,7 +1,8 @@
+import { vi } from 'vitest';
 import { collectConsumerSlices } from '../consumer-service';
 
-jest.mock('../consumer-ui-server', () => ({
-  startConsumerUIServer: jest.fn(async ({ onSubmit }: any) => {
+vi.mock('../consumer-ui-server', () => ({
+  startConsumerUIServer: vi.fn(async ({ onSubmit }: any) => {
     // Immediately simulate submit with two responses
     const xml = `<responses>\n  <response id="p1">A</response>\n  <response id="p2">B</response>\n</responses>`;
     await onSubmit(xml);
@@ -12,13 +13,13 @@ jest.mock('../consumer-ui-server', () => ({
   })
 }));
 
-jest.mock('@/lib/cache-service', () => ({
-  getCache: () => ({ get: jest.fn().mockResolvedValue(null), set: jest.fn().mockResolvedValue(undefined) }),
+vi.mock('@/lib/cache-service', () => ({
+  getCache: () => ({ get: vi.fn().mockResolvedValue(null), set: vi.fn().mockResolvedValue(undefined) }),
   generateCacheKey: (o: any) => JSON.stringify(o)
 }));
 
 describe('consumer-service collectConsumerSlices', () => {
-  const logger: any = { info: jest.fn() };
+  const logger: any = { info: vi.fn() };
   const config: any = {
     id: 'cfg',
     systems: [null, 'bold'],

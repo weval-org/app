@@ -1,4 +1,4 @@
-import { jest } from '@jest/globals';
+import { Mocked, MockedFunction, vi } from 'vitest';
 import { cloneRunCommand } from '../../commands/clone-run';
 import * as storageService from '@/lib/storageService';
 import * as runConfig from '@/cli/commands/run-config';
@@ -7,24 +7,24 @@ import * as llmService from '@/cli/services/llm-service';
 import { getConfig } from '@/cli/config';
 import * as blueprintService from '@/lib/blueprint-service';
 
-jest.mock('@/lib/storageService');
-jest.mock('@/cli/commands/run-config');
-jest.mock('@/cli/services/comparison-pipeline-service');
-jest.mock('@/cli/services/llm-service');
-jest.mock('@/cli/config');
-jest.mock('@/lib/blueprint-service');
+vi.mock('@/lib/storageService');
+vi.mock('@/cli/commands/run-config');
+vi.mock('@/cli/services/comparison-pipeline-service');
+vi.mock('@/cli/services/llm-service');
+vi.mock('@/cli/config');
+vi.mock('@/lib/blueprint-service');
 
-const mockedStorage = storageService as jest.Mocked<typeof storageService>;
-const mockedRunConfig = runConfig as jest.Mocked<typeof runConfig>;
-const mockedPipeline = pipeline as jest.Mocked<typeof pipeline>;
-const mockedLLM = llmService as jest.Mocked<typeof llmService>;
-const mockedGetConfig = getConfig as jest.MockedFunction<typeof getConfig>;
-const mockedBlueprint = blueprintService as jest.Mocked<typeof blueprintService>;
+const mockedStorage = storageService as Mocked<typeof storageService>;
+const mockedRunConfig = runConfig as Mocked<typeof runConfig>;
+const mockedPipeline = pipeline as Mocked<typeof pipeline>;
+const mockedLLM = llmService as Mocked<typeof llmService>;
+const mockedGetConfig = getConfig as MockedFunction<typeof getConfig>;
+const mockedBlueprint = blueprintService as Mocked<typeof blueprintService>;
 
 describe('clone-run command', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    (mockedGetConfig as any).mockReturnValue({ logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), success: jest.fn() } });
+    vi.clearAllMocks();
+    (mockedGetConfig as any).mockReturnValue({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), success: vi.fn() } });
   });
 
   it('reuses existing responses and only generates missing pairs', async () => {

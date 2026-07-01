@@ -1,4 +1,4 @@
-import { jest } from '@jest/globals';
+import { Mock, vi } from 'vitest';
 import {
   getConfigTaskCount,
   updateGenerationStatus,
@@ -8,23 +8,23 @@ import {
 } from '../pairwise-task-queue-service';
 
 // Mock @/lib/blob-store
-jest.mock('@/lib/blob-store', () => ({
-  getStore: jest.fn(),
+vi.mock('@/lib/blob-store', () => ({
+  getStore: vi.fn(),
 }));
 
 
-const { getStore } = require('@/lib/blob-store');
+import { getStore } from '@/lib/blob-store';
 
 describe('pairwise-task-queue-service - config-specific functions', () => {
   let mockStore: any;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockStore = {
-      get: jest.fn(),
-      setJSON: jest.fn(),
+      get: vi.fn(),
+      setJSON: vi.fn(),
     };
-    (getStore as jest.Mock).mockReturnValue(mockStore);
+    (getStore as Mock).mockReturnValue(mockStore);
   });
 
   describe('getConfigTaskCount', () => {

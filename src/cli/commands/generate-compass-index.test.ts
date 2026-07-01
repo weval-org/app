@@ -1,18 +1,21 @@
+import { Mock, vi } from 'vitest';
 import { Command } from 'commander';
 
 // Mock dependencies
-jest.mock('@/lib/storageService', () => ({
-  listConfigIds: jest.fn(),
-  listRunsForConfig: jest.fn(),
-  getResultByFileName: jest.fn(),
-  saveCompassIndex: jest.fn(),
+vi.mock('@/lib/storageService', () => ({
+  listConfigIds: vi.fn(),
+  listRunsForConfig: vi.fn(),
+  getResultByFileName: vi.fn(),
+  saveCompassIndex: vi.fn(),
 }));
-jest.mock('@/lib/pLimit', () => (concurrency: number) => (fn: () => Promise<any>) => fn());
-jest.mock('../config', () => ({
+vi.mock('@/lib/pLimit', () => ({
+  default: (concurrency: number) => (fn: () => Promise<any>) => fn(),
+}));
+vi.mock('../config', () => ({
   getConfig: () => ({
     logger: {
-      info: jest.fn(),
-      warn: jest.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
     },
   }),
 }));
@@ -27,17 +30,17 @@ import {
 } from '@/lib/storageService';
 
 describe('actionGenerateCompassIndex', () => {
-  let mockListConfigIds: jest.Mock;
-  let mockListRunsForConfig: jest.Mock;
-  let mockGetResultByFileName: jest.Mock;
-  let mockSaveCompassIndex: jest.Mock;
+  let mockListConfigIds: Mock;
+  let mockListRunsForConfig: Mock;
+  let mockGetResultByFileName: Mock;
+  let mockSaveCompassIndex: Mock;
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    mockListConfigIds = listConfigIds as jest.Mock;
-    mockListRunsForConfig = listRunsForConfig as jest.Mock;
-    mockGetResultByFileName = getResultByFileName as jest.Mock;
-    mockSaveCompassIndex = saveCompassIndex as jest.Mock;
+    vi.clearAllMocks();
+    mockListConfigIds = listConfigIds as Mock;
+    mockListRunsForConfig = listRunsForConfig as Mock;
+    mockGetResultByFileName = getResultByFileName as Mock;
+    mockSaveCompassIndex = saveCompassIndex as Mock;
   });
 
   it('should create high-contrast comparison pairs for exemplars', async () => {

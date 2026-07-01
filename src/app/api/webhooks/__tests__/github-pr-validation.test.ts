@@ -5,7 +5,7 @@
  * A bug here could allow directory hijacking/impersonation.
  */
 
-import { describe, it, expect } from '@jest/globals';
+import { describe, it, expect } from 'vitest';
 
 // Extract the parseBlueprintFiles logic for testing
 // This would normally be imported from the route file, but since it's not exported,

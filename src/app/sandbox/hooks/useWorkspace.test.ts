@@ -1,3 +1,4 @@
+import { Mock, vi } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useWorkspace, ActiveBlueprint, BlueprintFile } from './useWorkspace';
 import { useGitHub } from './useGitHub';
@@ -6,49 +7,49 @@ import { useLocalPersistence } from './useLocalPersistence';
 import { useToast } from '@/components/ui/use-toast';
 
 // Mock the dependent hooks and services
-jest.mock('./useGitHub');
-jest.mock('./useEvaluation');
-jest.mock('./useLocalPersistence');
-const mockToast = jest.fn();
-jest.mock('@/components/ui/use-toast', () => ({
+vi.mock('./useGitHub');
+vi.mock('./useEvaluation');
+vi.mock('./useLocalPersistence');
+const mockToast = vi.fn();
+vi.mock('@/components/ui/use-toast', () => ({
     useToast: () => ({
         toast: mockToast,
     }),
 }));
-global.fetch = jest.fn();
+global.fetch = vi.fn();
 
 // Setup mock implementations
-const mockUseGitHub = useGitHub as jest.Mock;
-const mockUseEvaluation = useEvaluation as jest.Mock;
-const mockUseLocalPersistence = useLocalPersistence as jest.Mock;
+const mockUseGitHub = useGitHub as Mock;
+const mockUseEvaluation = useEvaluation as Mock;
+const mockUseLocalPersistence = useLocalPersistence as Mock;
 
-const mockSetForkName = jest.fn();
-const mockSetupWorkspace = jest.fn();
-const mockPromoteBlueprintToBranch = jest.fn();
-const mockUpdateFileOnGitHub = jest.fn();
-const mockLoadFileContentFromGitHub = jest.fn();
-const mockDeleteFileFromGitHub = jest.fn();
-const mockSetIsSyncingWithGitHub = jest.fn();
-const mockSetSetupMessage = jest.fn();
-const mockCreatePullRequestOnGitHub = jest.fn();
-const mockCloseProposalOnGitHub = jest.fn();
+const mockSetForkName = vi.fn();
+const mockSetupWorkspace = vi.fn();
+const mockPromoteBlueprintToBranch = vi.fn();
+const mockUpdateFileOnGitHub = vi.fn();
+const mockLoadFileContentFromGitHub = vi.fn();
+const mockDeleteFileFromGitHub = vi.fn();
+const mockSetIsSyncingWithGitHub = vi.fn();
+const mockSetSetupMessage = vi.fn();
+const mockCreatePullRequestOnGitHub = vi.fn();
+const mockCloseProposalOnGitHub = vi.fn();
 
-const mockRunEvaluation = jest.fn();
+const mockRunEvaluation = vi.fn();
 
-const mockLoadFilesFromLocalStorage = jest.fn();
-const mockInitializeDefaultBlueprint = jest.fn();
-const mockSaveToLocalStorage = jest.fn();
-const mockDeleteFromLocalStorage = jest.fn();
-const mockRenameInLocalStorage = jest.fn();
-const mockSetLocalFiles = jest.fn();
+const mockLoadFilesFromLocalStorage = vi.fn();
+const mockInitializeDefaultBlueprint = vi.fn();
+const mockSaveToLocalStorage = vi.fn();
+const mockDeleteFromLocalStorage = vi.fn();
+const mockRenameInLocalStorage = vi.fn();
+const mockSetLocalFiles = vi.fn();
 
-const mockRenameFileOnGitHub = jest.fn();
+const mockRenameFileOnGitHub = vi.fn();
 
 
 describe('useWorkspace', () => {
     beforeEach(() => {
         // Reset mocks before each test
-        jest.clearAllMocks();
+        vi.clearAllMocks();
 
         const defaultBlueprint: ActiveBlueprint = { name: 'default.yml', path: 'local/default.yml', sha: '1', content: 'default content', isLocal: true, lastModified: '2023-01-01T00:00:00.000Z' };
         mockLoadFilesFromLocalStorage.mockReturnValue([]);
@@ -61,7 +62,7 @@ describe('useWorkspace', () => {
             isSyncingWithGitHub: false,
             setupMessage: '',
             setForkName: mockSetForkName,
-            setForkCreationRequired: jest.fn(),
+            setForkCreationRequired: vi.fn(),
             setIsSyncingWithGitHub: mockSetIsSyncingWithGitHub,
             setSetupMessage: mockSetSetupMessage,
             setupWorkspace: mockSetupWorkspace,
@@ -79,8 +80,8 @@ describe('useWorkspace', () => {
             runStatus: { status: 'idle' },
             runHistory: [],
             runEvaluation: mockRunEvaluation,
-            setRunStatus: jest.fn(),
-            setRunId: jest.fn(),
+            setRunStatus: vi.fn(),
+            setRunId: vi.fn(),
         });
 
         mockUseLocalPersistence.mockReturnValue({
@@ -89,13 +90,13 @@ describe('useWorkspace', () => {
             saveToLocalStorage: mockSaveToLocalStorage,
             deleteFromLocalStorage: mockDeleteFromLocalStorage,
             renameInLocalStorage: mockRenameInLocalStorage,
-            importBlueprint: jest.fn().mockReturnValue(null),
+            importBlueprint: vi.fn().mockReturnValue(null),
         });
 
         // Mock localStorage
         const store: Record<string, string> = {};
-        global.Storage.prototype.getItem = jest.fn(key => store[key] || null);
-        global.Storage.prototype.setItem = jest.fn((key, value) => {
+        global.Storage.prototype.getItem = vi.fn(key => store[key] || null);
+        global.Storage.prototype.setItem = vi.fn((key, value) => {
             store[key] = value.toString();
         });
     });
@@ -233,7 +234,7 @@ describe('useWorkspace', () => {
     test('promoteBlueprint should create a file on GitHub on a new branch and refresh', async () => {
         const newGitHubFile = { name: 'promoted.yml', path: 'gh/promoted.yml', sha: 'promoted-sha', isLocal: false, branchName: 'proposal/new-branch' };
         mockPromoteBlueprintToBranch.mockResolvedValue(newGitHubFile);
-        (fetch as jest.Mock).mockResolvedValue({ ok: true, json: async () => [newGitHubFile] });
+        (fetch as Mock).mockResolvedValue({ ok: true, json: async () => [newGitHubFile] });
 
         const { result } = renderHook(() => useWorkspace(true, 'test-user', false));
 

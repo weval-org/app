@@ -1,21 +1,22 @@
+import { vi } from 'vitest';
 import { parseWevalConfigFromResponse } from '@/app/sandbox/utils/json-response-parser';
 
 // Mock the LLM service
-jest.mock('@/cli/services/llm-service', () => ({
-  getModelResponse: jest.fn()
+vi.mock('@/cli/services/llm-service', () => ({
+  getModelResponse: vi.fn()
 }));
 
-jest.mock('@/cli/utils/response-utils', () => ({
-  checkForErrors: jest.fn(() => false)
+vi.mock('@/cli/utils/response-utils', () => ({
+  checkForErrors: vi.fn(() => false)
 }));
 
-jest.mock('@/app/sandbox/utils/yaml-generator', () => ({
-  generateMinimalBlueprintYaml: jest.fn((config) => `title: "${config.title}"\ndescription: "${config.description}"`)
+vi.mock('@/app/sandbox/utils/yaml-generator', () => ({
+  generateMinimalBlueprintYaml: vi.fn((config) => `title: "${config.title}"\ndescription: "${config.description}"`)
 }));
 
 describe('Story API - JSON Response Parser', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('parseWevalConfigFromResponse for Story creator', () => {

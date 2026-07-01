@@ -1,11 +1,11 @@
-import { jest } from '@jest/globals';
+import { vi } from 'vitest';
 import { BaseLLMClient, LLMApiCallOptions, LLMApiCallResult, StreamChunk } from '../llm-clients/types';
 
 // This is a generic mock client class.
 // We can spy on its constructor and methods to test the dispatcher's behavior.
-const mockMakeApiCall = jest.fn<(options: LLMApiCallOptions) => Promise<LLMApiCallResult>>();
-const mockStreamApiCall = jest.fn<(options: LLMApiCallOptions) => AsyncGenerator<StreamChunk, void, undefined>>();
-const mockConstructor = jest.fn();
+const mockMakeApiCall = vi.fn<(options: LLMApiCallOptions) => Promise<LLMApiCallResult>>();
+const mockStreamApiCall = vi.fn<(options: LLMApiCallOptions) => AsyncGenerator<StreamChunk, void, undefined>>();
+const mockConstructor = vi.fn();
 
 class MockLLMClient extends BaseLLMClient {
     constructor() {
@@ -18,14 +18,14 @@ class MockLLMClient extends BaseLLMClient {
 
 // Mock all the client modules that client-dispatcher imports.
 // They will all be replaced by our single MockLLMClient.
-jest.mock('../llm-clients/openai-client', () => ({ OpenAIClient: MockLLMClient }));
-jest.mock('../llm-clients/anthropic-client', () => ({ AnthropicClient: MockLLMClient }));
-jest.mock('../llm-clients/google-client', () => ({ GoogleClient: MockLLMClient }));
-jest.mock('../llm-clients/mistral-client', () => ({ MistralClient: MockLLMClient }));
-jest.mock('../llm-clients/together-client', () => ({ TogetherClient: MockLLMClient }));
-jest.mock('../llm-clients/xai-client', () => ({ XaiClient: MockLLMClient }));
-jest.mock('../llm-clients/openrouter-client', () => ({ OpenRouterModuleClient: MockLLMClient }));
-jest.mock('../llm-clients/generic-client', () => ({ GenericHttpClient: MockLLMClient }));
+vi.mock('../llm-clients/openai-client', () => ({ OpenAIClient: MockLLMClient }));
+vi.mock('../llm-clients/anthropic-client', () => ({ AnthropicClient: MockLLMClient }));
+vi.mock('../llm-clients/google-client', () => ({ GoogleClient: MockLLMClient }));
+vi.mock('../llm-clients/mistral-client', () => ({ MistralClient: MockLLMClient }));
+vi.mock('../llm-clients/together-client', () => ({ TogetherClient: MockLLMClient }));
+vi.mock('../llm-clients/xai-client', () => ({ XaiClient: MockLLMClient }));
+vi.mock('../llm-clients/openrouter-client', () => ({ OpenRouterModuleClient: MockLLMClient }));
+vi.mock('../llm-clients/generic-client', () => ({ GenericHttpClient: MockLLMClient }));
 
 
 describe('LLM Client Dispatcher', () => {
@@ -33,12 +33,12 @@ describe('LLM Client Dispatcher', () => {
     let dispatchStreamApiCall: any;
     let registerCustomModels: any;
 
-    beforeEach(() => {
+    beforeEach(async () => {
         // Resetting modules is crucial to clear the internal `clientInstances` cache in the dispatcher
-        jest.resetModules();
+        vi.resetModules();
         
         // Re-import the dispatcher to get a fresh instance with an empty cache
-        const dispatcher = require('../llm-clients/client-dispatcher');
+        const dispatcher = await import('../llm-clients/client-dispatcher');
         dispatchMakeApiCall = dispatcher.dispatchMakeApiCall;
         dispatchStreamApiCall = dispatcher.dispatchStreamApiCall;
         registerCustomModels = dispatcher.registerCustomModels;

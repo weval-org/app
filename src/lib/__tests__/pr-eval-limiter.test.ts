@@ -5,6 +5,7 @@
  * A bug here could cost hundreds of dollars per PR!
  */
 
+import { Mocked, vi } from 'vitest';
 import {
   PR_EVAL_LIMITS,
   checkPREvalLimits,
@@ -14,9 +15,9 @@ import {
 import { ComparisonConfig } from '@/cli/types/cli_types';
 
 // Mock axios for model collection fetching
-jest.mock('axios');
+vi.mock('axios');
 import axios from 'axios';
-const mockedAxios = axios as jest.Mocked<typeof axios>;
+const mockedAxios = axios as Mocked<typeof axios>;
 
 describe('PR_EVAL_LIMITS constants', () => {
   it('should have reasonable hardcoded limits', () => {
@@ -31,7 +32,7 @@ describe('PR_EVAL_LIMITS constants', () => {
 
 describe('checkPREvalLimits', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 
     // Mock CORE collection to return 5 models
     mockedAxios.get.mockResolvedValue({
@@ -372,7 +373,7 @@ describe('checkPREvalLimits', () => {
 
 describe('applyPREvalLimits', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 
     // Mock CORE collection
     mockedAxios.get.mockResolvedValue({

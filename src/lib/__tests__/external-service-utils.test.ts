@@ -1,3 +1,4 @@
+import { Mock, vi } from 'vitest';
 import {
     substituteEnvVars,
     substituteTemplates,
@@ -8,7 +9,7 @@ import {
 import { ExternalServiceConfig } from '@/types/shared';
 
 // Mock fetch globally
-global.fetch = jest.fn();
+global.fetch = vi.fn();
 
 describe('substituteEnvVars', () => {
     const originalEnv = process.env;
@@ -172,7 +173,7 @@ describe('validateServiceResponse', () => {
 
 describe('makeHttpRequest', () => {
     beforeEach(() => {
-        jest.clearAllMocks();
+        vi.clearAllMocks();
         process.env.TEST_API_KEY = 'secret-key';
     });
 
@@ -192,7 +193,7 @@ describe('makeHttpRequest', () => {
     };
 
     it('should make successful HTTP request', async () => {
-        (global.fetch as jest.Mock).mockResolvedValue({
+        (global.fetch as Mock).mockResolvedValue({
             ok: true,
             json: async () => ({ score: 0.95, explain: 'Good response' })
         });
@@ -214,7 +215,7 @@ describe('makeHttpRequest', () => {
     });
 
     it('should use default method POST', async () => {
-        (global.fetch as jest.Mock).mockResolvedValue({
+        (global.fetch as Mock).mockResolvedValue({
             ok: true,
             json: async () => ({ score: 0.5 })
         });
@@ -222,12 +223,12 @@ describe('makeHttpRequest', () => {
         const configWithoutMethod = { ...config, method: undefined };
         await makeHttpRequest(configWithoutMethod, requestBody);
 
-        const fetchCall = (global.fetch as jest.Mock).mock.calls[0];
+        const fetchCall = (global.fetch as Mock).mock.calls[0];
         expect(fetchCall[1].method).toBe('POST');
     });
 
     it('should throw on HTTP error', async () => {
-        (global.fetch as jest.Mock).mockResolvedValue({
+        (global.fetch as Mock).mockResolvedValue({
             ok: false,
             status: 500,
             text: async () => 'Internal Server Error'
@@ -237,7 +238,7 @@ describe('makeHttpRequest', () => {
     });
 
     it('should throw on invalid response format', async () => {
-        (global.fetch as jest.Mock).mockResolvedValue({
+        (global.fetch as Mock).mockResolvedValue({
             ok: true,
             json: async () => ({ invalid: 'response' })
         });
@@ -246,7 +247,7 @@ describe('makeHttpRequest', () => {
     });
 
     it('should retry on network error', async () => {
-        (global.fetch as jest.Mock)
+        (global.fetch as Mock)
             .mockRejectedValueOnce(new Error('fetch failed'))
             .mockResolvedValueOnce({
                 ok: true,
@@ -260,7 +261,7 @@ describe('makeHttpRequest', () => {
     });
 
     it('should retry on 5xx error', async () => {
-        (global.fetch as jest.Mock)
+        (global.fetch as Mock)
             .mockResolvedValueOnce({
                 ok: false,
                 status: 503,
@@ -278,7 +279,7 @@ describe('makeHttpRequest', () => {
     });
 
     it('should respect max_retries', async () => {
-        (global.fetch as jest.Mock).mockRejectedValue(new Error('fetch failed'));
+        (global.fetch as Mock).mockRejectedValue(new Error('fetch failed'));
 
         const configWithRetries = { ...config, max_retries: 1 };
 
@@ -287,7 +288,7 @@ describe('makeHttpRequest', () => {
     });
 
     it('should not retry on 4xx errors', async () => {
-        (global.fetch as jest.Mock).mockResolvedValue({
+        (global.fetch as Mock).mockResolvedValue({
             ok: false,
             status: 404,
             text: async () => 'Not Found'

@@ -1,29 +1,30 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
+import { Mock, vi } from 'vitest';
 import { POST } from '../[configId]/start-generation/route';
 import { NextRequest } from 'next/server';
 import * as pairwiseService from '@/cli/services/pairwise-task-queue-service';
 
 // Mock dependencies
-jest.mock('@/cli/services/pairwise-task-queue-service');
-jest.mock('@/utils/logger', () => ({
-  getLogger: jest.fn(() => ({
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
+vi.mock('@/cli/services/pairwise-task-queue-service');
+vi.mock('@/utils/logger', () => ({
+  getLogger: vi.fn(() => ({
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
   })),
 }));
 
-const mockedPairwiseService = jest.mocked(pairwiseService);
+const mockedPairwiseService = vi.mocked(pairwiseService);
 
 // Mock global fetch for triggering background function
-global.fetch = jest.fn();
+global.fetch = vi.fn();
 
 describe('POST /api/pairs/config/[configId]/start-generation', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    (global.fetch as jest.Mock).mockResolvedValue({ ok: true });
+    vi.clearAllMocks();
+    (global.fetch as Mock).mockResolvedValue({ ok: true });
     process.env.URL = 'http://localhost:3172';
     process.env.BACKGROUND_FUNCTION_AUTH_TOKEN = 'test-token';
   });
@@ -205,7 +206,7 @@ describe('POST /api/pairs/config/[configId]/start-generation', () => {
   it('should still succeed even if background function fetch fails', async () => {
     mockedPairwiseService.getGenerationStatus.mockResolvedValue(null);
     mockedPairwiseService.updateGenerationStatus.mockResolvedValue();
-    (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
+    (global.fetch as Mock).mockRejectedValue(new Error('Network error'));
 
     const req = new NextRequest('http://localhost:3000/api/pairs/config/test-config/start-generation', {
       method: 'POST',

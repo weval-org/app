@@ -1,29 +1,29 @@
-import { jest } from '@jest/globals';
+import { vi } from 'vitest';
 import { deleteFromPairsCommand } from './delete-from-pairs';
 import * as storageService from '../../lib/storageService';
 import { getConfig } from '../config';
 import * as pairwiseService from '../services/pairwise-task-queue-service';
 import * as confirmUtil from '../utils/confirm';
 
-jest.mock('../../lib/storageService');
-jest.mock('../services/pairwise-task-queue-service');
-jest.mock('../config');
-jest.mock('../utils/confirm');
+vi.mock('../../lib/storageService');
+vi.mock('../services/pairwise-task-queue-service');
+vi.mock('../config');
+vi.mock('../utils/confirm');
 
-const mockedPairwiseService = jest.mocked(pairwiseService);
-const mockedGetConfig = jest.mocked(getConfig);
-const mockedConfirm = jest.mocked(confirmUtil);
+const mockedPairwiseService = vi.mocked(pairwiseService);
+const mockedGetConfig = vi.mocked(getConfig);
+const mockedConfirm = vi.mocked(confirmUtil);
 
 const mockLogger = {
-  info: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
 };
 
 describe('delete-from-pairs command', () => {
 
     beforeEach(() => {
-        jest.clearAllMocks();
+        vi.clearAllMocks();
         (mockedGetConfig as any).mockReturnValue({ logger: mockLogger });
         mockedPairwiseService.deletePairwiseTasks.mockResolvedValue({ deletedCount: 10 });
     });
@@ -66,7 +66,7 @@ describe('delete-from-pairs command', () => {
     });
 
     it('should handle errors during deletion', async () => {
-        const mockExit = jest.spyOn(process, 'exit').mockImplementation((() => {}) as (code?: any) => never);
+        const mockExit = vi.spyOn(process, 'exit').mockImplementation((() => {}) as (code?: any) => never);
         mockedConfirm.confirmAction.mockResolvedValue(true);
         const testError = new Error('Test deletion error');
         mockedPairwiseService.deletePairwiseTasks.mockRejectedValue(testError);

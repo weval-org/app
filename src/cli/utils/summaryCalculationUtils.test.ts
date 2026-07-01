@@ -1,9 +1,10 @@
+import { vi } from 'vitest';
 import { calculatePotentialModelDrift, calculateHeadlineStats, calculateCapabilityLeaderboards, calculateTopicChampions, processExecutiveSummaryGrades, processTopicData } from './summaryCalculationUtils';
 import { EnhancedComparisonConfigInfo, EnhancedRunInfo } from '@/app/utils/homepageDataUtils';
 
 // IMPORTANT: Mock parseModelIdForDisplay for unit test isolation
-jest.mock('@/app/utils/modelIdUtils', () => ({
-  parseModelIdForDisplay: jest.fn((modelId: string) => {
+vi.mock('@/app/utils/modelIdUtils', () => ({
+  parseModelIdForDisplay: vi.fn((modelId: string) => {
     // These mocks return what the real parser would return for these formats
     if (modelId === 'provider:model-a[temp:0]') {
       return { baseId: 'provider:model-a', displayName: 'Model A', fullId: modelId };
@@ -14,11 +15,11 @@ jest.mock('@/app/utils/modelIdUtils', () => ({
     // Default fallback for any other test model IDs
     return { baseId: modelId, displayName: modelId, fullId: modelId };
   }),
-  getModelDisplayLabel: jest.fn((modelId: string) => `Display ${modelId}`)
+  getModelDisplayLabel: vi.fn((modelId: string) => `Display ${modelId}`)
 }));
 
-jest.mock('@/app/utils/tagUtils', () => ({
-  normalizeTag: jest.fn((tag: string) => {
+vi.mock('@/app/utils/tagUtils', () => ({
+  normalizeTag: vi.fn((tag: string) => {
     // Mock normalizeTag to return predictable values for tests
     const mockMappings: Record<string, string> = {
       'Safety': 'Safety',
@@ -30,10 +31,10 @@ jest.mock('@/app/utils/tagUtils', () => ({
     };
     return mockMappings[tag] || tag.toLowerCase().replace(/\s+/g, '-');
   }),
-  normalizeTopicKey: jest.fn((key: string) => key) // Pass through for simplicity
+  normalizeTopicKey: vi.fn((key: string) => key) // Pass through for simplicity
 }));
 
-jest.mock('@/lib/capabilities', () => ({
+vi.mock('@/lib/capabilities', () => ({
   CAPABILITY_BUCKETS: [
     {
       id: 'test-safety',
@@ -76,14 +77,14 @@ const mockRun = (timestamp: string, perModelScores: Record<string, { hybrid: num
 });
 
 const mockLogger = {
-  info: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
 };
 
 describe('calculateHeadlineStats', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should only use latest run per config for main leaderboard', () => {
@@ -386,7 +387,7 @@ describe('calculateTopicChampions', () => {
 
 describe('processExecutiveSummaryGrades', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should process executive summary grades correctly', () => {
@@ -558,7 +559,7 @@ describe('processExecutiveSummaryGrades', () => {
 
 describe('processTopicData', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should process topic data correctly', () => {
@@ -862,7 +863,7 @@ describe('calculatePotentialModelDrift', () => {
 
 describe('calculateCapabilityLeaderboards', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should process config scores when referenced in capabilities', () => {
@@ -1116,9 +1117,9 @@ describe('calculateCapabilityLeaderboards', () => {
 
   it('should log when processing configs', () => {
     const mockLogger = {
-      info: jest.fn(),
-      warn: jest.fn(),
-      error: jest.fn()
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn()
     };
     
     const modelDimensionGrades = new Map();
@@ -1150,13 +1151,13 @@ describe('calculateCapabilityLeaderboards', () => {
 
   describe('Run deduplication scenarios', () => {
     const mockLogger = {
-      info: jest.fn(),
-      warn: jest.fn(), 
-      error: jest.fn()
+      info: vi.fn(),
+      warn: vi.fn(), 
+      error: vi.fn()
     };
 
     beforeEach(() => {
-      jest.clearAllMocks();
+      vi.clearAllMocks();
     });
 
     it('should deduplicate same run contributing via both topic and config (config wins)', () => {

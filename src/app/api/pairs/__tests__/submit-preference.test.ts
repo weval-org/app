@@ -1,35 +1,36 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
+import { Mock, vi } from 'vitest';
 import { POST } from '../submit-preference/route';
 import { NextRequest } from 'next/server';
 
 // Mock @/lib/blob-store
-jest.mock('@/lib/blob-store', () => ({
-  getStore: jest.fn(),
+vi.mock('@/lib/blob-store', () => ({
+  getStore: vi.fn(),
 }));
 
-const { getStore } = require('@/lib/blob-store');
+import { getStore } from '@/lib/blob-store';
 
 describe('POST /api/pairs/submit-preference', () => {
   let mockPreferenceStore: any;
   let mockTaskStore: any;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 
     mockPreferenceStore = {
-      get: jest.fn(),
-      setJSON: jest.fn(),
+      get: vi.fn(),
+      setJSON: vi.fn(),
     };
 
     mockTaskStore = {
-      get: jest.fn(),
-      setJSON: jest.fn(),
+      get: vi.fn(),
+      setJSON: vi.fn(),
     };
 
     // Mock getStore to return different stores based on name
-    (getStore as jest.Mock).mockImplementation(({ name }: { name: string }) => {
+    (getStore as Mock).mockImplementation(({ name }: { name: string }) => {
       if (name === 'pairwise-preferences-v2') {
         return mockPreferenceStore;
       }
@@ -40,11 +41,11 @@ describe('POST /api/pairs/submit-preference', () => {
     });
 
     // Mock Math.random for consistent userToken
-    jest.spyOn(Math, 'random').mockReturnValue(0.123456789);
+    vi.spyOn(Math, 'random').mockReturnValue(0.123456789);
   });
 
   afterEach(() => {
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   it('should successfully submit a preference with all enriched fields', async () => {
@@ -378,7 +379,7 @@ describe('POST /api/pairs/submit-preference', () => {
     mockPreferenceStore.get.mockResolvedValue([]);
 
     // First submission
-    jest.spyOn(Math, 'random').mockReturnValueOnce(0.111111111);
+    vi.spyOn(Math, 'random').mockReturnValueOnce(0.111111111);
     const req1 = new NextRequest('http://localhost:3000/api/pairs/submit-preference', {
       method: 'POST',
       body: JSON.stringify({ taskId: 'task-1', preference: 'A' }),
@@ -387,7 +388,7 @@ describe('POST /api/pairs/submit-preference', () => {
     const token1 = mockPreferenceStore.setJSON.mock.calls[0][1][0].userToken;
 
     // Second submission
-    jest.spyOn(Math, 'random').mockReturnValueOnce(0.999999999);
+    vi.spyOn(Math, 'random').mockReturnValueOnce(0.999999999);
     const req2 = new NextRequest('http://localhost:3000/api/pairs/submit-preference', {
       method: 'POST',
       body: JSON.stringify({ taskId: 'task-1', preference: 'B' }),

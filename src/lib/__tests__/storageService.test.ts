@@ -1,6 +1,7 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
+import { Mock, Mocked, vi } from 'vitest';
 import { 
     updateSummaryDataWithNewRun,
     getConfigSummary,
@@ -25,29 +26,44 @@ import { RESULTS_DIR, MULTI_DIR, LIVE_DIR } from '@/cli/constants';
 import { ModelSummary } from '@/types/shared';
 
 // Mock calculation utilities as their specific output isn't being tested here.
-jest.mock('../../app/utils/calculationUtils', () => ({
-  calculateAverageHybridScoreForRun: jest.fn(() => ({ average: 0.9, stddev: 0.1 })),
-  calculatePerModelHybridScoresForRun: jest.fn(() => new Map([['model-1', { average: 0.9, stddev: 0.1 }]])),
-  calculateStandardDeviation: jest.fn(() => 0.05),
-  calculateHybridScore: jest.fn(() => 0.85),
+vi.mock('../../app/utils/calculationUtils', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../app/utils/calculationUtils')>()),
+  calculateAverageHybridScoreForRun: vi.fn(() => ({ average: 0.9, stddev: 0.1 })),
+  calculatePerModelHybridScoresForRun: vi.fn(() => new Map([['model-1', { average: 0.9, stddev: 0.1 }]])),
+  calculateStandardDeviation: vi.fn(() => 0.05),
+  calculateHybridScore: vi.fn(() => 0.85),
 }));
 
-// Mock filesystem and S3 client
-jest.mock('fs/promises');
-const mockedFs = fs as jest.Mocked<typeof fs>;
-jest.mock('fs', () => ({
-    ...jest.requireActual('fs'),
-    existsSync: jest.fn(),
-    mkdirSync: jest.fn(), // Mock mkdirSync as well
-}));
-const mockedFsSync = fsSync as jest.Mocked<typeof fsSync>;
+// Mock filesystem and S3 client.
+// NOTE: storageService imports these via default imports (`import fs from 'fs/promises'`,
+// `import fsSync from 'fs'`), so the mock factories must expose a `default` key in addition
+// to the named exports for the mock to intercept those imports under Vitest.
+vi.mock('fs/promises', async () => {
+    const actual = await vi.importActual<Record<string, any>>('fs/promises');
+    const mock: Record<string, any> = {};
+    for (const key of Object.keys(actual)) {
+        mock[key] = typeof actual[key] === 'function' ? vi.fn() : actual[key];
+    }
+    return { ...mock, default: mock };
+});
+const mockedFs = fs as Mocked<typeof fs>;
+vi.mock('fs', async () => {
+    const actual = await vi.importActual<typeof import('fs')>('fs');
+    const mock = {
+        ...actual,
+        existsSync: vi.fn(),
+        mkdirSync: vi.fn(), // Mock mkdirSync as well
+    };
+    return { ...mock, default: mock };
+});
+const mockedFsSync = fsSync as Mocked<typeof fsSync>;
 
-jest.mock('@aws-sdk/client-s3', () => {
-    const originalModule = jest.requireActual('@aws-sdk/client-s3');
+vi.mock('@aws-sdk/client-s3', async () => {
+    const originalModule = await vi.importActual<typeof import('@aws-sdk/client-s3')>('@aws-sdk/client-s3');
     return {
         __esModule: true,
         ...originalModule,
-        S3Client: jest.fn(),
+        S3Client: vi.fn(),
     };
 });
 
@@ -153,12 +169,12 @@ const baseMockResultData: FetchedComparisonData = {
   };
 
 describe('storageService', () => {
-    let mockedFs: jest.Mocked<typeof import('fs/promises')>;
-    let mockedFsSync: jest.Mocked<typeof import('fs')>;
-    let mockSend: jest.Mock;
+    let mockedFs: Mocked<typeof import('fs/promises')>;
+    let mockedFsSync: Mocked<typeof import('fs')>;
+    let mockSend: Mock;
 
-    beforeEach(() => {
-        jest.resetModules(); // This is key to re-evaluating storageService with new env vars
+    beforeEach(async () => {
+        vi.resetModules(); // This is key to re-evaluating storageService with new env vars
 
         // Clear environment variables to ensure a clean slate for each test
         delete process.env.STORAGE_PROVIDER;
@@ -166,22 +182,22 @@ describe('storageService', () => {
         delete process.env.APP_S3_REGION;
 
         // Re-require mocks to get fresh instances after reset
-        mockedFs = require('fs/promises');
-        mockedFsSync = require('fs');
-        const { S3Client } = require('@aws-sdk/client-s3');
-        mockSend = jest.fn();
-        (S3Client as jest.Mock).mockImplementation(() => ({
+        mockedFs = (await import('fs/promises')) as unknown as Mocked<typeof import('fs/promises')>;
+        mockedFsSync = (await import('fs')) as unknown as Mocked<typeof import('fs')>;
+        const { S3Client } = await import('@aws-sdk/client-s3');
+        mockSend = vi.fn();
+        (S3Client as Mock).mockImplementation(() => ({
             send: mockSend,
         }));
         
         // Clear mock history
-        jest.clearAllMocks();
+        vi.clearAllMocks();
     });
 
     describe('getConfigSummary', () => {
         it('should read from local fs when provider is local', async () => {
             process.env.STORAGE_PROVIDER = 'local';
-            const { getConfigSummary } = require('../storageService');
+            const { getConfigSummary } = await import('../storageService');
 
             mockedFsSync.existsSync.mockReturnValue(true);
             mockedFs.readFile.mockResolvedValue(JSON.stringify(serializableMockSummary));
@@ -194,7 +210,7 @@ describe('storageService', () => {
 
         it('should return null if local file does not exist', async () => {
             process.env.STORAGE_PROVIDER = 'local';
-            const { getConfigSummary } = require('../storageService');
+            const { getConfigSummary } = await import('../storageService');
             
             mockedFsSync.existsSync.mockReturnValue(false);
             const summary = await getConfigSummary('test-config');
@@ -205,7 +221,7 @@ describe('storageService', () => {
             process.env.STORAGE_PROVIDER = 's3';
             process.env.APP_S3_BUCKET_NAME = 'test-bucket';
             process.env.APP_S3_REGION = 'us-east-1'; // Set region to avoid warnings
-            const { getConfigSummary } = require('../storageService');
+            const { getConfigSummary } = await import('../storageService');
 
             const stream = new Readable();
             stream.push(JSON.stringify(serializableMockSummary));
@@ -225,7 +241,7 @@ describe('storageService', () => {
             process.env.STORAGE_PROVIDER = 's3';
             process.env.APP_S3_BUCKET_NAME = 'test-bucket';
             process.env.APP_S3_REGION = 'us-east-1';
-            const { getConfigSummary } = require('../storageService');
+            const { getConfigSummary } = await import('../storageService');
 
             const error = new Error('Not Found') as any;
             error.name = 'NoSuchKey';
@@ -239,7 +255,7 @@ describe('storageService', () => {
     describe('saveConfigSummary', () => {
         it('should write to local fs when provider is local', async () => {
             process.env.STORAGE_PROVIDER = 'local';
-            const { saveConfigSummary } = require('../storageService');
+            const { saveConfigSummary } = await import('../storageService');
 
             await saveConfigSummary('test-config', mockSummary);
             
@@ -254,7 +270,7 @@ describe('storageService', () => {
             process.env.STORAGE_PROVIDER = 's3';
             process.env.APP_S3_BUCKET_NAME = 'test-bucket';
             process.env.APP_S3_REGION = 'us-east-1';
-            const { saveConfigSummary } = require('../storageService');
+            const { saveConfigSummary } = await import('../storageService');
             
             await saveConfigSummary('test-config', mockSummary);
 
@@ -272,7 +288,7 @@ describe('storageService', () => {
         describe('saveModelSummary', () => {
             it('should write to local fs when provider is local', async () => {
                 process.env.STORAGE_PROVIDER = 'local';
-                const { saveModelSummary } = require('../storageService');
+                const { saveModelSummary } = await import('../storageService');
                 await saveModelSummary(mockModelSummary.modelId, mockModelSummary);
                 expect(mockedFs.writeFile).toHaveBeenCalledWith(
                     path.join(RESULTS_DIR, LIVE_DIR, 'models', 'summaries', `${safeModelId}.json`),
@@ -285,7 +301,7 @@ describe('storageService', () => {
                 process.env.STORAGE_PROVIDER = 's3';
                 process.env.APP_S3_BUCKET_NAME = 'test-bucket';
                 process.env.APP_S3_REGION = 'us-east-1';
-                const { saveModelSummary } = require('../storageService');
+                const { saveModelSummary } = await import('../storageService');
                 await saveModelSummary(mockModelSummary.modelId, mockModelSummary);
                 expect(mockSend).toHaveBeenCalled();
                 const sentCommand = mockSend.mock.calls[0][0] as PutObjectCommand;
@@ -298,7 +314,7 @@ describe('storageService', () => {
         describe('getModelSummary', () => {
             it('should read from local fs when provider is local', async () => {
                 process.env.STORAGE_PROVIDER = 'local';
-                const { getModelSummary } = require('../storageService');
+                const { getModelSummary } = await import('../storageService');
                 mockedFsSync.existsSync.mockReturnValue(true);
                 mockedFs.readFile.mockResolvedValue(JSON.stringify(mockModelSummary));
                 const summary = await getModelSummary(mockModelSummary.modelId);
@@ -310,7 +326,7 @@ describe('storageService', () => {
                 process.env.STORAGE_PROVIDER = 's3';
                 process.env.APP_S3_BUCKET_NAME = 'test-bucket';
                 process.env.APP_S3_REGION = 'us-east-1';
-                const { getModelSummary } = require('../storageService');
+                const { getModelSummary } = await import('../storageService');
                 const stream = new Readable();
                 stream.push(JSON.stringify(mockModelSummary));
                 stream.push(null);
@@ -326,7 +342,7 @@ describe('storageService', () => {
         describe('listModelSummaries', () => {
              it('should list from local fs when provider is local', async () => {
                 process.env.STORAGE_PROVIDER = 'local';
-                const { listModelSummaries } = require('../storageService');
+                const { listModelSummaries } = await import('../storageService');
                 const mockDirent = [{ name: `${safeModelId}.json`, isFile: () => true }];
                 mockedFs.readdir.mockResolvedValue(mockDirent as any);
                 const summaries = await listModelSummaries();
@@ -338,7 +354,7 @@ describe('storageService', () => {
                 process.env.STORAGE_PROVIDER = 's3';
                 process.env.APP_S3_BUCKET_NAME = 'test-bucket';
                 process.env.APP_S3_REGION = 'us-east-1';
-                const { listModelSummaries } = require('../storageService');
+                const { listModelSummaries } = await import('../storageService');
                 mockSend.mockResolvedValue({ Contents: [{ Key: `live/models/summaries/${safeModelId}.json` }] });
                 const summaries = await listModelSummaries();
                 expect(mockSend).toHaveBeenCalled();
@@ -350,8 +366,8 @@ describe('storageService', () => {
     });
 
     describe('updateSummaryDataWithNewRun', () => {
-      it('should correctly sort runs by URL-safe timestamps', () => {
-        const { updateSummaryDataWithNewRun } = require('../storageService');
+      it('should correctly sort runs by URL-safe timestamps', async () => {
+        const { updateSummaryDataWithNewRun } = await import('../storageService');
         const safeTimestamp1 = '2024-01-01T10-00-00-000Z'; // oldest
         const safeTimestamp2 = '2024-01-02T12-30-00-000Z'; // newest
         const safeTimestamp3 = '2024-01-01T11-00-00-000Z'; // middle
@@ -388,8 +404,8 @@ describe('storageService', () => {
         expect(updatedConfig!.latestRunTimestamp).toBe(safeTimestamp2);
       });
 
-      it('should handle a mix of safe and unsafe (legacy) timestamps gracefully during sorting', () => {
-        const { updateSummaryDataWithNewRun } = require('../storageService');
+      it('should handle a mix of safe and unsafe (legacy) timestamps gracefully during sorting', async () => {
+        const { updateSummaryDataWithNewRun } = await import('../storageService');
         const legacyTimestamp = '2024-02-01T10:00:00.000Z';
         const safeTimestamp = '2024-01-15T12-00-00-000Z';
 
@@ -428,7 +444,7 @@ describe('storageService', () => {
         describe('getHomepageSummary', () => {
             it('should read from local fs and rehydrate maps', async () => {
                 process.env.STORAGE_PROVIDER = 'local';
-                const { getHomepageSummary } = require('../storageService');
+                const { getHomepageSummary } = await import('../storageService');
 
                 mockedFsSync.existsSync.mockReturnValue(true);
                 mockedFs.readFile.mockResolvedValue(JSON.stringify(serializableMockHomepageSummary));
@@ -444,7 +460,7 @@ describe('storageService', () => {
                 process.env.STORAGE_PROVIDER = 's3';
                 process.env.APP_S3_BUCKET_NAME = 'test-bucket';
                 process.env.APP_S3_REGION = 'us-east-1';
-                const { getHomepageSummary } = require('../storageService');
+                const { getHomepageSummary } = await import('../storageService');
                 
                 const stream = new Readable();
                 stream.push(JSON.stringify(serializableMockHomepageSummary));
@@ -464,7 +480,7 @@ describe('storageService', () => {
                 process.env.STORAGE_PROVIDER = 's3';
                 process.env.APP_S3_BUCKET_NAME = 'test-bucket';
                 process.env.APP_S3_REGION = 'us-east-1';
-                const { getHomepageSummary } = require('../storageService');
+                const { getHomepageSummary } = await import('../storageService');
 
                 const error = new Error('Not Found') as any;
                 error.name = 'NoSuchKey';
@@ -478,7 +494,7 @@ describe('storageService', () => {
         describe('saveHomepageSummary', () => {
             it('should write serialized data to local fs', async () => {
                 process.env.STORAGE_PROVIDER = 'local';
-                const { saveHomepageSummary } = require('../storageService');
+                const { saveHomepageSummary } = await import('../storageService');
 
                 await saveHomepageSummary(mockHomepageSummary);
 
@@ -493,7 +509,7 @@ describe('storageService', () => {
                 process.env.STORAGE_PROVIDER = 's3';
                 process.env.APP_S3_BUCKET_NAME = 'test-bucket';
                 process.env.APP_S3_REGION = 'us-east-1';
-                const { saveHomepageSummary } = require('../storageService');
+                const { saveHomepageSummary } = await import('../storageService');
 
                 await saveHomepageSummary(mockHomepageSummary);
 
@@ -510,7 +526,7 @@ describe('storageService', () => {
         describe('listConfigIds', () => {
             it('should list directory names from local fs', async () => {
                 process.env.STORAGE_PROVIDER = 'local';
-                const { listConfigIds } = require('../storageService');
+                const { listConfigIds } = await import('../storageService');
                 
                 const mockDirents = [
                     { name: 'config-one', isDirectory: () => true },
@@ -529,7 +545,7 @@ describe('storageService', () => {
             
             it('should return an empty array if local base directory does not exist', async () => {
                 process.env.STORAGE_PROVIDER = 'local';
-                const { listConfigIds } = require('../storageService');
+                const { listConfigIds } = await import('../storageService');
                 
                 const error = new Error('Not Found') as any;
                 error.code = 'ENOENT';
@@ -543,7 +559,7 @@ describe('storageService', () => {
                 process.env.STORAGE_PROVIDER = 's3';
                 process.env.APP_S3_BUCKET_NAME = 'test-bucket';
                 process.env.APP_S3_REGION = 'us-east-1';
-                const { listConfigIds } = require('../storageService');
+                const { listConfigIds } = await import('../storageService');
                 
                 mockSend.mockResolvedValue({
                     CommonPrefixes: [
@@ -564,7 +580,7 @@ describe('storageService', () => {
         describe('listRunsForConfig', () => {
             it('should list and parse filenames from local fs, sorted newest first', async () => {
                 process.env.STORAGE_PROVIDER = 'local';
-                const { listRunsForConfig } = require('../storageService');
+                const { listRunsForConfig } = await import('../storageService');
 
                 const mockFiles = [
                     'run1_2024-01-01T10-00-00-000Z_comparison.json', // oldest
@@ -586,7 +602,7 @@ describe('storageService', () => {
                 process.env.STORAGE_PROVIDER = 's3';
                 process.env.APP_S3_BUCKET_NAME = 'test-bucket';
                 process.env.APP_S3_REGION = 'us-east-1';
-                const { listRunsForConfig } = require('../storageService');
+                const { listRunsForConfig } = await import('../storageService');
                 
                 mockSend.mockResolvedValue({
                     Contents: [

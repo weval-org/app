@@ -1,7 +1,7 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
-import { jest } from '@jest/globals';
+import { Mock, vi } from 'vitest';
 import {
   populatePairwiseQueue,
   PairwiseTask,
@@ -10,22 +10,24 @@ import { ComparisonDataV2 } from '@/app/utils/types';
 import { SimpleLogger } from '@/lib/blueprint-service';
 
 // Mock @/lib/blob-store
-jest.mock('@/lib/blob-store', () => ({
-  getStore: jest.fn(),
+vi.mock('@/lib/blob-store', () => ({
+  getStore: vi.fn(),
 }));
 
 // Mock fs/promises for credential reading
-jest.mock('fs/promises');
-jest.mock('fs');
+vi.mock('fs/promises');
+vi.mock('fs');
 
 // Mock pLimit
-jest.mock('@/lib/pLimit', () => {
-  return jest.fn((concurrency: number) => {
-    return (fn: () => Promise<any>) => fn();
-  });
+vi.mock('@/lib/pLimit', () => {
+  return {
+    default: vi.fn((concurrency: number) => {
+      return (fn: () => Promise<any>) => fn();
+    }),
+  };
 });
 
-const { getStore } = require('@/lib/blob-store');
+import { getStore } from '@/lib/blob-store';
 
 describe('populatePairwiseQueue', () => {
   let mockStore: any;
@@ -33,20 +35,20 @@ describe('populatePairwiseQueue', () => {
   const OFFICIAL_ANCHOR_MODEL = 'openrouter:openai/gpt-4.1-mini';
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 
     mockStore = {
-      get: jest.fn(),
-      setJSON: jest.fn(),
+      get: vi.fn(),
+      setJSON: vi.fn(),
     };
 
     // Mock getStore to return mockStore regardless of how it's called
-    (getStore as jest.Mock).mockImplementation(() => mockStore);
+    (getStore as Mock).mockImplementation(() => mockStore);
 
     mockLogger = {
-      info: jest.fn(),
-      warn: jest.fn(),
-      error: jest.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
     };
   });
 
@@ -652,7 +654,7 @@ describe('populatePairwiseQueue', () => {
     expect(result.tasksAdded).toBe(1);
 
     // Verify we logged skipping 2 identical pairs
-    const skipLogs = (mockLogger.info as jest.Mock).mock.calls.filter(
+    const skipLogs = (mockLogger.info as Mock).mock.calls.filter(
       (call: any) => call[0]?.includes('produced identical responses')
     );
     expect(skipLogs).toHaveLength(2); // Claude and Gemini both have identical responses
@@ -697,7 +699,7 @@ describe('populatePairwiseQueue', () => {
     expect(result.tasksAdded).toBe(0);
 
     // Verify we logged skipping multiple pairs
-    const skipLogs = (mockLogger.info as jest.Mock).mock.calls.filter(
+    const skipLogs = (mockLogger.info as Mock).mock.calls.filter(
       (call: any) => call[0]?.includes('produced identical responses')
     );
     expect(skipLogs.length).toBeGreaterThan(0);

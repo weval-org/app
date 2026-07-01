@@ -1,19 +1,19 @@
-import { jest } from '@jest/globals';
+import { vi } from 'vitest';
 import axios from 'axios';
 import { fetchBlueprintsInDirectory } from '../blueprint-service';
 
-jest.mock('axios');
-const mockedAxios = jest.mocked(axios, { shallow: false });
+vi.mock('axios');
+const mockedAxios = vi.mocked(axios, true);
 
 const mockLogger = {
-  info: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
 };
 
 describe('fetchBlueprintsInDirectory', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('returns blueprint contents for files under a directory (yml/yaml/json)', async () => {

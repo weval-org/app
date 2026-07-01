@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { aggregateCoverageScores, evaluateFunctionPoints } from '../coverage-logic';
 import { PointAssessment } from '@/types/shared';
 import { NormalizedPoint, ComparisonConfig, PromptConfig } from '../../types/cli_types';
@@ -190,10 +191,10 @@ describe('aggregateCoverageScores', () => {
 
 describe('evaluateFunctionPoints', () => {
     const mockLogger = {
-        info: jest.fn(),
-        warn: jest.fn(),
-        error: jest.fn(),
-        success: jest.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        success: vi.fn(),
     };
 
     const mockContext: PointFunctionContext = {

@@ -1,29 +1,30 @@
+import { Mock, vi } from 'vitest';
 import { call } from '../call';
 import { PointFunctionContext } from '../types';
 import { ComparisonConfig, PromptConfig } from '@/cli/types/cli_types';
 
 // Mock fetch globally
-global.fetch = jest.fn();
+global.fetch = vi.fn();
 
 // Mock CLI config
-jest.mock('@/cli/config', () => ({
-    getConfig: jest.fn(() => ({
+vi.mock('@/cli/config', () => ({
+    getConfig: vi.fn(() => ({
         logger: {
-            info: jest.fn(),
-            error: jest.fn(),
-            warn: jest.fn(),
-            debug: jest.fn()
+            info: vi.fn(),
+            error: vi.fn(),
+            warn: vi.fn(),
+            debug: vi.fn()
         }
     }))
 }));
 
 // Mock cache
-jest.mock('@/lib/cache-service', () => ({
-    getCache: jest.fn(() => ({
-        get: jest.fn().mockResolvedValue(null),
-        set: jest.fn().mockResolvedValue(true)
+vi.mock('@/lib/cache-service', () => ({
+    getCache: vi.fn(() => ({
+        get: vi.fn().mockResolvedValue(null),
+        set: vi.fn().mockResolvedValue(true)
     })),
-    generateCacheKey: jest.fn((payload) => JSON.stringify(payload))
+    generateCacheKey: vi.fn((payload) => JSON.stringify(payload))
 }));
 
 const mockContext: PointFunctionContext = {
@@ -50,7 +51,7 @@ const mockContext: PointFunctionContext = {
 
 describe('call point function', () => {
     beforeEach(() => {
-        jest.clearAllMocks();
+        vi.clearAllMocks();
         process.env.TEST_API_KEY = 'secret-key-123';
     });
 
@@ -98,7 +99,7 @@ describe('call point function', () => {
 
     describe('named service calls', () => {
         it('should call named service and return score', async () => {
-            (global.fetch as jest.Mock).mockResolvedValue({
+            (global.fetch as Mock).mockResolvedValue({
                 ok: true,
                 json: async () => ({ score: 0.95, explain: 'Excellent response' })
             });
@@ -127,7 +128,7 @@ describe('call point function', () => {
         });
 
         it('should include standard fields in request body', async () => {
-            (global.fetch as jest.Mock).mockResolvedValue({
+            (global.fetch as Mock).mockResolvedValue({
                 ok: true,
                 json: async () => ({ score: 0.8 })
             });
@@ -139,7 +140,7 @@ describe('call point function', () => {
             );
 
             const requestBody = JSON.parse(
-                (global.fetch as jest.Mock).mock.calls[0][1].body
+                (global.fetch as Mock).mock.calls[0][1].body
             );
 
             expect(requestBody).toMatchObject({
@@ -151,7 +152,7 @@ describe('call point function', () => {
         });
 
         it('should substitute templates in user parameters', async () => {
-            (global.fetch as jest.Mock).mockResolvedValue({
+            (global.fetch as Mock).mockResolvedValue({
                 ok: true,
                 json: async () => ({ score: 1.0 })
             });
@@ -168,7 +169,7 @@ describe('call point function', () => {
             );
 
             const requestBody = JSON.parse(
-                (global.fetch as jest.Mock).mock.calls[0][1].body
+                (global.fetch as Mock).mock.calls[0][1].body
             );
 
             expect(requestBody.responseText).toBe('Model response text');
@@ -177,7 +178,7 @@ describe('call point function', () => {
         });
 
         it('should filter out config keys from user params', async () => {
-            (global.fetch as jest.Mock).mockResolvedValue({
+            (global.fetch as Mock).mockResolvedValue({
                 ok: true,
                 json: async () => ({ score: 0.7 })
             });
@@ -196,7 +197,7 @@ describe('call point function', () => {
             );
 
             const requestBody = JSON.parse(
-                (global.fetch as jest.Mock).mock.calls[0][1].body
+                (global.fetch as Mock).mock.calls[0][1].body
             );
 
             expect(requestBody).not.toHaveProperty('url');
@@ -209,7 +210,7 @@ describe('call point function', () => {
 
     describe('inline service calls', () => {
         it('should support inline URL', async () => {
-            (global.fetch as jest.Mock).mockResolvedValue({
+            (global.fetch as Mock).mockResolvedValue({
                 ok: true,
                 json: async () => ({ score: 0.85 })
             });
@@ -231,7 +232,7 @@ describe('call point function', () => {
         });
 
         it('should use inline headers', async () => {
-            (global.fetch as jest.Mock).mockResolvedValue({
+            (global.fetch as Mock).mockResolvedValue({
                 ok: true,
                 json: async () => ({ score: 0.9 })
             });
@@ -260,7 +261,7 @@ describe('call point function', () => {
         });
 
         it('should use inline timeout', async () => {
-            (global.fetch as jest.Mock).mockResolvedValue({
+            (global.fetch as Mock).mockResolvedValue({
                 ok: true,
                 json: async () => ({ score: 0.5 })
             });
@@ -281,7 +282,7 @@ describe('call point function', () => {
 
     describe('error handling', () => {
         it('should handle service error response', async () => {
-            (global.fetch as jest.Mock).mockResolvedValue({
+            (global.fetch as Mock).mockResolvedValue({
                 ok: true,
                 json: async () => ({ error: 'Service temporarily unavailable' })
             });
@@ -298,7 +299,7 @@ describe('call point function', () => {
         });
 
         it('should handle HTTP error', async () => {
-            (global.fetch as jest.Mock).mockResolvedValue({
+            (global.fetch as Mock).mockResolvedValue({
                 ok: false,
                 status: 500,
                 text: async () => 'Internal Server Error'
@@ -316,7 +317,7 @@ describe('call point function', () => {
         });
 
         it('should handle network error', async () => {
-            (global.fetch as jest.Mock).mockRejectedValue(
+            (global.fetch as Mock).mockRejectedValue(
                 new Error('Network connection failed')
             );
 
@@ -332,7 +333,7 @@ describe('call point function', () => {
         });
 
         it('should handle invalid response format', async () => {
-            (global.fetch as jest.Mock).mockResolvedValue({
+            (global.fetch as Mock).mockResolvedValue({
                 ok: true,
                 json: async () => ({ invalid: 'response' })
             });
@@ -366,12 +367,12 @@ describe('call point function', () => {
     describe('caching', () => {
         it('should check cache before making request', async () => {
             const mockCache = {
-                get: jest.fn().mockResolvedValue({ score: 0.99, explain: 'Cached result' }),
-                set: jest.fn()
+                get: vi.fn().mockResolvedValue({ score: 0.99, explain: 'Cached result' }),
+                set: vi.fn()
             };
 
-            const { getCache } = require('@/lib/cache-service');
-            getCache.mockReturnValue(mockCache);
+            const { getCache } = await import('@/lib/cache-service');
+            vi.mocked(getCache).mockReturnValue(mockCache as any);
 
             const result = await call(
                 'test',
@@ -388,14 +389,14 @@ describe('call point function', () => {
 
         it('should cache successful results', async () => {
             const mockCache = {
-                get: jest.fn().mockResolvedValue(null),
-                set: jest.fn()
+                get: vi.fn().mockResolvedValue(null),
+                set: vi.fn()
             };
 
-            const { getCache } = require('@/lib/cache-service');
-            getCache.mockReturnValue(mockCache);
+            const { getCache } = await import('@/lib/cache-service');
+            vi.mocked(getCache).mockReturnValue(mockCache as any);
 
-            (global.fetch as jest.Mock).mockResolvedValue({
+            (global.fetch as Mock).mockResolvedValue({
                 ok: true,
                 json: async () => ({ score: 0.75, explain: 'Fresh result' })
             });
@@ -416,7 +417,7 @@ describe('call point function', () => {
 
     describe('score variations', () => {
         it('should handle score of 0', async () => {
-            (global.fetch as jest.Mock).mockResolvedValue({
+            (global.fetch as Mock).mockResolvedValue({
                 ok: true,
                 json: async () => ({ score: 0 })
             });
@@ -433,7 +434,7 @@ describe('call point function', () => {
         });
 
         it('should handle score of 1', async () => {
-            (global.fetch as jest.Mock).mockResolvedValue({
+            (global.fetch as Mock).mockResolvedValue({
                 ok: true,
                 json: async () => ({ score: 1 })
             });
@@ -450,7 +451,7 @@ describe('call point function', () => {
         });
 
         it('should handle response without explain', async () => {
-            (global.fetch as jest.Mock).mockResolvedValue({
+            (global.fetch as Mock).mockResolvedValue({
                 ok: true,
                 json: async () => ({ score: 0.5 })
             });

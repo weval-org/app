@@ -1,3 +1,4 @@
+import { Mocked, vi } from 'vitest';
 import { backfillSummaryCommand } from './backfill-summary';
 import * as storageService from '../../lib/storageService';
 import { getConfig }from '../config';
@@ -6,31 +7,31 @@ import { ComparisonDataV2 as FetchedComparisonData } from '../../app/utils/types
 import { IDEAL_MODEL_ID } from '../../app/utils/calculationUtils';
 
 // Use the real implementation for updateSummaryDataWithNewRun, but mock the others.
-jest.mock('../../lib/storageService', () => {
-  const originalStorageService = jest.requireActual('../../lib/storageService');
+vi.mock('../../lib/storageService', async () => {
+  const originalStorageService = await vi.importActual<typeof import('../../lib/storageService')>('../../lib/storageService');
   return {
     ...originalStorageService,
-    listConfigIds: jest.fn(),
-    listRunsForConfig: jest.fn(),
-    getResultByFileName: jest.fn(),
-    saveConfigSummary: jest.fn(),
-    saveHomepageSummary: jest.fn(),
-    saveLatestRunsSummary: jest.fn(),
-    saveModelSummary: jest.fn(),
+    listConfigIds: vi.fn(),
+    listRunsForConfig: vi.fn(),
+    getResultByFileName: vi.fn(),
+    saveConfigSummary: vi.fn(),
+    saveHomepageSummary: vi.fn(),
+    saveLatestRunsSummary: vi.fn(),
+    saveModelSummary: vi.fn(),
   };
 });
 
-jest.mock('../services/pairwise-task-queue-service');
-jest.mock('../config');
+vi.mock('../services/pairwise-task-queue-service');
+vi.mock('../config');
 
-const mockedStorage = storageService as jest.Mocked<typeof storageService>;
-const mockedPairwiseService = pairwiseService as jest.Mocked<typeof pairwiseService>;
-const mockedGetConfig = getConfig as jest.Mocked<typeof getConfig>;
+const mockedStorage = storageService as Mocked<typeof storageService>;
+const mockedPairwiseService = pairwiseService as Mocked<typeof pairwiseService>;
+const mockedGetConfig = getConfig as Mocked<typeof getConfig>;
 
 const mockLogger = {
-  info: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
 };
 
 const mockConfigData1 = {
@@ -138,7 +139,7 @@ const mockResultData1_old = { ...mockResultData1, runLabel: 'run-1-old', timesta
 
 describe('backfill-summary command', () => {
     beforeEach(() => {
-        jest.clearAllMocks();
+        vi.clearAllMocks();
         (mockedGetConfig as any).mockReturnValue({ logger: mockLogger });
 
         // Reset mocks to a default "happy path" state
