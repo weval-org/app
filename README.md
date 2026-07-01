@@ -1,3 +1,7 @@
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![E2E Tests](https://github.com/weval-org/app/actions/workflows/e2e.yml/badge.svg)](https://github.com/weval-org/app/actions/workflows/e2e.yml)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
 TL;DR: Weval is built for developers, AI researchers, and domain experts who need to test AI models on nuanced, qualitative tasks that go beyond standard benchmarks.
 
 ---
@@ -716,6 +720,14 @@ If you use Weval in your research, please cite it as follows:
 ## Analytics
 
 Weval uses [Plausible Analytics](https://plausible.io) for privacy-first, cookie-free website analytics. The tracking script loads only in production. See [docs/ANALYTICS.md](docs/ANALYTICS.md) for details on what's tracked, how to access the dashboard, and how to add custom events.
+
+## License
+
+Weval is open source under the [MIT License](LICENSE) © 2025 James Padolsey and contributors.
+
+## Contributing
+
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to get involved, report bugs, and submit changes.
 
 ## Bug Reports & Feedback
 
