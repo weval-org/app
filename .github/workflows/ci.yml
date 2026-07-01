@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  pull_request:
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # `next lint` prompts interactively to configure ESLint when no ESLint
+      # config or eslint deps are present in the repo, which would hang CI.
+      # The repo currently ships no ESLint config, so guard the lint step:
+      # run it only when a config exists, otherwise emit a warning and pass
+      # (rather than hang, or fail every PR over a pre-existing gap that is
+      # out of scope for this workflow). Once an ESLint config + the eslint /
+      # eslint-config-next devDependencies are added, this job lints normally.
+      - name: Lint
+        run: |
+          if ls .eslintrc* eslint.config.* >/dev/null 2>&1; then
+            echo "ESLint config found; running lint."
+            pnpm lint
+          else
+            echo "::warning title=Lint skipped::No ESLint config found (.eslintrc* / eslint.config.*). \`next lint\` would prompt interactively to set up ESLint. Add an ESLint config and the eslint / eslint-config-next devDependencies to enable this gate."
+          fi
+
+  test-web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run web test suite
+        run: pnpm test:web
+
+  test-cli:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run CLI test suite
+        run: pnpm test:cli
