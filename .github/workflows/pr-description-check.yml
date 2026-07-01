@@ -8,7 +8,9 @@ name: PR Description Check
 
 on:
   pull_request_target:
-    types: [opened, reopened, edited, synchronize]
+    # Only react when it matters: on open, and when the description is edited
+    # (so the nudge clears itself once filled in). Not on every commit push.
+    types: [opened, edited]
 
 permissions:
   pull-requests: write
