@@ -1,29 +1,30 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
+import { MockedFunction, vi } from 'vitest';
 import { POST, GET } from '../route';
 import { saveJsonFile, getJsonFile } from '@/lib/storageService';
 import { NextRequest } from 'next/server';
 
 // Mock dependencies
-jest.mock('@/lib/storageService');
-jest.mock('@/utils/logger', () => ({
-  getLogger: jest.fn(() => ({
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
+vi.mock('@/lib/storageService');
+vi.mock('@/utils/logger', () => ({
+  getLogger: vi.fn(() => ({
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
   })),
 }));
-jest.mock('@/app/sandbox/utils/yaml-generator', () => ({
-  generateMinimalBlueprintYaml: jest.fn((obj) => `# Generated YAML\ntitle: ${obj.title || 'Test'}`),
+vi.mock('@/app/sandbox/utils/yaml-generator', () => ({
+  generateMinimalBlueprintYaml: vi.fn((obj) => `# Generated YAML\ntitle: ${obj.title || 'Test'}`),
 }));
 
-const mockedSaveJsonFile = saveJsonFile as jest.MockedFunction<typeof saveJsonFile>;
-const mockedGetJsonFile = getJsonFile as jest.MockedFunction<typeof getJsonFile>;
+const mockedSaveJsonFile = saveJsonFile as MockedFunction<typeof saveJsonFile>;
+const mockedGetJsonFile = getJsonFile as MockedFunction<typeof getJsonFile>;
 
 describe('/api/story/export', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('POST', () => {

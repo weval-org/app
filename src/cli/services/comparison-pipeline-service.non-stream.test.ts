@@ -1,24 +1,25 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
+import { Mock, MockedFunction, vi } from 'vitest';
 import { generateAllResponses } from './comparison-pipeline-service.non-stream';
 import { getModelResponse } from './llm-service';
 import { ComparisonConfig } from '../types/cli_types';
 import { ConversationMessage } from '@/types/shared';
 
 // Mock the LLM service
-jest.mock('./llm-service', () => ({
-  getModelResponse: jest.fn(),
+vi.mock('./llm-service', () => ({
+  getModelResponse: vi.fn(),
   DEFAULT_TEMPERATURE: 0.7,
 }));
 
-const mockedGetModelResponse = getModelResponse as jest.MockedFunction<typeof getModelResponse>;
+const mockedGetModelResponse = getModelResponse as MockedFunction<typeof getModelResponse>;
 
 const mockLogger = {
-  info: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
-  debug: jest.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
 };
 
 function createConfig(modelId: string, numPrompts: number): ComparisonConfig {
@@ -38,7 +39,7 @@ function createConfig(modelId: string, numPrompts: number): ComparisonConfig {
 
 describe('generateAllResponses circuit breaker', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should not trip the breaker if failures are less than threshold', async () => {
@@ -68,7 +69,7 @@ describe('generateAllResponses circuit breaker', () => {
     expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining("Circuit breaker for model 'failing-model' is open. Auto-failing this request."));
     
     // Count only the auto-fail warnings (not the failure counter warnings)
-    const autoFailWarnings = (mockLogger.warn as jest.Mock).mock.calls.filter(call => 
+    const autoFailWarnings = (mockLogger.warn as Mock).mock.calls.filter(call => 
       call[0].includes("Circuit breaker for model 'failing-model' is open")
     );
     expect(autoFailWarnings).toHaveLength(2);
@@ -139,7 +140,7 @@ describe('generateAllResponses circuit breaker', () => {
     expect(mockedGetModelResponse).toHaveBeenCalledTimes(4);
     
     // Check auto-fail logs for the failing model - should be none since only 2 failures per model
-    const autoFailWarnings = (mockLogger.warn as jest.Mock).mock.calls.filter(call => 
+    const autoFailWarnings = (mockLogger.warn as Mock).mock.calls.filter(call => 
       call[0].includes("Circuit breaker for model 'failing-model' is open")
     );
     expect(autoFailWarnings).toHaveLength(0); // No auto-fails yet since only 2 failures per model

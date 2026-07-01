@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { buildMacroFlat } from '@/cli/services/macro-prep-service';
 
 // Mocks
@@ -8,15 +9,15 @@ const saved: any = {
   tiles: new Map<string, Uint8Array>(),
 };
 
-jest.mock('@/lib/storageService', () => {
-  const real = jest.requireActual('@/lib/storageService');
+vi.mock('@/lib/storageService', async () => {
+  const real = await vi.importActual<typeof import('@/lib/storageService')>('@/lib/storageService');
   return {
     __esModule: true,
     ...real,
-    getLatestRunsSummary: jest.fn(async () => ({ runs: [{ configId: 'cfg', configTitle: 'Cfg', runLabel: 'run', timestamp: '2025-01-01T00-00-00Z' }], lastUpdated: '' })),
-    listConfigIds: jest.fn(async () => ['cfg']),
-    listRunsForConfig: jest.fn(async () => [{ runLabel: 'run', timestamp: '2025-01-01T00-00-00Z', fileName: 'f' }]),
-    getCoreResult: jest.fn(async () => ({
+    getLatestRunsSummary: vi.fn(async () => ({ runs: [{ configId: 'cfg', configTitle: 'Cfg', runLabel: 'run', timestamp: '2025-01-01T00-00-00Z' }], lastUpdated: '' })),
+    listConfigIds: vi.fn(async () => ['cfg']),
+    listRunsForConfig: vi.fn(async () => [{ runLabel: 'run', timestamp: '2025-01-01T00-00-00Z', fileName: 'f' }]),
+    getCoreResult: vi.fn(async () => ({
       promptIds: ['p1'],
       evaluationResults: {
         llmCoverageScores: {
@@ -31,12 +32,12 @@ jest.mock('@/lib/storageService', () => {
         },
       },
     })),
-    saveMacroFlatManifest: jest.fn(async (_: any) => {}),
-    saveMacroFlatData: jest.fn(async (_: any) => {}),
+    saveMacroFlatManifest: vi.fn(async (_: any) => {}),
+    saveMacroFlatData: vi.fn(async (_: any) => {}),
   };
 });
 
-jest.mock('@/cli/config', () => ({
+vi.mock('@/cli/config', () => ({
   getConfig: () => ({
     logger: {
       info: async () => {}, warn: async () => {}, error: async () => {}, success: async () => {},

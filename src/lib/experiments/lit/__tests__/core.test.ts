@@ -1,51 +1,55 @@
 import { runLitRound } from '../core';
 import type { LitParams, LitDependencies, LitProgressEvent, OnLitEvent } from '../types';
-import { jest } from '@jest/globals';
+import { Mock, MockedFunction, vi } from 'vitest';
 import { configure } from '@/cli/config';
 import type { ComparisonConfig } from '@/cli/types/cli_types';
 
 // Mock external dependencies with relaxed typing
-jest.mock('@/lib/cache-service', () => ({
+vi.mock('@/lib/cache-service', () => ({
   getCache: () => ({
-    has: jest.fn(),
-    get: jest.fn(),
-    set: jest.fn(),
+    has: vi.fn(),
+    get: vi.fn(),
+    set: vi.fn(),
   }),
   generateCacheKey: (payload: any) => JSON.stringify(payload),
 }));
 
-jest.mock('@/lib/llm-clients/client-dispatcher', () => ({
-  dispatchMakeApiCall: jest.fn(),
+vi.mock('@/lib/llm-clients/client-dispatcher', () => ({
+  dispatchMakeApiCall: vi.fn(),
 }));
-const { dispatchMakeApiCall } = require('@/lib/llm-clients/client-dispatcher') as { dispatchMakeApiCall: jest.Mock };
+import { dispatchMakeApiCall as dispatchMakeApiCallImport } from '@/lib/llm-clients/client-dispatcher';
+const dispatchMakeApiCall = dispatchMakeApiCallImport as unknown as Mock;
 
-jest.mock('@/cli/services/comparison-pipeline-service.non-stream', () => ({
-  generateAllResponses: jest.fn(),
+vi.mock('@/cli/services/comparison-pipeline-service.non-stream', () => ({
+  generateAllResponses: vi.fn(),
 }));
-const { generateAllResponses } = require('@/cli/services/comparison-pipeline-service.non-stream') as { generateAllResponses: jest.Mock };
+import { generateAllResponses as generateAllResponsesImport } from '@/cli/services/comparison-pipeline-service.non-stream';
+const generateAllResponses = generateAllResponsesImport as unknown as Mock;
 
-jest.mock('@/cli/evaluators/llm-coverage-evaluator', () => ({
-  LLMCoverageEvaluator: jest.fn().mockImplementation(() => ({
-    evaluate: jest.fn(),
+vi.mock('@/cli/evaluators/llm-coverage-evaluator', () => ({
+  LLMCoverageEvaluator: vi.fn().mockImplementation(() => ({
+    evaluate: vi.fn(),
   })),
 }));
-const { LLMCoverageEvaluator } = require('@/cli/evaluators/llm-coverage-evaluator') as { LLMCoverageEvaluator: jest.Mock };
+import { LLMCoverageEvaluator as LLMCoverageEvaluatorImport } from '@/cli/evaluators/llm-coverage-evaluator';
+const LLMCoverageEvaluator = LLMCoverageEvaluatorImport as unknown as Mock;
 
-jest.mock('@/cli/services/embedding-service', () => ({
-  getEmbedding: jest.fn(),
+vi.mock('@/cli/services/embedding-service', () => ({
+  getEmbedding: vi.fn(),
 }));
-const { getEmbedding } = require('@/cli/services/embedding-service') as { getEmbedding: jest.Mock };
+import { getEmbedding as getEmbeddingImport } from '@/cli/services/embedding-service';
+const getEmbedding = getEmbeddingImport as unknown as Mock;
 
 
 describe('LIT Core Logic', () => {
   let params: LitParams;
   let deps: LitDependencies;
-  let mockOnEvent: jest.MockedFunction<OnLitEvent>;
+  let mockOnEvent: MockedFunction<OnLitEvent>;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 
-    mockOnEvent = jest.fn() as any;
+    mockOnEvent = vi.fn() as any;
 
     params = {
       sourceText: 'The quick brown fox jumps over the lazy dog.',
@@ -64,8 +68,8 @@ describe('LIT Core Logic', () => {
     };
 
     deps = ({
-      buildCandidateConfig: jest.fn().mockReturnValue({ id: 'cand-config' } as any),
-      buildAnchorConfig: jest.fn().mockReturnValue({ id: 'anchor-config' } as any),
+      buildCandidateConfig: vi.fn().mockReturnValue({ id: 'cand-config' } as any),
+      buildAnchorConfig: vi.fn().mockReturnValue({ id: 'anchor-config' } as any),
     } as unknown) as LitDependencies;
 
     // Mock LLM responses for instruction set and coverage points
@@ -122,12 +126,12 @@ describe('LIT Core Logic', () => {
     });
 
     configure({
-      errorHandler: jest.fn(),
+      errorHandler: vi.fn(),
       logger: {
-          info: jest.fn(),
-          warn: jest.fn(),
-          error: jest.fn(),
-          success: jest.fn(),
+          info: vi.fn(),
+          warn: vi.fn(),
+          error: vi.fn(),
+          success: vi.fn(),
       }
     } as any);
   });

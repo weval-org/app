@@ -1,34 +1,39 @@
+import { vi } from 'vitest';
 import { RedlinesAnnotation, PainPoint } from '@/types/shared';
 import * as crypto from 'crypto';
 
 // Mock dependencies
-jest.mock('../../config', () => ({
+vi.mock('../../config', () => ({
   getConfig: () => ({
     logger: {
-      info: jest.fn(),
-      warn: jest.fn(),
-      error: jest.fn(),
-      success: jest.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      success: vi.fn(),
     },
   }),
 }));
 
-jest.mock('@/lib/storageService', () => ({
-  saveRedlinesAnnotation: jest.fn(),
+vi.mock('@/lib/storageService', () => ({
+  saveRedlinesAnnotation: vi.fn(),
 }));
 
-jest.mock('@/cli/services/llm-service', () => ({
-  getModelResponse: jest.fn(),
+vi.mock('@/cli/services/llm-service', () => ({
+  getModelResponse: vi.fn(),
 }));
+
+import { getModelResponse } from '@/cli/services/llm-service';
+import { saveRedlinesAnnotation } from '@/lib/storageService';
+import { parseRedlinesXmlResponse, extractAllIssues } from '../../services/redlines-xml-parser';
 
 // Import the functions we want to test
 describe('Annotate Pain Points - XML Format', () => {
   // Mock LLM service
-  const mockGetModelResponse = require('@/cli/services/llm-service').getModelResponse;
-  const mockSaveRedlinesAnnotation = require('@/lib/storageService').saveRedlinesAnnotation;
+  const mockGetModelResponse = vi.mocked(getModelResponse);
+  const mockSaveRedlinesAnnotation = vi.mocked(saveRedlinesAnnotation);
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test('annotatePoint should parse issue-only XML response correctly', async () => {
@@ -77,7 +82,6 @@ The capital of France is Paris.
 
   describe('Integration with XML parser', () => {
     test('should correctly parse complex XML response with issues', () => {
-      const { parseRedlinesXmlResponse, extractAllIssues } = require('../../services/redlines-xml-parser');
 
       const complexResponse = `
 <annotated_response>

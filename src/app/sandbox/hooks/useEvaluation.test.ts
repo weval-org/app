@@ -1,12 +1,14 @@
+import { Mock, vi } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useEvaluation } from './useEvaluation';
 import { ActiveBlueprint } from './useWorkspace';
 
-// Mock timers to control polling
-jest.useFakeTimers();
+// Mock timers to control polling. shouldAdvanceTime lets @testing-library's
+// waitFor (which polls on real time) make progress while timers are faked.
+vi.useFakeTimers({ shouldAdvanceTime: true });
 
 // Mock fetch
-global.fetch = jest.fn();
+global.fetch = vi.fn();
 
 const mockBlueprint: ActiveBlueprint = {
     name: 'Test Blueprint',
@@ -19,7 +21,7 @@ const mockBlueprint: ActiveBlueprint = {
 
 describe('useEvaluation', () => {
     beforeEach(() => {
-        (fetch as jest.Mock).mockClear();
+        (fetch as Mock).mockClear();
     });
 
     test('should initialize with idle status and no runId', () => {
@@ -34,13 +36,13 @@ describe('useEvaluation', () => {
         const { result } = renderHook(() => useEvaluation(true, mockBlueprint));
 
         // Mock the initial call to start the evaluation
-        (fetch as jest.Mock).mockResolvedValueOnce({
+        (fetch as Mock).mockResolvedValueOnce({
             ok: true,
             json: async () => ({ runId: 'test-run-123' }),
         });
         
         // Mock the IMMEDIATE poll that happens right after runId is set.
-        (fetch as jest.Mock).mockResolvedValueOnce({
+        (fetch as Mock).mockResolvedValueOnce({
             ok: true,
             json: async () => ({ status: 'pending' }),
         });
@@ -56,14 +58,14 @@ describe('useEvaluation', () => {
         });
         
         // Mock the SUBSEQUENT status polling call
-        (fetch as jest.Mock).mockResolvedValueOnce({
+        (fetch as Mock).mockResolvedValueOnce({
             ok: true,
             json: async () => ({ status: 'complete', resultUrl: '/results/test-run-123' }),
         });
         
         // Advance timers to trigger the next poll
         await act(async () => {
-            jest.advanceTimersByTime(3000);
+            vi.advanceTimersByTime(3000);
         });
         
         // Wait for the status to update to 'complete'
@@ -75,7 +77,7 @@ describe('useEvaluation', () => {
     test('should handle API error when starting an evaluation', async () => {
         const { result } = renderHook(() => useEvaluation(true, mockBlueprint));
 
-        (fetch as jest.Mock).mockResolvedValueOnce({
+        (fetch as Mock).mockResolvedValueOnce({
             ok: false,
             json: async () => ({ error: 'Failed to start evaluation' }),
         });
@@ -94,13 +96,13 @@ describe('useEvaluation', () => {
         const { result } = renderHook(() => useEvaluation(true, mockBlueprint));
 
         // Mock a successful start
-        (fetch as jest.Mock).mockResolvedValueOnce({
+        (fetch as Mock).mockResolvedValueOnce({
             ok: true,
             json: async () => ({ runId: 'test-run-fail' }),
         });
         
         // Mock the immediate poll to be successful (still pending)
-        (fetch as jest.Mock).mockResolvedValueOnce({
+        (fetch as Mock).mockResolvedValueOnce({
             ok: true,
             json: async () => ({ status: 'pending' }),
         });
@@ -114,14 +116,14 @@ describe('useEvaluation', () => {
         });
 
         // Mock a failed subsequent poll
-        (fetch as jest.Mock).mockResolvedValueOnce({
+        (fetch as Mock).mockResolvedValueOnce({
             ok: false,
             status: 500,
             json: async () => ({ error: 'Server Error' }),
         });
 
         await act(async () => {
-            jest.advanceTimersByTime(3000);
+            vi.advanceTimersByTime(3000);
         });
 
         await waitFor(() => {

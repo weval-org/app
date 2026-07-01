@@ -1,33 +1,34 @@
+import { Mocked, vi } from 'vitest';
 import * as storageService from '@/lib/storageService';
 import { actionGenerateNDeltas } from '@/cli/commands/generate-ndeltas';
 
-jest.mock('@/cli/config', () => ({
-  getConfig: jest.fn(() => ({
+vi.mock('@/cli/config', () => ({
+  getConfig: vi.fn(() => ({
     logger: {
-      info: jest.fn(),
-      warn: jest.fn(),
-      error: jest.fn(),
-      success: jest.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      success: vi.fn(),
     },
   })),
 }));
 
-jest.mock('@/lib/storageService', () => {
-  const actual = jest.requireActual('@/lib/storageService');
+vi.mock('@/lib/storageService', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/storageService')>('@/lib/storageService');
   return {
     ...actual,
-    listConfigIds: jest.fn(),
-    listRunsForConfig: jest.fn(),
-    getResultByFileName: jest.fn(),
-    saveModelNDeltas: jest.fn(),
+    listConfigIds: vi.fn(),
+    listRunsForConfig: vi.fn(),
+    getResultByFileName: vi.fn(),
+    saveModelNDeltas: vi.fn(),
   };
 });
 
-const mockedStorage = storageService as jest.Mocked<typeof storageService>;
+const mockedStorage = storageService as Mocked<typeof storageService>;
 
 describe('NDeltas CLI (coverage-only, base-aggregated)', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('computes deltas for a base model across latest runs (aggregating variants, averaging peers by base)', async () => {

@@ -30,7 +30,10 @@ describe('calculationUtils', () => {
         });
     });
 
-    describe('calculateHybridScore', () => {
+    // Skipped: all cases below are commented out pending a fix for the new
+    // similarity/coverage weights. Marked as skipped so the (currently empty)
+    // suite does not fail under Vitest, which errors on suites with no tests.
+    describe.skip('calculateHybridScore', () => {
         // TODO: fix these, sensitive to new similarity vs coverage weights
         // it('should return weighted arithmetic mean when both scores are valid', () => {
         //     // 0.35 * 0.8 + 0.65 * 0.7 = 0.28 + 0.455 = 0.735

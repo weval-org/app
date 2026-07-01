@@ -1,4 +1,4 @@
-import { jest } from '@jest/globals';
+import { vi } from 'vitest';
 import {
   validatePrompts,
   validateRoleAlternation,
@@ -8,20 +8,20 @@ import { ComparisonConfig } from '../types/cli_types';
 import fs from 'fs/promises';
 
 // Mock the fs/promises module
-jest.mock('fs/promises');
-const mockedFs = jest.mocked(fs);
+vi.mock('fs/promises');
+const mockedFs = vi.mocked(fs);
 
 // Mock logger to prevent console output during tests and to spy on its methods
 const mockLogger = {
-  info: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
 };
 
 describe('run-config validation logic', () => {
   beforeEach(() => {
     // Clear mock history before each test
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('validateRoleAlternation', () => {

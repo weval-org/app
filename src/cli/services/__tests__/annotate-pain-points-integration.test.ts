@@ -3,6 +3,7 @@
  * This tests the full pipeline from pain point to annotated result.
  */
 
+import { Mock, vi } from 'vitest';
 import { actionAnnotatePainPoints } from '../../commands/annotate-pain-points';
 import { getPainPointsSummary } from '@/lib/storageService';
 import { getModelResponse } from '@/cli/services/llm-service';
@@ -12,15 +13,15 @@ import {
   extractAllIssues,
 } from '@/cli/services/redlines-xml-parser';
 
-jest.mock('@/lib/storageService');
-jest.mock('@/cli/services/llm-service');
+vi.mock('@/lib/storageService');
+vi.mock('@/cli/services/llm-service');
 
 describe('Pain Points Annotation Integration', () => {
-  const mockGetPainPointsSummary = getPainPointsSummary as jest.Mock;
-  const mockGetModelResponse = getModelResponse as jest.Mock;
+  const mockGetPainPointsSummary = getPainPointsSummary as Mock;
+  const mockGetModelResponse = getModelResponse as Mock;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test('full XML annotation pipeline works correctly', () => {

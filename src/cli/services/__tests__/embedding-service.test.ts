@@ -1,27 +1,32 @@
-import { jest } from '@jest/globals';
+import { MockedFunction, vi } from 'vitest';
 
 // Mock Keyv at the top before imports
-const mockCacheStore = new Map<string, any>();
-const mockKeyvInstance = {
-  get: jest.fn(async (key: string) => mockCacheStore.get(key)),
-  set: jest.fn(async (key: string, value: any) => {
-    mockCacheStore.set(key, value);
-    return true;
-  }),
-};
+const { mockCacheStore, mockKeyvInstance } = vi.hoisted(() => {
+  const store = new Map<string, any>();
+  return {
+    mockCacheStore: store,
+    mockKeyvInstance: {
+      get: vi.fn(async (key: string) => store.get(key)),
+      set: vi.fn(async (key: string, value: any) => {
+        store.set(key, value);
+        return true;
+      }),
+    },
+  };
+});
 
-jest.mock('keyv', () => {
-  return jest.fn().mockImplementation(() => mockKeyvInstance);
+vi.mock('keyv', () => {
+  return { default: vi.fn().mockImplementation(() => mockKeyvInstance) };
 });
 
 // Mock generateCacheKey
-jest.mock('@/lib/cache-service', () => ({
-  generateCacheKey: jest.fn((payload: any) => `key-for-${JSON.stringify(payload)}`),
+vi.mock('@/lib/cache-service', () => ({
+  generateCacheKey: vi.fn((payload: any) => `key-for-${JSON.stringify(payload)}`),
 }));
 
 // Mock the dispatcher
-jest.mock('@/lib/embedding-clients/client-dispatcher', () => ({
-  dispatchCreateEmbedding: jest.fn() as jest.MockedFunction<(text: string, modelId: string) => Promise<number[]>>,
+vi.mock('@/lib/embedding-clients/client-dispatcher', () => ({
+  dispatchCreateEmbedding: vi.fn() as MockedFunction<(text: string, modelId: string) => Promise<number[]>>,
 }));
 
 // Import after mocks are set up
@@ -29,14 +34,14 @@ import { getEmbedding } from '../embedding-service';
 import { dispatchCreateEmbedding } from '@/lib/embedding-clients/client-dispatcher';
 
 const mockLogger = {
-  info: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
 };
 
 describe('embedding-service', () => {
     beforeEach(() => {
-      jest.clearAllMocks();
+      vi.clearAllMocks();
       mockCacheStore.clear();
       mockKeyvInstance.get.mockClear();
       mockKeyvInstance.set.mockClear();
@@ -46,7 +51,7 @@ describe('embedding-service', () => {
       const text = 'some text';
       const modelId = 'openai:text-embedding-3-small';
       const embedding = [0.1, 0.2, 0.3];
-      (dispatchCreateEmbedding as jest.MockedFunction<typeof dispatchCreateEmbedding>).mockResolvedValue(embedding);
+      (dispatchCreateEmbedding as MockedFunction<typeof dispatchCreateEmbedding>).mockResolvedValue(embedding);
 
       const result = await getEmbedding(text, modelId, mockLogger as any, true);
 
@@ -79,7 +84,7 @@ describe('embedding-service', () => {
       const text = 'some text';
       const modelId = 'openai:text-embedding-3-small';
       const embedding = [0.1, 0.2, 0.3];
-      (dispatchCreateEmbedding as jest.MockedFunction<typeof dispatchCreateEmbedding>).mockResolvedValue(embedding);
+      (dispatchCreateEmbedding as MockedFunction<typeof dispatchCreateEmbedding>).mockResolvedValue(embedding);
 
       const result = await getEmbedding(text, modelId, mockLogger as any, false);
 
@@ -96,7 +101,7 @@ describe('embedding-service', () => {
         const newEmbedding = [0.4, 0.5, 0.6];
         const cacheKey = `key-for-${JSON.stringify({ modelId, text })}`;
         mockCacheStore.set(cacheKey, embedding);
-        (dispatchCreateEmbedding as jest.MockedFunction<typeof dispatchCreateEmbedding>).mockResolvedValue(newEmbedding);
+        (dispatchCreateEmbedding as MockedFunction<typeof dispatchCreateEmbedding>).mockResolvedValue(newEmbedding);
 
         const result = await getEmbedding(text, modelId, mockLogger as any, false);
 

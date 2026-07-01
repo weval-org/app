@@ -4,20 +4,21 @@
  * Tests cover all edge cases, AIMD algorithm behavior, and thread safety.
  */
 
+import { vi } from 'vitest';
 import { AdaptiveRateLimiter, Logger } from '../adaptive-rate-limiter';
 import { ProviderRateLimitProfile } from '../provider-rate-limits';
 
 // Mock logger
 const mockLogger: Logger = {
-  info: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
-  debug: jest.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
 };
 
 describe('AdaptiveRateLimiter', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Configuration Validation', () => {
@@ -243,11 +244,11 @@ describe('AdaptiveRateLimiter', () => {
 
   describe('Rate Limit Cooldown', () => {
     beforeEach(() => {
-      jest.useFakeTimers();
+      vi.useFakeTimers();
     });
 
     afterEach(() => {
-      jest.useRealTimers();
+      vi.useRealTimers();
     });
 
     it('should prevent multiple rapid decreases within cooldown period', () => {
@@ -272,12 +273,12 @@ describe('AdaptiveRateLimiter', () => {
       );
 
       // Advance time by 4 seconds (still in cooldown)
-      jest.advanceTimersByTime(4000);
+      vi.advanceTimersByTime(4000);
       limiter.onRateLimit();
       expect(limiter.getCurrentConcurrency()).toBe(10); // Still no change
 
       // Advance past cooldown (5+ seconds total)
-      jest.advanceTimersByTime(1500);
+      vi.advanceTimersByTime(1500);
       limiter.onRateLimit();
       expect(limiter.getCurrentConcurrency()).toBe(5); // Now decreased
     });
@@ -296,7 +297,7 @@ describe('AdaptiveRateLimiter', () => {
       expect(limiter.getCurrentConcurrency()).toBe(10);
 
       // Wait for cooldown to expire
-      jest.advanceTimersByTime(5001); // Just past 5 seconds
+      vi.advanceTimersByTime(5001); // Just past 5 seconds
 
       limiter.onRateLimit();
       expect(limiter.getCurrentConcurrency()).toBe(5); // Decreased again
@@ -384,11 +385,11 @@ describe('AdaptiveRateLimiter', () => {
 
   describe('Idle Timeout', () => {
     beforeEach(() => {
-      jest.useFakeTimers();
+      vi.useFakeTimers();
     });
 
     afterEach(() => {
-      jest.useRealTimers();
+      vi.useRealTimers();
     });
 
     it('should reset to initial concurrency after idle timeout', () => {
@@ -408,7 +409,7 @@ describe('AdaptiveRateLimiter', () => {
       expect(limiter.getCurrentConcurrency()).toBe(12);
 
       // Idle for 5 minutes
-      jest.advanceTimersByTime(5 * 60 * 1000 + 100);
+      vi.advanceTimersByTime(5 * 60 * 1000 + 100);
 
       // Next call to getCurrentConcurrency should trigger reset
       const concurrency = limiter.getCurrentConcurrency();
@@ -435,13 +436,13 @@ describe('AdaptiveRateLimiter', () => {
       expect(limiter.getCurrentConcurrency()).toBe(11);
 
       // Wait 4 minutes
-      jest.advanceTimersByTime(4 * 60 * 1000);
+      vi.advanceTimersByTime(4 * 60 * 1000);
 
       // Make a request (updates lastRequestTime)
       limiter.onSuccess();
 
       // Wait another 4 minutes (total 8, but last request was only 4 min ago)
-      jest.advanceTimersByTime(4 * 60 * 1000);
+      vi.advanceTimersByTime(4 * 60 * 1000);
 
       expect(limiter.getCurrentConcurrency()).toBe(11); // No reset
     });
@@ -625,22 +626,22 @@ describe('AdaptiveRateLimiter', () => {
 
       const limiter = new AdaptiveRateLimiter('test', profile, mockLogger);
 
-      jest.useFakeTimers();
+      vi.useFakeTimers();
 
       // Rapid rate limits
       limiter.onRateLimit(); // 20 → 10
-      jest.advanceTimersByTime(6000);
+      vi.advanceTimersByTime(6000);
 
       limiter.onRateLimit(); // 10 → 5
-      jest.advanceTimersByTime(6000);
+      vi.advanceTimersByTime(6000);
 
       limiter.onRateLimit(); // 5 → 3 (min)
-      jest.advanceTimersByTime(6000);
+      vi.advanceTimersByTime(6000);
 
       limiter.onRateLimit(); // Stay at 3
       expect(limiter.getCurrentConcurrency()).toBe(3);
 
-      jest.useRealTimers();
+      vi.useRealTimers();
     });
   });
 

@@ -2,7 +2,7 @@
  * Workshop Rate Limiter Tests
  */
 
-import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { rateLimiter, isPublishRateLimited, isRunRateLimited, RateLimitConfig } from '@/lib/workshop-rate-limiter';
 
 describe('WorkshopRateLimiter', () => {

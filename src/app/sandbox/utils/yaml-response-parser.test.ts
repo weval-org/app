@@ -1,17 +1,18 @@
+import { vi } from 'vitest';
 import { parseYamlFromResponse } from './yaml-response-parser';
 
 // Mock the LLM service
-jest.mock('@/cli/services/llm-service', () => ({
-  getModelResponse: jest.fn()
+vi.mock('@/cli/services/llm-service', () => ({
+  getModelResponse: vi.fn()
 }));
 
-jest.mock('@/cli/utils/response-utils', () => ({
-  checkForErrors: jest.fn(() => false)
+vi.mock('@/cli/utils/response-utils', () => ({
+  checkForErrors: vi.fn(() => false)
 }));
 
 describe('parseYamlFromResponse', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should parse valid YAML successfully', async () => {

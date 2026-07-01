@@ -1,25 +1,26 @@
 /**
- * @jest-environment node
+ * @vitest-environment node
  */
+import { Mock, vi } from 'vitest';
 import { GET } from '../[configId]/get-task/route';
 import { NextRequest } from 'next/server';
 
 // Mock @/lib/blob-store
-jest.mock('@/lib/blob-store', () => ({
-  getStore: jest.fn(),
+vi.mock('@/lib/blob-store', () => ({
+  getStore: vi.fn(),
 }));
 
-const { getStore } = require('@/lib/blob-store');
+import { getStore } from '@/lib/blob-store';
 
 describe('GET /api/pairs/config/[configId]/get-task', () => {
   let mockStore: any;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockStore = {
-      get: jest.fn(),
+      get: vi.fn(),
     };
-    (getStore as jest.Mock).mockReturnValue(mockStore);
+    (getStore as Mock).mockReturnValue(mockStore);
   });
 
   it('should return a random task from the config-specific index', async () => {

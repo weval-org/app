@@ -1,4 +1,4 @@
-import { jest } from '@jest/globals';
+import { Mocked, MockedFunction, MockedClass, vi } from 'vitest';
 import { repairRunCommand } from './repair-run';
 import * as storageService from '../../lib/storageService';
 import * as backfillSummary from './backfill-summary';
@@ -8,25 +8,25 @@ import { getConfig } from '../config';
 import { FinalComparisonOutputV2 as FetchedComparisonData } from '../types/cli_types';
 import * as llmService from '../services/llm-service';
 
-jest.mock('../../lib/storageService');
-jest.mock('./backfill-summary');
-jest.mock('../services/executive-summary-service');
-jest.mock('../evaluators/llm-coverage-evaluator');
-jest.mock('../config');
-jest.mock('../services/llm-service');
+vi.mock('../../lib/storageService');
+vi.mock('./backfill-summary');
+vi.mock('../services/executive-summary-service');
+vi.mock('../evaluators/llm-coverage-evaluator');
+vi.mock('../config');
+vi.mock('../services/llm-service');
 
-const mockedStorage = storageService as jest.Mocked<typeof storageService>;
-const mockedBackfill = backfillSummary as jest.Mocked<typeof backfillSummary>;
-const mockedExecutiveSummary = executiveSummaryService as jest.Mocked<typeof executiveSummaryService>;
-const mockedLLMCoverageEvaluator = LLMCoverageEvaluator as jest.MockedClass<typeof LLMCoverageEvaluator>;
-const mockedGetConfig = getConfig as jest.MockedFunction<typeof getConfig>;
-const mockedLLMService = llmService as jest.Mocked<typeof llmService>;
+const mockedStorage = storageService as Mocked<typeof storageService>;
+const mockedBackfill = backfillSummary as Mocked<typeof backfillSummary>;
+const mockedExecutiveSummary = executiveSummaryService as Mocked<typeof executiveSummaryService>;
+const mockedLLMCoverageEvaluator = LLMCoverageEvaluator as MockedClass<typeof LLMCoverageEvaluator>;
+const mockedGetConfig = getConfig as MockedFunction<typeof getConfig>;
+const mockedLLMService = llmService as Mocked<typeof llmService>;
 
 const mockLogger = {
-  info: jest.fn(),
-  warn: jest.fn(),
-  error: jest.fn(),
-  success: jest.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  success: vi.fn(),
 };
 
 const mockRunIdentifier = 'config-1/run-1/2024-01-01T00-00-00-000Z';
@@ -89,7 +89,7 @@ const mockRepairedCoverage = {
 
 describe('repair-run command', () => {
     beforeEach(() => {
-        jest.clearAllMocks();
+        vi.clearAllMocks();
         (mockedGetConfig as any).mockReturnValue({ logger: mockLogger });
         mockedStorage.getResultByFileName.mockResolvedValue(mockFailedResultData as FetchedComparisonData);
         mockedLLMCoverageEvaluator.prototype.evaluate.mockResolvedValue(mockRepairedCoverage);
@@ -150,7 +150,7 @@ describe('repair-run command', () => {
     it('should handle file not found error', async () => {
         mockedStorage.getResultByFileName.mockResolvedValue(null);
         // Mock process.exit to prevent the test runner from exiting
-        const exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {}) as any);
+        const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as any);
 
         await repairRunCommand.parseAsync(['node', 'test', mockRunIdentifier]);
 
@@ -160,7 +160,7 @@ describe('repair-run command', () => {
     });
 
     it('should handle invalid identifier format', async () => {
-        const exitSpy = jest.spyOn(process, 'exit').mockImplementation((() => {}) as any);
+        const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as any);
         const invalidIdentifier = 'invalid-format';
 
         await repairRunCommand.parseAsync(['node', 'test', invalidIdentifier]);

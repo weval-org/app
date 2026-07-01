@@ -1,14 +1,15 @@
+import { Mock, vi } from 'vitest';
 import { POST as runHandler } from './run/route';
 import { GET as statusHandler } from './status/[runId]/route';
 import { GET as resultHandler } from './result/[runId]/route';
 import { NextRequest } from 'next/server';
 import { getJsonFile } from '@/lib/storageService';
 
-jest.mock('@/lib/storageService', () => ({
-    getJsonFile: jest.fn(),
+vi.mock('@/lib/storageService', () => ({
+    getJsonFile: vi.fn(),
 }));
 
-global.fetch = jest.fn();
+global.fetch = vi.fn();
 
 const MOCK_API_KEY = 'test-api-key';
 process.env.PUBLIC_API_KEY = MOCK_API_KEY;
@@ -24,8 +25,8 @@ prompts:
 
 describe('Public Evaluation API v1', () => {
     beforeEach(() => {
-        (fetch as jest.Mock).mockClear();
-        (getJsonFile as jest.Mock).mockClear();
+        (fetch as Mock).mockClear();
+        (getJsonFile as Mock).mockClear();
         process.env.DISABLE_PUBLIC_API_AUTH = 'false';
     });
 
@@ -61,7 +62,7 @@ describe('Public Evaluation API v1', () => {
                 body: mockBlueprint,
             });
 
-            (fetch as jest.Mock).mockResolvedValue({ status: 200 });
+            (fetch as Mock).mockResolvedValue({ status: 200 });
 
             const res = await runHandler(req);
             expect(res.status).toBe(200);
@@ -71,7 +72,7 @@ describe('Public Evaluation API v1', () => {
             expect(body.statusUrl).toContain(`/api/v1/evaluations/status/${body.runId}`);
             
             expect(fetch).toHaveBeenCalledTimes(1);
-            const fetchCall = (fetch as jest.Mock).mock.calls[0];
+            const fetchCall = (fetch as Mock).mock.calls[0];
             const fetchUrl = fetchCall[0];
             const fetchOptions = fetchCall[1];
 
@@ -84,7 +85,7 @@ describe('Public Evaluation API v1', () => {
 
     describe('GET /api/v1/evaluations/status/[runId]', () => {
         it('should return pending if status file does not exist', async () => {
-            (getJsonFile as jest.Mock).mockResolvedValue(null);
+            (getJsonFile as Mock).mockResolvedValue(null);
             const req = new NextRequest('http://localhost/api/v1/evaluations/status/test-run-id');
             const res = await statusHandler(req, { params: { runId: 'test-run-id' } });
             expect(res.status).toBe(200);
@@ -94,7 +95,7 @@ describe('Public Evaluation API v1', () => {
 
         it('should return the status from the file if it exists', async () => {
             const mockStatus = { status: 'running', message: 'In progress' };
-            (getJsonFile as jest.Mock).mockResolvedValue(mockStatus);
+            (getJsonFile as Mock).mockResolvedValue(mockStatus);
             const req = new NextRequest('http://localhost/api/v1/evaluations/status/test-run-id');
             const res = await statusHandler(req, { params: { runId: 'test-run-id' } });
             expect(res.status).toBe(200);
@@ -105,7 +106,7 @@ describe('Public Evaluation API v1', () => {
 
     describe('GET /api/v1/evaluations/result/[runId]', () => {
         it('should return 202 if status is not completed', async () => {
-            (getJsonFile as jest.Mock).mockResolvedValue({ status: 'running' });
+            (getJsonFile as Mock).mockResolvedValue({ status: 'running' });
             const req = new NextRequest('http://localhost/api/v1/evaluations/result/test-run-id');
             const res = await resultHandler(req, { params: { runId: 'test-run-id' } });
             expect(res.status).toBe(202);
@@ -122,7 +123,7 @@ describe('Public Evaluation API v1', () => {
                 },
             };
             const mockResult = { title: 'Test Result' };
-            (getJsonFile as jest.Mock)
+            (getJsonFile as Mock)
                 .mockResolvedValueOnce(mockStatus) // For status check
                 .mockResolvedValueOnce(mockResult); // For core.json result
 
@@ -135,7 +136,7 @@ describe('Public Evaluation API v1', () => {
             expect(body.resultUrl).toEqual(mockStatus.payload.resultUrl);
 
             // Check that it tried to get the core.json file
-            const getJsonFileCalls = (getJsonFile as jest.Mock).mock.calls;
+            const getJsonFileCalls = (getJsonFile as Mock).mock.calls;
             expect(getJsonFileCalls[1][0]).toContain('core.json');
         });
     });
