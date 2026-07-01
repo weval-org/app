@@ -242,6 +242,31 @@ describe('run-config validation logic', () => {
         );
       });
 
+      it('should pass through a custom model object with multiple keys (id, url, modelName)', async () => {
+        const customModel = { id: 'my-custom-agent', url: 'http://localhost:3001/v1', modelName: 'gpt-4o' };
+        const result = await resolveModelCollections([customModel], undefined, mockLogger as any);
+
+        expect(result).toEqual([customModel]);
+        // It must NOT be treated as a malformed single-key provider object.
+        expect(mockLogger.warn).not.toHaveBeenCalledWith(
+            expect.stringContaining('Invalid object entry in models array'),
+        );
+      });
+
+      it('should pass custom model objects through alongside strings and collections', async () => {
+        const customModel = { id: 'my-custom-agent', url: 'http://localhost:3001/v1', modelName: 'gpt-4o' };
+        const collectionsRepoPath = '/fake/repo';
+        mockedFs.readFile.mockResolvedValue(JSON.stringify(['google:gemini-1.5-flash-latest']));
+
+        const result = await resolveModelCollections(
+            ['openai:gpt-4o-mini', customModel, 'TEST_COLLECTION'],
+            collectionsRepoPath,
+            mockLogger as any,
+        );
+
+        expect(result).toEqual(['openai:gpt-4o-mini', customModel, 'google:gemini-1.5-flash-latest']);
+      });
+
       it('should deduplicate models from multiple collections and literals', async () => {
         const models = ['openai:gpt-4o-mini', 'COLLECTION_A', 'COLLECTION_B'];
         const collectionsRepoPath = '/fake/repo';

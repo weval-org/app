@@ -69,25 +69,28 @@ export async function resolveModelCollections(configModels: any[], collectionsRe
             }
             normalizedConfigModels.push(correctedEntry);
         } else if (typeof modelEntry === 'object' && modelEntry !== null && !Array.isArray(modelEntry)) {
-            const keys = Object.keys(modelEntry);
-            if (keys.length === 1) {
-                const provider = keys[0].trim();
-                const modelNameValue = modelEntry[keys[0]];
-
-                if (typeof modelNameValue === 'string') {
-                    const modelName = modelNameValue.trim();
-                    const corrected = `${provider}:${modelName}`;
-                    logger.warn(`Found model entry as a key-value pair: ${JSON.stringify(modelEntry)}. Interpreting as '${corrected}'. For clarity, please use the string format "provider:model" in your blueprint.`);
-                    normalizedConfigModels.push(corrected);
-                } else {
-                    logger.warn(`Invalid object entry in models array: Key '${provider}' has a non-string value. Skipping: ${JSON.stringify(modelEntry)}.`);
-                }
+            if (modelEntry.id) {
+                // Custom model definition (e.g. { id, url, modelName }). Pass through directly.
+                normalizedConfigModels.push(modelEntry);
             } else {
-                logger.warn(`Invalid object entry in models array: Must have exactly one key (the provider). Found ${keys.length} keys. Skipping: ${JSON.stringify(modelEntry)}.`);
+                // Provider shorthand — expect exactly one key: { provider: modelName }.
+                const keys = Object.keys(modelEntry);
+                if (keys.length === 1) {
+                    const provider = keys[0].trim();
+                    const modelNameValue = modelEntry[keys[0]];
+
+                    if (typeof modelNameValue === 'string') {
+                        const modelName = modelNameValue.trim();
+                        const corrected = `${provider}:${modelName}`;
+                        logger.warn(`Found model entry as a key-value pair: ${JSON.stringify(modelEntry)}. Interpreting as '${corrected}'. For clarity, please use the string format "provider:model" in your blueprint.`);
+                        normalizedConfigModels.push(corrected);
+                    } else {
+                        logger.warn(`Invalid object entry in models array: Key '${provider}' has a non-string value. Skipping: ${JSON.stringify(modelEntry)}.`);
+                    }
+                } else {
+                    logger.warn(`Invalid object entry in models array: expected either an 'id' field (for a custom model definition) or exactly one key (the provider, as { "provider": "modelName" }). Found ${keys.length} keys and no 'id'. Skipping: ${JSON.stringify(modelEntry)}.`);
+                }
             }
-        } else if (typeof modelEntry === 'object' && modelEntry !== null && !Array.isArray(modelEntry) && modelEntry.id) {
-            // This is a custom model definition. Add it directly.
-            normalizedConfigModels.push(modelEntry);
         } else {
              logger.warn(`Invalid entry in models array found: ${JSON.stringify(modelEntry)}. It is not a string or a single key-value object. Skipping this entry.`);
         }
