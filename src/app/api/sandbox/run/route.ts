@@ -23,7 +23,7 @@ const QUICK_RUN_MODEL = 'openai:gpt-4.1-mini';
 const QUICK_RUN_JUDGE = 'openrouter:google/gemini-2.5-flash';
 const DEFAULT_ADVANCED_MODELS = [
     "openai:gpt-4.1-mini",
-    "anthropic:claude-3-haiku-20240307",
+    "anthropic:claude-3-5-haiku-20241022",
     'openrouter:google/gemini-2.5-flash'
 ];
 
