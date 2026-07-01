@@ -3,8 +3,8 @@ import { test, expect } from '@playwright/test';
 /**
  * Smoke tests target dependency-free, statically rendered routes so they pass
  * in CI without storage/API secrets. Data-driven routes (the homepage,
- * /analysis, etc.) hit storage and external LLM APIs — to test those, provide
- * env vars or mock the network first. See tests/e2e/README.md.
+ * /latest, /analysis/*) are covered separately against seeded local fixtures —
+ * see homepage.spec.ts, latest.spec.ts, analysis.spec.ts and tests/e2e/README.md.
  */
 test.describe('smoke', () => {
   test('about page renders its title and key content', async ({ page }) => {

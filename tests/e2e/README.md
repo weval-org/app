@@ -30,17 +30,35 @@ E2E_BASE_URL=https://your-preview.example.com pnpm test:e2e
 
 ## What's safe to test here
 
-Smoke tests deliberately target **statically rendered, dependency-free routes**
-(`/about`, `/what-is-an-eval`, …) so they pass in CI without any secrets.
+Two kinds of routes are covered:
 
-Routes that read from storage (S3) or call external LLM APIs — the homepage,
-`/analysis/*`, `/latest`, etc. — will be slow or error without env/network. To
-cover those, either:
+1. **Statically rendered, dependency-free routes** (`/about`,
+   `/what-is-an-eval`, …) — see `smoke.spec.ts`. These need no data at all.
 
-- provide the relevant env vars (see `.env.template`), or
-- intercept network calls with `page.route(...)` and serve fixtures.
+2. **Data-driven routes** (the homepage `/`, `/latest`, `/analysis/*`) — see
+   `homepage.spec.ts`, `latest.spec.ts`, `analysis.spec.ts`. These read from
+   storage but do **not** call LLMs at render time, so they work against
+   seeded local fixtures without any secrets or network.
 
-Keep flaky, data-dependent assertions out of the default suite.
+### How the data-driven fixtures work
+
+In dev/test mode the app's `storageService` uses the `local` provider and reads
+results from the `.results/` directory on disk (S3 is only used in production).
+`playwright.config.ts` registers a `globalSetup` that seeds `.results/` from
+`tests/e2e/fixtures/results/` **before** the dev server boots, and a
+`globalTeardown` that restores it afterwards. Seeding is non-destructive: if you
+already have a real local `.results/`, overwritten files are backed up and
+restored and only the added files are removed.
+
+The fixtures describe one deterministic run (`test-eval` / `test-run`); the
+identifiers live in `tests/e2e/fixtures/constants.ts`. To cover another page or
+data shape, add JSON under `tests/e2e/fixtures/results/` mirroring the on-disk
+layout the storage service expects (e.g.
+`live/aggregates/…`, `live/blueprints/<configId>/<runLabel>_<timestamp>/core.json`).
+
+Routes that genuinely call external LLM APIs at request time (sandbox runs,
+story generation, etc.) still need real env vars or `page.route(...)` mocks —
+keep those out of the default suite.
 
 ## Conventions
 

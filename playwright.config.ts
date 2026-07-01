@@ -15,6 +15,15 @@ const BASE_URL = process.env.E2E_BASE_URL ?? `http://localhost:${PORT}`;
 
 export default defineConfig({
   testDir: './tests/e2e',
+  /**
+   * Seed `.results/` with local-storage fixtures before the dev server boots
+   * (setup), then restore it afterwards (teardown). This lets the data-driven
+   * pages render real content without S3 or live LLM calls. Skipped when
+   * E2E_BASE_URL points at an already-running/remote app, whose storage we
+   * neither control nor want to mutate.
+   */
+  globalSetup: process.env.E2E_BASE_URL ? undefined : require.resolve('./tests/e2e/global-setup'),
+  globalTeardown: process.env.E2E_BASE_URL ? undefined : require.resolve('./tests/e2e/global-teardown'),
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,

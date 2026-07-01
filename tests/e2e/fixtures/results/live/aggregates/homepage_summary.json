@@ -1,0 +1,36 @@
+{
+  "configs": [
+    {
+      "configId": "test-eval",
+      "configTitle": "Test Evaluation Blueprint",
+      "id": "test-eval",
+      "title": "Test Evaluation Blueprint",
+      "description": "A fixture blueprint used by the end-to-end test suite.",
+      "tags": ["test-fixture", "_featured"],
+      "runs": [
+        {
+          "runLabel": "test-run",
+          "timestamp": "2025-06-01T12-00-00-000Z",
+          "fileName": "test-run_2025-06-01T12-00-00-000Z_comparison.json",
+          "numPrompts": 2,
+          "numModels": 2,
+          "totalModelsAttempted": 2,
+          "hybridScoreStats": { "average": 0.9125, "stddev": 0.0125 },
+          "perModelHybridScores": {
+            "openai:gpt-4o-mini": { "average": 0.925, "stddev": 0.025 },
+            "anthropic:claude-3-haiku-20240307": { "average": 0.9, "stddev": 0.0 }
+          },
+          "tags": ["test-fixture", "_featured"],
+          "models": ["openai:gpt-4o-mini", "anthropic:claude-3-haiku-20240307"],
+          "promptIds": ["prompt-greeting", "prompt-math"]
+        }
+      ],
+      "latestRunTimestamp": "2025-06-01T12-00-00-000Z",
+      "overallAverageHybridScore": 0.9125,
+      "hybridScoreStdDev": 0.0125
+    }
+  ],
+  "headlineStats": null,
+  "driftDetectionResult": null,
+  "lastUpdated": "2025-06-01T12:00:00.000Z"
+}

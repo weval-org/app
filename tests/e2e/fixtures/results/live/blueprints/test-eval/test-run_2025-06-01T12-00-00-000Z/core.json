@@ -1,0 +1,89 @@
+{
+  "configId": "test-eval",
+  "configTitle": "Test Evaluation Blueprint",
+  "runLabel": "test-run",
+  "timestamp": "2025-06-01T12-00-00-000Z",
+  "description": "A fixture blueprint used by the end-to-end test suite.",
+  "config": {
+    "id": "test-eval",
+    "title": "Test Evaluation Blueprint",
+    "description": "A fixture blueprint used by the end-to-end test suite.",
+    "tags": ["test-fixture", "_featured"],
+    "models": ["openai:gpt-4o-mini", "anthropic:claude-3-haiku-20240307"],
+    "prompts": [
+      {
+        "id": "prompt-greeting",
+        "promptText": "Say hello to the user politely.",
+        "points": ["Contains a greeting", "Uses a polite tone"]
+      },
+      {
+        "id": "prompt-math",
+        "promptText": "What is 2 + 2?",
+        "points": ["States that the answer is 4"]
+      }
+    ]
+  },
+  "evalMethodsUsed": ["llm-coverage"],
+  "effectiveModels": ["openai:gpt-4o-mini", "anthropic:claude-3-haiku-20240307"],
+  "promptIds": ["prompt-greeting", "prompt-math"],
+  "promptContexts": {
+    "prompt-greeting": "Say hello to the user politely.",
+    "prompt-math": "What is 2 + 2?"
+  },
+  "allFinalAssistantResponses": {
+    "prompt-greeting": {
+      "openai:gpt-4o-mini": "Hello! It's a pleasure to meet you. How can I help you today?",
+      "anthropic:claude-3-haiku-20240307": "Hi there! Lovely to meet you. What can I do for you?"
+    },
+    "prompt-math": {
+      "openai:gpt-4o-mini": "2 + 2 equals 4.",
+      "anthropic:claude-3-haiku-20240307": "The answer is 4."
+    }
+  },
+  "evaluationResults": {
+    "llmCoverageScores": {
+      "prompt-greeting": {
+        "openai:gpt-4o-mini": {
+          "keyPointsCount": 2,
+          "avgCoverageExtent": 0.95,
+          "pointAssessments": [
+            { "keyPointText": "Contains a greeting", "coverageExtent": 1.0, "reflection": "The response opens with a clear greeting." },
+            { "keyPointText": "Uses a polite tone", "coverageExtent": 0.9, "reflection": "The tone is warm and courteous." }
+          ]
+        },
+        "anthropic:claude-3-haiku-20240307": {
+          "keyPointsCount": 2,
+          "avgCoverageExtent": 0.9,
+          "pointAssessments": [
+            { "keyPointText": "Contains a greeting", "coverageExtent": 1.0, "reflection": "Begins with a friendly greeting." },
+            { "keyPointText": "Uses a polite tone", "coverageExtent": 0.8, "reflection": "Polite, though slightly informal." }
+          ]
+        }
+      },
+      "prompt-math": {
+        "openai:gpt-4o-mini": {
+          "keyPointsCount": 1,
+          "avgCoverageExtent": 0.9,
+          "pointAssessments": [
+            { "keyPointText": "States that the answer is 4", "coverageExtent": 0.9, "reflection": "Correctly states the answer is 4." }
+          ]
+        },
+        "anthropic:claude-3-haiku-20240307": {
+          "keyPointsCount": 1,
+          "avgCoverageExtent": 0.9,
+          "pointAssessments": [
+            { "keyPointText": "States that the answer is 4", "coverageExtent": 0.9, "reflection": "Correctly states the answer is 4." }
+          ]
+        }
+      }
+    },
+    "perModelHybridScores": {
+      "openai:gpt-4o-mini": { "average": 0.925, "stddev": 0.025 },
+      "anthropic:claude-3-haiku-20240307": { "average": 0.9, "stddev": 0.0 }
+    },
+    "perModelSemanticScores": {},
+    "similarityMatrix": {},
+    "perPromptSimilarities": {},
+    "promptStatistics": {}
+  }
+}
