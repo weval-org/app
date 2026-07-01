@@ -392,7 +392,7 @@ llmCoverageScores[promptData.promptId][modelId] = {
 No additional changes needed! The `judgeAgreement` field will be:
 - Stored in result JSON files (automatic via type extension)
 - Available in API responses (automatic via type extension)
-- Persisted to Netlify Blobs (automatic via serialization)
+- Persisted via the storage abstraction in `src/lib/storageService.ts` (S3 in production, local FS in development; automatic via serialization)
 
 ---
 
