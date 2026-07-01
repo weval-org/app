@@ -11,6 +11,15 @@ itself is the core deliverable and always runs. Before/after screenshots are a
 time-boxed, **fail soft** (any problem → clean text-only description), and are
 **off by default for data-driven routes** (see "Default screenshot scope").
 
+## When to run
+
+Run this **every time a PR is opened** (by you or any agent) so the description
+is never left blank or as the raw template. The section set below matches
+`.github/pull_request_template.md`, and a CI check
+(`.github/workflows/pr-description-check.yml`) nudges on every PR if the required
+sections (`Summary`, `Changes`, `Test plan`, `Risks / rollback`) are empty — this
+skill's job is to make that check pass with real content.
+
 ## Output contract
 
 - If a PR already exists for the current branch → update its **title and body**
@@ -18,6 +27,8 @@ time-boxed, **fail soft** (any problem → clean text-only description), and are
   follow the convention below.
 - If no PR exists → print the finished **title + markdown body** for the user.
   Do **NOT** open a PR unless the user explicitly asked for one.
+- Keep the section headings aligned with `.github/pull_request_template.md` so the
+  description-check workflow recognizes them.
 
 ## PR title convention
 
