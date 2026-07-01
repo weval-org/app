@@ -6,7 +6,8 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "@sentry-internal/node-cpu-profiler",
-      "@sentry/cli"
+      "@sentry/cli",
+      "sqlite3"
     ]
   },
   "scripts": {
