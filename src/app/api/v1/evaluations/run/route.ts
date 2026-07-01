@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
     if (!config.models || !Array.isArray(config.models) || config.models.length === 0) {
         const defaultModels = [
             "openai:gpt-4.1-mini",
-            "anthropic:claude-3-haiku-20240307",
+            "anthropic:claude-3-5-haiku-20241022",
             'openrouter:google/gemini-2.5-flash'
         ];
         console.log(`[API RUN] No models provided in blueprint. Defaulting to ${defaultModels.length} models.`);
