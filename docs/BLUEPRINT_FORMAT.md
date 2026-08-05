@@ -117,7 +117,7 @@ The `evaluationConfig` field allows you to customize how evaluations are perform
 evaluationConfig:
   llm-coverage:
     judges: [...]           # Custom judge configuration
-    useExperimentalScale: true  # Use 9-point scale instead of 5-point
+    useExperimentalScale: true  # Opt into the 10-class non-linear scale instead of the legacy 5-class linear scale (note: currently forced on globally; see "Classification Scale" below)
 ```
 
 #### LLM Coverage Evaluation Options
@@ -125,7 +125,7 @@ evaluationConfig:
 | Field | Type | Description |
 |---|---|---|
 | `judges` | `Judge[]` | **(Optional)** Custom judge configuration. If omitted, uses the default judges. Each judge is an object with `id`, `model`, and `approach` fields. See below for details. |
-| `useExperimentalScale` | `boolean` | **(Optional)** If `true`, uses the experimental 9-point classification scale (0.0, 0.001, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0) instead of the default 5-point scale (0.0, 0.25, 0.5, 0.75, 1.0). This provides finer granularity in rubric scoring. |
+| `useExperimentalScale` | `boolean` | **(Optional)** If `true`, uses the experimental **10-class** classification scale (0.0, 0.001, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0) instead of the legacy 5-class scale (0.0, 0.25, 0.5, 0.75, 1.0). This provides finer granularity in rubric scoring, with a deliberately non-linear gap between "utterly unmet / contradictory" (0.0) and "merely unmet" (0.001). **Note:** the experimental scale is currently forced on globally via `FORCE_EXPERIMENTAL = true` in `src/cli/evaluators/llm-coverage-evaluator.ts`, so this flag has no effect at the moment — both `true` and (omitted/`false`) result in the 10-class scale being used. See `docs/METHODOLOGY.md` for details. |
 | `judgeModels` | `string[]` | **(Deprecated)** Legacy field for backwards compatibility. Use `judges` instead. |
 | `judgeMode` | `'failover' \| 'consensus'` | **(Deprecated)** Legacy field for backwards compatibility. The system now always uses consensus mode across all configured judges. |
 
@@ -141,16 +141,21 @@ Each judge in the `judges` array is an object with the following fields:
 
 **Default Judges:**
 
-If no custom judges are specified, the system uses these default judges:
+If no custom judges are specified, the system uses these default judges (defined as `DEFAULT_JUDGES` in `src/cli/evaluators/llm-coverage-evaluator.ts`):
 ```yaml
 judges:
-  - id: 'holistic-qwen3-30b-a3b-instruct-2507'
-    model: 'openrouter:qwen/qwen3-30b-a3b-instruct-2507'
+  - id: 'holistic-gemini-2-5-flash'
+    model: 'openrouter:google/gemini-2.5-flash'
     approach: 'holistic'
-  - id: 'holistic-openai-gpt-oss-120b'
-    model: 'openrouter:openai/gpt-oss-120b'
+  - id: 'holistic-gpt-4-1-mini'
+    model: 'openrouter:openai/gpt-4.1-mini'
+    approach: 'holistic'
+  - id: 'holistic-claude-haiku-4-5'
+    model: 'openrouter:anthropic/claude-haiku-4.5'
     approach: 'holistic'
 ```
+
+The defaults are chosen for **cross-family consensus** (one judge from each of Google, OpenAI, and Anthropic) over **approach diversity** (all three default judges use the `holistic` approach). To get approach diversity, configure custom judges explicitly.
 
 **Example with Custom Judges:**
 
@@ -178,7 +183,7 @@ evaluationConfig:
 
 **Backup Judge:**
 
-If all configured judges fail to return a valid assessment, the system automatically attempts to use a backup judge (`anthropic:claude-3.5-haiku` with `holistic` approach) to ensure evaluation can complete. This backup is only used when custom judges are not configured.
+If any of the primary default judges fail to return a valid assessment, the system automatically attempts to use a backup judge (`openrouter:anthropic/claude-haiku-4.5` with `holistic` approach — defined as `DEFAULT_BACKUP_JUDGE` in `src/cli/evaluators/llm-coverage-evaluator.ts`) to ensure evaluation can complete. This backup is only used when **custom `judges` are not configured** — to preserve user intent, the backup is suppressed when a blueprint specifies its own judges.
 
 ### Model Configuration
 
