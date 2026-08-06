@@ -78,3 +78,8 @@ local blueprint file to validate it before submitting a PR.
 We follow the [Contributor Covenant](CODE_OF_CONDUCT.md) (version 2.1). Be
 respectful, constructive, and collaborative. Reports can be sent to
 `nnojibe@gmail.com`.
+
+## Governance
+
+See [GOVERNANCE.md](GOVERNANCE.md) for maintainers, decision making,
+contributor recognition, and blueprint curation.
