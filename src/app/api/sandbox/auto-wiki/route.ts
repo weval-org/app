@@ -150,13 +150,14 @@ export async function POST(req: NextRequest) {
     }
     
     // wtf.fetch can return an array if it follows redirects, take the last one.
-    if (Array.isArray(doc)) {
-      doc = doc[doc.length - 1];
+    const article = Array.isArray(doc) ? doc[doc.length - 1] : doc;
+    if (!article) {
+      return NextResponse.json({ error: 'Could not resolve the Wikipedia article.' }, { status: 404 });
     }
 
-    const articleText = doc.text();
-    const articleSummary = (doc as any).summary() || 'No summary available.';
-    const title = doc.title() || articleTitle;
+    const articleText = article.text();
+    const articleSummary = (article as any).summary() || 'No summary available.';
+    const title = article.title() || articleTitle;
 
     if (!articleText || articleText.length < 100) {
         return NextResponse.json({ error: 'The article content is too short to generate a meaningful blueprint.' }, { status: 400 });

@@ -8,7 +8,8 @@ export async function GET(_: Request, ctx: { params: Promise<{ z: string; x: str
   const y = parseInt(params.y, 10);
   const buf = await getMacroTile(z, x, y);
   if (!buf) return new NextResponse('Not found', { status: 404 });
-  return new NextResponse(buf, { status: 200, headers: { 'Content-Type': 'application/octet-stream', 'Cache-Control': 'public, max-age=31536000, immutable' } });
+  return new NextResponse(
+    new Blob([Uint8Array.from(buf)]),
+    { status: 200, headers: { 'Content-Type': 'application/octet-stream', 'Cache-Control': 'public, max-age=31536000, immutable' } },
+  );
 }
-
-
