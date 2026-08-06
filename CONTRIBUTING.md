@@ -16,4 +16,6 @@ Coming soon.
 
 ## Code of Conduct
 
-We follow standard open source community norms. Be respectful, constructive, and collaborative.
+We follow the [Contributor Covenant](CODE_OF_CONDUCT.md) (version 2.1). Be
+respectful, constructive, and collaborative. Reports can be sent to
+`nnojibe@gmail.com`.
