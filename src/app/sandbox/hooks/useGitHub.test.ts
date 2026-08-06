@@ -229,16 +229,18 @@ describe('useGitHub', () => {
             expect(updatedFile?.sha).toBe('updated-sha');
         });
 
-        // NOTE: This test is stale relative to the current source: updateFileOnGitHub returns
-        // null (after showing a toast) when branchName is missing rather than throwing, so the
-        // .rejects.toThrow assertion fails on main too. The unit suites are not run in CI, so
-        // the drift went unnoticed. Skipping to avoid masking it as a migration regression.
-        test.skip('should throw an error if branchName is missing', async () => {
+        test('returns null if branchName is missing', async () => {
              const { result } = renderHook(() => useGitHub(true, 'test-user'));
              await act(async () => {
                 result.current.setForkName('test-user-fork');
             });
-            await expect(result.current.updateFileOnGitHub(mockBlueprint.path, 'new content', mockBlueprint.sha, '')).rejects.toThrow('A branch name is required to update a file on GitHub.');
+            const updatedFile = await result.current.updateFileOnGitHub(
+                mockBlueprint.path,
+                'new content',
+                mockBlueprint.sha,
+                '',
+            );
+            expect(updatedFile).toBeNull();
         });
     });
 
