@@ -1,0 +1,9 @@
+# Default ownership
+* @nojibe
+
+# CLI eval engine and blueprint parsing
+/src/cli/ @nojibe
+/docs/BLUEPRINT_FORMAT.md @nojibe
+
+# Infrastructure and workflow configuration
+/.github/ @nojibe
