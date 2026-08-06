@@ -1,7 +1,17 @@
 {
-  "name": "llm-sim-suite",
+  "name": "weval",
   "version": "0.1.0",
   "private": true,
+  "description": "Open, collaborative platform for qualitative AI evaluations and benchmarks.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/weval-org/app.git"
+  },
+  "homepage": "https://weval.org",
+  "bugs": {
+    "url": "https://github.com/weval-org/app/issues"
+  },
   "packageManager": "pnpm@9.6.0",
   "pnpm": {
     "onlyBuiltDependencies": [
