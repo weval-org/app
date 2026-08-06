@@ -317,18 +317,14 @@ describe('LLMCoverageEvaluator', () => {
             ]));
         });
 
-        // NOTE: This test is stale relative to the current DEFAULT_JUDGES set (it was written
-        // for an older set that included qwen/gpt-oss/glm). It fails on main as well — the unit
-        // suites are not run in CI, so the drift went unnoticed. Skipping here to avoid masking
-        // it as a migration regression; it should be updated separately to match DEFAULT_JUDGES.
-        it.skip('should use backup judge when one primary judge fails', async () => {
+        it('should use backup judge when one primary judge fails', async () => {
             const input = createMockEvaluationInput('prompt-backup-success', points);
-            
+
             requestIndividualJudgeSpy.mockImplementation(async (mrt, kpt, aokp, pct, suiteDesc, judge) => {
-                if (judge.model === 'openrouter:qwen/qwen3-30b-a3b-instruct-2507') return { coverage_extent: 0.8, reflection: 'Good from Qwen' };
-                if (judge.model === 'openrouter:openai/gpt-oss-120b') return { error: 'GPT-OSS failed' };
-                if (judge.model === 'openrouter:z-ai/glm-4.5') return { error: 'GLM failed' };
-                if (judge.model === 'openrouter:anthropic/claude-haiku-4.5') return { coverage_extent: 0.6, reflection: 'Backup Claude result' };
+                if (judge.id === 'holistic-gemini-2-5-flash') return { coverage_extent: 0.8, reflection: 'Good from Gemini' };
+                if (judge.id === 'holistic-gpt-4-1-mini') return { error: 'GPT-4.1 mini failed' };
+                if (judge.id === 'holistic-claude-haiku-4-5') return { coverage_extent: 0.7, reflection: 'Good from primary Claude' };
+                if (judge.id === 'backup-claude-4-5-haiku') return { coverage_extent: 0.6, reflection: 'Backup Claude result' };
                 return { error: 'unexpected judge' };
             });
 
@@ -337,11 +333,9 @@ describe('LLMCoverageEvaluator', () => {
 
             // Should have been called times: primary judges + 1 backup
             expect(requestIndividualJudgeSpy).toHaveBeenCalledTimes(DEFAULT_JUDGES.length + 1);
-            const qwenCount = DEFAULT_JUDGES.filter(j => j.model === 'openrouter:qwen/qwen3-30b-a3b-instruct-2507').length;
-            const expected = parseFloat((((qwenCount * 0.8) + 0.6) / (qwenCount + 1)).toFixed(2));
-            expect(assessment.coverageExtent).toBe(expected);
+            expect(assessment.coverageExtent).toBe(0.7);
             expect(assessment.judgeModelId).toContain('consensus(');
-            expect(assessment.individualJudgements).toHaveLength(qwenCount + 1);
+            expect(assessment.individualJudgements).toHaveLength(3);
             expect(assessment.reflection).toContain('NOTE: Backup judge was used to supplement failed primary judges.');
             expect(assessment.error).toBeUndefined(); // Should be no error since backup succeeded
         });
