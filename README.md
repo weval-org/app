@@ -1,3 +1,7 @@
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![E2E Tests](https://img.shields.io/github/actions/workflow/status/weval-org/app/e2e.yml?branch=main)](https://github.com/weval-org/app/actions/workflows/e2e.yml)
+
 TL;DR: Weval is built for developers, AI researchers, and domain experts who need to test AI models on nuanced, qualitative tasks that go beyond standard benchmarks.
 
 ---
@@ -717,6 +721,10 @@ If you use Weval in your research, please cite it as follows:
 
 Weval uses [Plausible Analytics](https://plausible.io) for privacy-first, cookie-free website analytics. The tracking script loads only in production. See [docs/ANALYTICS.md](docs/ANALYTICS.md) for details on what's tracked, how to access the dashboard, and how to add custom events.
 
+## License
+
+MIT, see [LICENSE](LICENSE).
+
 ## Bug Reports & Feedback
 
-Found a bug? Please [open an issue](https://github.com/weval-org/app/issues/new/choose) using our bug report template. See [CONTRIBUTING.md](CONTRIBUTING.md) for details on what to include.
+Found a bug? Please [open an issue](https://github.com/weval-org/app/issues/new/choose) using our bug report template. See [CONTRIBUTING.md](CONTRIBUTING.md) for details on what to include. Community docs: [CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), and [SECURITY.md](SECURITY.md).
