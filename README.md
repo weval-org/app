@@ -720,3 +720,5 @@ Weval uses [Plausible Analytics](https://plausible.io) for privacy-first, cookie
 ## Bug Reports & Feedback
 
 Found a bug? Please [open an issue](https://github.com/weval-org/app/issues/new/choose) using our bug report template. See [CONTRIBUTING.md](CONTRIBUTING.md) for details on what to include.
+
+Found a security issue? Report it privately following [SECURITY.md](SECURITY.md).
