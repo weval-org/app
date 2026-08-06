@@ -17,3 +17,8 @@ Coming soon.
 ## Code of Conduct
 
 We follow standard open source community norms. Be respectful, constructive, and collaborative.
+
+## Governance
+
+See [GOVERNANCE.md](GOVERNANCE.md) for maintainers, decision making,
+contributor recognition, and blueprint curation.
