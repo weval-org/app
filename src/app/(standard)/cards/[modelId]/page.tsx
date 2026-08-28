@@ -8,7 +8,7 @@ import Link from 'next/link';
 import Icon, { type IconName } from '@/components/ui/icon';
 import ResponseRenderer from '@/app/components/ResponseRenderer';
 import RemarkGfmPlugin from 'remark-gfm';
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
+import PerformanceSummaryStats from './PerformanceSummaryStats';
 
 // Shared formatters
 const formatPercent = (value?: number | null, fractionDigits = 1): string => {
@@ -285,41 +285,13 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
 
             {/* Right Column - Stats & Metadata (Secondary) */}
             <div className="lg:w-80 bg-muted/10 border-t lg:border-t-0 lg:border-l border-border p-6 lg:sticky lg:top-4 self-start">
-              <TooltipProvider>
-              
               {/* Quick Stats */}
               <div className="mb-6">
                 <h3 className="font-medium text-sm text-muted-foreground mb-3">Performance Summary</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                        <Icon name="activity" className="h-3.5 w-3.5 text-muted-foreground mr-2" />
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="text-sm cursor-help">Runs</span>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          Number of times this model was evaluated across all blueprints
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <span className="font-medium">{modelCard.overallStats.totalRuns}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <Icon name="users" className="h-3.5 w-3.5 text-muted-foreground mr-2" />
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="text-sm cursor-help">Blueprints</span>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          Distinct evaluation blueprints/configs this model was tested on
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                    <span className="font-medium">{modelCard.overallStats.totalBlueprints}</span>
-                  </div>
-                </div>
+                <PerformanceSummaryStats
+                  totalRuns={modelCard.overallStats.totalRuns}
+                  totalBlueprints={modelCard.overallStats.totalBlueprints}
+                />
               </div>
 
               {/* Top Dimensional Performance */}
@@ -496,7 +468,6 @@ export default async function ModelCardPage({ params }: ModelCardPageProps) {
               <div className="text-center">
                 <div className="text-xs text-muted-foreground">Updated {new Date(modelCard.lastUpdated).toLocaleDateString()}</div>
               </div>
-              </TooltipProvider>
             </div>
           </div>
         </div>
