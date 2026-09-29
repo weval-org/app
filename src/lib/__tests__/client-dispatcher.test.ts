@@ -25,6 +25,7 @@ vi.mock('../llm-clients/mistral-client', () => ({ MistralClient: MockLLMClient }
 vi.mock('../llm-clients/together-client', () => ({ TogetherClient: MockLLMClient }));
 vi.mock('../llm-clients/xai-client', () => ({ XaiClient: MockLLMClient }));
 vi.mock('../llm-clients/openrouter-client', () => ({ OpenRouterModuleClient: MockLLMClient }));
+vi.mock('../llm-clients/potluck-client', () => ({ PotluckClient: MockLLMClient }));
 vi.mock('../llm-clients/generic-client', () => ({ GenericHttpClient: MockLLMClient }));
 
 
@@ -152,6 +153,14 @@ describe('LLM Client Dispatcher', () => {
             await dispatchMakeApiCall(options);
 
             expect(mockMakeApiCall).toHaveBeenCalledTimes(1);
+            expect(mockMakeApiCall).toHaveBeenCalledWith(options);
+        });
+
+        it('should route potluck: model IDs to the potluck client', async () => {
+            const options = { modelId: 'potluck:aisingapore/Qwen-SEA-LION-v4-32B-IT', messages: [{role: 'user', content: 'test'}] };
+            await dispatchMakeApiCall(options);
+
+            expect(mockConstructor).toHaveBeenCalledTimes(1);
             expect(mockMakeApiCall).toHaveBeenCalledWith(options);
         });
 

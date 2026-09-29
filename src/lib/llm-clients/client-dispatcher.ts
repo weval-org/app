@@ -5,6 +5,7 @@ import { MistralClient } from './mistral-client';
 import { TogetherClient } from './together-client';
 import { XaiClient } from './xai-client';
 import { OpenRouterModuleClient } from './openrouter-client';
+import { PotluckClient } from './potluck-client';
 import { GenericHttpClient } from './generic-client';
 import { LLMApiCallOptions, LLMApiCallResult, StreamChunk, CustomModelDefinition } from './types';
 
@@ -17,6 +18,7 @@ const clientClassMap: Record<string, new (apiKey?: string) => any> = {
     'mistral': MistralClient,
     'together': TogetherClient,
     'xai': XaiClient,
+    'potluck': PotluckClient,
 };
 
 // A cache for instantiated clients, to avoid creating new ones for every call.
