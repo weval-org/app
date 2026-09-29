@@ -167,6 +167,20 @@ describe('modelIdUtils', () => {
     });
   });
 
+  describe('partner models on the potluck router', () => {
+    it('attributes fine-tunes to their own maker, not the base model maker', () => {
+      expect(parseModelIdForDisplay('potluck:aisingapore/Qwen-SEA-LION-v4-32B-IT').baseId).toBe('aisingapore:Qwen-SEA-LION-v4-32B-IT');
+      expect(parseModelIdForDisplay('potluck:aisingapore/Gemma-SEA-LION-v4-27B-IT').baseId).toBe('aisingapore:Gemma-SEA-LION-v4-27B-IT');
+      expect(parseModelIdForDisplay('potluck:ALIA-40b-instruct').baseId).toBe('bsc:ALIA-40b-instruct');
+      expect(parseModelIdForDisplay('potluck:swiss-ai/Apertus-70B-Instruct').baseId).toBe('swiss-ai:Apertus-70B-Instruct');
+    });
+
+    it('leaves the base makers themselves unchanged', () => {
+      expect(parseModelIdForDisplay('openrouter:qwen/qwen3-30b-a3b-instruct-2507').baseId).toBe('qwen:qwen3-30b-a3b-instruct-2507');
+      expect(parseModelIdForDisplay('openrouter:google/gemma-3-27b-it').baseId).toBe('google:gemma-3-27b-it');
+    });
+  });
+
   describe('extractMakerFromModelId', () => {
     it('should extract makers from direct provider patterns', () => {
       expect(extractMakerFromModelId('openai:gpt-4')).toBe('OPENAI');
@@ -194,6 +208,7 @@ describe('modelIdUtils', () => {
 
     it('should normalize unknown routing provider names', () => {
       expect(extractMakerFromModelId('together:some-company/model')).toBe('SOME-COMPANY');
+      expect(extractMakerFromModelId('potluck:aisingapore/Qwen-SEA-LION-v4-32B-IT')).toBe('AISINGAPORE');
       expect(extractMakerFromModelId('openrouter:new-ai-company/model')).toBe('NEW-AI-COMPANY');
     });
 

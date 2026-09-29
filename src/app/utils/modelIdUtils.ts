@@ -76,7 +76,7 @@ function parseSuffixesFromModelId(modelId: string): ParsedSuffixes {
 }
 
 // Provider detection constants
-const ROUTING_PROVIDERS = ['openrouter', 'together', 'fireworks', 'replicate'] as const;
+const ROUTING_PROVIDERS = ['openrouter', 'together', 'fireworks', 'replicate', 'potluck'] as const;
 
 export const IDEAL_MODEL_ID_BASE = 'IDEAL_MODEL_ID'; // Assuming this might be used or relevant
 
@@ -190,6 +190,18 @@ function normalizeModelBaseId(baseId: string): string {
   const modelNameLower = normalizedModelName.toLowerCase();
   
   // Apply canonical provider prefixes based on the normalized model name
+  // Partner models built on other makers' base models. These must come first:
+  // "Qwen-SEA-LION" would otherwise be attributed to Qwen, "Gemma-SEA-LION" to Google.
+  if (modelNameLower.includes('sea-lion')) {
+    return `aisingapore:${normalizedModelName}`;
+  }
+  if (modelNameLower.includes('apertus')) {
+    return `swiss-ai:${normalizedModelName}`;
+  }
+  if (modelNameLower.startsWith('alia-')) {
+    return `bsc:${normalizedModelName}`;
+  }
+
   // XAI/Grok models
   if (modelNameLower.includes('grok')) {
     return `xai:${normalizedModelName}`;
@@ -395,8 +407,7 @@ export function extractMakerFromModelId(modelId: string): string {
     else if (modelId.startsWith('deepseek:')) maker = 'DEEPSEEK';
     else if (modelId.startsWith('xai:') || modelId.startsWith('x-ai:')) maker = 'XAI';
     // Handle routing providers that follow provider:maker/model pattern
-    else if (modelId.startsWith('openrouter:') || modelId.startsWith('together:') || 
-             modelId.startsWith('fireworks:') || modelId.startsWith('replicate:')) {
+    else if (ROUTING_PROVIDERS.some(provider => modelId.startsWith(`${provider}:`))) {
         const pathParts = modelId.split('/');
         if (pathParts.length > 1) {
             const providerPart = pathParts[0].split(':')[1];

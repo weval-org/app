@@ -87,6 +87,14 @@ export const PROVIDER_PROFILES: Record<string, ProviderRateLimitProfile> = {
     description: '',
   },
 
+  'potluck': {
+    initialConcurrency: 5,
+    maxConcurrency: 10,
+    minConcurrency: 2,
+    adaptiveEnabled: true,
+    description: "Current AI's staging router for partner-hosted models. Small capacity, so start low.",
+  },
+
   'default': {
     initialConcurrency: 10,
     maxConcurrency: 30,
