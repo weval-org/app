@@ -25,6 +25,7 @@ import { registerCustomModels } from "@/lib/llm-clients/client-dispatcher";
 import { getLogger } from "@/utils/logger";
 import { initSentry, captureError, setContext, flushSentry } from "@/utils/sentry";
 import { checkBackgroundAuth } from "@/lib/background-function-auth";
+import { configure } from "@/cli/config";
 
 export async function POST(req: NextRequest) {
   // Initialize Sentry for this function
@@ -40,6 +41,22 @@ export async function POST(req: NextRequest) {
   const requestId = crypto.randomUUID();
   const logger = await getLogger(`eval:bg:${requestId}`);
   logger.info("Function invoked.");
+
+  // The pipeline and LLM clients read getConfig(); without this, every model
+  // call fails with "CLI not configured" unless another route has already
+  // configured this server process.
+  configure({
+    errorHandler: (error: Error) => {
+      logger.error(`CLI Error: ${error.message}`, error);
+      captureError(error, { requestId });
+    },
+    logger: {
+      info: (msg: string) => logger.info(msg),
+      warn: (msg: string) => logger.warn(msg),
+      error: (msg: string) => logger.error(msg),
+      success: (msg: string) => logger.info(msg),
+    }
+  });
 
   let requestPayload;
   try {
