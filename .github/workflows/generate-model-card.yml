@@ -18,17 +18,21 @@ jobs:
           echo "Generating model card for: $PATTERN"
           # Card generation reads every published run, so it can outlast the
           # request; the server keeps going if curl gives up (exit 28).
+          # RAILWAY_APP_URL may redirect (http -> https, www -> apex); follow it as a POST.
           set +e
-          RESPONSE=$(curl -sS --fail-with-body --max-time 840 -X POST \
+          HTTP=$(curl -sS -L --post301 --post302 --post303 --max-time 840 -o response.txt -w '%{http_code}' -X POST \
             -H "Content-Type: application/json" \
             -H "X-Background-Function-Auth-Token: ${{ secrets.BACKGROUND_FUNCTION_AUTH_TOKEN }}" \
             -d "$BODY" \
             "${{ secrets.RAILWAY_APP_URL }}/api/internal/generate-model-card")
           STATUS=$?
           set -e
-          echo "$RESPONSE"
+          cat response.txt 2>/dev/null; echo
           if [ "$STATUS" -eq 28 ]; then
             echo "::notice::Still running on the server; check the Railway logs for 'model-card:'."
           elif [ "$STATUS" -ne 0 ]; then
             exit "$STATUS"
+          elif [ "$HTTP" != "200" ]; then
+            echo "::error::Expected 200 from the server, got $HTTP"
+            exit 1
           fi

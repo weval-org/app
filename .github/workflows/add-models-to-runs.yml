@@ -24,10 +24,15 @@ jobs:
           REBUILD: ${{ github.event.inputs.rebuild_summaries }}
         run: |
           BODY=$(python3 -c 'import json, os; split = lambda v: [x.strip() for x in v.split(",") if x.strip()]; print(json.dumps({"models": split(os.environ["MODELS"]), "configIds": split(os.environ["CONFIG_IDS"]), "rebuildSummaries": os.environ["REBUILD"] == "true"}))')
-          curl -sS --fail-with-body --max-time 60 -X POST \
+          # RAILWAY_APP_URL may redirect (http -> https, www -> apex); follow it as a POST.
+          STATUS=$(curl -sS -L --post301 --post302 --post303 --max-time 60 -o response.txt -w '%{http_code}' -X POST \
             -H "Content-Type: application/json" \
             -H "X-Background-Function-Auth-Token: ${{ secrets.BACKGROUND_FUNCTION_AUTH_TOKEN }}" \
             -d "$BODY" \
-            "${{ secrets.RAILWAY_APP_URL }}/api/internal/add-models-to-runs"
-          echo
+            "${{ secrets.RAILWAY_APP_URL }}/api/internal/add-models-to-runs")
+          cat response.txt; echo
+          if [ "$STATUS" != "202" ]; then
+            echo "::error::Expected 202 from the server, got $STATUS"
+            exit 1
+          fi
           echo "::notice::Started. Progress is in the Railway logs under 'add-models:' / '[AddModels]'."
