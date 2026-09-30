@@ -81,6 +81,39 @@ describe('PotluckClient', () => {
         expect(result.error).toContain('Invalid model name');
     });
 
+    it('retries once with the system message folded into the user turn when the router rejects it as invalid', async () => {
+        process.env.POTLUCK_API_KEY = 'test-key';
+        mockFetch
+            .mockResolvedValueOnce(jsonResponse({ error: { message: 'litellm.BadRequestError: OpenAIException - The request was rejected as invalid.' } }, 400))
+            .mockResolvedValueOnce(jsonResponse({ choices: [{ message: { content: 'B' } }] }));
+
+        const result = await new PotluckClient().makeApiCall({
+            modelId: 'potluck:swiss-ai/apertus-v1.5-70b',
+            messages: [{ role: 'user', content: 'Question?' }],
+            systemPrompt: 'Answer with one letter.',
+        });
+
+        expect(result).toEqual({ responseText: 'B' });
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+        expect(JSON.parse(mockFetch.mock.calls[0][1].body).messages[0]).toEqual({ role: 'system', content: 'Answer with one letter.' });
+        expect(JSON.parse(mockFetch.mock.calls[1][1].body).messages).toEqual([
+            { role: 'user', content: 'Answer with one letter.\n\nQuestion?' },
+        ]);
+    });
+
+    it('does not retry other 400 errors, or rejections of requests without a system message', async () => {
+        process.env.POTLUCK_API_KEY = 'test-key';
+        mockFetch.mockResolvedValue(jsonResponse({ error: { message: 'Invalid model name' } }, 400));
+        await new PotluckClient().makeApiCall({ modelId: 'potluck:m', messages: [{ role: 'user', content: 'hi' }], systemPrompt: 'sys' });
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+
+        mockFetch.mockReset();
+        mockFetch.mockResolvedValue(jsonResponse({ error: { message: 'The request was rejected as invalid.' } }, 400));
+        const result = await new PotluckClient().makeApiCall({ modelId: 'potluck:m', messages: [{ role: 'user', content: 'hi' }] });
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+        expect(result.error).toContain('rejected as invalid');
+    });
+
     it('reports an empty completion as an error rather than a blank answer', async () => {
         process.env.POTLUCK_API_KEY = 'test-key';
         mockFetch.mockResolvedValue(jsonResponse({ choices: [{ message: { content: '' } }] }));

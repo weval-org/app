@@ -24,6 +24,22 @@ class PotluckClient {
         };
     }
 
+    // Some router-hosted models (Apertus v1.5) have a share of requests rejected as
+    // "invalid" when they carry a system message; the same content sent as one user
+    // message is accepted. This folds system content into the first user turn.
+    private foldSystemIntoUser(messages: any[]): any[] {
+        const system = messages.filter(m => m.role === 'system').map(m => m.content).join('\n\n');
+        const rest = messages.filter(m => m.role !== 'system');
+        if (!system) return rest;
+        const firstUser = rest.findIndex(m => m.role === 'user');
+        if (firstUser === -1) return [{ role: 'user', content: system }, ...rest];
+        return rest.map((m, i) => i === firstUser ? { ...m, content: `${system}\n\n${m.content}` } : m);
+    }
+
+    private isRejectedAsInvalid(status: number, body: string): boolean {
+        return status === 400 && /rejected as invalid/i.test(body);
+    }
+
     // Model names can contain slashes (e.g. "potluck:aisingapore/Qwen-SEA-LION-v4-32B-IT"),
     // so take everything after the first colon.
     private getModelName(modelId: string): string {
@@ -63,19 +79,35 @@ class PotluckClient {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-            const response = await fetch(`${this.baseUrl}/chat/completions`, {
+            let response = await fetch(`${this.baseUrl}/chat/completions`, {
                 method: 'POST',
                 headers: this.getHeaders(),
                 body: JSON.stringify(bodyObj),
                 signal: controller.signal,
             });
 
-            clearTimeout(timeoutId);
-
             if (!response.ok) {
                 const errorBody = await response.text();
-                return { responseText: '', error: `Potluck API Error: ${response.status} ${response.statusText} - ${errorBody}` };
+                const hasSystem = apiMessages.some(m => m.role === 'system');
+                if (!(hasSystem && this.isRejectedAsInvalid(response.status, errorBody))) {
+                    clearTimeout(timeoutId);
+                    return { responseText: '', error: `Potluck API Error: ${response.status} ${response.statusText} - ${errorBody}` };
+                }
+                console.warn(`[PotluckClient] ${modelName} rejected a request with a system message; retrying with it folded into the user message.`);
+                response = await fetch(`${this.baseUrl}/chat/completions`, {
+                    method: 'POST',
+                    headers: this.getHeaders(),
+                    body: JSON.stringify({ ...bodyObj, messages: this.foldSystemIntoUser(apiMessages) }),
+                    signal: controller.signal,
+                });
+                if (!response.ok) {
+                    clearTimeout(timeoutId);
+                    const retryBody = await response.text();
+                    return { responseText: '', error: `Potluck API Error: ${response.status} ${response.statusText} - ${retryBody}` };
+                }
             }
+
+            clearTimeout(timeoutId);
 
             const jsonResponse = await response.json() as any;
             const responseText = jsonResponse.choices?.[0]?.message?.content?.trim() ?? '';
@@ -113,12 +145,28 @@ class PotluckClient {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-            const response = await fetch(`${this.baseUrl}/chat/completions`, {
+            let response = await fetch(`${this.baseUrl}/chat/completions`, {
                 method: 'POST',
                 headers: this.getHeaders(),
                 body,
                 signal: controller.signal,
             });
+
+            if (!response.ok && apiMessages.some(m => m.role === 'system')) {
+                const errorBody = await response.text();
+                if (!this.isRejectedAsInvalid(response.status, errorBody)) {
+                    clearTimeout(timeoutId);
+                    yield { type: 'error', error: `Potluck stream Error: ${response.status} ${response.statusText} - ${errorBody}` };
+                    return;
+                }
+                console.warn(`[PotluckClient] ${modelName} rejected a streamed request with a system message; retrying with it folded into the user message.`);
+                response = await fetch(`${this.baseUrl}/chat/completions`, {
+                    method: 'POST',
+                    headers: this.getHeaders(),
+                    body: JSON.stringify({ ...JSON.parse(body), messages: this.foldSystemIntoUser(apiMessages) }),
+                    signal: controller.signal,
+                });
+            }
 
             clearTimeout(timeoutId);
 
