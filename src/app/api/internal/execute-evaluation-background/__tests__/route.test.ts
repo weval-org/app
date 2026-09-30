@@ -30,6 +30,7 @@ import { POST } from '../route';
 import { executeComparisonPipeline } from '@/cli/services/comparison-pipeline-service';
 import { actionBackfillSummary } from '@/cli/commands/backfill-summary';
 import * as storage from '@/lib/storageService';
+import { getConfig } from '@/cli/config';
 
 const CONFIG_ID = 'users__someone__example';
 const FILE_NAME = 'abc123_2026-09-30T14-35-55-272Z_comparison.json';
@@ -78,6 +79,20 @@ describe('POST /api/internal/execute-evaluation-background', () => {
 
     expect(res.status).toBe(200);
     expect(storage.saveConfigSummary).toHaveBeenCalledWith(CONFIG_ID, { configId: CONFIG_ID });
+  });
+
+  it('configures the CLI before running the pipeline', async () => {
+    // The real pipeline and LLM clients call getConfig(); on a fresh server
+    // process nothing else has configured it yet.
+    vi.mocked(executeComparisonPipeline).mockImplementation(async () => {
+      getConfig().logger.info('pipeline running');
+      return { data: {} as any, fileName: FILE_NAME };
+    });
+
+    const res = await POST(request());
+
+    expect(res.status).toBe(200);
+    expect(storage.saveConfigSummary).toHaveBeenCalled();
   });
 
   it('returns 500 when the pipeline saved nothing', async () => {
