@@ -1,0 +1,33 @@
+name: Add Models To Runs
+on:
+  workflow_dispatch:
+    inputs:
+      models:
+        description: 'Comma-separated model IDs to add (e.g. potluck:swiss-ai/apertus-v1.5-70b)'
+        required: true
+      config_ids:
+        description: 'Comma-separated config IDs whose latest run gets the models'
+        required: true
+      rebuild_summaries:
+        description: 'Rebuild homepage, leaderboards and model summaries at the end'
+        type: boolean
+        default: true
+
+jobs:
+  start:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start the job on the server
+        env:
+          MODELS: ${{ github.event.inputs.models }}
+          CONFIG_IDS: ${{ github.event.inputs.config_ids }}
+          REBUILD: ${{ github.event.inputs.rebuild_summaries }}
+        run: |
+          BODY=$(python3 -c 'import json, os; split = lambda v: [x.strip() for x in v.split(",") if x.strip()]; print(json.dumps({"models": split(os.environ["MODELS"]), "configIds": split(os.environ["CONFIG_IDS"]), "rebuildSummaries": os.environ["REBUILD"] == "true"}))')
+          curl -sS --fail-with-body --max-time 60 -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-Background-Function-Auth-Token: ${{ secrets.BACKGROUND_FUNCTION_AUTH_TOKEN }}" \
+            -d "$BODY" \
+            "${{ secrets.RAILWAY_APP_URL }}/api/internal/add-models-to-runs"
+          echo
+          echo "::notice::Started. Progress is in the Railway logs under 'add-models:' / '[AddModels]'."
