@@ -1,0 +1,34 @@
+name: Generate Model Card
+on:
+  workflow_dispatch:
+    inputs:
+      pattern:
+        description: 'Model ID pattern, as for `pnpm cli generate-model-card` (e.g. apertus-v1.5-70b)'
+        required: true
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate the model card on the server
+        env:
+          PATTERN: ${{ github.event.inputs.pattern }}
+        run: |
+          BODY=$(python3 -c 'import json, os; print(json.dumps({"pattern": os.environ["PATTERN"]}))')
+          echo "Generating model card for: $PATTERN"
+          # Card generation reads every published run, so it can outlast the
+          # request; the server keeps going if curl gives up (exit 28).
+          set +e
+          RESPONSE=$(curl -sS --fail-with-body --max-time 840 -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-Background-Function-Auth-Token: ${{ secrets.BACKGROUND_FUNCTION_AUTH_TOKEN }}" \
+            -d "$BODY" \
+            "${{ secrets.RAILWAY_APP_URL }}/api/internal/generate-model-card")
+          STATUS=$?
+          set -e
+          echo "$RESPONSE"
+          if [ "$STATUS" -eq 28 ]; then
+            echo "::notice::Still running on the server; check the Railway logs for 'model-card:'."
+          elif [ "$STATUS" -ne 0 ]; then
+            exit "$STATUS"
+          fi

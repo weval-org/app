@@ -153,7 +153,7 @@ function aggregateDimensionalGrades(
     return Object.keys(result).length > 0 ? result : undefined;
 }
 
-async function actionGenerateModelCard(modelIdPattern: string, options: {}) {
+export async function actionGenerateModelCard(modelIdPattern: string, options: {}) {
     const { logger } = getConfig();
     logger.info(`Starting Model Card generation for pattern: "${modelIdPattern}"`);
 
