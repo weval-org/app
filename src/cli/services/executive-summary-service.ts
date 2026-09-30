@@ -9,6 +9,9 @@ import { TOPICS } from '../../lib/topics';
 import { GRADING_DIMENSIONS } from '../../lib/grading-criteria';
 
 const SUMMARIZER_MODEL_ID = 'openrouter:google/gemini-2.5-flash';
+// The report for a large run (tens of models x dozens of prompts) is ~400k
+// chars; the LLM clients' 30s default timeout can't cover summarising it.
+const SUMMARIZER_TIMEOUT_MS = 5 * 60 * 1000;
 const MAX_CHARS = 500000; // ~130k tokens
 
 type Logger = ReturnType<typeof getConfig>['logger'];
@@ -703,6 +706,7 @@ export async function generateExecutiveSummary(
             systemPrompt: systemPrompt,
             temperature: 0.1,
             maxTokens: 30000,
+            timeout: SUMMARIZER_TIMEOUT_MS,
             useCache: true,
         });
 
