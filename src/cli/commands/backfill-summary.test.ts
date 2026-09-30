@@ -16,6 +16,7 @@ vi.mock('../../lib/storageService', async () => {
     getResultByFileName: vi.fn(),
     saveConfigSummary: vi.fn(),
     saveHomepageSummary: vi.fn(),
+    saveAllBlueprintsSummary: vi.fn(),
     saveLatestRunsSummary: vi.fn(),
     saveModelSummary: vi.fn(),
   };
@@ -236,6 +237,42 @@ describe('backfill-summary command', () => {
     //     expect(nonFeaturedConfig!.tags).not.toContain('_featured');
     //     expect(nonFeaturedConfig!.runs).toHaveLength(0); // Its runs should be an empty array
     // });
+
+    it('keeps sandbox runs out of the homepage and model leaderboards', async () => {
+        const sandboxId = 'sandbox-1790775827391-85dbee64';
+        mockedStorage.listConfigIds.mockResolvedValue(['config-2', sandboxId]);
+        mockedStorage.listRunsForConfig.mockImplementation((configId: string) =>
+            Promise.resolve(configId === sandboxId ? [{ ...mockRunInfo2, fileName: 'sandbox.json' }] : [mockRunInfo2])
+        );
+        mockedStorage.getResultByFileName.mockImplementation((configId: string, fileName: string) => {
+            if (fileName === 'f2.json') return Promise.resolve(mockResultData2 as any);
+            if (fileName === 'sandbox.json') {
+                return Promise.resolve({
+                    ...mockResultData2,
+                    configId: sandboxId,
+                    config: { ...mockResultData2.config, id: sandboxId },
+                    effectiveModels: ['test-provider:sandbox-only-model'],
+                    evaluationResults: {
+                        ...mockResultData2.evaluationResults,
+                        llmCoverageScores: {
+                            p1: { 'test-provider:sandbox-only-model': { avgCoverageExtent: 0, keyPointsCount: 1 } as any },
+                        },
+                    },
+                } as any);
+            }
+            return Promise.resolve(null);
+        });
+
+        await backfillSummaryCommand.parseAsync(['node', 'test']);
+
+        // The sandbox run keeps its own summary...
+        expect(mockedStorage.saveConfigSummary).toHaveBeenCalledWith(sandboxId, expect.any(Object));
+        // ...but none of the site-wide files count it.
+        const homepage = mockedStorage.saveHomepageSummary.mock.calls[0][0];
+        expect(homepage.configs.map((c: any) => c.configId)).toEqual(['config-2']);
+        const modelIds = mockedStorage.saveModelSummary.mock.calls.map(call => call[0]);
+        expect(modelIds).not.toContain('test-provider:sandbox-only-model');
+    });
 
     it('should handle cases where no configs are found', async () => {
         mockedStorage.listConfigIds.mockResolvedValue([]);

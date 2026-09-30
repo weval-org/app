@@ -34,6 +34,12 @@ import { parseModelIdForDisplay, getModelDisplayLabel } from '@/app/utils/modelI
 import { populatePairwiseQueue } from '../services/pairwise-task-queue-service';
 import { normalizeTag } from '@/app/utils/tagUtils';
 
+// Config IDs and tags for non-public evaluations (sandbox, PR, staging, API
+// runs). Same rule as the /all page: they keep their own summary.json but
+// never count towards the homepage, leaderboards or model summaries.
+const EXCLUDED_CONFIG_ID_PREFIXES = ['_pr_', '_staging_', '_test_', 'api-run-', 'sandbox-'];
+const EXCLUDED_TAGS = ['_test', '_sandbox_test'];
+
 async function actionBackfillSummary(options: { verbose?: boolean; configId?: string; dryRun?: boolean }) {
     const { logger } = getConfig();
     logger.info('Starting homepage summary backfill process (v3 hybrid summary)...');
@@ -63,6 +69,8 @@ async function actionBackfillSummary(options: { verbose?: boolean; configId?: st
                 if (options.verbose) logger.info(`- No runs found for config ${configId}, skipping.`);
                 continue;
             }
+
+            const isPublicConfig = !EXCLUDED_CONFIG_ID_PREFIXES.some(prefix => configId.startsWith(prefix));
 
             // For populating the pairs queue, we only care about the latest run.
             // listRunsForConfig returns runs sorted by date, so the first one is the latest.
@@ -108,7 +116,7 @@ async function actionBackfillSummary(options: { verbose?: boolean; configId?: st
 
                     // --- Process Executive Summary Grades ---
                     // Only process grades from the latest run per config for dimension leaderboards
-                    if (resultData.executiveSummary?.structured?.grades && runInfo.fileName === latestRunInfo.fileName) {
+                    if (isPublicConfig && resultData.executiveSummary?.structured?.grades && runInfo.fileName === latestRunInfo.fileName) {
                         processExecutiveSummaryGrades(resultData, modelDimensionGrades, logger);
                     }
 
@@ -117,7 +125,7 @@ async function actionBackfillSummary(options: { verbose?: boolean; configId?: st
                     const autoTags = resultData.executiveSummary?.structured?.autoTags || [];
                     const allTags = [...new Set([...manualTags, ...autoTags].map(tag => normalizeTag(tag)).filter(Boolean))];
 
-                    if (allTags.length > 0 && runInfo.fileName === latestRunInfo.fileName) {
+                    if (isPublicConfig && allTags.length > 0 && runInfo.fileName === latestRunInfo.fileName) {
                         const perModelScores = calculatePerModelScoreStatsForRun(resultData);
                         
                         if (options.verbose) {
@@ -274,7 +282,12 @@ async function actionBackfillSummary(options: { verbose?: boolean; configId?: st
                 // Add the completed summary to our list for the homepage summary generation,
                 // ONLY if it's not a run from the public API.
                 const isPublicApiRun = finalConfigSummary.tags?.includes('_public_api');
-                if (!isPublicApiRun) {
+                const hasExcludedTag = finalConfigSummary.tags?.some(tag => EXCLUDED_TAGS.includes(tag));
+                if (!isPublicConfig || hasExcludedTag) {
+                    if (options.verbose) {
+                        logger.info(`  Excluding non-public config ${configId} from homepage summary and leaderboards.`);
+                    }
+                } else if (!isPublicApiRun) {
                     allConfigsForHomepage.push(finalConfigSummary);
                 } else {
                     if (options.verbose) {
