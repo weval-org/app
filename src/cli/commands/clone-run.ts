@@ -38,7 +38,7 @@ function buildEffectiveId(baseModelId: string, temp: number | undefined, systems
   return id;
 }
 
-function resolveSystemForPrompt(config: ComparisonConfig, prompt: any, systemFromArray: string | null | undefined): string | null {
+export function resolveSystemForPrompt(config: ComparisonConfig, prompt: any, systemFromArray: string | null | undefined): string | null {
   if (Array.isArray(config.systems) && config.systems.length > 0) {
     return systemFromArray ?? null;
   }
@@ -58,7 +58,7 @@ function messagesDeepEqual(a: ConversationMessage[] | undefined, b: any): boolea
   return true;
 }
 
-async function generateResponseForPair(params: {
+export async function generateResponseForPair(params: {
   modelId: string;
   temperature: number | undefined;
   systemPrompt: string | null;
