@@ -7,6 +7,8 @@ import {
     saveHomepageSummary,
     updateSummaryDataWithNewRun,
     getResultByFileName,
+    getConfigSummary,
+    saveConfigSummary,
     HomepageSummaryFileContent
 } from "@/lib/storageService";
 import { ComparisonDataV2 as FetchedComparisonData } from '@/app/utils/types';
@@ -109,13 +111,13 @@ export async function POST(req: NextRequest) {
     logger.info(`Executing pipeline with evalMethods: ${evalMethods.join(", ")} and cache enabled.`);
 
     const pipelineConfig = { ...config, models: modelIdsToRun };
-    const pipelineOutputKey = await executeComparisonPipeline(
+    const { fileName: pipelineOutputKey } = await executeComparisonPipeline(
       pipelineConfig,
       runLabel,
       evalMethods,
       logger,
-      undefined, // outputDir override (not needed for S3)
-      undefined, // fileNameOverride (not needed for S3)
+      undefined, // existingResponsesMap
+      undefined, // forcePointwiseKeyEval
       useCache,
       commitSha
     );
@@ -138,6 +140,22 @@ export async function POST(req: NextRequest) {
 
     // Only proceed if we have the new result data and a filename.
     if (newResultData && actualResultFileName && process.env.STORAGE_PROVIDER === 's3') {
+        // Publish this blueprint's own page first, so it goes live even if the
+        // slower site-wide rebuild below fails.
+        try {
+            const existingConfigSummary = await getConfigSummary(currentId);
+            const [newConfigSummary] = updateSummaryDataWithNewRun(
+                existingConfigSummary ? [existingConfigSummary] : null,
+                newResultData,
+                actualResultFileName
+            );
+            await saveConfigSummary(currentId, newConfigSummary);
+            logger.info(`Saved per-config summary for ${currentId}.`);
+        } catch (configSummaryError: any) {
+            logger.error(`Failed to save per-config summary for ${currentId}`, configSummaryError);
+            captureError(configSummaryError, { configId: currentId, context: 'config_summary_update' });
+        }
+
         try {
             logger.info('New evaluation run completed. Triggering full summary backfill to update all platform statistics...');
 
