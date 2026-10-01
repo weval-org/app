@@ -135,6 +135,57 @@ describe('addModelsToLatestRun', () => {
     expect(Object.keys(prefilled.p2)).toEqual(['openai:gpt-4o[temp:0]']);
   });
 
+  it('with retryFailed, asks a model the run already has again only where its answer failed', async () => {
+    const withApertus = sourceRun({
+      config: { ...sourceRun().config, models: ['openai:gpt-4o', APERTUS] },
+      effectiveModels: ['openai:gpt-4o[temp:0]', `${APERTUS}[temp:0]`],
+      allFinalAssistantResponses: {
+        p1: { 'openai:gpt-4o[temp:0]': 'A1', [`${APERTUS}[temp:0]`]: 'Apertus 1' },
+        p2: { 'openai:gpt-4o[temp:0]': 'A2', [`${APERTUS}[temp:0]`]: '<<error>>rejected as invalid<</error>>' },
+      },
+      errors: { p2: { [`${APERTUS}[temp:0]`]: 'rejected as invalid' } },
+      evaluationResults: {
+        llmCoverageScores: {
+          p1: { 'openai:gpt-4o[temp:0]': { avgCoverageExtent: 0.8 }, [`${APERTUS}[temp:0]`]: { avgCoverageExtent: 0.7 } },
+          p2: { 'openai:gpt-4o[temp:0]': { avgCoverageExtent: 0.6 }, [`${APERTUS}[temp:0]`]: { error: 'Generation failed' } },
+        },
+      },
+    });
+    vi.mocked(storage.getResultByFileName).mockImplementation(async (_c, f) => (f.startsWith('old') ? withApertus : { configId: 'bp' }) as any);
+
+    const result = await addModelsToLatestRun('bp', [APERTUS], logger, { retryFailed: true });
+
+    expect(result).toMatchObject({ status: 'added', generated: 1, retried: 1, rejudged: 0 });
+    // Only the failed pair is asked again, in the run's own variant.
+    expect(generateResponseForPair).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(generateResponseForPair).mock.calls[0][0]).toMatchObject({ modelId: APERTUS, temperature: 0, messages: [{ role: 'user', content: 'Q2' }] });
+    const [, , , , responseMap, , , , , , , , prefilled] = vi.mocked(executeComparisonPipeline).mock.calls[0] as any[];
+    expect(responseMap.get('p2').modelResponses[`${APERTUS}[temp:0]`]).toMatchObject({ finalAssistantResponseText: 'Apertus answer', hasError: false });
+    expect(responseMap.get('p1').modelResponses[`${APERTUS}[temp:0]`]).toMatchObject({ finalAssistantResponseText: 'Apertus 1' });
+    // The good answer keeps its score; the retried one is judged fresh.
+    expect(prefilled.p1[`${APERTUS}[temp:0]`]).toEqual({ avgCoverageExtent: 0.7 });
+    expect(prefilled.p2[`${APERTUS}[temp:0]`]).toBeUndefined();
+  });
+
+  it('with retryFailed, skips a blueprint where the model has no failed answers', async () => {
+    const clean = sourceRun({
+      config: { ...sourceRun().config, models: ['openai:gpt-4o', APERTUS] },
+      effectiveModels: ['openai:gpt-4o[temp:0]', `${APERTUS}[temp:0]`],
+      allFinalAssistantResponses: {
+        p1: { 'openai:gpt-4o[temp:0]': 'A1', [`${APERTUS}[temp:0]`]: 'Apertus 1' },
+        p2: { 'openai:gpt-4o[temp:0]': 'A2', [`${APERTUS}[temp:0]`]: 'Apertus 2' },
+      },
+      errors: {},
+    });
+    vi.mocked(storage.getResultByFileName).mockResolvedValue(clean as any);
+
+    const result = await addModelsToLatestRun('bp', [APERTUS], logger, { retryFailed: true });
+
+    expect(result.status).toBe('skipped');
+    expect(generateResponseForPair).not.toHaveBeenCalled();
+    expect(executeComparisonPipeline).not.toHaveBeenCalled();
+  });
+
   it('publishes nothing when every request to the added model fails', async () => {
     vi.mocked(generateResponseForPair).mockResolvedValue({ text: '<<error>>x<</error>>', history: [], hasError: true, errorMessage: 'x' });
 
