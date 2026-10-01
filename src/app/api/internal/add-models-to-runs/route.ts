@@ -17,7 +17,8 @@ const MAX_CONFIGS = 300;
  *
  * Returns 202 immediately and works through the blueprints one at a time in
  * the background, logging under "add-models:". With rebuildSummaries, it
- * rebuilds the homepage, leaderboards and model summaries once at the end.
+ * rebuilds the homepage, leaderboards and model summaries once at the end,
+ * even when no blueprint changed (so the box doubles as a plain rebuild).
  * With rejudge, listed models a run already has are judged again from their
  * saved responses instead of being skipped. With retryFailed, they are asked
  * again on the prompts where their answer failed.
@@ -91,7 +92,7 @@ async function runJob(
   logger.info(`[AddModels] Done: ${count('added')} added, ${count('skipped')} skipped, ${count('failed')} failed.`);
   for (const r of results.filter(r => r.status === 'failed')) logger.warn(`[AddModels] Failed: ${r.configId}: ${r.reason}`);
 
-  if (rebuildSummaries && count('added') > 0) {
+  if (rebuildSummaries) {
     try {
       logger.info('[AddModels] Rebuilding homepage, leaderboards and model summaries...');
       await actionBackfillSummary({ verbose: false, dryRun: false });
