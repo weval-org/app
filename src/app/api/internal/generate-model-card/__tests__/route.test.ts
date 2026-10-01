@@ -4,14 +4,14 @@
 import { vi } from 'vitest';
 import { NextRequest, NextResponse } from 'next/server';
 
-vi.mock('@/cli/commands/generate-model-card', () => ({ actionGenerateModelCard: vi.fn() }));
+vi.mock('@/cli/commands/generate-model-card', () => ({ actionGenerateModelCard: vi.fn(), actionDeleteModelCard: vi.fn() }));
 vi.mock('@/lib/background-function-auth', () => ({ checkBackgroundAuth: vi.fn(() => null) }));
 vi.mock('@/utils/logger', () => ({
   getLogger: vi.fn(async () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() })),
 }));
 
 import { POST } from '../route';
-import { actionGenerateModelCard } from '@/cli/commands/generate-model-card';
+import { actionDeleteModelCard, actionGenerateModelCard } from '@/cli/commands/generate-model-card';
 import { checkBackgroundAuth } from '@/lib/background-function-auth';
 import { getConfig } from '@/cli/config';
 
@@ -34,6 +34,15 @@ describe('POST /api/internal/generate-model-card', () => {
 
     expect(res.status).toBe(200);
     expect(actionGenerateModelCard).toHaveBeenCalledWith('apertus-v1.5-70b', {});
+    expect(actionDeleteModelCard).not.toHaveBeenCalled();
+  });
+
+  it('deletes the card instead when asked', async () => {
+    const res = await POST(request({ pattern: 'apertus-v1.5-70b', delete: true }));
+
+    expect(res.status).toBe(200);
+    expect(actionDeleteModelCard).toHaveBeenCalledWith('apertus-v1.5-70b', { force: true });
+    expect(actionGenerateModelCard).not.toHaveBeenCalled();
   });
 
   it('rejects unauthenticated requests', async () => {

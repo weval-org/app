@@ -5,6 +5,10 @@ on:
       pattern:
         description: 'Model ID pattern, as for `pnpm cli generate-model-card` (e.g. apertus-v1.5-70b)'
         required: true
+      delete:
+        description: 'Delete the card instead of generating it'
+        type: boolean
+        default: false
 
 jobs:
   generate:
@@ -13,9 +17,10 @@ jobs:
       - name: Generate the model card on the server
         env:
           PATTERN: ${{ github.event.inputs.pattern }}
+          DELETE: ${{ github.event.inputs.delete }}
         run: |
-          BODY=$(python3 -c 'import json, os; print(json.dumps({"pattern": os.environ["PATTERN"]}))')
-          echo "Generating model card for: $PATTERN"
+          BODY=$(python3 -c 'import json, os; print(json.dumps({"pattern": os.environ["PATTERN"], "delete": os.environ.get("DELETE") == "true"}))')
+          echo "Model card for: $PATTERN (delete: ${DELETE:-false})"
           # Card generation reads every published run, so it can outlast the
           # request; the server keeps going if curl gives up (exit 28).
           # RAILWAY_APP_URL may redirect (http -> https, www -> apex); follow it as a POST.
