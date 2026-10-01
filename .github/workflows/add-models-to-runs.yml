@@ -12,6 +12,14 @@ on:
         description: 'Rebuild homepage, leaderboards and model summaries at the end'
         type: boolean
         default: true
+      rejudge:
+        description: 'Judge the models again from their saved responses where a run already has them'
+        type: boolean
+        default: false
+      retry_failed:
+        description: 'Ask the models again where a run already has them but their answer failed'
+        type: boolean
+        default: false
 
 jobs:
   start:
@@ -22,8 +30,10 @@ jobs:
           MODELS: ${{ github.event.inputs.models }}
           CONFIG_IDS: ${{ github.event.inputs.config_ids }}
           REBUILD: ${{ github.event.inputs.rebuild_summaries }}
+          REJUDGE: ${{ github.event.inputs.rejudge }}
+          RETRY_FAILED: ${{ github.event.inputs.retry_failed }}
         run: |
-          BODY=$(python3 -c 'import json, os; split = lambda v: [x.strip() for x in v.split(",") if x.strip()]; print(json.dumps({"models": split(os.environ["MODELS"]), "configIds": split(os.environ["CONFIG_IDS"]), "rebuildSummaries": os.environ["REBUILD"] == "true"}))')
+          BODY=$(python3 -c 'import json, os; split = lambda v: [x.strip() for x in v.split(",") if x.strip()]; print(json.dumps({"models": split(os.environ["MODELS"]), "configIds": split(os.environ["CONFIG_IDS"]), "rebuildSummaries": os.environ["REBUILD"] == "true", "rejudge": os.environ.get("REJUDGE") == "true", "retryFailed": os.environ.get("RETRY_FAILED") == "true"}))')
           # RAILWAY_APP_URL may redirect (http -> https, www -> apex); follow it as a POST.
           STATUS=$(curl -sS -L --post301 --post302 --post303 --max-time 60 -o response.txt -w '%{http_code}' -X POST \
             -H "Content-Type: application/json" \

@@ -18,6 +18,9 @@ const MAX_CONFIGS = 300;
  * Returns 202 immediately and works through the blueprints one at a time in
  * the background, logging under "add-models:". With rebuildSummaries, it
  * rebuilds the homepage, leaderboards and model summaries once at the end.
+ * With rejudge, listed models a run already has are judged again from their
+ * saved responses instead of being skipped. With retryFailed, they are asked
+ * again on the prompts where their answer failed.
  */
 export async function POST(req: NextRequest) {
   const authError = checkBackgroundAuth(req);
@@ -32,6 +35,8 @@ export async function POST(req: NextRequest) {
   const models: unknown = body?.models;
   const configIds: unknown = body?.configIds;
   const rebuildSummaries = body?.rebuildSummaries === true;
+  const rejudge = body?.rejudge === true;
+  const retryFailed = body?.retryFailed === true;
 
   if (!Array.isArray(models) || models.length === 0 || !models.every(m => typeof m === 'string' && MODEL_ID_RE.test(m))) {
     return NextResponse.json({ error: "'models' must be a non-empty list of provider:model IDs." }, { status: 400 });
@@ -54,20 +59,26 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  void runJob(models as string[], configIds as string[], rebuildSummaries, logger);
+  void runJob(models as string[], configIds as string[], rebuildSummaries, { rejudge, retryFailed }, logger);
 
   return NextResponse.json(
-    { message: 'Accepted. Progress is logged under "add-models:".', models, configs: configIds.length, rebuildSummaries },
+    { message: 'Accepted. Progress is logged under "add-models:".', models, configs: configIds.length, rebuildSummaries, rejudge, retryFailed },
     { status: 202 },
   );
 }
 
-async function runJob(models: string[], configIds: string[], rebuildSummaries: boolean, logger: any): Promise<void> {
+async function runJob(
+  models: string[],
+  configIds: string[],
+  rebuildSummaries: boolean,
+  options: { rejudge: boolean; retryFailed: boolean },
+  logger: any,
+): Promise<void> {
   const results: AddModelsResult[] = [];
   for (const [i, configId] of configIds.entries()) {
     logger.info(`[AddModels] (${i + 1}/${configIds.length}) ${configId}...`);
     try {
-      const result = await addModelsToLatestRun(configId, models, logger);
+      const result = await addModelsToLatestRun(configId, models, logger, options);
       results.push(result);
       logger.info(`[AddModels] (${i + 1}/${configIds.length}) ${configId}: ${result.status}${result.reason ? ` (${result.reason})` : ''}`);
     } catch (error: any) {
