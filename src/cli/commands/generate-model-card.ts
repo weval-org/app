@@ -465,7 +465,7 @@ export async function actionGenerateModelCard(modelIdPattern: string, options: {
     logger.info(`==========================\n`);
 }
 
-async function actionDeleteModelCard(modelIdPattern: string, options: { force?: boolean }) {
+export async function actionDeleteModelCard(modelIdPattern: string, options: { force?: boolean }) {
     const { logger } = getConfig();
     
     if (!options.force) {
