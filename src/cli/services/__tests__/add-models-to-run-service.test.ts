@@ -105,6 +105,36 @@ describe('addModelsToLatestRun', () => {
     expect(executeComparisonPipeline).not.toHaveBeenCalled();
   });
 
+  it('with rejudge, judges a model the run already has again from its saved responses', async () => {
+    const withApertus = sourceRun({
+      config: { ...sourceRun().config, models: ['openai:gpt-4o', APERTUS] },
+      effectiveModels: ['openai:gpt-4o[temp:0]', `${APERTUS}[temp:0]`],
+      allFinalAssistantResponses: {
+        p1: { 'openai:gpt-4o[temp:0]': 'A1', [`${APERTUS}[temp:0]`]: 'Apertus 1' },
+        p2: { 'openai:gpt-4o[temp:0]': 'A2', [`${APERTUS}[temp:0]`]: 'Apertus 2' },
+      },
+      errors: {},
+      evaluationResults: {
+        llmCoverageScores: {
+          p1: { 'openai:gpt-4o[temp:0]': { avgCoverageExtent: 0.8 }, [`${APERTUS}[temp:0]`]: { avgCoverageExtent: 0 } },
+          p2: { 'openai:gpt-4o[temp:0]': { avgCoverageExtent: 0.6 }, [`${APERTUS}[temp:0]`]: { avgCoverageExtent: 0 } },
+        },
+      },
+    });
+    vi.mocked(storage.getResultByFileName).mockImplementation(async (_c, f) => (f.startsWith('old') ? withApertus : { configId: 'bp' }) as any);
+
+    const result = await addModelsToLatestRun('bp', [APERTUS], logger, { rejudge: true });
+
+    expect(result).toMatchObject({ status: 'added', generated: 0, rejudged: 2 });
+    expect(generateResponseForPair).not.toHaveBeenCalled();
+    const [config, , , , responseMap, , , , , , , , prefilled] = vi.mocked(executeComparisonPipeline).mock.calls[0] as any[];
+    expect(config.models).toEqual(['openai:gpt-4o', APERTUS]);
+    expect(responseMap.get('p1').modelResponses[`${APERTUS}[temp:0]`]).toMatchObject({ finalAssistantResponseText: 'Apertus 1', hasError: false });
+    // Apertus loses its saved scores so it is judged again; the others keep theirs.
+    expect(Object.keys(prefilled.p1)).toEqual(['openai:gpt-4o[temp:0]']);
+    expect(Object.keys(prefilled.p2)).toEqual(['openai:gpt-4o[temp:0]']);
+  });
+
   it('publishes nothing when every request to the added model fails', async () => {
     vi.mocked(generateResponseForPair).mockResolvedValue({ text: '<<error>>x<</error>>', history: [], hasError: true, errorMessage: 'x' });
 

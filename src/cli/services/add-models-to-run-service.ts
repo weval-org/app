@@ -27,6 +27,7 @@ export interface AddModelsResult {
   reused?: number;
   generated?: number;
   generationErrors?: number;
+  rejudged?: number;
 }
 
 /**
@@ -58,12 +59,16 @@ function parseSuffix(suffix: string): { temperature?: number; spIdx?: number } {
  * are asked, once per variant the run used (temperatures, system prompts), and
  * only they are judged. The prompts come from the run's own embedded config,
  * so later blueprint or model-collection edits can't trigger a full re-run.
+ *
+ * With `rejudge`, listed models that the latest run already has keep their
+ * responses but lose their saved scores, so only they are judged again (for
+ * example after a judging outage left their scores incomplete).
  */
 export async function addModelsToLatestRun(
   configId: string,
   modelsToAdd: string[],
   logger: Logger,
-  options: { concurrency?: number } = {},
+  options: { concurrency?: number; rejudge?: boolean } = {},
 ): Promise<AddModelsResult> {
   const runs = await listRunsForConfig(configId);
   if (runs.length === 0) return { configId, status: 'skipped', reason: 'no published runs' };
@@ -78,7 +83,8 @@ export async function addModelsToLatestRun(
     .map((m: any) => (typeof m === 'string' ? m : m?.id))
     .filter(Boolean);
   const newModels = modelsToAdd.filter(m => !sourceModels.includes(m));
-  if (newModels.length === 0) {
+  const rejudgeModels = options.rejudge ? modelsToAdd.filter(m => sourceModels.includes(m)) : [];
+  if (newModels.length === 0 && rejudgeModels.length === 0) {
     return { configId, status: 'skipped', reason: 'latest run already includes the model(s)' };
   }
 
@@ -101,6 +107,7 @@ export async function addModelsToLatestRun(
   let reused = 0;
   let generated = 0;
   let generationErrors = 0;
+  let rejudged = 0;
 
   for (const prompt of targetConfig.prompts) {
     const promptData: PromptResponseData = {
@@ -114,7 +121,8 @@ export async function addModelsToLatestRun(
 
     // Existing models: copy the saved response and score as they are.
     for (const effectiveId of sourceEffectiveIds) {
-      if (!splitEffectiveId(effectiveId, sourceModels)) continue;
+      const split = splitEffectiveId(effectiveId, sourceModels);
+      if (!split) continue;
       const text = source.allFinalAssistantResponses?.[prompt.id]?.[effectiveId];
       const sourceError = source.errors?.[prompt.id]?.[effectiveId];
       const ok = typeof text === 'string' && !sourceError && !text.startsWith('<<error>>');
@@ -126,6 +134,12 @@ export async function addModelsToLatestRun(
         systemPromptUsed: source.modelSystemPrompts?.[effectiveId] ?? null,
       } as any;
       if (ok) reused++;
+
+      // Models being re-judged keep the response but not the score.
+      if (rejudgeModels.includes(split.base)) {
+        if (ok) rejudged++;
+        continue;
+      }
 
       const inline = inlineCoverage?.[prompt.id]?.[effectiveId];
       if (inline) {
@@ -172,10 +186,13 @@ export async function addModelsToLatestRun(
   }
 
   await Promise.all(tasks);
-  logger.info(`[AddModels] ${configId}: reused ${reused} responses, asked ${generated} (${generationErrors} failed).`);
+  logger.info(`[AddModels] ${configId}: reused ${reused} responses, asked ${generated} (${generationErrors} failed), re-judging ${rejudged}.`);
 
+  if (newModels.length === 0 && rejudged === 0) {
+    return { configId, status: 'skipped', reason: 'no saved responses to re-judge', reused, generated, generationErrors, rejudged };
+  }
   if (generated > 0 && generationErrors === generated) {
-    return { configId, status: 'failed', reason: 'every request to the added model(s) failed', reused, generated, generationErrors };
+    return { configId, status: 'failed', reason: 'every request to the added model(s) failed', reused, generated, generationErrors, rejudged };
   }
 
   const evalMethods: EvaluationMethod[] = Array.isArray(source.evalMethodsUsed) && source.evalMethodsUsed.length > 0
@@ -199,7 +216,7 @@ export async function addModelsToLatestRun(
     prefilledCoverage,
   );
   if (!fileName) {
-    return { configId, status: 'failed', reason: 'the pipeline saved nothing', reused, generated, generationErrors };
+    return { configId, status: 'failed', reason: 'the pipeline saved nothing', reused, generated, generationErrors, rejudged };
   }
 
   const newRun = await getResultByFileName(configId, fileName);
@@ -211,5 +228,5 @@ export async function addModelsToLatestRun(
     logger.warn(`[AddModels] ${configId}: saved ${fileName} but could not read it back to update the page summary.`);
   }
 
-  return { configId, status: 'added', fileName, reused, generated, generationErrors };
+  return { configId, status: 'added', fileName, reused, generated, generationErrors, rejudged };
 }
