@@ -47,7 +47,7 @@ describe('POST /api/internal/add-models-to-runs', () => {
     expect(vi.mocked(addModelsToLatestRun).mock.calls[0][3]).toEqual({ rejudge: true, retryFailed: true });
   });
 
-  it('keeps going after a blueprint throws, and skips the rebuild when nothing was added', async () => {
+  it('keeps going after a blueprint throws, and rebuilds when asked even if nothing was added', async () => {
     vi.mocked(addModelsToLatestRun)
       .mockRejectedValueOnce(new Error('boom'))
       .mockResolvedValueOnce({ configId: 'b', status: 'skipped' });
@@ -57,6 +57,16 @@ describe('POST /api/internal/add-models-to-runs', () => {
     await flush();
 
     expect(addModelsToLatestRun).toHaveBeenCalledTimes(2);
+    expect(actionBackfillSummary).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not rebuild unless asked', async () => {
+    vi.mocked(addModelsToLatestRun).mockImplementation(async (configId) => ({ configId, status: 'added' }));
+
+    const res = await POST(request({ models: [APERTUS], configIds: ['a'] }));
+    expect(res.status).toBe(202);
+    await flush();
+
     expect(actionBackfillSummary).not.toHaveBeenCalled();
   });
 

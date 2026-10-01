@@ -9,7 +9,7 @@ on:
         description: 'Comma-separated config IDs whose latest run gets the models'
         required: true
       rebuild_summaries:
-        description: 'Rebuild homepage, leaderboards and model summaries at the end'
+        description: 'Rebuild homepage, leaderboards and model summaries at the end (even if nothing changed)'
         type: boolean
         default: true
       rejudge:
