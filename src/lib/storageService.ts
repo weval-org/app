@@ -1765,6 +1765,127 @@ export async function deleteResultByFileName(configId: string, fileName: string)
     }
 }
 
+/** Where archiveAndDeleteRun keeps copies of the runs it removes. */
+export const DELETED_RUNS_ARCHIVE_DIR = path.join('archive', 'deleted-runs');
+
+export interface ArchiveAndDeleteRunResult {
+  /** Storage keys that make up the run: its comparison file, then its artefacts. */
+  keys: string[];
+  /** Where the run was copied before deletion; null on a dry run. */
+  archivePrefix: string | null;
+}
+
+async function listFilesUnder(dir: string): Promise<string[]> {
+  const files: string[] = [];
+  for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
+    const entryPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) files.push(...await listFilesUnder(entryPath));
+    else files.push(entryPath);
+  }
+  return files;
+}
+
+/**
+ * Removes one run of a blueprint: its comparison file and the folder of
+ * artefacts beside it (core.json, responses, coverage, histories).
+ *
+ * Every object is first copied to archive/deleted-runs/<archiveName>/ under its
+ * original key, so the run can be put back by copying those objects back, and
+ * nothing is deleted unless every copy succeeded. The archive sits outside
+ * backups/ on purpose: restore-data replaces all live data with what a backup
+ * holds, and a one-run archive must never be mistaken for a full backup.
+ *
+ * With dryRun, only lists the keys. Throws if the comparison file is missing.
+ * Summaries still list the run until they are rebuilt (actionBackfillSummary).
+ */
+export async function archiveAndDeleteRun(
+  configId: string,
+  fileName: string,
+  archiveName: string,
+  dryRun: boolean,
+): Promise<ArchiveAndDeleteRunResult> {
+  if (!/^[^/\\]+_comparison\.json$/.test(fileName)) {
+    throw new Error(`Not a run file name: ${fileName}`);
+  }
+  const basePath = getConfigBasePath(configId);
+  const runBase = fileName.replace(/_comparison\.json$/, '');
+  const comparisonKey = path.join(basePath, fileName);
+  const artefactPrefix = path.join(basePath, runBase);
+  const archivePrefix = path.join(DELETED_RUNS_ARCHIVE_DIR, archiveName);
+  let keys: string[];
+
+  if (storageProvider === 's3' && s3Client && s3BucketName) {
+    const client = s3Client;
+    const bucket = s3BucketName;
+    try {
+      await client.send(new HeadObjectCommand({ Bucket: bucket, Key: comparisonKey }));
+    } catch (error: any) {
+      if (error?.name === 'NotFound' || error?.$metadata?.httpStatusCode === 404) {
+        throw new Error(`Run not found: ${comparisonKey}`);
+      }
+      throw error;
+    }
+
+    const artefactKeys: string[] = [];
+    let continuationToken: string | undefined = undefined;
+    do {
+      const response: ListObjectsV2CommandOutput = await client.send(new ListObjectsV2Command({
+        Bucket: bucket,
+        Prefix: `${artefactPrefix}/`,
+        ContinuationToken: continuationToken,
+      }));
+      for (const obj of response.Contents || []) if (obj.Key) artefactKeys.push(obj.Key);
+      continuationToken = response.NextContinuationToken;
+    } while (continuationToken);
+    keys = [comparisonKey, ...artefactKeys];
+    if (dryRun) return { keys, archivePrefix: null };
+
+    // CopySource must be URL-encoded; prompt and model IDs in artefact keys can hold any character.
+    const encodeKey = (key: string) => key.split('/').map(encodeURIComponent).join('/');
+    const limit = pLimit(20);
+    await Promise.all(keys.map(key => limit(() => client.send(new CopyObjectCommand({
+      Bucket: bucket,
+      CopySource: `${bucket}/${encodeKey(key)}`,
+      Key: path.join(archivePrefix, key),
+    })))));
+
+    for (let i = 0; i < keys.length; i += 1000) {
+      const batch = keys.slice(i, i + 1000);
+      const response = await client.send(new DeleteObjectsCommand({
+        Bucket: bucket,
+        Delete: { Objects: batch.map(Key => ({ Key })), Quiet: true },
+      }));
+      if (response.Errors && response.Errors.length > 0) {
+        const first = response.Errors[0];
+        throw new Error(`Failed to delete ${response.Errors.length} object(s) of ${comparisonKey}, e.g. ${first.Key}: ${first.Message}`);
+      }
+    }
+  } else if (storageProvider === 'local') {
+    const comparisonPath = path.join(RESULTS_DIR, comparisonKey);
+    if (!fsSync.existsSync(comparisonPath)) throw new Error(`Run not found: ${comparisonKey}`);
+    const artefactDir = path.join(RESULTS_DIR, artefactPrefix);
+    const artefactKeys = fsSync.existsSync(artefactDir)
+      ? (await listFilesUnder(artefactDir)).map(file => path.join(artefactPrefix, path.relative(artefactDir, file)))
+      : [];
+    keys = [comparisonKey, ...artefactKeys];
+    if (dryRun) return { keys, archivePrefix: null };
+
+    for (const key of keys) {
+      const dest = path.join(RESULTS_DIR, archivePrefix, key);
+      await fs.mkdir(path.dirname(dest), { recursive: true });
+      await fs.copyFile(path.join(RESULTS_DIR, key), dest);
+    }
+    await fs.unlink(comparisonPath);
+    await fs.rm(artefactDir, { recursive: true, force: true });
+  } else {
+    throw new Error('No valid storage provider configured; nothing deleted.');
+  }
+
+  // Drop this server's cached copies of the run's artefacts.
+  await fs.rm(path.join(CACHE_DIR, configId, runBase), { recursive: true, force: true }).catch(() => {});
+  return { keys, archivePrefix };
+}
+
 export async function getLatestRunsSummary(): Promise<LatestRunsSummaryFileContent> {
   let fileContent: string | null = null;
   const s3Key = path.join(LIVE_DIR, 'aggregates', 'latest_runs_summary.json');

@@ -1,0 +1,47 @@
+name: Delete Runs
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: 'Comma-separated runs to delete, each as configId/fileName (e.g. yka-set/370f988e819882dc_2026-10-01T16-25-01-568Z_comparison.json)'
+        required: true
+      dry_run:
+        description: 'Only list what would be deleted (untick to delete; each run is copied to archive/deleted-runs/ first)'
+        type: boolean
+        default: true
+      rebuild_summaries:
+        description: 'After deleting, rebuild homepage, leaderboards and model summaries so the runs drop out of them'
+        type: boolean
+        default: true
+
+jobs:
+  start:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send the request to the server
+        env:
+          RUNS: ${{ github.event.inputs.runs }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+          REBUILD: ${{ github.event.inputs.rebuild_summaries }}
+        run: |
+          BODY=$(python3 -c 'import json, os; runs = [x.strip() for x in os.environ["RUNS"].split(",") if x.strip()]; print(json.dumps({"runs": [{"configId": r.split("/", 1)[0], "fileName": r.split("/", 1)[-1]} for r in runs], "dryRun": os.environ["DRY_RUN"] != "false", "rebuildSummaries": os.environ["REBUILD"] == "true"}))')
+          # RAILWAY_APP_URL may redirect (http -> https, www -> apex); follow it as a POST.
+          STATUS=$(curl -sS -L --post301 --post302 --post303 --max-time 300 -o response.txt -w '%{http_code}' -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-Background-Function-Auth-Token: ${{ secrets.BACKGROUND_FUNCTION_AUTH_TOKEN }}" \
+            -d "$BODY" \
+            "${{ secrets.RAILWAY_APP_URL }}/api/internal/delete-runs")
+          python3 -m json.tool response.txt || cat response.txt
+          if [ "$DRY_RUN" != "false" ]; then
+            if [ "$STATUS" != "200" ]; then
+              echo "::error::Expected 200 from the server, got $STATUS"
+              exit 1
+            fi
+            echo "::notice::Dry run only; nothing was deleted."
+          else
+            if [ "$STATUS" != "202" ]; then
+              echo "::error::Expected 202 from the server, got $STATUS"
+              exit 1
+            fi
+            echo "::notice::Started. Progress is in the Railway logs under 'delete-runs:' / '[DeleteRuns]'."
+          fi

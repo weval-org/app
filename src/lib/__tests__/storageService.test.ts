@@ -622,4 +622,69 @@ describe('storageService', () => {
             });
         });
     });
+
+    describe('archiveAndDeleteRun (S3)', () => {
+        const fileName = 'run-old_2024-01-15T10-00-00-000Z_comparison.json';
+        const base = 'live/blueprints/test-config';
+        const runDir = `${base}/run-old_2024-01-15T10-00-00-000Z`;
+        const keys = [`${base}/${fileName}`, `${runDir}/core.json`, `${runDir}/coverage/p 1/m[temp:0].json`];
+        const sentOf = (name: string) => mockSend.mock.calls.map(c => c[0]).filter((cmd: any) => cmd.constructor.name === name);
+
+        const setUp = async (overrides: Record<string, () => any> = {}) => {
+            process.env.STORAGE_PROVIDER = 's3';
+            process.env.APP_S3_BUCKET_NAME = 'test-bucket';
+            process.env.APP_S3_REGION = 'us-east-1';
+            mockedFs.rm.mockResolvedValue(undefined);
+            let listCalls = 0;
+            mockSend.mockImplementation(async (cmd: any) => {
+                const name = cmd.constructor.name;
+                if (overrides[name]) return overrides[name]();
+                if (name === 'ListObjectsV2Command') {
+                    // Two pages, to check the listing follows continuation tokens.
+                    return listCalls++ === 0
+                        ? { Contents: [{ Key: keys[1] }], NextContinuationToken: 'next' }
+                        : { Contents: [{ Key: keys[2] }] };
+                }
+                return {};
+            });
+            return (await import('../storageService')).archiveAndDeleteRun;
+        };
+
+        it('lists the comparison file and every artefact page on a dry run, without copying or deleting', async () => {
+            const archiveAndDeleteRun = await setUp();
+            const result = await archiveAndDeleteRun('test-config', fileName, 'a1', true);
+
+            expect(result).toEqual({ keys, archivePrefix: null });
+            expect((sentOf('ListObjectsV2Command')[0] as any).input.Prefix).toBe(`${runDir}/`);
+            expect(sentOf('CopyObjectCommand')).toHaveLength(0);
+            expect(sentOf('DeleteObjectsCommand')).toHaveLength(0);
+        });
+
+        it('copies every object to the archive with an encoded source, then deletes them', async () => {
+            const archiveAndDeleteRun = await setUp();
+            const result = await archiveAndDeleteRun('test-config', fileName, 'a1', false);
+
+            expect(result.archivePrefix).toBe('archive/deleted-runs/a1');
+            const copies = sentOf('CopyObjectCommand').map((cmd: any) => cmd.input);
+            expect(copies.map(c => c.Key)).toEqual(keys.map(k => `archive/deleted-runs/a1/${k}`));
+            expect(copies[2].CopySource).toBe(`test-bucket/${runDir}/coverage/p%201/m%5Btemp%3A0%5D.json`);
+            const deletes = sentOf('DeleteObjectsCommand').map((cmd: any) => cmd.input.Delete.Objects.map((o: any) => o.Key));
+            expect(deletes).toEqual([keys]);
+        });
+
+        it('deletes nothing if any copy fails', async () => {
+            const archiveAndDeleteRun = await setUp({ CopyObjectCommand: () => { throw new Error('AccessDenied'); } });
+            await expect(archiveAndDeleteRun('test-config', fileName, 'a1', false)).rejects.toThrow('AccessDenied');
+            expect(sentOf('DeleteObjectsCommand')).toHaveLength(0);
+        });
+
+        it('refuses a run whose comparison file is missing', async () => {
+            const archiveAndDeleteRun = await setUp({
+                HeadObjectCommand: () => { throw Object.assign(new Error('Not Found'), { name: 'NotFound' }); },
+            });
+            await expect(archiveAndDeleteRun('test-config', fileName, 'a1', false)).rejects.toThrow('Run not found');
+            expect(sentOf('ListObjectsV2Command')).toHaveLength(0);
+            expect(sentOf('DeleteObjectsCommand')).toHaveLength(0);
+        });
+    });
 }); 
