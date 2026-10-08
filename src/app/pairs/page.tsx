@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import { DataNotice } from '@/app/components/DataNotice';
 import { Card, CardContent } from '@/components/ui/card';
 import { PairwiseComparisonForm } from './PairwiseComparisonForm';
 
@@ -41,10 +40,6 @@ const PairsPage = () => {
           </div>
         )}
       </header>
-      <DataNotice
-        what="Your choices and the reasons you give"
-        className="mx-auto mb-8 max-w-2xl text-center"
-      />
 
       <main className="max-w-6xl mx-auto">
         <Card className="shadow-2xl">
