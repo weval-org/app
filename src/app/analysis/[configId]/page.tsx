@@ -104,9 +104,6 @@ export default async function ConfigRunsPage({ params }: ThisPageProps) {
       author={data.configAuthor || undefined}
       reference={data.configReference || undefined}
       runs={data.runs}
-      totalRuns={data.runs.length}
-      currentPage={1}
-      runsPerPage={data.runs.length}
     />
   );
 } 
