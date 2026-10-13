@@ -229,16 +229,25 @@ describe('useGitHub', () => {
             expect(updatedFile?.sha).toBe('updated-sha');
         });
 
-        // NOTE: This test is stale relative to the current source: updateFileOnGitHub returns
-        // null (after showing a toast) when branchName is missing rather than throwing, so the
-        // .rejects.toThrow assertion fails on main too. The unit suites are not run in CI, so
-        // the drift went unnoticed. Skipping to avoid masking it as a migration regression.
-        test.skip('should throw an error if branchName is missing', async () => {
+        // updateFileOnGitHub treats a missing branchName as a graceful no-op: it shows a
+        // destructive toast and returns null (its return type is BlueprintFile | null, and
+        // every other guard path behaves the same way). Assert that contract rather than a throw.
+        test('should return null and show a toast if branchName is missing', async () => {
              const { result } = renderHook(() => useGitHub(true, 'test-user'));
              await act(async () => {
                 result.current.setForkName('test-user-fork');
             });
-            await expect(result.current.updateFileOnGitHub(mockBlueprint.path, 'new content', mockBlueprint.sha, '')).rejects.toThrow('A branch name is required to update a file on GitHub.');
+            let updatedFile: BlueprintFile | null = null;
+            await act(async () => {
+                updatedFile = await result.current.updateFileOnGitHub(mockBlueprint.path, 'new content', mockBlueprint.sha, '');
+            });
+            expect(updatedFile).toBeNull();
+            expect(mockToast).toHaveBeenCalledWith({
+                variant: 'destructive',
+                title: 'Branch Required',
+                description: 'A branch name is required to update a file on GitHub. This is a technical error - please refresh the page.',
+            });
+            expect(fetch).not.toHaveBeenCalled();
         });
     });
 
