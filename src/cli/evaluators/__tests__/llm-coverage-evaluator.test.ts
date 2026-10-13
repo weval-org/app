@@ -317,18 +317,17 @@ describe('LLMCoverageEvaluator', () => {
             ]));
         });
 
-        // NOTE: This test is stale relative to the current DEFAULT_JUDGES set (it was written
-        // for an older set that included qwen/gpt-oss/glm). It fails on main as well — the unit
-        // suites are not run in CI, so the drift went unnoticed. Skipping here to avoid masking
-        // it as a migration regression; it should be updated separately to match DEFAULT_JUDGES.
-        it.skip('should use backup judge when one primary judge fails', async () => {
+        it('should use backup judge when one primary judge fails', async () => {
             const input = createMockEvaluationInput('prompt-backup-success', points);
-            
+
+            // One primary judge fails; the other two succeed. Since fewer judgements succeeded
+            // than were attempted (and no custom judges are configured), the backup judge runs.
+            // The backup shares its model with a primary judge, so it's matched by its id first.
             requestIndividualJudgeSpy.mockImplementation(async (mrt, kpt, aokp, pct, suiteDesc, judge) => {
-                if (judge.model === 'openrouter:qwen/qwen3-30b-a3b-instruct-2507') return { coverage_extent: 0.8, reflection: 'Good from Qwen' };
-                if (judge.model === 'openrouter:openai/gpt-oss-120b') return { error: 'GPT-OSS failed' };
-                if (judge.model === 'openrouter:z-ai/glm-4.5') return { error: 'GLM failed' };
-                if (judge.model === 'openrouter:anthropic/claude-haiku-4.5') return { coverage_extent: 0.6, reflection: 'Backup Claude result' };
+                if (judge.id === 'backup-claude-4-5-haiku') return { coverage_extent: 0.4, reflection: 'Backup Claude result' };
+                if (judge.model === 'openrouter:google/gemini-2.5-flash') return { coverage_extent: 0.8, reflection: 'Good from Gemini' };
+                if (judge.model === 'openrouter:openai/gpt-4.1-mini') return { error: 'GPT-4.1-mini failed' };
+                if (judge.model === 'openrouter:anthropic/claude-haiku-4.5') return { coverage_extent: 0.6, reflection: 'Good from Claude' };
                 return { error: 'unexpected judge' };
             });
 
@@ -337,11 +336,12 @@ describe('LLMCoverageEvaluator', () => {
 
             // Should have been called times: primary judges + 1 backup
             expect(requestIndividualJudgeSpy).toHaveBeenCalledTimes(DEFAULT_JUDGES.length + 1);
-            const qwenCount = DEFAULT_JUDGES.filter(j => j.model === 'openrouter:qwen/qwen3-30b-a3b-instruct-2507').length;
-            const expected = parseFloat((((qwenCount * 0.8) + 0.6) / (qwenCount + 1)).toFixed(2));
+            // Two surviving primaries (Gemini, Claude) plus the backup are averaged together
+            const expectedScores = [0.8, 0.6, 0.4];
+            const expected = parseFloat((expectedScores.reduce((a, b) => a + b) / expectedScores.length).toFixed(2));
             expect(assessment.coverageExtent).toBe(expected);
             expect(assessment.judgeModelId).toContain('consensus(');
-            expect(assessment.individualJudgements).toHaveLength(qwenCount + 1);
+            expect(assessment.individualJudgements).toHaveLength(expectedScores.length);
             expect(assessment.reflection).toContain('NOTE: Backup judge was used to supplement failed primary judges.');
             expect(assessment.error).toBeUndefined(); // Should be no error since backup succeeded
         });
