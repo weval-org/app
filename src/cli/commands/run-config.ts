@@ -68,6 +68,9 @@ export async function resolveModelCollections(configModels: any[], collectionsRe
                 logger.warn(`Malformed model entry string '${modelEntry}' contains unexpected whitespace. Correcting to '${correctedEntry}'. Please fix this in your blueprint file.`);
             }
             normalizedConfigModels.push(correctedEntry);
+        } else if (typeof modelEntry === 'object' && modelEntry !== null && !Array.isArray(modelEntry) && modelEntry.id) {
+            // This is a custom model definition (has id, url, modelName, inherit). Add it directly.
+            normalizedConfigModels.push(modelEntry);
         } else if (typeof modelEntry === 'object' && modelEntry !== null && !Array.isArray(modelEntry)) {
             if (modelEntry.id) {
                 // Custom model definition (e.g. { id, url, modelName }). Pass through directly.
