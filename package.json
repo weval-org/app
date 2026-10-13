@@ -95,7 +95,7 @@
     "fuse.js": "^7.1.0",
     "glob": "^11.0.3",
     "immer": "^10.1.1",
-    "inquirer": "^12.8.2",
+    "inquirer": "^14.0.2",
     "iron-session": "^8.0.4",
     "jose": "^6.0.12",
     "js-yaml": "^4.1.0",
