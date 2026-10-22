@@ -64,8 +64,8 @@ pnpm typecheck
 pnpm lint
 ```
 
-The pre-commit hook runs lint-staged, so typecheck and lint are expected before
-opening a PR.
+Please run `pnpm typecheck`, `pnpm lint`, and the test suites that cover your
+change before opening a PR.
 
 ### Author and validate a blueprint
 
