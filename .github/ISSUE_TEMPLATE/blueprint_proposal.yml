@@ -1,0 +1,48 @@
+name: Blueprint Proposal
+description: Propose a new evaluation blueprint
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: topic
+    attributes:
+      label: Domain / topic
+      description: What area should the blueprint evaluate?
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it matters
+      description: Why is this evaluation important for the community?
+    validations:
+      required: true
+
+  - type: textarea
+    id: models
+    attributes:
+      label: Target models
+      description: Which models should be tested, if known?
+    validations:
+      required: false
+
+  - type: textarea
+    id: rubric
+    attributes:
+      label: Draft points / rubric
+      description: Sketch the scoring criteria and expected decision points.
+    validations:
+      required: false
+
+  - type: textarea
+    id: sources
+    attributes:
+      label: Links and sources
+      description: Supporting evidence, references, or example cases.
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        Before proposing, review [docs/BLUEPRINT_FORMAT.md](../../docs/BLUEPRINT_FORMAT.md).
